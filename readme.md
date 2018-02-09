@@ -80,7 +80,7 @@ non-GUI program.
 * [X] 0.0.10 Basic prompt string interpreter (no execute)
 * [X] 0.0.11 response-hiding heuristics
 * [X] 0.0.12 clean up architecture. See [architecture.md](doc/architecture.md)
-* [ ] 0.1 error handling
+* [X] 0.1 error handling
 * [ ] 0.2 Commands from history (up/down,page up/down)
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
