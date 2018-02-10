@@ -10,6 +10,7 @@ libc = "0.2.34"
 time = "0.1"
 cstr = "0.1"
 cstr-macros = "0.1"
+lmdb = "0.7"
 
 [dependencies.nom]
 version = "3.2.1"

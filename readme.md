@@ -81,7 +81,11 @@ non-GUI program.
 * [X] 0.0.11 response-hiding heuristics
 * [X] 0.0.12 clean up architecture. See [architecture.md](doc/architecture.md)
 * [X] 0.1 error handling
-* [ ] 0.2 Commands from history (up/down,page up/down)
+* [X] 0.1.1 import/load/save history using lmdb
+* [ ] 0.1.2 add commands to history, browse history (cursor up/down)
+* [ ] 0.1.3 search history (page up/down)
+* [ ] 0.1.4 interactive search history (ctrl-r / ctrl-s)
+* [ ] 0.2 Commands from history (up/down,page up/down,search)
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
@@ -94,7 +98,7 @@ non-GUI program.
 * [ ] 0.12 functions
 * [ ] 0.13 Sub-Shells
 * [ ] 0.13 Coprocesses
-* [ ] 0.14 Full prompt string interpreter (with execute)
+* [ ] 0.14 Full prompt string interpreter (with variables)
 * [ ] 0.15 Draw GUI using Xft
 * [ ] 0.16 Design a Unicode BiTE logo and use it in prompts for \s
 * [ ] 1.0 Full bash compliance, standalone program passes bash test suite

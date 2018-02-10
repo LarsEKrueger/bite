@@ -35,7 +35,7 @@ struct UserInfo {
     uid: uid_t,
     _gid: gid_t,
     name: String,
-    _home_dir: String,
+    home_dir: String,
     _shell: String,
 }
 
@@ -113,7 +113,7 @@ impl Bash {
                     name: CStr::from_ptr(passwd.pw_name as *const c_char)
                         .to_string_lossy()
                         .into_owned(),
-                    _home_dir: CStr::from_ptr(passwd.pw_dir as *const c_char)
+                    home_dir: CStr::from_ptr(passwd.pw_dir as *const c_char)
                         .to_string_lossy()
                         .into_owned(),
                     _shell: CStr::from_ptr(passwd.pw_shell as *const c_char)
@@ -124,7 +124,7 @@ impl Bash {
                     uid: ::std::u32::MAX,
                     _gid: ::std::u32::MAX,
                     name: String::from("I have no name"),
-                    _home_dir: String::from("I have no home"),
+                    home_dir: String::from("I have no home"),
                     _shell: String::from("I have no shell"),
                 },
             }
@@ -189,6 +189,10 @@ impl Bash {
 
     pub fn get_current_user_name<'a>(&'a self) -> &'a str {
         &self.current_user.name
+    }
+
+    pub fn get_current_user_home_dir<'a>(&'a self) -> &'a str {
+        &self.current_user.home_dir
     }
 
     pub fn current_user_is_root(&self) -> bool {

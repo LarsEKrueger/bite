@@ -21,8 +21,10 @@ pub mod response;
 pub mod interaction;
 pub mod conversation;
 pub mod iterators;
+pub mod history;
 
 use std::iter::*;
+use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 
 use self::interaction::*;
@@ -42,22 +44,36 @@ pub struct Session {
     last_line_shown: usize,
 
     bash: bash::Bash,
+    history: history::History,
 }
 
 impl Session {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, String> {
         let bash = bash::Bash::new();
-        let mut session = Session {
-            current_interaction: None,
-            current_line: runeline::Runeline::new(),
-            last_line_shown: 0,
-            archived: vec![],
-            current_conversation: Conversation::new(bash.expand_ps1()),
-            bash,
+
+        let history = {
+            let home_dir = bash.get_current_user_home_dir();
+
+            history::History::new(home_dir)
         };
-        let last_line_shown = session.line_iter().count() - 1;
-        session.last_line_shown = last_line_shown;
-        session
+        // Load the history from ~/.bite_history or import from ~/.bash_history
+        match history {
+            Ok(history) => {
+                let mut session = Session {
+                    current_interaction: None,
+                    current_line: runeline::Runeline::new(),
+                    last_line_shown: 0,
+                    archived: vec![],
+                    current_conversation: Conversation::new(bash.expand_ps1()),
+                    bash,
+                    history,
+                };
+                let last_line_shown = session.line_iter().count() - 1;
+                session.last_line_shown = last_line_shown;
+                Ok(session)
+            }
+            Err(e) => Err(String::from(e.description())),
+        }
     }
 
     #[allow(dead_code)]
@@ -270,8 +286,12 @@ impl Session {
 mod tests {
     use super::*;
 
-    fn new_test_session(prompt: String) -> Session {
+    fn new_test_session<'a>(prompt: String) -> Session {
         let bash = bash::Bash::new();
+        let history = {
+            let home_dir = bash.get_current_user_home_dir();
+            history::History::new(home_dir)
+        }.unwrap();
         let mut session = Session {
             current_interaction: None,
             current_line: runeline::Runeline::new(),
@@ -279,6 +299,7 @@ mod tests {
             archived: vec![],
             current_conversation: Conversation::new(prompt),
             bash,
+            history,
         };
         let last_line_shown = session.line_iter().count() - 1;
         session.last_line_shown = last_line_shown;

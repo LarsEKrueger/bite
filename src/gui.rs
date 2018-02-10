@@ -86,6 +86,9 @@ impl Gui {
         let WM_DELETE_WINDOW = cstr!("WM_DELETE_WINDOW");
         let EMPTY = cstr!("");
         let IMNONE = cstr!("@im=none");
+
+        let session = Session::new()?;
+
         unsafe {
             let display = XOpenDisplay(null());
             if display.is_null() {
@@ -201,7 +204,7 @@ impl Gui {
                 window_width: WIDTH,
                 window_height: HEIGHT,
 
-                session: Session::new(),
+                session,
                 have_focus: false,
                 cursor_on: false,
                 cursor_flip_time: SystemTime::now(),

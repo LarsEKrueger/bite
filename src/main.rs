@@ -30,6 +30,8 @@ extern crate cstr;
 #[macro_use]
 extern crate nom;
 
+extern crate lmdb;
+
 mod session;
 mod commandline;
 mod polling;
