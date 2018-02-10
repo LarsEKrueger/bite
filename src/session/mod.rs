@@ -24,7 +24,6 @@ pub mod iterators;
 pub mod history;
 
 use std::iter::*;
-use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 
 use self::interaction::*;
@@ -45,6 +44,8 @@ pub struct Session {
 
     bash: bash::Bash,
     history: history::History,
+
+    history_iter: Option<history::HistoryIter>,
 }
 
 impl Session {
@@ -53,27 +54,23 @@ impl Session {
 
         let history = {
             let home_dir = bash.get_current_user_home_dir();
-
             history::History::new(home_dir)
         };
+
         // Load the history from ~/.bite_history or import from ~/.bash_history
-        match history {
-            Ok(history) => {
-                let mut session = Session {
-                    current_interaction: None,
-                    current_line: runeline::Runeline::new(),
-                    last_line_shown: 0,
-                    archived: vec![],
-                    current_conversation: Conversation::new(bash.expand_ps1()),
-                    bash,
-                    history,
-                };
-                let last_line_shown = session.line_iter().count() - 1;
-                session.last_line_shown = last_line_shown;
-                Ok(session)
-            }
-            Err(e) => Err(String::from(e.description())),
-        }
+        let mut session = Session {
+            current_interaction: None,
+            current_line: runeline::Runeline::new(),
+            last_line_shown: 0,
+            archived: vec![],
+            current_conversation: Conversation::new(bash.expand_ps1()),
+            bash,
+            history,
+            history_iter: None,
+        };
+        let last_line_shown = session.line_iter().count() - 1;
+        session.last_line_shown = last_line_shown;
+        Ok(session)
     }
 
     #[allow(dead_code)]
@@ -156,7 +153,10 @@ impl Session {
             }
         }
         if clear_spawned {
-            if let Some((_, _, inter)) = ::std::mem::replace(&mut self.current_interaction, None) {
+            if let Some((_, _, mut inter)) =
+                ::std::mem::replace(&mut self.current_interaction, None)
+            {
+                inter.prepare_archiving();
                 self.archive_interaction(inter);
             }
         }
@@ -188,22 +188,27 @@ impl Session {
     }
 
     pub fn move_left(&mut self) {
+        self.clear_history_mode();
         self.current_line.move_left();
     }
 
     pub fn move_right(&mut self) {
+        self.clear_history_mode();
         self.current_line.move_right();
     }
 
     pub fn delete_left(&mut self) {
+        self.clear_history_mode();
         self.current_line.delete_left();
     }
 
     pub fn delete_right(&mut self) {
+        self.clear_history_mode();
         self.current_line.delete_right();
     }
 
     pub fn end_line(&mut self) {
+        self.clear_history_mode();
         let line = self.current_line.clear();
         let mut line_ret = line.clone();
         line_ret.push_str("\n");
@@ -230,6 +235,9 @@ impl Session {
                         self.archive_interaction(inter);
                     }
                     bash::Command::SimpleCommand(v) => {
+                        // Add to history
+                        self.history.add_command(line.clone());
+
                         // Run command or send to stdin
                         match execute::spawn_command(&v) {
                             Ok((tx, rx)) => {
@@ -254,6 +262,7 @@ impl Session {
     }
 
     pub fn insert_str(&mut self, s: &str) {
+        self.clear_history_mode();
         self.current_line.insert_str(s);
         self.to_last_line();
     }
@@ -277,6 +286,46 @@ impl Session {
             false
         }
     }
+
+    fn clear_history_mode(&mut self) {
+        self.history_iter = None;
+    }
+
+    fn init_history_iter(&mut self, reverse: bool) {
+        if self.history_iter.is_none() {
+            self.history_iter = Some(self.history.iter(reverse));
+        }
+    }
+
+    pub fn prev_history(&mut self) {
+        self.init_history_iter(true);
+        let line = match self.history_iter {
+            Some(ref mut iter) => iter.prev(&self.history),
+            None => None,
+        };
+        match line {
+            Some(s) => {
+                self.current_line.replace(s);
+                self.to_last_line();
+            }
+            None => self.clear_history_mode(),
+        }
+    }
+
+    pub fn next_history(&mut self) {
+        self.init_history_iter(false);
+        let line = match self.history_iter {
+            Some(ref mut iter) => iter.next(&self.history),
+            None => None,
+        };
+        match line {
+            Some(s) => {
+                self.current_line.replace(s);
+                self.to_last_line();
+            }
+            None => self.clear_history_mode(),
+        }
+    }
 }
 
 
@@ -284,12 +333,12 @@ impl Session {
 mod tests {
     use super::*;
 
-    fn new_test_session<'a>(prompt: String) -> Session {
+    fn new_test_session(prompt: String) -> Session {
         let bash = bash::Bash::new();
         let history = {
             let home_dir = bash.get_current_user_home_dir();
             history::History::new(home_dir)
-        }.unwrap();
+        };
         let mut session = Session {
             current_interaction: None,
             current_line: runeline::Runeline::new(),
@@ -298,6 +347,7 @@ mod tests {
             current_conversation: Conversation::new(prompt),
             bash,
             history,
+            history_iter: None,
         };
         let last_line_shown = session.line_iter().count() - 1;
         session.last_line_shown = last_line_shown;

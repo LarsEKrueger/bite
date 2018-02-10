@@ -500,6 +500,14 @@ impl Gui {
                                         self.session.end_line();
                                         handled = true;
                                     }
+                                    (0, XK_Up) => {
+                                        self.session.prev_history();
+                                        handled = true;
+                                    }
+                                    (0, XK_Down) => {
+                                        self.session.next_history();
+                                        handled = true;
+                                    }
                                     (_, _) => (),
                                 }
                             }

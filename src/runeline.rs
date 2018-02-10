@@ -113,6 +113,12 @@ impl Runeline {
     fn is_char_boundary(&self) -> bool {
         self.line.is_char_boundary(self.cursor.byte_index)
     }
+
+    pub fn replace(&mut self, s: String) {
+        self.line = s;
+        self.cursor.byte_index = 0;
+        self.cursor.char_index = 0;
+    }
 }
 
 #[cfg(test)]

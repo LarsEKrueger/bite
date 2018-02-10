@@ -82,7 +82,7 @@ non-GUI program.
 * [X] 0.0.12 clean up architecture. See [architecture.md](doc/architecture.md)
 * [X] 0.1 error handling
 * [X] 0.1.1 import/load/save history using lmdb
-* [ ] 0.1.2 add commands to history, browse history (cursor up/down)
+* [X] 0.1.2 add commands to history, browse history (cursor up/down)
 * [ ] 0.1.3 search history (page up/down)
 * [ ] 0.1.4 interactive search history (ctrl-r / ctrl-s)
 * [ ] 0.2 Commands from history (up/down,page up/down,search)
