@@ -15,52 +15,150 @@ pub struct HistoryIter {
     ind: usize,
 }
 
-// If line does not exist, create an entry
-fn load_from_database(path: &Path) -> Option<Vec<String>> {
-    if let Ok(env) = Environment::new()
-        .set_flags(NO_SUB_DIR)
-        .open_with_permissions(&path, 0o600)
-    {
-        if let Ok(db) = env.create_db(None, DatabaseFlags::empty()) {
-            // Read the whole DB into the set
-            if let Ok(mut txn) = env.begin_ro_txn() {
-                if let Ok(mut cursor) = txn.open_ro_cursor(db) {
-                    let mut items = Vec::new();
-                    for (k, _) in cursor.iter() {
-                        let line = String::from_utf8_lossy(k);
-                        items.push(String::from(line));
-                    }
-                    return Some(items);
-                }
+type HistoryDbKey = u64;
+const HistoryDbKeySize: usize = 8;
+
+const DB_COUNTER_NAME: &str = "counter";
+const DB_HISTORY_NAME: &str = "history";
+
+const DB_COUNTER_KEY: &[u8; 7] = b"counter";
+
+fn print_error<T,E>(e:E) -> ::std::result::Result<T,E> where E: ::std::error::Error{
+  println!("   {}", e.description());
+  Err(e)
+}
+
+/* Database design:
+ * - two databases
+ *   - counter: holds the number of items in "history" as u64
+ *   - history: holds the items, sorted by u64 key
+ * - load: Load all values from "history" in order
+ * - save
+ *   - For each line in memory, check if it exists.
+ *   - If it doesn't, add it.
+ *   - If it does, delete the entry and add a new one at the end.
+ *   - At the end, recreate the indices by a linear scan.
+ */
+
+fn read_counter<'txn,T> (db_count:Database,txn:&'txn mut T) -> Result<HistoryDbKey>
+where T:Transaction 
+{
+    let cnt_res = txn.get(db_count, DB_COUNTER_KEY);
+    match cnt_res {
+        Err(Error::NotFound) => Ok(0),
+        Ok(cnt_bytes) => 
+            if cnt_bytes.len() == HistoryDbKeySize {
+                Ok(unsafe { *(&cnt_bytes[0] as *const u8 as *const HistoryDbKey) })
+            } else {
+                Ok(0)
             }
+        Err(e) => Err(e),
+    }
+}
+
+// If line does not exist, create an entry
+fn load_from_database(path: &Path) -> Result<Vec<String>> {
+    let env = Environment::new()
+        .set_flags(NO_SUB_DIR)
+        .set_max_dbs(2)
+        .open_with_permissions(&path, 0o600)?;
+    let db_hist = env.create_db(Some(DB_HISTORY_NAME), DatabaseFlags::empty())?;
+    let db_count = env.create_db(Some(DB_COUNTER_NAME), DatabaseFlags::empty())?;
+    let mut txn = env.begin_ro_txn()?;
+
+    let counter = read_counter(db_count,&mut txn)?;
+
+    let mut items = Vec::new();
+
+    for k in 0..counter {
+        if let Ok(v) = txn.get(
+            db_hist,
+            unsafe {
+                ::std::mem::transmute::<&u64, &[u8; HistoryDbKeySize]>(&k)
+            }) {
+            let line = String::from_utf8_lossy(v);
+            items.push(String::from(line));
         }
     }
-    None
+
+    if items.len() == 0 { Err(Error::NotFound) } else { Ok(items) }
+}
+
+fn save_to_database(path: &Path, items: &Vec<String>) -> ::lmdb::Result<()> {
+    let env = Environment::new()
+        .set_flags(NO_SUB_DIR)
+        .set_max_dbs(2)
+        .open_with_permissions(path, 0o600)?;
+    let db_hist = env.create_db(Some(DB_HISTORY_NAME), DatabaseFlags::empty())?;
+    let db_count = env.create_db(Some(DB_COUNTER_NAME), DatabaseFlags::empty())?;
+    let mut txn = env.begin_rw_txn()?;
+
+    // Get the counter
+    println!("save_to_database: before count");
+    let mut counter: HistoryDbKey = read_counter(db_count,&mut txn)?;
+    println!("save_to_database: after count: {}", counter);
+
+    // Iterate over the items to bubble the known ones to the end and to add the unknown ones.
+    for line in items.iter() {
+        println!("Checking {}", line);
+        // Delete all items that have a value of line
+        {
+            let mut first = None;
+            {
+                let mut ro_cursor = txn.open_ro_cursor(db_hist)?;
+                // Check if there are no items
+                if let Ok(_) = ro_cursor.get(None,None, 0 /*MDB_FIRST*/) {
+                    for (k, v) in ro_cursor.iter_start() {
+                        let db_line = String::from_utf8_lossy(v);
+                        if db_line == line.as_str() {
+                            first = Some(k.clone());
+                            break;
+                        }
+                    }
+                }
+            }
+            if let Some(k) = first {
+                txn.del(db_hist, &k, None)?;
+            }
+        }
+        // Add line with key=counter
+        println!( "Writing {:08} -> {}", counter, line);
+        txn.put(
+            db_hist,
+            unsafe {
+                ::std::mem::transmute::<&u64, &[u8; HistoryDbKeySize]>(&counter)
+            },
+            &line,
+            WriteFlags::empty(),
+        )?;
+        counter += 1;
+    }
+    
+    // TODO: Now everything is in correct order, re-write them beginning at 0.
+
+
+    // Write back the counter
+    txn.put(
+        db_count,
+        DB_COUNTER_KEY,
+        unsafe {
+            ::std::mem::transmute::<&u64, &[u8; HistoryDbKeySize]>(&counter)
+        },
+        WriteFlags::empty(),
+    )?;
+
+    txn.commit()?;
+
+    Ok(())
 }
 
 impl Drop for History {
+    // Save to database in correct order
     fn drop(&mut self) {
-        if let Ok(env) = Environment::new()
-            .set_flags(NO_SUB_DIR)
-            .open_with_permissions(&self.store_in, 0o600)
-        {
-            // Dummy value to put into lmdb file
-            let value: u32 = 1;
-
-            if let Ok(db) = env.create_db(None, DatabaseFlags::empty()) {
-                if let Ok(mut txn) = env.begin_rw_txn() {
-                    for line in self.items.iter() {
-                        let _ = txn.put(
-                            db,
-                            &line,
-                            unsafe { ::std::mem::transmute::<&u32, &[u8; 4]>(&value) },
-                            WriteFlags::empty(),
-                        );
-
-                    }
-                    let _ = txn.commit();
-                }
-            }
+        let _e = save_to_database(&self.store_in, &self.items);
+        if let Err(e) = _e {
+            use std::error::Error;
+            println!("save_to_database: {}", e.description());
         }
     }
 }
@@ -74,7 +172,7 @@ impl History {
         let bash_history_path = Path::new(home_dir).join(".bash_history");
 
         // Try to load from database
-        if let Some(items) = load_from_database(&bite_history_path) {
+        if let Ok(items) = load_from_database(&bite_history_path) {
             return Self {
                 store_in: bite_history_path,
                 items,
@@ -98,9 +196,18 @@ impl History {
     }
 
     pub fn add_command(&mut self, line: String) {
-        if !self.items.contains(&line) {
-            self.items.push(line);
+        let mut first = self.items.len();
+        for i in 0..self.items.len() {
+            if self.items[i] == line {
+                first = i;
+                break;
+            }
         }
+
+        if first != self.items.len() {
+            self.items.remove(first);
+        }
+        self.items.push(line);
     }
 
     pub fn iter(&self, reverse: bool) -> HistoryIter {
