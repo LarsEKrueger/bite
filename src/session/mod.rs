@@ -79,15 +79,11 @@ impl Session {
     #[allow(dead_code)]
     pub fn new_conversation(&mut self, prompt: String) {
         use std::mem;
-        let mut cur = mem::replace(&mut self.current_conversation, Conversation::new(prompt));
-        cur.hide_output();
+        let cur = mem::replace(&mut self.current_conversation, Conversation::new(prompt));
         self.archived.push(cur);
     }
 
-    pub fn archive_interaction(&mut self, mut interaction: Interaction) {
-        if interaction.has_errors() {
-            interaction.show_errors();
-        }
+    pub fn archive_interaction(&mut self, interaction: Interaction) {
         self.current_conversation.add_interaction(interaction);
     }
 
@@ -230,6 +226,7 @@ impl Session {
                         for l in err.into_iter() {
                             inter.add_error(l);
                         }
+                        inter.prepare_archiving();
                         self.archive_interaction(inter);
                     }
                     bash::Command::SimpleCommand(v) => {
@@ -245,6 +242,7 @@ impl Session {
                                 // Something happened during program start
                                 let mut inter = Interaction::new(line);
                                 inter.add_error(format!("Error executing command: {}", msg));
+                                inter.prepare_archiving();
                                 self.archive_interaction(inter);
                             }
                         };
@@ -439,6 +437,13 @@ mod tests {
             Some(LineItem {
                 text: "prompt 2",
                 is_a: LineType::Prompt,
+            })
+        );
+        assert_eq!(
+            li.next(),
+            Some(LineItem {
+                text: "",
+                is_a: LineType::Input,
             })
         );
         assert_eq!(li.next(), None);

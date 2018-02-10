@@ -49,6 +49,7 @@ impl Conversation {
         )
     }
 
+    #[allow(dead_code)]
     pub fn hide_output(&mut self) {
         for i in self.interactions.iter_mut() {
             i.hide_output();

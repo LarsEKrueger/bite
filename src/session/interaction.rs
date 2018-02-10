@@ -102,6 +102,12 @@ impl Interaction {
         self.errors.visible = false;
         self.output.visible = false;
     }
+
+    pub fn prepare_archiving(&mut self) {
+        if self.has_errors() {
+            self.show_errors();
+        }
+    }
 }
 
 impl CommandPosition {
