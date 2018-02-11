@@ -83,7 +83,7 @@ non-GUI program.
 * [X] 0.1 error handling
 * [X] 0.1.1 import/load/save history using lmdb
 * [X] 0.1.2 add commands to history, browse history (cursor up/down)
-* [ ] 0.1.3 search history (page up/down)
+* [X] 0.1.3 search history by prefix (page up/down)
 * [ ] 0.1.4 interactive search history (ctrl-r / ctrl-s)
 * [ ] 0.1.5 clean up histfile interface, use a simple binary serialization
 * [ ] 0.2 Commands from history (up/down,page up/down,search)

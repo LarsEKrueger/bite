@@ -501,11 +501,19 @@ impl Gui {
                                         handled = true;
                                     }
                                     (0, XK_Up) => {
-                                        self.session.prev_history();
+                                        self.session.previous_history();
                                         handled = true;
                                     }
                                     (0, XK_Down) => {
                                         self.session.next_history();
+                                        handled = true;
+                                    }
+                                    (0, XK_Page_Up) => {
+                                        self.session.history_search_backward();
+                                        handled = true;
+                                    }
+                                    (0, XK_Page_Down) => {
+                                        self.session.history_search_forward();
                                         handled = true;
                                     }
                                     (_, _) => (),

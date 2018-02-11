@@ -34,6 +34,14 @@ use super::bash;
 use super::execute;
 use super::runeline;
 
+enum HistorySearchMode
+{
+    None,
+    Sequential(history::HistorySeqIter),
+    Prefix(history::HistoryPrefIter),
+    // Interactive
+}
+
 // A number of closed conversations and the current one
 pub struct Session {
     pub archived: Vec<Conversation>,
@@ -45,7 +53,7 @@ pub struct Session {
     bash: bash::Bash,
     history: history::History,
 
-    history_iter: Option<history::HistoryIter>,
+    history_search: HistorySearchMode,
 }
 
 impl Session {
@@ -66,7 +74,7 @@ impl Session {
             current_conversation: Conversation::new(bash.expand_ps1()),
             bash,
             history,
-            history_iter: None,
+            history_search: HistorySearchMode::None,
         };
         let last_line_shown = session.line_iter().count() - 1;
         session.last_line_shown = last_line_shown;
@@ -288,39 +296,82 @@ impl Session {
     }
 
     fn clear_history_mode(&mut self) {
-        self.history_iter = None;
+        self.  history_search= HistorySearchMode::None;
     }
 
-    fn init_history_iter(&mut self, reverse: bool) {
-        if self.history_iter.is_none() {
-            self.history_iter = Some(self.history.iter(reverse));
+    fn history_search_seq(&mut self, reverse: bool) {
+        match self.history_search {
+            HistorySearchMode::Sequential(_) => {},
+            _ => { self.history_search = HistorySearchMode::Sequential(self.history.seq_iter(reverse)); },
         }
     }
 
-    pub fn prev_history(&mut self) {
-        self.init_history_iter(true);
-        let line = match self.history_iter {
-            Some(ref mut iter) => iter.prev(&self.history),
-            None => None,
+    pub fn previous_history(&mut self) {
+        self.history_search_seq(true);
+        let line = match self.history_search {
+            HistorySearchMode::Sequential(ref mut iter) => iter.prev(&self.history),
+            _ => None,
         };
         match line {
             Some(s) => {
-                self.current_line.replace(s);
+                self.current_line.replace(s,true);
                 self.to_last_line();
+                // TODO: Go to end of line
             }
             None => self.clear_history_mode(),
         }
     }
 
     pub fn next_history(&mut self) {
-        self.init_history_iter(false);
-        let line = match self.history_iter {
-            Some(ref mut iter) => iter.next(&self.history),
-            None => None,
+        self.history_search_seq(false);
+        let line = match self.history_search {
+            HistorySearchMode::Sequential(ref mut iter) => iter.next(&self.history),
+            _ => None,
         };
         match line {
             Some(s) => {
-                self.current_line.replace(s);
+                self.current_line.replace(s,true);
+                self.to_last_line();
+                // TODO: Go to end of line
+            }
+            None => self.clear_history_mode(),
+        }
+    }
+
+    fn history_search_pref( &mut self, reverse: bool ) {
+        match self.history_search {
+            HistorySearchMode::Prefix(_) => {},
+            _ => { 
+                let iter = self.history.prefix_iter(self.current_line.text_before_cursor(), reverse);
+                self.history_search = HistorySearchMode::Prefix(iter); },
+        }
+    }
+
+    pub fn history_search_forward(&mut self) {
+        self.history_search_pref(false);
+        let line = match self.history_search {
+            HistorySearchMode::Prefix(ref mut iter) => iter.next(&self.history),
+            _ => None,
+        };
+        match line {
+            Some(s) => {
+                self.current_line.replace(s, true);
+                self.to_last_line();
+            }
+            None => self.clear_history_mode(),
+        }
+    }
+
+    pub fn history_search_backward(&mut self) {
+        self.history_search_pref(true);
+
+        let line = match self.history_search {
+            HistorySearchMode::Prefix(ref mut iter) => iter.prev(&self.history),
+            _ => None,
+        };
+        match line {
+            Some(s) => {
+                self.current_line.replace(s, true);
                 self.to_last_line();
             }
             None => self.clear_history_mode(),
@@ -347,7 +398,7 @@ mod tests {
             current_conversation: Conversation::new(prompt),
             bash,
             history,
-            history_iter: None,
+            history_search: HistorySearchMode::None,
         };
         let last_line_shown = session.line_iter().count() - 1;
         session.last_line_shown = last_line_shown;

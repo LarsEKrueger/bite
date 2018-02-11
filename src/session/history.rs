@@ -11,7 +11,12 @@ pub struct History {
     items: Vec<String>,
 }
 
-pub struct HistoryIter {
+pub struct HistorySeqIter {
+    ind: usize,
+}
+
+pub struct HistoryPrefIter {
+    prefix: String,
     ind: usize,
 }
 
@@ -89,13 +94,10 @@ fn save_to_database(path: &Path, items: &Vec<String>) -> ::lmdb::Result<()> {
     let mut txn = env.begin_rw_txn()?;
 
     // Get the counter
-    println!("save_to_database: before count");
     let mut counter: HistoryDbKey = read_counter(db_count,&mut txn)?;
-    println!("save_to_database: after count: {}", counter);
 
     // Iterate over the items to bubble the known ones to the end and to add the unknown ones.
     for line in items.iter() {
-        println!("Checking {}", line);
         // Delete all items that have a value of line
         {
             let mut first = None;
@@ -117,7 +119,6 @@ fn save_to_database(path: &Path, items: &Vec<String>) -> ::lmdb::Result<()> {
             }
         }
         // Add line with key=counter
-        println!( "Writing {:08} -> {}", counter, line);
         txn.put(
             db_hist,
             unsafe {
@@ -150,10 +151,6 @@ impl Drop for History {
     // Save to database in correct order
     fn drop(&mut self) {
         let _e = save_to_database(&self.store_in, &self.items);
-        if let Err(e) = _e {
-            use std::error::Error;
-            println!("save_to_database: {}", e.description());
-        }
     }
 }
 
@@ -204,18 +201,28 @@ impl History {
         self.items.push(line);
     }
 
-    pub fn iter(&self, reverse: bool) -> HistoryIter {
+    pub fn seq_iter(&self, reverse: bool) -> HistorySeqIter {
         let ind = if reverse {
             let l = self.items.len();
             if l == 0 { 0 } else { l - 1 }
         } else {
             0
         };
-        HistoryIter { ind }
+        HistorySeqIter { ind }
+    }
+
+    pub fn prefix_iter(&self, prefix:&str,reverse:bool) -> HistoryPrefIter {
+        let ind = if reverse {
+            let l = self.items.len();
+            if l == 0 { 0 } else { l - 1 }
+        } else {
+            0
+        };
+        HistoryPrefIter { prefix:String::from(prefix), ind }
     }
 }
 
-impl HistoryIter {
+impl HistorySeqIter {
     pub fn prev(&mut self, history: &History) -> Option<String> {
         if self.ind < history.items.len() {
             if self.ind > 0 {
@@ -239,5 +246,37 @@ impl HistoryIter {
         } else {
             None
         }
+    }
+}
+
+impl HistoryPrefIter {
+    pub fn prev(&mut self, history: &History) -> Option<String> {
+        // Loop backwards until we find an item that starts with self.prefix
+        while self.ind < history.items.len() {
+            if self.ind > 0 {
+                let ind = self.ind;
+                self.ind -= 1;
+                if history.items[ind].starts_with( self.prefix.as_str()) {
+                return Some(history.items[ind].clone())
+                }
+            } else {
+                self.ind = history.items.len();
+                if history.items[0].starts_with( self.prefix.as_str()) {
+                return Some(history.items[0].clone());
+                }
+            }
+        }
+        None
+    }
+
+    pub fn next(&mut self, history: &History) -> Option<String> {
+        while self.ind < history.items.len() {
+            let ind = self.ind;
+            self.ind += 1;
+                if history.items[ind].starts_with( self.prefix.as_str()) {
+            return Some(history.items[ind].clone());
+                }
+        }
+        None
     }
 }

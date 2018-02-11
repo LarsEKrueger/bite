@@ -54,6 +54,10 @@ impl Runeline {
         &self.line
     }
 
+    pub fn text_before_cursor(&self) -> &str {
+        &self.line[0..self.cursor.byte_index]
+    }
+
     #[allow(dead_code)]
     pub fn char_index(&self) -> usize {
         self.cursor.char_index
@@ -114,10 +118,17 @@ impl Runeline {
         self.line.is_char_boundary(self.cursor.byte_index)
     }
 
-    pub fn replace(&mut self, s: String) {
+    pub fn replace(&mut self, s: String, stay_there: bool) {
         self.line = s;
+
+        let ci = self.cursor.char_index;
         self.cursor.byte_index = 0;
         self.cursor.char_index = 0;
+        if stay_there {
+            for _i in 0..ci {
+                self.move_right();
+            }
+        }
     }
 }
 
