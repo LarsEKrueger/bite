@@ -23,11 +23,6 @@ const DB_HISTORY_NAME: &str = "history";
 
 const DB_COUNTER_KEY: &[u8; 7] = b"counter";
 
-fn print_error<T,E>(e:E) -> ::std::result::Result<T,E> where E: ::std::error::Error{
-  println!("   {}", e.description());
-  Err(e)
-}
-
 /* Database design:
  * - two databases
  *   - counter: holds the number of items in "history" as u64
@@ -133,9 +128,8 @@ fn save_to_database(path: &Path, items: &Vec<String>) -> ::lmdb::Result<()> {
         )?;
         counter += 1;
     }
-    
-    // TODO: Now everything is in correct order, re-write them beginning at 0.
 
+    // TODO: Now everything is in correct order, re-write them beginning at 0.
 
     // Write back the counter
     txn.put(
