@@ -40,13 +40,13 @@ impl Response {
 
     pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         Box::new(self.lines.iter().map(|l| {
-            LineItem::new(&l.text, LineType::Output)
+            LineItem::new(&l.text, LineType::Output, None)
         }))
     }
 
     pub fn empty_line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         let mut iter = self.lines.iter().map(|l| {
-            LineItem::new(&l.text, LineType::Output)
+            LineItem::new(&l.text, LineType::Output, None)
         });
         iter.nth(self.lines.len());
         Box::new(iter)
@@ -71,6 +71,7 @@ mod tests {
             Some(LineItem {
                 text: "line 1",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -78,6 +79,7 @@ mod tests {
             Some(LineItem {
                 text: "line 2",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -85,6 +87,7 @@ mod tests {
             Some(LineItem {
                 text: "",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -92,6 +95,7 @@ mod tests {
             Some(LineItem {
                 text: "line 4",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(li.next(), None);

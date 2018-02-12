@@ -36,6 +36,9 @@ pub struct LineItem<'a> {
 
     // Text to be displayed
     pub text: &'a str,
+
+    // Cursor position, if any
+    pub cursor_col: Option<usize>,
 }
 
 pub struct CpArchiveIter {
@@ -48,8 +51,12 @@ pub struct CpConvIter {
 
 
 impl<'a> LineItem<'a> {
-    pub fn new(l: &'a str, is_a: LineType) -> Self {
-        Self { text: l, is_a }
+    pub fn new(l: &'a str, is_a: LineType, cursor_col: Option<usize>) -> Self {
+        Self {
+            text: l,
+            is_a,
+            cursor_col,
+        }
     }
 }
 

@@ -45,7 +45,9 @@ impl Conversation {
                 .iter()
                 .zip(pos.conv_iter())
                 .flat_map(|(inter, index)| inter.line_iter(index))
-                .chain(iter::once(LineItem::new(&self.prompt, LineType::Prompt))),
+                .chain(iter::once(
+                    LineItem::new(&self.prompt, LineType::Prompt, None),
+                )),
         )
     }
 
@@ -80,6 +82,7 @@ mod tests {
             Some(LineItem {
                 text: "command 1.1",
                 is_a: LineType::Command(OutputVisibility::Output, CommandPosition::Archived(0, 0)),
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -87,6 +90,7 @@ mod tests {
             Some(LineItem {
                 text: "output 1.1.1",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -94,6 +98,7 @@ mod tests {
             Some(LineItem {
                 text: "output 1.1.2",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -101,6 +106,7 @@ mod tests {
             Some(LineItem {
                 text: "command 1.2",
                 is_a: LineType::Command(OutputVisibility::Error, CommandPosition::Archived(0, 1)),
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -108,6 +114,7 @@ mod tests {
             Some(LineItem {
                 text: "error 1.2.1",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -115,6 +122,7 @@ mod tests {
             Some(LineItem {
                 text: "error 1.2.2",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -122,6 +130,7 @@ mod tests {
             Some(LineItem {
                 text: "prompt",
                 is_a: LineType::Prompt,
+                cursor_col: None,
             })
         );
         assert_eq!(li.next(), None);

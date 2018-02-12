@@ -85,7 +85,11 @@ impl Interaction {
             _ => OutputVisibility::None,
         };
         Box::new(
-            iter::once(LineItem::new(&self.command, LineType::Command(ov, pos))).chain(resp_lines),
+            iter::once(LineItem::new(
+                &self.command,
+                LineType::Command(ov, pos),
+                None,
+            )).chain(resp_lines),
         )
     }
 
@@ -143,6 +147,7 @@ mod tests {
                         OutputVisibility::Output,
                         CommandPosition::CurrentConversation(0),
                     ),
+                    cursor_col: None,
                 })
             );
             assert_eq!(
@@ -150,6 +155,7 @@ mod tests {
                 Some(LineItem {
                     text: "out 1",
                     is_a: LineType::Output,
+                    cursor_col: None,
                 })
             );
             assert_eq!(li.count(), 2);
@@ -168,6 +174,7 @@ mod tests {
                         OutputVisibility::Error,
                         CommandPosition::Archived(1, 0),
                     ),
+                    cursor_col: None,
                 })
             );
             assert_eq!(
@@ -175,6 +182,7 @@ mod tests {
                 Some(LineItem {
                     text: "err 1",
                     is_a: LineType::Output,
+                    cursor_col: None,
                 })
             );
             assert_eq!(li.count(), 1);
@@ -193,6 +201,7 @@ mod tests {
                         OutputVisibility::None,
                         CommandPosition::CurrentInteraction,
                     ),
+                    cursor_col: None,
                 })
             );
             assert_eq!(li.next(), None);

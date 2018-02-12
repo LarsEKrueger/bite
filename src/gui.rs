@@ -247,16 +247,16 @@ impl Gui {
         }
     }
 
-    pub fn draw_line(&self, row: i32, line: LineItem) {
+    pub fn draw_line(&self, row: i32, line: &LineItem) {
         // Depending on the type, choose the offset and draw the decoration
         let (deco, offset) = match line.is_a {
             LineType::Output => ("", 2),
             LineType::Prompt => ("", 0),
-            LineType::Command(ov, _) => {
+            LineType::Command(ref ov, _) => {
                 let deco = match ov {
-                    OutputVisibility::None => " » ",
-                    OutputVisibility::Output => "O» ",
-                    OutputVisibility::Error => "E» ",
+                    &OutputVisibility::None => " » ",
+                    &OutputVisibility::Output => "O» ",
+                    &OutputVisibility::Error => "E» ",
                 };
                 (deco, COMMAND_PREFIX_LEN)
             }
@@ -293,44 +293,45 @@ impl Gui {
         let mut li = self.session.line_iter().skip(start_line);
         let mut row = 0i32;
         while let Some(line) = li.next() {
-            self.draw_line(row, line);
+            self.draw_line(row, &line);
+
+            if let Some(cursor_col) = line.cursor_col {
+                // Draw a cursor if requested
+                let x = self.font_width * (cursor_col as i32);
+                let y = self.font_height * row;
+
+                if self.cursor_on && self.have_focus {
+                    unsafe {
+                        XFillRectangle(
+                            self.display,
+                            self.window,
+                            self.gc,
+                            x,
+                            y,
+                            self.font_width as u32,
+                            self.font_height as u32,
+                        );
+                    }
+                } else {
+                    unsafe {
+                        XDrawRectangle(
+                            self.display,
+                            self.window,
+                            self.gc,
+                            x,
+                            y,
+                            self.font_width as u32,
+                            self.font_height as u32,
+                        );
+                    }
+                }
+
+
+            }
+
             row += 1;
             if (row as usize) >= lines_per_window {
                 break;
-            }
-        }
-        // Draw the current line if it is visible
-        if li.count() == 0 && (row as usize) <= lines_per_window {
-            assert!(row > 0);
-            row -= 1;
-            // Draw cursor
-            let x = self.font_width * (self.session.current_line_pos() as i32);
-            let y = self.font_height * row;
-
-            if self.cursor_on && self.have_focus {
-                unsafe {
-                    XFillRectangle(
-                        self.display,
-                        self.window,
-                        self.gc,
-                        x,
-                        y,
-                        self.font_width as u32,
-                        self.font_height as u32,
-                    );
-                }
-            } else {
-                unsafe {
-                    XDrawRectangle(
-                        self.display,
-                        self.window,
-                        self.gc,
-                        x,
-                        y,
-                        self.font_width as u32,
-                        self.font_height as u32,
-                    );
-                }
             }
         }
     }

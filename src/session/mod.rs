@@ -113,7 +113,7 @@ impl Session {
         };
 
         Box::new(iter.chain(::std::iter::once(
-            LineItem::new(self.current_line.text(), LineType::Input),
+            LineItem::new(self.current_line.text(), LineType::Input, Some(self.current_line_pos())),
         )))
     }
 
@@ -439,14 +439,15 @@ mod tests {
             Some(LineItem {
                 text: "command 1.1",
                 is_a: LineType::Command(OutputVisibility::Output, CommandPosition::Archived(0, 0)),
+                cursor_col: None,
             })
         );
         assert_eq!(
             li.next(),
             Some(LineItem {
                 text: "output 1.1.1",
-
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -454,6 +455,7 @@ mod tests {
             Some(LineItem {
                 text: "output 1.1.2",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -461,6 +463,7 @@ mod tests {
             Some(LineItem {
                 text: "command 1.2",
                 is_a: LineType::Command(OutputVisibility::Output, CommandPosition::Archived(0, 1)),
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -468,6 +471,7 @@ mod tests {
             Some(LineItem {
                 text: "output 1.2.1",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -475,6 +479,7 @@ mod tests {
             Some(LineItem {
                 text: "output 1.2.2",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -482,6 +487,7 @@ mod tests {
             Some(LineItem {
                 text: "prompt 1",
                 is_a: LineType::Prompt,
+                cursor_col: None,
             })
         );
 
@@ -493,6 +499,7 @@ mod tests {
                     OutputVisibility::Output,
                     CommandPosition::CurrentConversation(0),
                 ),
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -500,6 +507,7 @@ mod tests {
             Some(LineItem {
                 text: "output 2.1.1",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -507,6 +515,7 @@ mod tests {
             Some(LineItem {
                 text: "output 2.1.2",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -517,6 +526,7 @@ mod tests {
                     OutputVisibility::Output,
                     CommandPosition::CurrentConversation(1),
                 ),
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -524,6 +534,7 @@ mod tests {
             Some(LineItem {
                 text: "output 2.2.1",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -531,6 +542,7 @@ mod tests {
             Some(LineItem {
                 text: "output 2.2.2",
                 is_a: LineType::Output,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -538,6 +550,7 @@ mod tests {
             Some(LineItem {
                 text: "prompt 2",
                 is_a: LineType::Prompt,
+                cursor_col: None,
             })
         );
         assert_eq!(
@@ -545,6 +558,7 @@ mod tests {
             Some(LineItem {
                 text: "",
                 is_a: LineType::Input,
+                cursor_col: Some(0),
             })
         );
         assert_eq!(li.next(), None);
