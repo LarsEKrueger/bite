@@ -34,12 +34,11 @@ use super::bash;
 use super::execute;
 use super::runeline;
 
-enum HistorySearchMode
-{
+enum HistorySearchMode {
     None,
     Sequential(history::HistorySeqIter),
     Prefix(history::HistoryPrefIter),
-    // Interactive
+    Interactive(history::HistoryInteractiveSearch),
 }
 
 // A number of closed conversations and the current one
@@ -92,7 +91,34 @@ impl Session {
         self.current_conversation.add_interaction(interaction);
     }
 
-    pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+    pub fn line_iter_history_search<'a>(
+        &'a self,
+        hsi: &'a history::HistoryInteractiveSearch,
+    ) -> Box<Iterator<Item = LineItem> + 'a> {
+        Box::new(
+            hsi.matching_items
+                .iter()
+                .zip(0..)
+                .map(move |(hist_ind, match_ind)| {
+                    LineItem::new(
+                        self.history.items[*hist_ind].as_str(),
+                        if match_ind == hsi.ind_item {
+                            LineType::SelectedMenuItem(*hist_ind)
+                        } else {
+                            LineType::MenuItem(*hist_ind)
+                        },
+                        None,
+                    )
+                })
+                .chain(::std::iter::once(LineItem::new(
+                    self.current_line.text(),
+                    LineType::Input,
+                    Some(self.current_line_pos()),
+                ))),
+        )
+    }
+
+    pub fn line_iter_normal<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         let archived_iter = self.archived
             .iter()
             .zip(CommandPosition::archive_iter())
@@ -112,11 +138,20 @@ impl Session {
             }
         };
 
-        Box::new(iter.chain(::std::iter::once(
-            LineItem::new(self.current_line.text(), LineType::Input, Some(self.current_line_pos())),
-        )))
+        Box::new(iter.chain(::std::iter::once(LineItem::new(
+            self.current_line.text(),
+            LineType::Input,
+            Some(self.current_line_pos()),
+        ))))
     }
 
+    pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+        if let HistorySearchMode::Interactive(ref hsi) = self.history_search {
+            self.line_iter_history_search(hsi)
+        } else {
+            self.line_iter_normal()
+        }
+    }
 
     pub fn start_line(&self, lines_per_window: usize) -> usize {
         if self.last_line_shown > lines_per_window {
@@ -216,6 +251,14 @@ impl Session {
     }
 
     pub fn end_line(&mut self) {
+        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
+            if hsi.ind_item < hsi.matching_items.len() {
+                self.current_line.replace(
+                    self.history.items[hsi.matching_items[hsi.ind_item]].clone(),
+                    false,
+                );
+            }
+        };
         self.clear_history_mode();
         let line = self.current_line.clear();
         let mut line_ret = line.clone();
@@ -270,8 +313,13 @@ impl Session {
     }
 
     pub fn insert_str(&mut self, s: &str) {
-        self.clear_history_mode();
-        self.current_line.insert_str(s);
+        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
+            self.current_line.insert_str(s);
+            hsi.set_prefix(&self.history, self.current_line.text());
+        } else {
+            self.clear_history_mode();
+            self.current_line.insert_str(s);
+        }
         self.to_last_line();
     }
 
@@ -296,17 +344,23 @@ impl Session {
     }
 
     fn clear_history_mode(&mut self) {
-        self.  history_search= HistorySearchMode::None;
+        self.history_search = HistorySearchMode::None;
     }
 
     fn history_search_seq(&mut self, reverse: bool) {
         match self.history_search {
-            HistorySearchMode::Sequential(_) => {},
-            _ => { self.history_search = HistorySearchMode::Sequential(self.history.seq_iter(reverse)); },
+            HistorySearchMode::Sequential(_) => {}
+            _ => {
+                self.history_search = HistorySearchMode::Sequential(self.history.seq_iter(reverse));
+            }
         }
     }
 
     pub fn previous_history(&mut self) {
+        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
+            hsi.prev();
+            return;
+        };
         self.history_search_seq(true);
         let line = match self.history_search {
             HistorySearchMode::Sequential(ref mut iter) => iter.prev(&self.history),
@@ -314,7 +368,7 @@ impl Session {
         };
         match line {
             Some(s) => {
-                self.current_line.replace(s,true);
+                self.current_line.replace(s, true);
                 self.to_last_line();
                 // TODO: Go to end of line
             }
@@ -323,6 +377,10 @@ impl Session {
     }
 
     pub fn next_history(&mut self) {
+        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
+            hsi.next();
+            return;
+        };
         self.history_search_seq(false);
         let line = match self.history_search {
             HistorySearchMode::Sequential(ref mut iter) => iter.next(&self.history),
@@ -330,7 +388,7 @@ impl Session {
         };
         match line {
             Some(s) => {
-                self.current_line.replace(s,true);
+                self.current_line.replace(s, true);
                 self.to_last_line();
                 // TODO: Go to end of line
             }
@@ -338,12 +396,16 @@ impl Session {
         }
     }
 
-    fn history_search_pref( &mut self, reverse: bool ) {
+    fn history_search_pref(&mut self, reverse: bool) {
         match self.history_search {
-            HistorySearchMode::Prefix(_) => {},
-            _ => { 
-                let iter = self.history.prefix_iter(self.current_line.text_before_cursor(), reverse);
-                self.history_search = HistorySearchMode::Prefix(iter); },
+            HistorySearchMode::Prefix(_) => {}
+            _ => {
+                let iter = self.history.prefix_iter(
+                    self.current_line.text_before_cursor(),
+                    reverse,
+                );
+                self.history_search = HistorySearchMode::Prefix(iter);
+            }
         }
     }
 
@@ -375,6 +437,19 @@ impl Session {
                 self.to_last_line();
             }
             None => self.clear_history_mode(),
+        }
+    }
+
+    pub fn history_search_interactive(&mut self) {
+        println!("history_search_interactive");
+        match self.history_search {
+            HistorySearchMode::Interactive(_) => {}
+            _ => {
+                self.current_line.clear();
+                self.history_search =
+                    HistorySearchMode::Interactive(self.history.begin_interactive_search());
+                self.to_last_line();
+            }
         }
     }
 }

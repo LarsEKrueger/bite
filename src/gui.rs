@@ -262,7 +262,8 @@ impl Gui {
             }
             LineType::Input => ("", 0),
             LineType::MenuDecoration => ("", 0),
-            LineType::MenuItem(_) => ("", 0),
+            LineType::SelectedMenuItem(_) => ("==> ", 4),
+            LineType::MenuItem(_) => ("    ", 4),
         };
 
         self.draw_utf8(0, row, deco);
@@ -517,6 +518,10 @@ impl Gui {
                                     }
                                     (0, XK_Page_Down) => {
                                         self.session.history_search_forward();
+                                        handled = true;
+                                    }
+                                    (ControlMask, XK_r) => {
+                                        self.session.history_search_interactive();
                                         handled = true;
                                     }
                                     (_, _) => (),

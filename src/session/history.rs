@@ -26,7 +26,7 @@ use std::fs::File;
 // The history is stored in a BTreeSet for deduplication.
 pub struct History {
     store_in: PathBuf,
-    items: Vec<String>,
+    pub items: Vec<String>,
 }
 
 pub struct HistorySeqIter {
@@ -36,6 +36,11 @@ pub struct HistorySeqIter {
 pub struct HistoryPrefIter {
     prefix: String,
     ind: usize,
+}
+
+pub struct HistoryInteractiveSearch {
+    pub matching_items: Vec<usize>,
+    pub ind_item: usize,
 }
 
 type HistoryDbKey = u64;
@@ -58,18 +63,22 @@ const DB_COUNTER_KEY: &[u8; 7] = b"counter";
  *   - At the end, recreate the indices by a linear scan.
  */
 
-fn read_counter<'txn,T> (db_count:Database,txn:&'txn mut T) -> Result<HistoryDbKey>
-where T:Transaction 
+fn read_counter<'txn, T>(db_count: Database, txn: &'txn mut T) -> Result<HistoryDbKey>
+where
+    T: Transaction,
 {
     let cnt_res = txn.get(db_count, DB_COUNTER_KEY);
     match cnt_res {
         Err(Error::NotFound) => Ok(0),
-        Ok(cnt_bytes) => 
+        Ok(cnt_bytes) => {
             if cnt_bytes.len() == HistoryDbKeySize {
-                Ok(unsafe { *(&cnt_bytes[0] as *const u8 as *const HistoryDbKey) })
+                Ok(unsafe {
+                    *(&cnt_bytes[0] as *const u8 as *const HistoryDbKey)
+                })
             } else {
                 Ok(0)
             }
+        }
         Err(e) => Err(e),
     }
 }
@@ -84,22 +93,25 @@ fn load_from_database(path: &Path) -> Result<Vec<String>> {
     let db_count = env.create_db(Some(DB_COUNTER_NAME), DatabaseFlags::empty())?;
     let mut txn = env.begin_ro_txn()?;
 
-    let counter = read_counter(db_count,&mut txn)?;
+    let counter = read_counter(db_count, &mut txn)?;
 
     let mut items = Vec::new();
 
     for k in 0..counter {
-        if let Ok(v) = txn.get(
-            db_hist,
-            unsafe {
-                ::std::mem::transmute::<&u64, &[u8; HistoryDbKeySize]>(&k)
-            }) {
+        if let Ok(v) = txn.get(db_hist, unsafe {
+            ::std::mem::transmute::<&u64, &[u8; HistoryDbKeySize]>(&k)
+        })
+        {
             let line = String::from_utf8_lossy(v);
             items.push(String::from(line));
         }
     }
 
-    if items.len() == 0 { Err(Error::NotFound) } else { Ok(items) }
+    if items.len() == 0 {
+        Err(Error::NotFound)
+    } else {
+        Ok(items)
+    }
 }
 
 fn save_to_database(path: &Path, items: &Vec<String>) -> ::lmdb::Result<()> {
@@ -112,7 +124,7 @@ fn save_to_database(path: &Path, items: &Vec<String>) -> ::lmdb::Result<()> {
     let mut txn = env.begin_rw_txn()?;
 
     // Get the counter
-    let mut counter: HistoryDbKey = read_counter(db_count,&mut txn)?;
+    let mut counter: HistoryDbKey = read_counter(db_count, &mut txn)?;
 
     // Iterate over the items to bubble the known ones to the end and to add the unknown ones.
     for line in items.iter() {
@@ -122,7 +134,7 @@ fn save_to_database(path: &Path, items: &Vec<String>) -> ::lmdb::Result<()> {
             {
                 let mut ro_cursor = txn.open_ro_cursor(db_hist)?;
                 // Check if there are no items
-                if let Ok(_) = ro_cursor.get(None,None, 0 /*MDB_FIRST*/) {
+                if let Ok(_) = ro_cursor.get(None, None, 0 /*MDB_FIRST*/) {
                     for (k, v) in ro_cursor.iter_start() {
                         let db_line = String::from_utf8_lossy(v);
                         if db_line == line.as_str() {
@@ -229,14 +241,25 @@ impl History {
         HistorySeqIter { ind }
     }
 
-    pub fn prefix_iter(&self, prefix:&str,reverse:bool) -> HistoryPrefIter {
+    pub fn prefix_iter(&self, prefix: &str, reverse: bool) -> HistoryPrefIter {
         let ind = if reverse {
             let l = self.items.len();
             if l == 0 { 0 } else { l - 1 }
         } else {
             0
         };
-        HistoryPrefIter { prefix:String::from(prefix), ind }
+        HistoryPrefIter {
+            prefix: String::from(prefix),
+            ind,
+        }
+    }
+
+    pub fn begin_interactive_search(&self) -> HistoryInteractiveSearch {
+        let l = self.items.len();
+        HistoryInteractiveSearch {
+            matching_items: (0..self.items.len()).collect(),
+            ind_item: if l == 0 { 0 } else { l - 1 },
+        }
     }
 }
 
@@ -274,13 +297,13 @@ impl HistoryPrefIter {
             if self.ind > 0 {
                 let ind = self.ind;
                 self.ind -= 1;
-                if history.items[ind].starts_with( self.prefix.as_str()) {
-                return Some(history.items[ind].clone())
+                if history.items[ind].starts_with(self.prefix.as_str()) {
+                    return Some(history.items[ind].clone());
                 }
             } else {
                 self.ind = history.items.len();
-                if history.items[0].starts_with( self.prefix.as_str()) {
-                return Some(history.items[0].clone());
+                if history.items[0].starts_with(self.prefix.as_str()) {
+                    return Some(history.items[0].clone());
                 }
             }
         }
@@ -291,10 +314,61 @@ impl HistoryPrefIter {
         while self.ind < history.items.len() {
             let ind = self.ind;
             self.ind += 1;
-                if history.items[ind].starts_with( self.prefix.as_str()) {
-            return Some(history.items[ind].clone());
-                }
+            if history.items[ind].starts_with(self.prefix.as_str()) {
+                return Some(history.items[ind].clone());
+            }
         }
         None
+    }
+}
+
+fn abs_diff(a: usize, b: usize) -> usize {
+    if a < b { b - a } else { a - b }
+}
+
+impl HistoryInteractiveSearch {
+    pub fn set_prefix(&mut self, history: &History, pref: &str) {
+        // Get index of history item that is selected.
+        let current_history_ind = if self.ind_item < self.matching_items.len() {
+            self.matching_items[self.ind_item]
+        } else {
+            0
+        };
+        // Find the indices of all history items that contain this search string
+        self.matching_items = (0..history.items.len())
+            .filter(|i| history.items[*i].contains(pref))
+            .collect();
+
+        // Find the index into matching_items that is closest to current_history_ind to move the
+        // highlight only a litte.
+        let mut ind_item = 0;
+        let mut dist = history.items.len();
+        for i in 0..self.matching_items.len() {
+            let history_ind = self.matching_items[i];
+            println!("match '{}'", history.items[history_ind]);
+            let d = abs_diff(current_history_ind, history_ind);
+            if d < dist {
+                dist = d;
+                ind_item = i;
+            }
+        }
+        self.ind_item = ind_item;
+    }
+
+    pub fn prev(&mut self) {
+        if self.ind_item > 0 {
+            self.ind_item -= 1;
+        } else {
+            let l = self.matching_items.len();
+            self.ind_item = if l == 0 { 0 } else { l - 1 };
+        }
+    }
+
+    pub fn next(&mut self) {
+        if self.ind_item < self.matching_items.len() {
+            self.ind_item += 1;
+        } else {
+            self.ind_item = 0;
+        }
     }
 }
