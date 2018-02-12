@@ -261,6 +261,8 @@ impl Gui {
                 (deco, COMMAND_PREFIX_LEN)
             }
             LineType::Input => ("", 0),
+            LineType::MenuDecoration => ("", 0),
+            LineType::MenuItem(_) => ("", 0),
         };
 
         self.draw_utf8(0, row, deco);

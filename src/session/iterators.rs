@@ -25,6 +25,8 @@ pub enum LineType {
     Command(OutputVisibility, CommandPosition),
     Output,
     Input,
+    MenuItem(usize),
+    MenuDecoration,
 }
 
 // A line to be displayed.
