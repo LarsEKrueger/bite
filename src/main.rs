@@ -30,7 +30,7 @@ extern crate cstr;
 #[macro_use]
 extern crate nom;
 
-extern crate lmdb;
+extern crate bincode;
 
 mod session;
 mod commandline;
@@ -39,6 +39,7 @@ mod execute;
 mod runeline;
 mod bash;
 mod gui;
+mod versioned_file;
 
 fn main() {
     let EMPTY = cstr!("");

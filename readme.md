@@ -85,7 +85,8 @@ non-GUI program.
 * [X] 0.1.2 add commands to history, browse history (cursor up/down)
 * [X] 0.1.3 search history by prefix (page up/down)
 * [X] 0.1.4 interactive search history (ctrl-r / ctrl-s)
-* [ ] 0.1.5 clean up histfile interface, use a simple binary serialization
+* [X] 0.1.5 clean up histfile interface, use a simple binary serialization
+* [ ] 0.1.6 clean up architecture
 * [ ] 0.2 Commands from history (up/down,page up/down,search)
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
