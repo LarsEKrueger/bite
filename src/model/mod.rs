@@ -19,7 +19,6 @@
 pub mod bash;
 pub mod conversation;
 pub mod execute;
-pub mod history;
 pub mod interaction;
 pub mod iterators;
 pub mod line;

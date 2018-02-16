@@ -38,7 +38,7 @@ use nom::newline;
 */
 
 named!(
-    pub parse_script<super::types::Command>,
+    pub parse_script<super::Command>,
     terminated!(simple_command
                 , newline)
 );
@@ -125,9 +125,9 @@ macro_rules! spaced (
 );
 
 named!(
-    simple_command<super::types::Command>,
+    simple_command<super::Command>,
     map!(spaced!(many1!(word)), |cs| {
-        super::types::Command::SimpleCommand(cs)
+        super::Command::SimpleCommand(cs)
     })
 );
 
@@ -417,6 +417,7 @@ named!(word_letter<char>, none_of!(" \n\t\"\'|&;()<>"));
 mod tests {
     use nom::IResult;
     use super::*;
+    use super::super::*;
 
     #[test]
     fn test_word() {
@@ -430,7 +431,7 @@ mod tests {
             simple_command(b"ab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                super::super::types::Command::SimpleCommand(vec![
+                Command::SimpleCommand(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -442,7 +443,7 @@ mod tests {
             simple_command(b" \tab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                super::super::types::Command::SimpleCommand(vec![
+                Command::SimpleCommand(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -458,7 +459,7 @@ mod tests {
             parse_script(b" ab bc   cd \t\tde\n"),
             IResult::Done(
                 &b""[..],
-                super::super::types::Command::SimpleCommand(vec![
+                Command::SimpleCommand(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),

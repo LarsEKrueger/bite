@@ -25,8 +25,9 @@ use libc::{c_char, gethostname, gid_t, uid_t};
 
 mod script_parser;
 mod prompt_parser;
+pub mod history;
 
-use super::types;
+use super::types::*;
 
 // All relevant info about the current user.
 struct UserInfo {
@@ -41,6 +42,7 @@ pub struct Bash {
     current_host_name: String,
     current_user: UserInfo,
     line: String,
+    pub history: history::History,
 }
 
 const VERSION: &'static str = "0.0";
@@ -128,10 +130,13 @@ impl Bash {
             }
         };
 
+        let history = history::History::new(&current_user.home_dir);
+
         Self {
             line: String::new(),
             current_host_name,
             current_user,
+            history,
         }
     }
 
@@ -146,22 +151,31 @@ impl Bash {
         s
     }
 
-    pub fn add_line(&mut self, l: &str) -> types::Command {
+    pub fn add_line(&mut self, l: &str) -> Command {
         // Append the line to the last one and try to (re-)parse.
         self.line.push_str(l);
-        use std::mem;
-        let line = mem::replace(&mut self.line, String::new());
-        let bytes = line.as_bytes();
-        match script_parser::parse_script(bytes) {
-            IResult::Incomplete(_) => types::Command::Incomplete,
-            IResult::Error(e) => types::Command::Error(format_error_message(e, &line)),
-            IResult::Done(r, o) => {
-                // Delete the input from line and return the command.
-                let rest = self.line.split_off(r.len());
-                self.line = rest;
-                o
+
+        // Keep the line in a local variable for a moment
+        let line = ::std::mem::replace(&mut self.line, String::new());
+        let command = {
+            let bytes = line.as_bytes();
+            match script_parser::parse_script(bytes) {
+                IResult::Incomplete(_) => Command::Incomplete,
+                IResult::Error(e) => Command::Error(format_error_message(e, &line)),
+                IResult::Done(_, o) => o,
+            }
+        };
+        match command {
+            Command::Incomplete => {
+                // Put line back
+                self.line = line;
+            }
+            Command::Error(_) => {}
+            _ => {
+                self.history.add_command(line);
             }
         }
+        command
     }
 
     pub fn expand_ps1(&self) -> String {
@@ -189,6 +203,7 @@ impl Bash {
         &self.current_user.name
     }
 
+    #[allow(dead_code)]
     pub fn get_current_user_home_dir<'a>(&'a self) -> &'a str {
         &self.current_user.home_dir
     }

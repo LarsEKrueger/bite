@@ -19,8 +19,8 @@
 use std::iter::*;
 use std::sync::mpsc::{Receiver, Sender};
 
-use super::history;
 use super::bash;
+use super::bash::history;
 use super::types::*;
 use super::conversation::*;
 use super::interaction::*;
@@ -44,7 +44,6 @@ pub struct Session {
     last_line_shown: usize,
 
     bash: bash::Bash,
-    history: history::History,
 
     history_search: HistorySearchMode,
 }
@@ -53,12 +52,6 @@ impl Session {
     pub fn new() -> Result<Self, String> {
         let bash = bash::Bash::new();
 
-        let history = {
-            let home_dir = bash.get_current_user_home_dir();
-            history::History::new(home_dir)
-        };
-
-        // Load the history from ~/.bite_history or import from ~/.bash_history
         let mut session = Session {
             current_interaction: None,
             current_line: runeline::Runeline::new(),
@@ -66,7 +59,6 @@ impl Session {
             archived: vec![],
             current_conversation: Conversation::new(bash.expand_ps1()),
             bash,
-            history,
             history_search: HistorySearchMode::None,
         };
         let last_line_shown = session.line_iter().count() - 1;
@@ -95,7 +87,7 @@ impl Session {
                 .zip(0..)
                 .map(move |(hist_ind, match_ind)| {
                     LineItem::new(
-                        self.history.items[*hist_ind].as_str(),
+                        self.bash.history.items[*hist_ind].as_str(),
                         if match_ind == hsi.ind_item {
                             LineType::SelectedMenuItem(*hist_ind)
                         } else {
@@ -248,7 +240,7 @@ impl Session {
         if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
             if hsi.ind_item < hsi.matching_items.len() {
                 self.current_line.replace(
-                    self.history.items[hsi.matching_items[hsi.ind_item]].clone(),
+                    self.bash.history.items[hsi.matching_items[hsi.ind_item]].clone(),
                     false,
                 );
             }
@@ -281,7 +273,7 @@ impl Session {
                     }
                     Command::SimpleCommand(v) => {
                         // Add to history
-                        self.history.add_command(line.clone());
+                        self.bash.history.add_command(line.clone());
 
                         // Run command or send to stdin
                         match execute::spawn_command(&v) {
@@ -309,7 +301,7 @@ impl Session {
     pub fn insert_str(&mut self, s: &str) {
         if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
             self.current_line.insert_str(s);
-            hsi.set_prefix(&self.history, self.current_line.text());
+            hsi.set_prefix(&self.bash.history, self.current_line.text());
         } else {
             self.clear_history_mode();
             self.current_line.insert_str(s);
@@ -345,7 +337,8 @@ impl Session {
         match self.history_search {
             HistorySearchMode::Sequential(_) => {}
             _ => {
-                self.history_search = HistorySearchMode::Sequential(self.history.seq_iter(reverse));
+                self.history_search =
+                    HistorySearchMode::Sequential(self.bash.history.seq_iter(reverse));
             }
         }
     }
@@ -357,7 +350,7 @@ impl Session {
         };
         self.history_search_seq(true);
         let line = match self.history_search {
-            HistorySearchMode::Sequential(ref mut iter) => iter.prev(&self.history),
+            HistorySearchMode::Sequential(ref mut iter) => iter.prev(&self.bash.history),
             _ => None,
         };
         match line {
@@ -377,7 +370,7 @@ impl Session {
         };
         self.history_search_seq(false);
         let line = match self.history_search {
-            HistorySearchMode::Sequential(ref mut iter) => iter.next(&self.history),
+            HistorySearchMode::Sequential(ref mut iter) => iter.next(&self.bash.history),
             _ => None,
         };
         match line {
@@ -394,7 +387,7 @@ impl Session {
         match self.history_search {
             HistorySearchMode::Prefix(_) => {}
             _ => {
-                let iter = self.history.prefix_iter(
+                let iter = self.bash.history.prefix_iter(
                     self.current_line.text_before_cursor(),
                     reverse,
                 );
@@ -406,7 +399,7 @@ impl Session {
     pub fn history_search_forward(&mut self) {
         self.history_search_pref(false);
         let line = match self.history_search {
-            HistorySearchMode::Prefix(ref mut iter) => iter.next(&self.history),
+            HistorySearchMode::Prefix(ref mut iter) => iter.next(&self.bash.history),
             _ => None,
         };
         match line {
@@ -422,7 +415,7 @@ impl Session {
         self.history_search_pref(true);
 
         let line = match self.history_search {
-            HistorySearchMode::Prefix(ref mut iter) => iter.prev(&self.history),
+            HistorySearchMode::Prefix(ref mut iter) => iter.prev(&self.bash.history),
             _ => None,
         };
         match line {
@@ -441,7 +434,7 @@ impl Session {
             _ => {
                 self.current_line.clear();
                 self.history_search =
-                    HistorySearchMode::Interactive(self.history.begin_interactive_search());
+                    HistorySearchMode::Interactive(self.bash.history.begin_interactive_search());
                 self.to_last_line();
             }
         }
@@ -455,10 +448,6 @@ mod tests {
 
     fn new_test_session(prompt: String) -> Session {
         let bash = bash::Bash::new();
-        let history = {
-            let home_dir = bash.get_current_user_home_dir();
-            history::History::new(home_dir)
-        };
         let mut session = Session {
             current_interaction: None,
             current_line: runeline::Runeline::new(),
@@ -466,7 +455,6 @@ mod tests {
             archived: vec![],
             current_conversation: Conversation::new(prompt),
             bash,
-            history,
             history_search: HistorySearchMode::None,
         };
         let last_line_shown = session.line_iter().count() - 1;

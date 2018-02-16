@@ -37,15 +37,13 @@ mod model;
 mod presenter;
 mod view;
 
-use tools::commandline;
-
 fn main() {
     let EMPTY = cstr!("");
     unsafe {
         libc::setlocale(libc::LC_ALL, EMPTY.as_ptr());
     };
 
-    let params = commandline::CommandLine::parse();
+    let params = tools::commandline::CommandLine::parse();
 
     #[cfg(debug_assertions)]
     println!("Command Line\n{:?}", params);
