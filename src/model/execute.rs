@@ -25,6 +25,7 @@ use std::io::{Read, Write};
 
 use libc::{fd_set, select, timeval, FD_ISSET, FD_SET, FD_ZERO};
 
+use tools::polling;
 
 pub enum CommandOutput {
     FromOutput(String),
@@ -78,7 +79,7 @@ fn send_output(output_tx: Sender<CommandOutput>, input_rx: Receiver<String>, mut
     let fd_out = child.stdout.as_ref().map(|c| c.as_raw_fd());
     let fd_err = child.stderr.as_ref().map(|c| c.as_raw_fd());
 
-    let mut gate = super::polling::Gate::new(Duration::from_millis(1));
+    let mut gate = polling::Gate::new(Duration::from_millis(1));
     'reader: loop {
         if gate.can_exit() {
             match child.try_wait() {

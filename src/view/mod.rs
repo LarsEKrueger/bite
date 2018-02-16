@@ -24,10 +24,10 @@ use std::ffi::CStr;
 use std::cmp;
 use std::ptr::{null, null_mut};
 
-use super::polling;
-use super::session::*;
-use super::session::interaction::*;
-use super::session::iterators::*;
+use tools::polling;
+use model::session::*;
+use model::iterators::*;
+use model::interaction::*;
 
 const WIDTH: i32 = 400;
 const HEIGHT: i32 = 200;

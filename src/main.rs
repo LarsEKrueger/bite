@@ -32,14 +32,12 @@ extern crate nom;
 
 extern crate bincode;
 
-mod session;
-mod commandline;
-mod polling;
-mod execute;
-mod runeline;
-mod bash;
-mod gui;
-mod versioned_file;
+mod tools;
+mod model;
+mod presenter;
+mod view;
+
+use tools::commandline;
 
 fn main() {
     let EMPTY = cstr!("");
@@ -52,7 +50,7 @@ fn main() {
     #[cfg(debug_assertions)]
     println!("Command Line\n{:?}", params);
 
-    let mut gui = match gui::Gui::new() {
+    let mut gui = match view::Gui::new() {
         Err(err) => {
             println!("Can't init GUI: {}", err);
             std::process::exit(1);

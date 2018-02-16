@@ -38,7 +38,7 @@ use nom::newline;
 */
 
 named!(
-    pub parse_bash<super::types::Command>,
+    pub parse_script<super::types::Command>,
     terminated!(simple_command
                 , newline)
 );
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_parse() {
         assert_eq!(
-            parse_bash(b" ab bc   cd \t\tde\n"),
+            parse_script(b" ab bc   cd \t\tde\n"),
             IResult::Done(
                 &b""[..],
                 super::super::types::Command::SimpleCommand(vec![

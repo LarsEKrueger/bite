@@ -16,10 +16,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-mod types;
-mod parser;
-mod prompt_parser;
-
 use nom::IResult;
 use std::env;
 use std::mem;
@@ -27,8 +23,10 @@ use std::ptr;
 use std::ffi::CStr;
 use libc::{c_char, gethostname, gid_t, uid_t};
 
-pub use self::types::*;
-pub use self::prompt_parser::*;
+mod script_parser;
+mod prompt_parser;
+
+use super::types;
 
 // All relevant info about the current user.
 struct UserInfo {
@@ -154,7 +152,7 @@ impl Bash {
         use std::mem;
         let line = mem::replace(&mut self.line, String::new());
         let bytes = line.as_bytes();
-        match parser::parse_bash(bytes) {
+        match script_parser::parse_script(bytes) {
             IResult::Incomplete(_) => types::Command::Incomplete,
             IResult::Error(e) => types::Command::Error(format_error_message(e, &line)),
             IResult::Done(r, o) => {
@@ -177,7 +175,7 @@ impl Bash {
 
     fn decode_prompt_string(&self, input: &str) -> String {
         // For the moment use nom to parse the string until proven too slow.
-        match parse_prompt(input.as_bytes(), self) {
+        match prompt_parser::parse_prompt(input.as_bytes(), self) {
             IResult::Done(_, s) => s,
             _ => String::from("$ "),
         }

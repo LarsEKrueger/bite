@@ -16,23 +16,17 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-pub mod line;
-pub mod response;
-pub mod interaction;
-pub mod conversation;
-pub mod iterators;
-pub mod history;
-
 use std::iter::*;
 use std::sync::mpsc::{Receiver, Sender};
 
-use self::interaction::*;
-use self::conversation::*;
-use self::iterators::*;
-
+use super::history;
 use super::bash;
+use super::types::*;
+use super::conversation::*;
+use super::interaction::*;
+use super::iterators::*;
 use super::execute;
-use super::runeline;
+use presenter::runeline;
 
 enum HistorySearchMode {
     None,
@@ -274,8 +268,8 @@ impl Session {
             None => {
                 let cmd = self.bash.add_line(line_ret.as_str());
                 match cmd {
-                    bash::Command::Incomplete => {}
-                    bash::Command::Error(err) => {
+                    Command::Incomplete => {}
+                    Command::Error(err) => {
                         // Parser error. Create a fake interaction with the bad command line and
                         // the error message
                         let mut inter = Interaction::new(line);
@@ -285,7 +279,7 @@ impl Session {
                         inter.prepare_archiving();
                         self.archive_interaction(inter);
                     }
-                    bash::Command::SimpleCommand(v) => {
+                    Command::SimpleCommand(v) => {
                         // Add to history
                         self.history.add_command(line.clone());
 

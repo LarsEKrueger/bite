@@ -22,6 +22,8 @@ use std::error::Error;
 use std::io::{BufReader, BufRead, Result, Error as IoError, ErrorKind};
 use std::fs::File;
 
+use tools::versioned_file;
+
 // The history is stored in a plain vector
 pub struct History {
     store_in: PathBuf,
@@ -106,7 +108,7 @@ impl History {
 
     // Load the items from a file
     fn load_from_file(path: &Path) -> Result<Vec<String>> {
-        let mut file = ::versioned_file::open(path, HISTORY_FILE_FORMAT)?;
+        let mut file = versioned_file::open(path, HISTORY_FILE_FORMAT)?;
         match ::bincode::deserialize_from(&mut file, ::bincode::Infinite) {
             Ok(items) => Ok(items),
             Err(_) => Err(IoError::new(
@@ -117,7 +119,7 @@ impl History {
     }
 
     fn save_to_file(&self) -> Result<()> {
-        let mut file = ::versioned_file::create(&self.store_in, HISTORY_FILE_FORMAT)?;
+        let mut file = versioned_file::create(&self.store_in, HISTORY_FILE_FORMAT)?;
         match ::bincode::serialize_into(&mut file, &self.items, ::bincode::Infinite) {
             Ok(_) => Ok(()),
             Err(_) => Err(IoError::new(
