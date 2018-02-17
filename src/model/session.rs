@@ -16,57 +16,36 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-use std::iter::*;
 use std::sync::mpsc::{Receiver, Sender};
 
 use super::bash;
-use super::bash::history;
-use super::types::*;
 use super::conversation::*;
 use super::interaction::*;
 use super::iterators::*;
+use super::types::*;
 use super::execute;
-use presenter::runeline;
-
-enum HistorySearchMode {
-    None,
-    Sequential(history::HistorySeqIter),
-    Prefix(history::HistoryPrefIter),
-    Interactive(history::HistoryInteractiveSearch),
-}
 
 // A number of closed conversations and the current one
 pub struct Session {
     pub archived: Vec<Conversation>,
     pub current_conversation: Conversation,
     current_interaction: Option<(Sender<String>, Receiver<execute::CommandOutput>, Interaction)>,
-    current_line: runeline::Runeline,
-    last_line_shown: usize,
 
     bash: bash::Bash,
-
-    history_search: HistorySearchMode,
 }
 
 impl Session {
-    pub fn new() -> Result<Self, String> {
+    pub fn new() -> Self {
         let bash = bash::Bash::new();
 
-        let mut session = Session {
+        Session {
             current_interaction: None,
-            current_line: runeline::Runeline::new(),
-            last_line_shown: 0,
             archived: vec![],
             current_conversation: Conversation::new(bash.expand_ps1()),
             bash,
-            history_search: HistorySearchMode::None,
-        };
-        let last_line_shown = session.line_iter().count() - 1;
-        session.last_line_shown = last_line_shown;
-        Ok(session)
+        }
     }
 
-    #[allow(dead_code)]
     pub fn new_conversation(&mut self, prompt: String) {
         use std::mem;
         let cur = mem::replace(&mut self.current_conversation, Conversation::new(prompt));
@@ -77,91 +56,7 @@ impl Session {
         self.current_conversation.add_interaction(interaction);
     }
 
-    pub fn line_iter_history_search<'a>(
-        &'a self,
-        hsi: &'a history::HistoryInteractiveSearch,
-    ) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(
-            hsi.matching_items
-                .iter()
-                .zip(0..)
-                .map(move |(hist_ind, match_ind)| {
-                    LineItem::new(
-                        self.bash.history.items[*hist_ind].as_str(),
-                        if match_ind == hsi.ind_item {
-                            LineType::SelectedMenuItem(*hist_ind)
-                        } else {
-                            LineType::MenuItem(*hist_ind)
-                        },
-                        None,
-                    )
-                })
-                .chain(::std::iter::once(LineItem::new(
-                    self.current_line.text(),
-                    LineType::Input,
-                    Some(self.current_line_pos()),
-                ))),
-        )
-    }
-
-    pub fn line_iter_normal<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        let archived_iter = self.archived
-            .iter()
-            .zip(CommandPosition::archive_iter())
-            .flat_map(|(c, pos)| c.line_iter(pos))
-            .chain(self.current_conversation.line_iter(
-                CommandPosition::CurrentConversation(0),
-            ));
-
-        // If we have a current interaction, we display it. We don't need to draw the line editor
-        // as it is special and will be drawn accordingly.
-        let iter: Box<Iterator<Item = LineItem> + 'a> = match self.current_interaction {
-            None => Box::new(archived_iter),
-            Some((_, _, ref inter)) => {
-                Box::new(archived_iter.chain(inter.line_iter(
-                    CommandPosition::CurrentInteraction,
-                )))
-            }
-        };
-
-        Box::new(iter.chain(::std::iter::once(LineItem::new(
-            self.current_line.text(),
-            LineType::Input,
-            Some(self.current_line_pos()),
-        ))))
-    }
-
-    pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        if let HistorySearchMode::Interactive(ref hsi) = self.history_search {
-            self.line_iter_history_search(hsi)
-        } else {
-            self.line_iter_normal()
-        }
-    }
-
-    pub fn start_line(&self, lines_per_window: usize) -> usize {
-        if self.last_line_shown > lines_per_window {
-            self.last_line_shown + 1 - lines_per_window
-        } else {
-            0
-        }
-    }
-
-    pub fn current_line_pos(&self) -> usize {
-        self.current_line.char_index()
-    }
-
-    pub fn last_line_visible(&self) -> bool {
-        self.line_iter().count() == (self.last_line_shown + 1)
-    }
-
-    pub fn to_last_line(&mut self) {
-        let last_line_shown = self.line_iter().count();
-        self.last_line_shown = last_line_shown - 1;
-    }
-
     pub fn poll_interaction(&mut self) -> bool {
-        let last_line_visible_pre = self.last_line_visible();
         let mut clear_spawned = false;
         let mut needs_marking = false;
         if let Some((_, ref cmd_output, ref mut inter)) = self.current_interaction {
@@ -189,64 +84,10 @@ impl Session {
                 self.archive_interaction(inter);
             }
         }
-        if last_line_visible_pre {
-            self.to_last_line();
-        }
         needs_marking
     }
 
-    pub fn find_interaction_from_command<'a>(
-        &'a mut self,
-        pos: CommandPosition,
-    ) -> &'a mut Interaction {
-        match pos {
-            CommandPosition::Archived(conv_index, inter_index) => {
-                &mut self.archived[conv_index].interactions[inter_index]
-            }
-            CommandPosition::CurrentConversation(inter_index) => {
-                &mut self.current_conversation.interactions[inter_index]
-            }
-            CommandPosition::CurrentInteraction => {
-                if let Some((_, _, ref mut inter)) = self.current_interaction {
-                    inter
-                } else {
-                    panic!("find_interaction_from_command: Expected current interaction")
-                }
-            }
-        }
-    }
-
-    pub fn move_left(&mut self) {
-        self.clear_history_mode();
-        self.current_line.move_left();
-    }
-
-    pub fn move_right(&mut self) {
-        self.clear_history_mode();
-        self.current_line.move_right();
-    }
-
-    pub fn delete_left(&mut self) {
-        self.clear_history_mode();
-        self.current_line.delete_left();
-    }
-
-    pub fn delete_right(&mut self) {
-        self.clear_history_mode();
-        self.current_line.delete_right();
-    }
-
-    pub fn end_line(&mut self) {
-        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
-            if hsi.ind_item < hsi.matching_items.len() {
-                self.current_line.replace(
-                    self.bash.history.items[hsi.matching_items[hsi.ind_item]].clone(),
-                    false,
-                );
-            }
-        };
-        self.clear_history_mode();
-        let line = self.current_line.clear();
+    pub fn add_line(&mut self, line: String) {
         let mut line_ret = line.clone();
         line_ret.push_str("\n");
 
@@ -291,153 +132,53 @@ impl Session {
                                 self.archive_interaction(inter);
                             }
                         };
-                        self.to_last_line();
                     }
                 }
             }
         };
     }
 
-    pub fn insert_str(&mut self, s: &str) {
-        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
-            self.current_line.insert_str(s);
-            hsi.set_prefix(&self.bash.history, self.current_line.text());
-        } else {
-            self.clear_history_mode();
-            self.current_line.insert_str(s);
-        }
-        self.to_last_line();
-    }
-
-    pub fn scroll_down(&mut self) -> bool {
-        // Scroll down -> increment last_line_shown
-        if self.last_line_shown + 1 < self.line_iter().count() {
-            self.last_line_shown += 1;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn scroll_up(&mut self, lines_per_window: usize) -> bool {
-        // Scroll up -> decrement last_line_shown
-        if self.last_line_shown > lines_per_window {
-            self.last_line_shown -= 1;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn clear_history_mode(&mut self) {
-        self.history_search = HistorySearchMode::None;
-    }
-
-    fn history_search_seq(&mut self, reverse: bool) {
-        match self.history_search {
-            HistorySearchMode::Sequential(_) => {}
-            _ => {
-                self.history_search =
-                    HistorySearchMode::Sequential(self.bash.history.seq_iter(reverse));
+    pub fn find_interaction_from_command<'a>(
+        &'a mut self,
+        pos: CommandPosition,
+    ) -> &'a mut Interaction {
+        match pos {
+            CommandPosition::Archived(conv_index, inter_index) => {
+                &mut self.archived[conv_index].interactions[inter_index]
+            }
+            CommandPosition::CurrentConversation(inter_index) => {
+                &mut self.current_conversation.interactions[inter_index]
+            }
+            CommandPosition::CurrentInteraction => {
+                if let Some((_, _, ref mut inter)) = self.current_interaction {
+                    inter
+                } else {
+                    panic!("find_interaction_from_command: Expected current interaction")
+                }
             }
         }
     }
 
-    pub fn previous_history(&mut self) {
-        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
-            hsi.prev();
-            return;
-        };
-        self.history_search_seq(true);
-        let line = match self.history_search {
-            HistorySearchMode::Sequential(ref mut iter) => iter.prev(&self.bash.history),
-            _ => None,
-        };
-        match line {
-            Some(s) => {
-                self.current_line.replace(s, true);
-                self.to_last_line();
-                // TODO: Go to end of line
-            }
-            None => self.clear_history_mode(),
-        }
-    }
+    pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+        let archived_iter = self.archived
+            .iter()
+            .zip(CommandPosition::archive_iter())
+            .flat_map(|(c, pos)| c.line_iter(pos))
+            .chain(self.current_conversation.line_iter(
+                CommandPosition::CurrentConversation(0),
+            ));
 
-    pub fn next_history(&mut self) {
-        if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
-            hsi.next();
-            return;
-        };
-        self.history_search_seq(false);
-        let line = match self.history_search {
-            HistorySearchMode::Sequential(ref mut iter) => iter.next(&self.bash.history),
-            _ => None,
-        };
-        match line {
-            Some(s) => {
-                self.current_line.replace(s, true);
-                self.to_last_line();
-                // TODO: Go to end of line
-            }
-            None => self.clear_history_mode(),
-        }
-    }
-
-    fn history_search_pref(&mut self, reverse: bool) {
-        match self.history_search {
-            HistorySearchMode::Prefix(_) => {}
-            _ => {
-                let iter = self.bash.history.prefix_iter(
-                    self.current_line.text_before_cursor(),
-                    reverse,
-                );
-                self.history_search = HistorySearchMode::Prefix(iter);
+        // If we have a current interaction, we display it. We don't need to draw the line editor
+        // as it is special and will be drawn accordingly.
+        match self.current_interaction {
+            None => Box::new(archived_iter),
+            Some((_, _, ref inter)) => {
+                Box::new(archived_iter.chain(inter.line_iter(
+                    CommandPosition::CurrentInteraction,
+                )))
             }
         }
-    }
 
-    pub fn history_search_forward(&mut self) {
-        self.history_search_pref(false);
-        let line = match self.history_search {
-            HistorySearchMode::Prefix(ref mut iter) => iter.next(&self.bash.history),
-            _ => None,
-        };
-        match line {
-            Some(s) => {
-                self.current_line.replace(s, true);
-                self.to_last_line();
-            }
-            None => self.clear_history_mode(),
-        }
-    }
-
-    pub fn history_search_backward(&mut self) {
-        self.history_search_pref(true);
-
-        let line = match self.history_search {
-            HistorySearchMode::Prefix(ref mut iter) => iter.prev(&self.bash.history),
-            _ => None,
-        };
-        match line {
-            Some(s) => {
-                self.current_line.replace(s, true);
-                self.to_last_line();
-            }
-            None => self.clear_history_mode(),
-        }
-    }
-
-    pub fn history_search_interactive(&mut self) {
-        println!("history_search_interactive");
-        match self.history_search {
-            HistorySearchMode::Interactive(_) => {}
-            _ => {
-                self.current_line.clear();
-                self.history_search =
-                    HistorySearchMode::Interactive(self.bash.history.begin_interactive_search());
-                self.to_last_line();
-            }
-        }
     }
 }
 
@@ -448,18 +189,12 @@ mod tests {
 
     fn new_test_session(prompt: String) -> Session {
         let bash = bash::Bash::new();
-        let mut session = Session {
+        Session {
             current_interaction: None,
-            current_line: runeline::Runeline::new(),
-            last_line_shown: 0,
             archived: vec![],
             current_conversation: Conversation::new(prompt),
             bash,
-            history_search: HistorySearchMode::None,
-        };
-        let last_line_shown = session.line_iter().count() - 1;
-        session.last_line_shown = last_line_shown;
-        session
+        }
     }
 
     #[test]
@@ -608,14 +343,6 @@ mod tests {
                 text: "prompt 2",
                 is_a: LineType::Prompt,
                 cursor_col: None,
-            })
-        );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "",
-                is_a: LineType::Input,
-                cursor_col: Some(0),
             })
         );
         assert_eq!(li.next(), None);

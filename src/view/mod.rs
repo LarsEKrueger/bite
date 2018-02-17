@@ -25,14 +25,10 @@ use std::cmp;
 use std::ptr::{null, null_mut};
 
 use tools::polling;
-use model::session::*;
-use model::iterators::*;
-use model::interaction::*;
+use presenter::*;
 
 const WIDTH: i32 = 400;
 const HEIGHT: i32 = 200;
-
-const COMMAND_PREFIX_LEN: i32 = 4;
 
 pub struct Gui {
     // X11 exclusive
@@ -67,10 +63,8 @@ pub struct Gui {
 
     gate: polling::Gate,
 
-    // (button,column,row)
-    button_down_at: Option<(u32, i32, i32)>,
     // }
-    session: Session,
+    presenter: Presenter,
 }
 
 const FONTNAME: &'static str = "-*-peep-medium-r-*-*-14-*-*-*-*-*-*-*\0";
@@ -80,6 +74,14 @@ extern "C" {
     pub fn myCreateIC(xim: XIM, window: Window) -> XIC;
 }
 
+pub fn modifier_state_from_event(info_state: u32) -> ModifierState {
+    ModifierState {
+        shift_pressed: 0 != (info_state & ShiftMask),
+        control_pressed: 0 != (info_state & ControlMask),
+        meta_pressed: 0 != (info_state & Mod1Mask),
+    }
+}
+
 impl Gui {
     pub fn new() -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
@@ -87,7 +89,7 @@ impl Gui {
         let EMPTY = cstr!("");
         let IMNONE = cstr!("@im=none");
 
-        let session = Session::new()?;
+        let presenter = Presenter::new();
 
         unsafe {
             let display = XOpenDisplay(null());
@@ -204,15 +206,13 @@ impl Gui {
                 window_width: WIDTH,
                 window_height: HEIGHT,
 
-                session,
+                presenter,
                 have_focus: false,
                 cursor_on: false,
                 cursor_flip_time: SystemTime::now(),
 
                 needs_redraw: true,
                 redraw_time: SystemTime::now(),
-
-                button_down_at: None,
 
                 gate: polling::Gate::new(::std::time::Duration::from_millis(10)),
             };
@@ -247,27 +247,8 @@ impl Gui {
         }
     }
 
-    pub fn draw_line(&self, row: i32, line: &LineItem) {
-        // Depending on the type, choose the offset and draw the decoration
-        let (deco, offset) = match line.is_a {
-            LineType::Output => ("", 2),
-            LineType::Prompt => ("", 0),
-            LineType::Command(ref ov, _) => {
-                let deco = match ov {
-                    &OutputVisibility::None => " » ",
-                    &OutputVisibility::Output => "O» ",
-                    &OutputVisibility::Error => "E» ",
-                };
-                (deco, COMMAND_PREFIX_LEN)
-            }
-            LineType::Input => ("", 0),
-            LineType::MenuDecoration => ("", 0),
-            LineType::SelectedMenuItem(_) => ("==> ", 4),
-            LineType::MenuItem(_) => ("    ", 4),
-        };
-
-        self.draw_utf8(0, row, deco);
-        self.draw_utf8(offset, row, line.text);
+    pub fn draw_line(&self, row: i32, line: &DisplayLine) {
+        self.draw_utf8(0, row, &line.text);
     }
 
     pub fn draw_utf8(&self, column: i32, row: i32, utf8: &str) {
@@ -291,9 +272,7 @@ impl Gui {
         unsafe { XClearWindow(self.display, self.window) };
         // TODO: Set colors
 
-        let start_line = self.session.start_line(lines_per_window);
-
-        let mut li = self.session.line_iter().skip(start_line);
+        let mut li = self.presenter.display_line_iter();
         let mut row = 0i32;
         while let Some(line) = li.next() {
             self.draw_line(row, &line);
@@ -391,42 +370,11 @@ impl Gui {
         }
     }
 
-    pub fn handle_click(&mut self, button: u32, column: i32, row: i32) {
-        let lines_per_window = self.lines_per_window();
-        // Find the item that was clicked
-        let click_line_index = self.session.start_line(lines_per_window) + (row as usize);
-        let is_a = self.session.line_iter().nth(click_line_index).map(
-            |i| i.is_a,
-        );
-        match (is_a, button) {
-            (Some(LineType::Command(_, pos)), 1) => {
-                if 0 <= column && column < COMMAND_PREFIX_LEN {
-                    // Click on a command
-                    println!("Clicked a command");
-                    {
-                        let inter = self.session.find_interaction_from_command(pos);
-                        let (ov, ev) = match (inter.output.visible, inter.errors.visible) {
-                            (true, false) => (false, true),
-                            (false, true) => (false, false),
-                            _ => (true, false),
-                        };
-                        inter.output.visible = ov;
-                        inter.errors.visible = ev;
-                    }
-                    self.mark_redraw();
-                }
-            }
-            _ => {
-                // Unhandled combination, ignore
-            }
-        }
-    }
-
     pub fn main_loop(&mut self) {
         loop {
             self.gate.wait();
 
-            if self.session.poll_interaction() {
+            if NeedRedraw::Yes == self.presenter.poll_interaction() {
                 self.gate.mark();
                 self.mark_redraw();
             }
@@ -445,7 +393,10 @@ impl Gui {
                             let info = unsafe { &event.configure };
                             self.window_width = info.width;
                             self.window_height = info.height;
-                            self.button_down_at = None;
+                            self.presenter.event_window_resize(
+                                (self.window_width / self.font_width) as usize,
+                                (self.window_height / self.font_height) as usize,
+                            );
                         }
                         Expose => {
                             self.force_redraw();
@@ -454,12 +405,12 @@ impl Gui {
                             self.cursor_now(true);
                             self.have_focus = true;
                             self.mark_redraw();
-                            self.button_down_at = None;
+                            self.presenter.event_focus_gained();
                         }
                         FocusOut => {
                             self.have_focus = false;
                             self.mark_redraw();
-                            self.button_down_at = None;
+                            self.presenter.event_focus_lost();
                         }
                         KeyPress => {
                             let mut info = unsafe { event.key };
@@ -479,130 +430,96 @@ impl Gui {
                             assert!((count as usize) < ::std::mem::size_of_val(&buf));
                             buf[count as usize] = 0;
 
-                            let masked_state = info.state & (ShiftMask | ControlMask | Mod1Mask);
                             // Handle movement and delete. They are all keysyms
-                            let mut handled = false;
-                            if status == XLookupKeySym || status == XLookupBoth {
-                                match (masked_state, keysym as u32) {
-                                    (0, XK_Left) => {
-                                        self.session.move_left();
-                                        handled = true;
+                            let handled = {
+                                let mod_state = modifier_state_from_event(info.state);
+                                if status == XLookupKeySym || status == XLookupBoth {
+                                    match keysym as u32 {
+                                        XK_Left => self.presenter.event_cursor_left(mod_state),
+                                        XK_Right => self.presenter.event_cursor_right(mod_state),
+                                        XK_Delete => self.presenter.event_delete_right(mod_state),
+                                        XK_BackSpace => self.presenter.event_backspace(mod_state),
+                                        XK_Return => self.presenter.event_return(mod_state),
+                                        XK_Up => self.presenter.event_cursor_up(mod_state),
+                                        XK_Down => self.presenter.event_cursor_down(mod_state),
+                                        XK_Page_Up => self.presenter.event_page_up(mod_state),
+                                        XK_Page_Down => self.presenter.event_page_down(mod_state),
+                                        _ => EventHandled::No,
                                     }
-                                    (0, XK_Right) => {
-                                        self.session.move_right();
-                                        handled = true;
-                                    }
-                                    (0, XK_Delete) => {
-                                        self.session.delete_right();
-                                        handled = true;
-                                    }
-                                    (0, XK_BackSpace) => {
-                                        self.session.delete_left();
-                                        handled = true;
-                                    }
-                                    (0, XK_Return) => {
-                                        self.session.end_line();
-                                        handled = true;
-                                    }
-                                    (0, XK_Up) => {
-                                        self.session.previous_history();
-                                        handled = true;
-                                    }
-                                    (0, XK_Down) => {
-                                        self.session.next_history();
-                                        handled = true;
-                                    }
-                                    (0, XK_Page_Up) => {
-                                        self.session.history_search_backward();
-                                        handled = true;
-                                    }
-                                    (0, XK_Page_Down) => {
-                                        self.session.history_search_forward();
-                                        handled = true;
-                                    }
-                                    (ControlMask, XK_r) => {
-                                        self.session.history_search_interactive();
-                                        handled = true;
-                                    }
-                                    (_, _) => (),
+                                } else {
+                                    EventHandled::No
                                 }
-                            }
-                            if handled {
+                            };
+                            if EventHandled::Yes == handled {
                                 self.mark_redraw();
                             }
-                            if !handled && (status == XLookupChars || status == XLookupBoth) {
-                                if masked_state == 0 || masked_state == ShiftMask {
-                                    // Insert text
-                                    match unsafe { CStr::from_ptr(&buf[0]).to_str() } {
-                                        Ok(s) => self.session.insert_str(s),
-                                        _ => {}
-                                    }
-                                    self.cursor_now(true);
-                                    self.mark_redraw();
+                            if EventHandled::No == handled &&
+                                (status == XLookupChars || status == XLookupBoth)
+                            {
+                                let mod_state = modifier_state_from_event(info.state);
+                                // Insert text
+                                match unsafe { CStr::from_ptr(&buf[0]).to_str() } {
+                                    Ok(s) => self.presenter.event_text(mod_state, s),
+                                    _ => {}
                                 }
+                                self.cursor_now(true);
+                                self.mark_redraw();
                             }
                         }
                         ButtonPress => {
                             let info = unsafe { &event.button };
+                            let mod_state = modifier_state_from_event(info.state);
                             match info.button {
                                 1 | 2 | 3 => {
-                                    // Click
-                                    if self.button_down_at == None {
-                                        if 0 <= info.y && info.y < self.window_height &&
-                                            0 <= info.x &&
-                                            info.x < self.window_width
+                                    if 0 <= info.y && info.y < self.window_height && 0 <= info.x &&
+                                        info.x < self.window_width
+                                    {
+                                        if NeedRedraw::Yes ==
+                                            self.presenter.event_button_down(
+                                                mod_state,
+                                                info.button as usize,
+                                                (info.x / self.font_width) as usize,
+                                                (info.y / self.font_height) as usize,
+                                            )
                                         {
-                                            self.button_down_at = Some((
-                                                info.button,
-                                                info.x / self.font_width,
-                                                info.y / self.font_height,
-                                            ));
+                                            self.mark_redraw();
                                         }
                                     }
                                 }
                                 5 => {
-                                    if self.session.scroll_down() {
+                                    if NeedRedraw::Yes ==
+                                        self.presenter.event_scroll_down(mod_state)
+                                    {
                                         self.mark_redraw();
                                     }
                                 }
-
                                 4 => {
-                                    let lines_per_window = self.lines_per_window();
-                                    if self.session.scroll_up(lines_per_window) {
+                                    if NeedRedraw::Yes ==
+                                        self.presenter.event_scroll_up(mod_state)
+                                    {
                                         self.mark_redraw();
                                     }
                                 }
-
                                 _ => {}
                             }
                         }
                         ButtonRelease => {
                             let info = unsafe { &event.button };
+                            let mod_state = modifier_state_from_event(info.state);
                             match info.button {
                                 1 | 2 | 3 => {
-                                    // click
-                                    if let Some((button, down_col, down_row)) =
-                                        self.button_down_at
+                                    if 0 <= info.y && info.y < self.window_height && 0 <= info.x &&
+                                        info.x < self.window_width
                                     {
-                                        if 0 <= info.y && info.y < self.window_height &&
-                                            0 <= info.x &&
-                                            info.x < self.window_width
+                                        if NeedRedraw::Yes ==
+                                            self.presenter.event_button_up(
+                                                mod_state,
+                                                info.button as usize,
+                                                (info.x / self.font_width) as usize,
+                                                (info.y / self.font_height) as usize,
+                                            )
                                         {
-                                            let up_col = info.x / self.font_width;
-                                            let up_row = info.y / self.font_height;
-                                            if button == info.button && up_col == down_col &&
-                                                up_row == down_row
-                                            {
-                                                // click detected.
-                                                println!(
-                                                    "Click button {} in col,row {},{}",
-                                                    button,
-                                                    up_col,
-                                                    up_row
-                                                );
-                                                self.button_down_at = None;
-                                                self.handle_click(button, up_col, up_row);
-                                            }
+                                            self.mark_redraw();
                                         }
                                     }
                                 }
