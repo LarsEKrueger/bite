@@ -30,10 +30,10 @@ pub struct History {
     pub items: Vec<String>,
 }
 
-pub enum HistorySearchMode<'a> {
+pub enum HistorySearchMode {
     Browse,
-    Prefix(&'a str),
-    Contained(&'a str),
+    Prefix(String),
+    Contained(String),
 }
 
 pub struct HistorySearchCursor {
@@ -163,12 +163,12 @@ impl History {
 }
 
 
-impl<'a> HistorySearchMode<'a> {
+impl HistorySearchMode {
     fn matches(&self, other: &str) -> bool {
         match self {
             &HistorySearchMode::Browse => true,
-            &HistorySearchMode::Prefix(pref) => other.starts_with(pref),
-            &HistorySearchMode::Contained(cont) => other.contains(cont),
+            &HistorySearchMode::Prefix(ref pref) => other.starts_with(pref.as_str()),
+            &HistorySearchMode::Contained(ref cont) => other.contains(cont.as_str()),
         }
     }
 }

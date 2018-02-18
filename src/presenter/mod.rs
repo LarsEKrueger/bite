@@ -90,7 +90,15 @@ pub struct Presenter(Option<Box<SubPresenter>>);
 
 impl ModifierState {
     fn none_pressed(&self) -> bool {
-        !(self.shift_pressed | self.control_pressed | self.meta_pressed)
+        !(self.shift_pressed || self.control_pressed || self.meta_pressed)
+    }
+
+    fn shift_only(&self) -> bool {
+        self.shift_pressed && !self.control_pressed && !self.meta_pressed
+    }
+
+    fn as_tuple(&self) -> (bool, bool, bool) {
+        (self.shift_pressed, self.control_pressed, self.meta_pressed)
     }
 }
 
@@ -489,12 +497,48 @@ impl SubPresenter for ComposeCommandPresenter {
         HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false)
     }
 
-    fn event_page_up(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
-        self
+    fn event_page_up(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
+        match mod_state.as_tuple() {
+            (true, false, false) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                if self.commons.last_line_shown > middle {
+                    self.commons.last_line_shown -= middle;
+                } else {
+                    self.commons.last_line_shown = 0;
+                }
+                self
+            }
+            (false, false, false) => {
+                // Nothing -> Prefix search
+                let prefix = String::from(self.commons.current_line.text_before_cursor());
+                self.commons.current_line.clear();
+                self.commons.current_line.insert_str(&prefix);
+                HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true)
+            } 
+            _ => self,
+        }
     }
 
-    fn event_page_down(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
-        self
+    fn event_page_down(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
+        match mod_state.as_tuple() {
+            (true, false, false) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                let n = self.line_iter().count();
+                self.commons.last_line_shown =
+                    ::std::cmp::min(n, self.commons.last_line_shown + middle);
+                self
+            }
+            (false, false, false) => {
+                // Nothing -> Prefix search
+                let prefix = String::from(self.commons.current_line.text_before_cursor());
+                self.commons.current_line.clear();
+                self.commons.current_line.insert_str(&prefix);
+                HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false)
+            } 
+            _ => self,
+        }
     }
 }
 
@@ -568,11 +612,20 @@ impl SubPresenter for HistoryPresenter {
     }
 
     fn event_return(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
-        let item_ind = self.search.matching_items[self.search.item_ind];
-        let item = self.commons.session.bash.history.items[item_ind].clone();
-        self.commons.current_line.replace(item, false);
-
-        ComposeCommandPresenter::new(self.commons).event_return(mod_state)
+        let propagate = if self.search.item_ind < self.search.matching_items.len() {
+            let hist_ind = self.search.matching_items[self.search.item_ind];
+            let item = self.commons.session.bash.history.items[hist_ind].clone();
+            self.commons.current_line.replace(item, false);
+            true
+        } else {
+            false
+        };
+        let next = ComposeCommandPresenter::new(self.commons);
+        if propagate {
+            next.event_return(mod_state)
+        } else {
+            next
+        }
     }
 
     fn handle_click(
