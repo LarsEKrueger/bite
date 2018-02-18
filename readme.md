@@ -87,6 +87,7 @@ non-GUI program.
 * [X] 0.1.4 interactive search history (ctrl-r / ctrl-s)
 * [X] 0.1.5 clean up histfile interface, use a simple binary serialization
 * [ ] 0.1.6 clean up architecture
+* [ ] 0.1.7 document API
 * [ ] 0.2 Commands from history (up/down,page up/down,search)
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
@@ -126,6 +127,8 @@ non-GUI program.
 # Ideas
 * Integrate mosh functionality
 * Command line editor with vim keys (starts in insert mode)
+* Syntax highlighting for output
+* Image preview in ls
 
 # References
 * utf8 input from https://gist.github.com/baines/5a49f1334281b2685af5dcae81a6fa8a
