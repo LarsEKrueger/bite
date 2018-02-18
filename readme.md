@@ -117,6 +117,7 @@ non-GUI program.
 * [ ] 2.1 shell program editor with preview
 
 # TODOs
+* [ ] Merge history during save
 * [ ] Indicate return code of a completed program in the GUI
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
 * [ ] Show the full command line of a program
