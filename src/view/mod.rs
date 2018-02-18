@@ -445,8 +445,32 @@ impl Gui {
                                         XK_Down => self.presenter.event_cursor_down(&mod_state),
                                         XK_Page_Up => self.presenter.event_page_up(&mod_state),
                                         XK_Page_Down => self.presenter.event_page_down(&mod_state),
-                                        _ => {
-                                            handled = false;
+                                        maybe_letter => {
+                                            if (('a' as u32 <= maybe_letter &&
+                                                     maybe_letter <= 'z' as u32) ||
+                                                    ('A' as u32 <= maybe_letter &&
+                                                         maybe_letter <= 'Z' as u32)) &&
+                                                mod_state.not_only_shift()
+                                            {
+                                                // A letter and not only shift was pressed. Might
+                                                // be a control key we're interested in.
+
+                                                // Normalize to lower case
+                                                let letter = if 'A' as u32 <= maybe_letter &&
+                                                    maybe_letter <= 'Z' as u32
+                                                {
+                                                    maybe_letter + 32
+                                                } else {
+                                                    maybe_letter
+                                                };
+
+                                                handled = self.presenter.event_control_key(
+                                                    &mod_state,
+                                                    letter as u8,
+                                                );
+                                            } else {
+                                                handled = false;
+                                            }
                                         }
                                     }
                                 } else {
@@ -457,10 +481,9 @@ impl Gui {
                                 self.mark_redraw();
                             }
                             if !handled && (status == XLookupChars || status == XLookupBoth) {
-                                let mod_state = modifier_state_from_event(info.state);
                                 // Insert text
                                 match unsafe { CStr::from_ptr(&buf[0]).to_str() } {
-                                    Ok(s) => self.presenter.event_text(mod_state, s),
+                                    Ok(s) => self.presenter.event_text(s),
                                     _ => {}
                                 }
                                 self.cursor_now(true);

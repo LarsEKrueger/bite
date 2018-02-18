@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+use std::fmt::{Display, Formatter, Error};
+
 mod runeline;
 
 use model::session::*;
@@ -56,6 +58,14 @@ trait SubPresenter {
     fn event_page_up(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
     fn event_page_down(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
 
+    fn event_control_key(
+        self: Box<Self>,
+        mod_state: &ModifierState,
+        letter: u8,
+    ) -> (Box<SubPresenter>, bool);
+
+    fn event_update_line(self: Box<Self>) -> Box<SubPresenter>;
+
     fn handle_click(
         self: Box<Self>,
         button: usize,
@@ -93,12 +103,28 @@ impl ModifierState {
         !(self.shift_pressed || self.control_pressed || self.meta_pressed)
     }
 
-    fn shift_only(&self) -> bool {
-        self.shift_pressed && !self.control_pressed && !self.meta_pressed
-    }
-
     fn as_tuple(&self) -> (bool, bool, bool) {
         (self.shift_pressed, self.control_pressed, self.meta_pressed)
+    }
+
+    pub fn not_only_shift(&self) -> bool {
+        self.control_pressed || self.meta_pressed
+    }
+}
+
+impl Display for ModifierState {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        fn b2s(b: bool, s: &str) -> &str {
+            if b { s } else { "" }
+        }
+
+        write!(
+            f,
+            "{}{}{}",
+            b2s(self.shift_pressed, "Shift-"),
+            b2s(self.control_pressed, "Ctrl-"),
+            b2s(self.meta_pressed, "Meta-")
+        )
     }
 }
 
@@ -210,6 +236,10 @@ impl Presenter {
         }
     }
 
+    fn event_update_line(&mut self) {
+        self.dispatch(|sp| sp.event_update_line());
+    }
+
     pub fn event_window_resize(&mut self, width: usize, height: usize) {
         let commons = self.cm();
         commons.window_width = width;
@@ -255,15 +285,21 @@ impl Presenter {
 
     pub fn event_delete_right(&mut self, _mod_state: ModifierState) {
         self.cm().current_line.delete_right();
+        self.event_update_line();
     }
 
     pub fn event_backspace(&mut self, _mod_state: ModifierState) {
         self.cm().current_line.delete_left();
+        self.event_update_line();
     }
 
-    pub fn event_text(&mut self, _mod_state: ModifierState, s: &str) {
+    pub fn event_control_key(&mut self, mod_state: &ModifierState, letter: u8) -> bool {
+        self.dispatch_res(|sp| sp.event_control_key(mod_state, letter))
+    }
+
+    pub fn event_text(&mut self, s: &str) {
         self.cm().current_line.insert_str(s);
-        self.to_last_line();
+        self.event_update_line();
     }
 
     pub fn event_return(&mut self, mod_state: &ModifierState) {
@@ -318,103 +354,6 @@ impl Presenter {
         let start_line = self.c().start_line();
         Box::new(iter.skip(start_line).map(DisplayLine::new))
     }
-
-    //   pub fn previous_history(&mut self) {
-    //       if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
-    //           hsi.prev();
-    //           return;
-    //       };
-    //       self.history_search_seq(true);
-    //       let line = match self.history_search {
-    //           HistorySearchMode::Sequential(ref mut iter) => iter.prev(&self.bash.history),
-    //           _ => None,
-    //       };
-    //       match line {
-    //           Some(s) => {
-    //               self.current_line.replace(s, true);
-    //               self.to_last_line();
-    //               // TODO: Go to end of line
-    //           }
-    //           None => self.clear_history_mode(),
-    //       }
-    //   }
-    //
-    //   pub fn next_history(&mut self) {
-    //       if let HistorySearchMode::Interactive(ref mut hsi) = self.history_search {
-    //           hsi.next();
-    //           return;
-    //       };
-    //       self.history_search_seq(false);
-    //       let line = match self.history_search {
-    //           HistorySearchMode::Sequential(ref mut iter) => iter.next(&self.bash.history),
-    //           _ => None,
-    //       };
-    //       match line {
-    //           Some(s) => {
-    //               self.current_line.replace(s, true);
-    //               self.to_last_line();
-    //               // TODO: Go to end of line
-    //           }
-    //           None => self.clear_history_mode(),
-    //       }
-    //   }
-    //
-    //   fn history_search_pref(&mut self, reverse: bool) {
-    //       match self.history_search {
-    //           HistorySearchMode::Prefix(_) => {}
-    //           _ => {
-    //               let iter = self.bash.history.prefix_iter(
-    //                   self.current_line.text_before_cursor(),
-    //                   reverse,
-    //               );
-    //               self.history_search = HistorySearchMode::Prefix(iter);
-    //           }
-    //       }
-    //   }
-    //
-    //   pub fn history_search_forward(&mut self) {
-    //       self.history_search_pref(false);
-    //       let line = match self.history_search {
-    //           HistorySearchMode::Prefix(ref mut iter) => iter.next(&self.bash.history),
-    //           _ => None,
-    //       };
-    //       match line {
-    //           Some(s) => {
-    //               self.current_line.replace(s, true);
-    //               self.to_last_line();
-    //           }
-    //           None => self.clear_history_mode(),
-    //       }
-    //   }
-    //
-    //   pub fn history_search_backward(&mut self) {
-    //       self.history_search_pref(true);
-    //
-    //       let line = match self.history_search {
-    //           HistorySearchMode::Prefix(ref mut iter) => iter.prev(&self.bash.history),
-    //           _ => None,
-    //       };
-    //       match line {
-    //           Some(s) => {
-    //               self.current_line.replace(s, true);
-    //               self.to_last_line();
-    //           }
-    //           None => self.clear_history_mode(),
-    //       }
-    //   }
-    //
-    //   pub fn history_search_interactive(&mut self) {
-    //       println!("history_search_interactive");
-    //       match self.history_search {
-    //           HistorySearchMode::Interactive(_) => {}
-    //           _ => {
-    //               self.current_line.clear();
-    //               self.history_search =
-    //                   HistorySearchMode::Interactive(self.bash.history.begin_interactive_search());
-    //               self.to_last_line();
-    //           }
-    //       }
-    //   }
 }
 
 impl ComposeCommandPresenter {
@@ -456,6 +395,11 @@ impl SubPresenter for ComposeCommandPresenter {
         self
     }
 
+    fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
+        self.to_last_line();
+        self
+    }
+
     fn handle_click(
         mut self: Box<Self>,
         button: usize,
@@ -487,6 +431,26 @@ impl SubPresenter for ComposeCommandPresenter {
             }
         }
         (self, NeedRedraw::No)
+    }
+
+    fn event_control_key(
+        mut self: Box<Self>,
+        mod_state: &ModifierState,
+        letter: u8,
+    ) -> (Box<SubPresenter>, bool) {
+        match (mod_state.as_tuple(), letter) {
+            ((false, true, false), b'r') => {
+                // Control-R -> Start interactive history search
+                let prefix = String::from(self.commons.current_line.text_before_cursor());
+                self.commons.current_line.clear();
+                self.commons.current_line.insert_str(&prefix);
+                (
+                    HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
+                    true,
+                )
+            }
+            _ => (self, false),
+        }
     }
 
     fn event_cursor_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
@@ -626,6 +590,49 @@ impl SubPresenter for HistoryPresenter {
         } else {
             next
         }
+    }
+
+    fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
+        let prefix = String::from(self.commons.current_line.text());
+        let mut search = self.commons.session.bash.history.search(
+            HistorySearchMode::Contained(prefix),
+            false,
+        );
+
+        // Find the index into matching_items that is closest to search.item_ind to move the
+        // highlight only a litte.
+        fn abs_diff(a: usize, b: usize) -> usize {
+            if a < b { b - a } else { a - b }
+        }
+
+        let last_history_ind = if self.search.item_ind < self.search.matching_items.len() {
+            self.search.matching_items[self.search.item_ind]
+        } else {
+            0
+        };
+        let mut ind_item = 0;
+        let mut dist = self.commons.session.bash.history.items.len();
+        for i in 0..search.matching_items.len() {
+            let history_ind = search.matching_items[i];
+            let d = abs_diff(last_history_ind, history_ind);
+            if d < dist {
+                dist = d;
+                ind_item = i;
+            }
+        }
+        search.item_ind = ind_item;
+        self.search = search;
+        self.show_selection();
+        self
+    }
+
+    fn event_control_key(
+        self: Box<Self>,
+        _mod_state: &ModifierState,
+        _letter: u8,
+    ) -> (Box<SubPresenter>, bool) {
+
+        (self, false)
     }
 
     fn handle_click(
