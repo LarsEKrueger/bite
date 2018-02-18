@@ -31,7 +31,7 @@ pub struct Session {
     pub current_conversation: Conversation,
     current_interaction: Option<(Sender<String>, Receiver<execute::CommandOutput>, Interaction)>,
 
-    bash: bash::Bash,
+    pub bash: bash::Bash,
 }
 
 impl Session {

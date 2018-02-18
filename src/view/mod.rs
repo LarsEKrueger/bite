@@ -431,7 +431,8 @@ impl Gui {
                             buf[count as usize] = 0;
 
                             // Handle movement and delete. They are all keysyms
-                            let handled = {
+                            let mut handled = true;
+                            {
                                 let mod_state = modifier_state_from_event(info.state);
                                 if status == XLookupKeySym || status == XLookupBoth {
                                     match keysym as u32 {
@@ -439,23 +440,23 @@ impl Gui {
                                         XK_Right => self.presenter.event_cursor_right(mod_state),
                                         XK_Delete => self.presenter.event_delete_right(mod_state),
                                         XK_BackSpace => self.presenter.event_backspace(mod_state),
-                                        XK_Return => self.presenter.event_return(mod_state),
-                                        XK_Up => self.presenter.event_cursor_up(mod_state),
-                                        XK_Down => self.presenter.event_cursor_down(mod_state),
-                                        XK_Page_Up => self.presenter.event_page_up(mod_state),
-                                        XK_Page_Down => self.presenter.event_page_down(mod_state),
-                                        _ => EventHandled::No,
+                                        XK_Return => self.presenter.event_return(&mod_state),
+                                        XK_Up => self.presenter.event_cursor_up(&mod_state),
+                                        XK_Down => self.presenter.event_cursor_down(&mod_state),
+                                        XK_Page_Up => self.presenter.event_page_up(&mod_state),
+                                        XK_Page_Down => self.presenter.event_page_down(&mod_state),
+                                        _ => {
+                                            handled = false;
+                                        }
                                     }
                                 } else {
-                                    EventHandled::No
+                                    handled = false;
                                 }
                             };
-                            if EventHandled::Yes == handled {
+                            if handled {
                                 self.mark_redraw();
                             }
-                            if EventHandled::No == handled &&
-                                (status == XLookupChars || status == XLookupBoth)
-                            {
+                            if !handled && (status == XLookupChars || status == XLookupBoth) {
                                 let mod_state = modifier_state_from_event(info.state);
                                 // Insert text
                                 match unsafe { CStr::from_ptr(&buf[0]).to_str() } {

@@ -30,18 +30,15 @@ pub struct History {
     pub items: Vec<String>,
 }
 
-pub struct HistorySeqIter {
-    ind: usize,
+pub enum HistorySearchMode<'a> {
+    Browse,
+    Prefix(&'a str),
+    Contained(&'a str),
 }
 
-pub struct HistoryPrefIter {
-    prefix: String,
-    ind: usize,
-}
-
-pub struct HistoryInteractiveSearch {
+pub struct HistorySearchCursor {
     pub matching_items: Vec<usize>,
-    pub ind_item: usize,
+    pub item_ind: usize,
 }
 
 const HISTORY_FILE_FORMAT: &str = "BITE history V0.1";
@@ -144,143 +141,76 @@ impl History {
         self.items.push(line);
     }
 
-    pub fn seq_iter(&self, reverse: bool) -> HistorySeqIter {
-        let ind = if reverse {
-            let l = self.items.len();
-            if l == 0 { 0 } else { l - 1 }
-        } else {
-            0
-        };
-        HistorySeqIter { ind }
-    }
-
-    pub fn prefix_iter(&self, prefix: &str, reverse: bool) -> HistoryPrefIter {
-        let ind = if reverse {
-            let l = self.items.len();
-            if l == 0 { 0 } else { l - 1 }
-        } else {
-            0
-        };
-        HistoryPrefIter {
-            prefix: String::from(prefix),
-            ind,
-        }
-    }
-
-    pub fn begin_interactive_search(&self) -> HistoryInteractiveSearch {
-        let l = self.items.len();
-        HistoryInteractiveSearch {
-            matching_items: (0..self.items.len()).collect(),
-            ind_item: if l == 0 { 0 } else { l - 1 },
-        }
-    }
-}
-
-impl HistorySeqIter {
-    pub fn prev(&mut self, history: &History) -> Option<String> {
-        if self.ind < history.items.len() {
-            if self.ind > 0 {
-                let ind = self.ind;
-                self.ind -= 1;
-                Some(history.items[ind].clone())
-            } else {
-                self.ind = history.items.len();
-                Some(history.items[0].clone())
-            }
-        } else {
-            None
-        }
-    }
-
-    pub fn next(&mut self, history: &History) -> Option<String> {
-        if self.ind < history.items.len() {
-            let ind = self.ind;
-            self.ind += 1;
-            Some(history.items[ind].clone())
-        } else {
-            None
-        }
-    }
-}
-
-impl HistoryPrefIter {
-    pub fn prev(&mut self, history: &History) -> Option<String> {
-        // Loop backwards until we find an item that starts with self.prefix
-        while self.ind < history.items.len() {
-            if self.ind > 0 {
-                let ind = self.ind;
-                self.ind -= 1;
-                if history.items[ind].starts_with(self.prefix.as_str()) {
-                    return Some(history.items[ind].clone());
-                }
-            } else {
-                self.ind = history.items.len();
-                if history.items[0].starts_with(self.prefix.as_str()) {
-                    return Some(history.items[0].clone());
-                }
-            }
-        }
-        None
-    }
-
-    pub fn next(&mut self, history: &History) -> Option<String> {
-        while self.ind < history.items.len() {
-            let ind = self.ind;
-            self.ind += 1;
-            if history.items[ind].starts_with(self.prefix.as_str()) {
-                return Some(history.items[ind].clone());
-            }
-        }
-        None
-    }
-}
-
-fn abs_diff(a: usize, b: usize) -> usize {
-    if a < b { b - a } else { a - b }
-}
-
-impl HistoryInteractiveSearch {
-    pub fn set_prefix(&mut self, history: &History, pref: &str) {
-        // Get index of history item that is selected.
-        let current_history_ind = if self.ind_item < self.matching_items.len() {
-            self.matching_items[self.ind_item]
-        } else {
-            0
-        };
-        // Find the indices of all history items that contain this search string
-        self.matching_items = (0..history.items.len())
-            .filter(|i| history.items[*i].contains(pref))
+    pub fn search(&self, mode: HistorySearchMode, reverse: bool) -> HistorySearchCursor {
+        let matching_items: Vec<usize> = self.items
+            .iter()
+            .zip(0..)
+            .filter(|&(it, _)| mode.matches(it))
+            .map(|x| x.1)
             .collect();
 
-        // Find the index into matching_items that is closest to current_history_ind to move the
-        // highlight only a litte.
-        let mut ind_item = 0;
-        let mut dist = history.items.len();
-        for i in 0..self.matching_items.len() {
-            let history_ind = self.matching_items[i];
-            let d = abs_diff(current_history_ind, history_ind);
-            if d < dist {
-                dist = d;
-                ind_item = i;
+        let item_ind = if reverse {
+            let l = matching_items.len();
+            if l == 0 { 0 } else { l - 1 }
+        } else {
+            0
+        };
+        HistorySearchCursor {
+            matching_items,
+            item_ind,
+        }
+    }
+}
+
+
+impl<'a> HistorySearchMode<'a> {
+    fn matches(&self, other: &str) -> bool {
+        match self {
+            &HistorySearchMode::Browse => true,
+            &HistorySearchMode::Prefix(pref) => other.starts_with(pref),
+            &HistorySearchMode::Contained(cont) => other.contains(cont),
+        }
+    }
+}
+
+impl HistorySearchCursor {
+    pub fn prev1(&mut self) {
+        if self.item_ind < self.matching_items.len() {
+            if self.item_ind > 0 {
+                self.item_ind -= 1;
+            } else {
+                self.item_ind = self.matching_items.len() - 1;
             }
         }
-        self.ind_item = ind_item;
     }
 
-    pub fn prev(&mut self) {
-        if self.ind_item > 0 {
-            self.ind_item -= 1;
+    pub fn next1(&mut self) {
+        if self.item_ind + 1 < self.matching_items.len() {
+            self.item_ind += 1;
         } else {
-            let l = self.matching_items.len();
-            self.ind_item = if l == 0 { 0 } else { l - 1 };
+            self.item_ind = 0;
         }
     }
 
-    pub fn next(&mut self) {
-        if self.ind_item < self.matching_items.len() {
-            self.ind_item += 1;
+    pub fn prev(&mut self, n: usize) {
+        if self.item_ind < self.matching_items.len() {
+            if self.item_ind > n {
+                self.item_ind -= n;
+            } else {
+                self.item_ind = 0;
+            }
+        }
+    }
+
+    pub fn next(&mut self, n: usize) {
+        if self.item_ind + n < self.matching_items.len() {
+            self.item_ind += n;
         } else {
-            self.ind_item = 0;
+            self.item_ind = if self.matching_items.len() > 0 {
+                self.matching_items.len() - 1
+            } else {
+                0
+            };
         }
     }
 }
