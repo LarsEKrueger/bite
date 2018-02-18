@@ -16,14 +16,20 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Handles all sources of configuration.
+//!
+//! Currently only reads the command line arguments.
+
 use argparse::{ArgumentParser, List};
 
+/// All parameters passed to the executable on the command line.
 #[derive(Debug)]
 pub struct CommandLine {
     pub single_program: Vec<String>,
 }
 
 impl CommandLine {
+    /// Parse the command line arguments and fill a CommandLine struct.
     pub fn parse() -> CommandLine {
         let mut result = CommandLine { single_program: vec![] };
         {

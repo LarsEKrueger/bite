@@ -23,25 +23,46 @@ use std::ptr;
 use std::ffi::CStr;
 use libc::{c_char, gethostname, gid_t, uid_t};
 
-mod script_parser;
-mod prompt_parser;
+pub mod script_parser;
+pub mod prompt_parser;
 pub mod history;
 
 use super::types::*;
 
-// All relevant info about the current user.
+/// All relevant info about the current user.
+///
+/// This is the same structure as in the C version.
 struct UserInfo {
+    /// User ID
     uid: uid_t,
+
+    /// Group ID
     _gid: gid_t,
+
+    /// Account Name
     name: String,
+
+    /// equivalent to $HOME
     home_dir: String,
+
+    /// Path of the defaul shell to execute
     _shell: String,
 }
 
+/// Complete interpreter state.
 pub struct Bash {
+    /// Name of the computer this program is running.
     current_host_name: String,
+
+    /// Info about the user that runs this program.
     current_user: UserInfo,
+
+    /// Accumulate source in this string until it parses completely.
+    ///
+    /// This is required as NOM cannot continue a partial parse.
     line: String,
+
+    /// List of all lines we have successfully parsed.
     pub history: history::History,
 }
 
@@ -50,6 +71,7 @@ const PATCHLEVEL: &'static str = "0";
 
 const FALLBACK_HOSTNAME: &'static str = "??host??";
 
+/// Convert a parsing error message into a readable format, similar to Rust's messages.
 fn format_error_message(error: ::nom::Err<&[u8]>, line: &String) -> Vec<String> {
     let mut msg = line.clone();
 
@@ -71,6 +93,7 @@ fn format_error_message(error: ::nom::Err<&[u8]>, line: &String) -> Vec<String> 
 }
 
 impl Bash {
+    /// Create a new bash script interpreter.
     pub fn new() -> Self {
         // It's highly unlikely that this will change.
         let current_host_name = {
@@ -140,10 +163,12 @@ impl Bash {
         }
     }
 
+    /// Returns the version string for display.
     pub fn version() -> String {
         String::from(VERSION)
     }
 
+    /// Returns the detailed version string for display.
     pub fn version_and_patchlevel() -> String {
         let mut s = String::from(VERSION);
         s.push_str(".");
@@ -151,6 +176,11 @@ impl Bash {
         s
     }
 
+    /// Accepts another line and try to parse it.
+    ///
+    /// If the parse was successful and complete, return a command to be executed.
+    ///
+    /// If the parse failed, indicate so.
     pub fn add_line(&mut self, l: &str) -> Command {
         // Append the line to the last one and try to (re-)parse.
         self.line.push_str(l);
@@ -178,6 +208,7 @@ impl Bash {
         command
     }
 
+    /// Parses $PS1 and returns the generated string.
     pub fn expand_ps1(&self) -> String {
         // Get the string from the environment.
         // TODO: Get it from own variables.
@@ -187,6 +218,7 @@ impl Bash {
         self.decode_prompt_string(ps1_string.as_str())
     }
 
+    /// Parses $PS1 and returns the generated string.
     fn decode_prompt_string(&self, input: &str) -> String {
         // For the moment use nom to parse the string until proven too slow.
         match prompt_parser::parse_prompt(input.as_bytes(), self) {
@@ -195,19 +227,23 @@ impl Bash {
         }
     }
 
+    /// Reads the host name from the interpreter for display purposes.
     pub fn get_current_host_name<'a>(&'a self) -> &'a str {
         &self.current_host_name
     }
 
+    /// Reads the account name of the user from the interpreter for display purposes.
     pub fn get_current_user_name<'a>(&'a self) -> &'a str {
         &self.current_user.name
     }
 
+    /// Reads the path of the home directory from the interpreter for display purposes.
     #[allow(dead_code)]
     pub fn get_current_user_home_dir<'a>(&'a self) -> &'a str {
         &self.current_user.home_dir
     }
 
+    /// Checks if the current user is root.
     pub fn current_user_is_root(&self) -> bool {
         self.current_user.uid == 0
     }

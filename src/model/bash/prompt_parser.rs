@@ -16,11 +16,16 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! nom parser for bash prompt strings.
+//!
+//! The parse function needs an instance of [`Bash`] to generate its output.
+//!
+//! [`Bash`]: ../struct.Bash.html
+
 use nom::oct_digit;
 use super::Bash;
 
-/* Parse a prompt string and build a string.
- */
+/// Parse a prompt string and build a string.
 named_args!(pub parse_prompt<'a>(bash:&Bash)<String>,
          map!(many0!(
              alt!(call!(backslashy,bash) | history | something)
@@ -29,57 +34,59 @@ named_args!(pub parse_prompt<'a>(bash:&Bash)<String>,
              )
        );
 
+/// Convert an u8 array slice to a [`String`]
 fn array_to_string(array: &[u8]) -> Result<String, ::std::string::FromUtf8Error> {
     String::from_utf8(array.to_vec())
 }
 
+/// Format the current time using the given format string.
 fn now_as(format: &str) -> Result<String, ::time::ParseError> {
     ::time::strftime(format, &::time::now())
 }
 
-/* Parse a history sequence and convert them to:
-
-   !!   an exclamation mark !
-   !    history number (same as \!), TODO
- */
+/// Parse a history sequence and convert them to:
+///
+///  !!   an exclamation mark !
+///  !    history number (same as \!), TODO
+///
 named!(
     history<String>,
     alt_complete!(map!(tag!("!!"), |_| String::from("!")) | map!(tag!("!"), |_| String::from("1")))
 );
 
-/* Parse the backslash sequences and convert them to:
-
- * \a       bell (ascii 07)
- * \d       the date in Day Mon Date format
- * \e       escape (ascii 033)
- * \h       the hostname up to the first `.'
- * \H       the hostname
-   \j       the number of active jobs, TODO
- * \l       the basename of the shell's tty device name -> always "tty" as we don't have a tty
- * \n       CRLF
- * \r       CR
- * \s       the name of the shell -> BiTE
- * \t       the time in 24-hour hh:mm:ss format
- * \T       the time in 12-hour hh:mm:ss format
- * \@       the time in 12-hour hh:mm am/pm format
- * \A       the time in 24-hour hh:mm format
- * \D{fmt}  the result of passing FMT to strftime(3)
- * \u       your username
- * \v       the version of bash (e.g., 2.00)
- * \V       the release of bash, version + patchlevel (e.g., 2.00.0)
-   \w       the current working directory, TODO
-   \W       the last element of $PWD, TODO
-   \!       the history number of this command, TODO
-   \#       the command number of this command, TODO
- * \$       a $ or a # if you are root
- * \nnn     character code nnn in octal
- * \\       a backslash
-
-   The following two are only required for readline. We replace them with nothing as we don't need
-   the markers.
- * \[       begin a sequence of non-printing chars
- * \]       end a sequence of non-printing chars
-*/
+///  Parse the backslash sequences and convert them to:
+///
+///  * \a       bell (ascii 07)
+///  * \d       the date in Day Mon Date format
+///  * \e       escape (ascii 033)
+///  * \h       the hostname up to the first `.'
+///  * \H       the hostname
+///    \j       the number of active jobs, TODO
+///  * \l       the basename of the shell's tty device name -> always "tty" as we don't have a tty
+///  * \n       CRLF
+///  * \r       CR
+///  * \s       the name of the shell -> BiTE
+///  * \t       the time in 24-hour hh:mm:ss format
+///  * \T       the time in 12-hour hh:mm:ss format
+///  * \@       the time in 12-hour hh:mm am/pm format
+///  * \A       the time in 24-hour hh:mm format
+///  * \D{fmt}  the result of passing FMT to strftime(3)
+///  * \u       your username
+///  * \v       the version of bash (e.g., 2.00)
+///  * \V       the release of bash, version + patchlevel (e.g., 2.00.0)
+///    \w       the current working directory, TODO
+///    \W       the last element of $PWD, TODO
+///    \!       the history number of this command, TODO
+///    \#       the command number of this command, TODO
+///  * \$       a $ or a # if you are root
+///  * \nnn     character code nnn in octal
+///  * \\       a backslash
+///
+///    The following two are only required for readline. We replace them with nothing as we don't need
+///    the markers.
+///  * \[       begin a sequence of non-printing chars
+///  * \]       end a sequence of non-printing chars
+///
 named_args!(
     backslashy<'a>(bash:&Bash)<String>,
     do_parse!(tag!("\\") >> 
@@ -116,6 +123,7 @@ named_args!(
         )
 );
 
+/// Parse a number in octal and convert to a byte.
 named!(
     octal<String>,
     map_res!(
@@ -131,6 +139,11 @@ named!(
     )
 );
 
+/// Parse a user-defined time string and convert it to a [`String`].
+///
+/// # Errors
+///
+/// If the parsed string is incorrect, it will be replaced by `%X`, which shows time and date.
 named!(
     user_time<String>,
     map!(
@@ -151,7 +164,7 @@ named!(
     )
 );
 
-// Parse a character.
+/// Parse a character.
 named!(something<String>, map_res!(take!(1), array_to_string));
 
 #[cfg(test)]

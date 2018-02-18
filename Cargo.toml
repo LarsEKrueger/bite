@@ -1,8 +1,15 @@
 [package]
 name = "bite"
 version = "0.1.0"
+description = "Bash-integrated Terminal Editor"
 authors = ["Lars Krueger <lars_e_krueger@gmx.de>"]
+license = "GPL-3.0-or-later"
 build="build.rs"
+publish = false
+repository = "https://github.com/LarsEKrueger/bite.git"
+readme = "readme.md"
+keywords = [ "bash", "shell", "terminal-emulators", "gui" ]
+categories = [ "gui", "development-tools" ]
 
 [dependencies]
 argparse = "0.2.1"

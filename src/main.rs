@@ -32,35 +32,49 @@ extern crate nom;
 
 extern crate bincode;
 
-mod tools;
-mod model;
-mod presenter;
-mod view;
+pub mod tools;
+pub mod model;
+pub mod presenter;
+pub mod view;
 
-fn main() {
-    let EMPTY = cstr!("");
-    unsafe {
-        libc::setlocale(libc::LC_ALL, EMPTY.as_ptr());
-    };
+/// BiTE - Bash-integrated Terminal Emulator
+///
+/// BiTE combines bash and xterm into one program.
+///
+/// The software is designed as [`model`]-[`view`]-[`presenter`]. You can find the respective components in
+/// their own modules.
+///
+/// [`model`]: ../model/index.html
+/// [`view`]: ../view/index.html
+/// [`presenter`]: ../presenter/index.html
+pub mod main {
 
-    let params = tools::commandline::CommandLine::parse();
+    /// Main function that starts the program.
+    pub fn main() {
+        let EMPTY = cstr!("");
+        unsafe {
+            ::libc::setlocale(::libc::LC_ALL, EMPTY.as_ptr());
+        };
+
+        let params = ::tools::commandline::CommandLine::parse();
 
     #[cfg(debug_assertions)]
-    println!("Command Line\n{:?}", params);
+        println!("Command Line\n{:?}", params);
 
-    let mut gui = match view::Gui::new() {
-        Err(err) => {
-            println!("Can't init GUI: {}", err);
-            std::process::exit(1);
-        }
-        Ok(g) => g,
-    };
+        let mut gui = match ::view::Gui::new() {
+            Err(err) => {
+                println!("Can't init GUI: {}", err);
+                ::std::process::exit(1);
+            }
+            Ok(g) => g,
+        };
 
-    //   if params.single_program.len() != 0 {
-    //       session.new_interaction(params.single_program[0].clone());
-    //       spawned = Some(execute::spawn_command(&params.single_program));
-    //   }
+        //   if params.single_program.len() != 0 {
+        //       session.new_interaction(params.single_program[0].clone());
+        //       spawned = Some(execute::spawn_command(&params.single_program));
+        //   }
 
-    gui.main_loop();
-    gui.finish();
+        gui.main_loop();
+        gui.finish();
+    }
 }
