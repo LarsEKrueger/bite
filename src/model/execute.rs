@@ -16,6 +16,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Handle command execution and reading output and errors from the command.
+//!
+//! Spawns the threads that control the executed command and provides the channels to communicate
+//! with them.
+//!
+//! The channels must be polled from the outside.
+
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
@@ -27,12 +34,21 @@ use libc::{fd_set, select, timeval, FD_ISSET, FD_SET, FD_ZERO};
 
 use tools::polling;
 
+/// Data to be sent to the receiver of the program's output.
 pub enum CommandOutput {
+    /// A line was read from stdout.
     FromOutput(String),
+
+    /// A line was read from stderr.
     FromError(String),
+
+    /// The program terminated.
     Terminated(ExitStatus),
 }
 
+/// Spawn a command in a controlling thread.
+///
+/// Return the channel ends to the controlling function.
 pub fn spawn_command(
     cmd: &Vec<String>,
 ) -> Result<(Sender<String>, Receiver<CommandOutput>), String> {
@@ -59,6 +75,7 @@ pub fn spawn_command(
     }
 }
 
+/// Read a line from a pipe and report if it worked.
 fn read_line<T>(pipe: &mut T) -> Option<String>
 where
     T: Read,
@@ -75,6 +92,7 @@ where
     None
 }
 
+/// Thread function to accept the output of the running program and provide it with input.
 fn send_output(output_tx: Sender<CommandOutput>, input_rx: Receiver<String>, mut child: Child) {
     let fd_out = child.stdout.as_ref().map(|c| c.as_raw_fd());
     let fd_err = child.stderr.as_ref().map(|c| c.as_raw_fd());

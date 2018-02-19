@@ -16,6 +16,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! View component of the model-view-presenter pattern.
+//!
+//! Currently only available for X11.
+
 use x11::xlib::*;
 use x11::keysym::*;
 use std::os::raw::{c_char, c_int, c_long};
@@ -27,53 +31,84 @@ use std::ptr::{null, null_mut};
 use tools::polling;
 use presenter::*;
 
+/// Initial width of the window in pixels
 const WIDTH: i32 = 400;
+
+/// Initial height of the window in pixels
 const HEIGHT: i32 = 200;
 
+/// Handles all interaction with the X11 system.
+///
+/// This struct represents the view component of the model-view-presenter pattern. It sends events
+/// to the presenter via method calls and obtains the items to draw via an iterator of strings.
 pub struct Gui {
-    // X11 exclusive
-    // {
+    /// X11 server connection
     display: *mut Display,
+    /// The ID of the lone window
     window: Window,
+    /// Bitmask of the event we request from the window
     event_mask: c_long,
+    /// Graphics context to draw the output
     gc: GC,
+    /// Input manager to handle utf8 input
     xim: XIM,
+    /// Input context to handle utf8 input
     xic: XIC,
 
+    /// Prototocols atom for detecting window closure
     wm_protocols: Atom,
+
+    /// Delete window atom for detecting window closure
     wm_delete_window: Atom,
 
+    /// Selected fontset to draw the output
     font_set: XFontSet,
-    // }
 
-    // Generic GUI data
-    // {
+    /// Height of the font above base line in pixel
     font_ascent: i32,
+    /// Width of one character in pixels
     font_width: i32,
+    /// Total height of the font in pixel
     font_height: i32,
+    /// Current width of the window in pixels
     window_width: i32,
+    /// Current height of the window in pixels
     window_height: i32,
 
+    /// Is the window focused?
     have_focus: bool,
+    /// Is the cursor on (filled) or off (not filled)?
     cursor_on: bool,
+    /// When was the last time, the cursor changed state?
     cursor_flip_time: SystemTime,
 
+    /// Do we need to redraw the window ASAP?
     needs_redraw: bool,
+    /// When was the last time we rendered the window contents?
     redraw_time: SystemTime,
 
+    /// Do we need to check for events or can we wait a bit?
     gate: polling::Gate,
 
-    // }
+    /// Presenter in the model-view-presenter.
+    ///
+    /// Contains all the business logic, i.e. what to draw and when and how to react to input.
     presenter: Presenter,
 }
 
+/// Default font to draw the output
 const FONTNAME: &'static str = "-*-peep-medium-r-*-*-14-*-*-*-*-*-*-*\0";
 
+/// Create the input context.
+///
+/// The is done in a separate C function as passing NULL pointer sentinels doesn't work out of the
+/// box.
 #[link(name = "mystuff")]
 extern "C" {
     pub fn myCreateIC(xim: XIM, window: Window) -> XIC;
 }
 
+/// Convert the X11 event modifier flags to GUI agnostic flags.
 pub fn modifier_state_from_event(info_state: u32) -> ModifierState {
     ModifierState {
         shift_pressed: 0 != (info_state & ShiftMask),
@@ -83,6 +118,23 @@ pub fn modifier_state_from_event(info_state: u32) -> ModifierState {
 }
 
 impl Gui {
+    /// Open a server connection and prepare for event processing.
+    ///
+    /// Physically, the window is measured in pixel. Logically, all coordinates are converted to
+    /// characters before passing them to the presenter. Likewise, the presenter gives all
+    /// coordinates in characters.
+    ///
+    /// # Errors
+    ///
+    /// Might fail for a number of reasons, incl. bad resource names and incompatible window
+    /// managers.
+    ///
+    /// # Safety
+    ///
+    /// Uses a lot of unsage functions as the server communication is done in C.
+    ///
+    /// Not all return codes are checked (yet), so might cause crashes that could have been
+    /// detected at startup.
     pub fn new() -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
         let WM_DELETE_WINDOW = cstr!("WM_DELETE_WINDOW");
@@ -220,11 +272,14 @@ impl Gui {
         }
     }
 
+    /// Flush the X11 output buffer.
     pub fn flush(&self) {
         unsafe { XFlush(self.display) };
     }
 
-    // TODO: User defined return type to account for ClientMessage/Close
+    /// Poll for events from the server.
+    ///
+    /// TODO: User defined return type to account for ClientMessage/Close
     pub fn poll_for_event(&self) -> Option<XEvent> {
         unsafe {
             let mut e: XEvent = ::std::mem::uninitialized();
@@ -247,10 +302,15 @@ impl Gui {
         }
     }
 
+    /// Draw a line in the given row, beginning at the left-most character
+    ///
+    /// Although DisplayLine contains a cursor position in this row, the cursor itself will not be
+    /// drawn here.
     pub fn draw_line(&self, row: i32, line: &DisplayLine) {
         self.draw_utf8(0, row, &line.text);
     }
 
+    /// Draw a line with the first character starting at the given character position
     pub fn draw_utf8(&self, column: i32, row: i32, utf8: &str) {
         unsafe {
             Xutf8DrawString(
@@ -266,6 +326,9 @@ impl Gui {
         };
     }
 
+    /// Render the current presentation to the window.
+    ///
+    /// Redraws the whole window, not just the exposed rectangle.
     pub fn render(&self) {
         let lines_per_window = self.lines_per_window();
 
@@ -307,8 +370,6 @@ impl Gui {
                         );
                     }
                 }
-
-
             }
 
             row += 1;
@@ -318,10 +379,12 @@ impl Gui {
         }
     }
 
+    /// Compute the number of lines in the window, rounded down.
     pub fn lines_per_window(&self) -> usize {
         (self.window_height / self.font_height) as usize
     }
 
+    /// Redraw right now and remember it.
     pub fn force_redraw(&mut self) {
         self.render();
         self.flush();
@@ -329,10 +392,12 @@ impl Gui {
         self.redraw_time = SystemTime::now();
     }
 
+    /// Mark the GUI to be redrawn in the next frame.
     pub fn mark_redraw(&mut self) {
         self.needs_redraw = true;
     }
 
+    /// Check if we should redraw in this iteration.
     pub fn should_redraw(&self) -> bool {
         if self.needs_redraw {
             if let Ok(dur) = self.redraw_time.elapsed() {
@@ -346,11 +411,13 @@ impl Gui {
         }
     }
 
+    /// Set the cursor to a state and start the blink cycle anew.
     pub fn cursor_now(&mut self, on: bool) {
         self.cursor_on = on;
         self.cursor_flip_time = SystemTime::now();
     }
 
+    /// Checks if we need to flip the cursor state.
     pub fn check_cursor_flip(&mut self) {
         let cursor_on_time = Duration::from_millis(1000);
         let cursor_off_time = Duration::from_millis(500);
@@ -370,6 +437,9 @@ impl Gui {
         }
     }
 
+    /// Main GUI polling loop.
+    ///
+    /// Waits for events and dispatches then to the presenter or to itself.
     pub fn main_loop(&mut self) {
         loop {
             self.gate.wait();
@@ -564,6 +634,7 @@ impl Gui {
         }
     }
 
+    /// Frees all X resources
     pub fn finish(&mut self) {
         unsafe {
             XDestroyIC(self.xic);

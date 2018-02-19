@@ -16,6 +16,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Presenter component of the model-view-presenter pattern.
+//!
+//! The presenter dispatches all events to sub-presenters that handle different views, e.g. command
+//! composition or history browsing.
+
 use std::fmt::{Display, Formatter, Error};
 
 mod runeline;
@@ -26,46 +31,73 @@ use model::interaction::*;
 use model::bash::*;
 use model::bash::history::*;
 
+/// GUI agnostic representation of the modifier keys
 pub struct ModifierState {
     pub shift_pressed: bool,
     pub control_pressed: bool,
     pub meta_pressed: bool,
 }
 
+/// Represent a boolean with the semantics 'does the GUI need to be redrawn'.
 #[derive(PartialEq, Eq)]
 pub enum NeedRedraw {
     No,
     Yes,
 }
 
+/// Item for the output iterator to be shown by the GUI.
+///
+/// Each line can have its own cursor, but the GUI might render them to blink synchronously.
 pub struct DisplayLine {
     pub text: String,
     pub cursor_col: Option<usize>,
 }
 
+/// Constant to indicate how long the prefix of Command line items (as output by line_iter) is.
+///
+/// This is used to check if we clicked the prefix.
 const COMMAND_PREFIX_LEN: usize = 4;
 
+/// Trait to split the big presenter into several small ones.
+///
+/// Each SubPresenter handles a different kind of interaction mode, e.g. command composition or
+/// history browsing.
 trait SubPresenter {
+    /// Provide read access to the data that is common to the presenter in all modi.
     fn commons<'a>(&'a self) -> &'a Box<PresenterCommons>;
 
+    /// Provide write access to the data that is common to the presenter in all modi.
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons>;
 
+    /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a>;
 
+    /// Handle the event when the return key is pressed.
     fn event_return(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
+
+    /// Handle the event when the cursor up key is pressed.
     fn event_cursor_up(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
+
+    /// Handle the event when the cursor down key is pressed.
     fn event_cursor_down(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
+
+    /// Handle the event when the page up key is pressed.
     fn event_page_up(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
+
+    /// Handle the event when the page down key is pressed.
     fn event_page_down(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
 
+    /// Handle the event when a modifier and a letter is pressed.
     fn event_control_key(
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, bool);
 
+    /// Handle the event when the input string was changed.
     fn event_update_line(self: Box<Self>) -> Box<SubPresenter>;
 
+    /// Handle the event when the mouse was pushed and released at the same position.
     fn handle_click(
         self: Box<Self>,
         button: usize,
@@ -74,45 +106,68 @@ trait SubPresenter {
     ) -> (Box<SubPresenter>, NeedRedraw);
 }
 
+/// Data that is common to all presenter views.
 struct PresenterCommons {
+    /// The current and previous commands and the outputs of them.
     session: Session,
 
+    /// Width of the window in characters
     window_width: usize,
+
+    /// Height of the window in characters
     window_height: usize,
 
+    /// Position where a mouse button was pushed.
+    ///
+    /// Only the first click is remembered.
     button_down: Option<(usize, usize, usize)>,
 
+    /// Index post the lowest line that is displayed.
+    ///
+    /// This is the index of first line that is not shown, i.e. the one below the end of the
+    /// screen.
     last_line_shown: usize,
 
+    /// Currently edited input line
     current_line: runeline::Runeline,
 }
 
+/// Presenter to input and run commands.
 struct ComposeCommandPresenter {
+    /// Common data.
     commons: Box<PresenterCommons>,
 }
 
+/// Presenter to select an item from the history.
 struct HistoryPresenter {
+    /// Common data.
     commons: Box<PresenterCommons>,
+    /// Current search result
     search: history::HistorySearchCursor,
 }
 
+/// The top-level presenter dispatches events to the sub-presenters.
 pub struct Presenter(Option<Box<SubPresenter>>);
 
 impl ModifierState {
+    /// Returns true if no modifier key is pressed.
     fn none_pressed(&self) -> bool {
         !(self.shift_pressed || self.control_pressed || self.meta_pressed)
     }
 
+    /// Return the modifier flags as a tuple for pattern matching
     fn as_tuple(&self) -> (bool, bool, bool) {
         (self.shift_pressed, self.control_pressed, self.meta_pressed)
     }
 
+    /// Check if any modifier but shift is pressed.
     pub fn not_only_shift(&self) -> bool {
         self.control_pressed || self.meta_pressed
     }
 }
 
 impl Display for ModifierState {
+    /// Show the modifier state as a prefix for a key.
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         fn b2s(b: bool, s: &str) -> &str {
             if b { s } else { "" }
@@ -129,6 +184,9 @@ impl Display for ModifierState {
 }
 
 impl DisplayLine {
+    /// Create a line to be displayed from an session item.
+    ///
+    /// Decorate the line according to its type and update the cursor position.
     fn new(line: LineItem) -> DisplayLine {
         // Depending on the type, choose the offset and draw the decoration
         let deco = match line.is_a {
@@ -154,6 +212,9 @@ impl DisplayLine {
 }
 
 impl PresenterCommons {
+    /// Allocate a new data struct.
+    ///
+    /// This will be passed from sub-presenter to sub-presenter on state changes.
     pub fn new() -> Self {
         PresenterCommons {
             session: Session::new(),
@@ -165,6 +226,7 @@ impl PresenterCommons {
         }
     }
 
+    /// Compute the index of the first line to be shown.
     pub fn start_line(&self) -> usize {
         if self.last_line_shown > self.window_height {
             self.last_line_shown - self.window_height
@@ -173,40 +235,52 @@ impl PresenterCommons {
         }
     }
 
+    /// Return the index of the character where the cursor is in the current input line.
     fn current_line_pos(&self) -> usize {
         self.current_line.char_index()
     }
 }
 
 impl Presenter {
+    /// Allocate a new presenter and start presenting in normal mode.
     pub fn new() -> Self {
         Presenter(Some(ComposeCommandPresenter::new(
             Box::new(PresenterCommons::new()),
         )))
     }
 
+    /// Access sub-presenter read-only for dynamic dispatch
     fn d(&self) -> &Box<SubPresenter> {
         self.0.as_ref().unwrap()
     }
 
+    /// Access sub-presenter read-write for dynamic dispatch
     fn dm(&mut self) -> &mut Box<SubPresenter> {
         self.0.as_mut().unwrap()
     }
 
+    /// Access the common fields read-only
     fn c(&self) -> &PresenterCommons {
         self.d().commons().as_ref()
     }
 
+    /// Access the common fields read-write
     fn cm(&mut self) -> &mut PresenterCommons {
         self.dm().commons_mut().as_mut()
     }
 
+    /// Call an event handler in the sub-presenter.
+    ///
+    /// Update the sub-presenter if it was changed.
     fn dispatch<T: Fn(Box<SubPresenter>) -> Box<SubPresenter>>(&mut self, f: T) {
         let sp = ::std::mem::replace(&mut self.0, None);
         let new_sp = f(sp.unwrap());
         self.0 = Some(new_sp);
     }
 
+    /// Call an event handler with an additional return value in the sub-presenter.
+    ///
+    /// Update the sub-presenter if it was changed.
     fn dispatch_res<R, T: Fn(Box<SubPresenter>) -> (Box<SubPresenter>, R)>(&mut self, f: T) -> R {
         let sp = ::std::mem::replace(&mut self.0, None);
         let (new_sp, res) = f(sp.unwrap());
@@ -214,15 +288,20 @@ impl Presenter {
         res
     }
 
+    /// Check if the view is scrolled down to the bottom to facilitate auto-scrolling.
     fn last_line_visible(&self) -> bool {
         self.d().line_iter().count() == self.c().last_line_shown
     }
 
+    /// Ensure that the last line is visible, even if the number of lines was changed.
     fn to_last_line(&mut self) {
         let len = self.d().line_iter().count();
         self.cm().last_line_shown = len;
     }
 
+    /// Poll the session if new data arrived from a running command.
+    ///
+    /// Tell the view that is should it redraw itself soon.
     pub fn poll_interaction(&mut self) -> NeedRedraw {
         let last_line_visible_pre = self.last_line_visible();
         let needs_redraw = self.cm().session.poll_interaction();
@@ -236,10 +315,12 @@ impl Presenter {
         }
     }
 
+    /// Dispatch the event when the input was changed.
     fn event_update_line(&mut self) {
         self.dispatch(|sp| sp.event_update_line());
     }
 
+    /// Handle the View event when the window size changes.
     pub fn event_window_resize(&mut self, width: usize, height: usize) {
         let commons = self.cm();
         commons.window_width = width;
@@ -247,14 +328,17 @@ impl Presenter {
         commons.button_down = None;
     }
 
+    /// Handle the view event when the window regained focus.
     pub fn event_focus_gained(&mut self) {
         self.cm().button_down = None;
     }
 
+    /// Handle the view event when the window lost focus.
     pub fn event_focus_lost(&mut self) {
         self.cm().button_down = None;
     }
 
+    /// Handle the event that the window was scrolled down.
     pub fn event_scroll_down(&mut self, mod_state: ModifierState) -> NeedRedraw {
         if mod_state.none_pressed() {
             if self.c().last_line_shown < self.d().line_iter().count() {
@@ -265,6 +349,7 @@ impl Presenter {
         NeedRedraw::No
     }
 
+    /// Handle the event that the window was scrolled up.
     pub fn event_scroll_up(&mut self, mod_state: ModifierState) -> NeedRedraw {
         if mod_state.none_pressed() {
             if self.c().last_line_shown > self.c().window_height {
@@ -275,37 +360,45 @@ impl Presenter {
         NeedRedraw::No
     }
 
+    /// Handle the event that the cursor left key was pressed.
     pub fn event_cursor_left(&mut self, _mod_state: ModifierState) {
         self.cm().current_line.move_left();
     }
 
+    /// Handle the event that the cursor right key was pressed.
     pub fn event_cursor_right(&mut self, _mod_state: ModifierState) {
         self.cm().current_line.move_right();
     }
 
+    /// Handle the event that the delete key was pressed.
     pub fn event_delete_right(&mut self, _mod_state: ModifierState) {
         self.cm().current_line.delete_right();
         self.event_update_line();
     }
 
+    /// Handle the event that the backspace key was pressed.
     pub fn event_backspace(&mut self, _mod_state: ModifierState) {
         self.cm().current_line.delete_left();
         self.event_update_line();
     }
 
+    /// Dispatch the event that Modifier+Letter was pressed.
     pub fn event_control_key(&mut self, mod_state: &ModifierState, letter: u8) -> bool {
         self.dispatch_res(|sp| sp.event_control_key(mod_state, letter))
     }
 
+    /// Handle the event that some text was entered.
     pub fn event_text(&mut self, s: &str) {
         self.cm().current_line.insert_str(s);
         self.event_update_line();
     }
 
+    /// Dispatch the event that the return key was pressed.
     pub fn event_return(&mut self, mod_state: &ModifierState) {
         self.dispatch(|sp| sp.event_return(mod_state));
     }
 
+    /// Handle the event that a mouse button was pressed.
     pub fn event_button_down(
         &mut self,
         _mod_state: ModifierState,
@@ -317,6 +410,10 @@ impl Presenter {
         NeedRedraw::No
     }
 
+    /// Handle the event that a mouse button was released.
+    ///
+    /// If the same button was released at the position where it was pressed, dispatch the click
+    /// event to the sub-presenter.
     pub fn event_button_up(
         &mut self,
         _mod_state: ModifierState,
@@ -333,22 +430,27 @@ impl Presenter {
         NeedRedraw::No
     }
 
+    /// Dispatch the event that the cursor up key was pressed.
     pub fn event_cursor_up(&mut self, mod_state: &ModifierState) {
         self.dispatch(|sp| sp.event_cursor_up(mod_state));
     }
 
+    /// Dispatch the event that the cursor down key was pressed.
     pub fn event_cursor_down(&mut self, mod_state: &ModifierState) {
         self.dispatch(|sp| sp.event_cursor_down(mod_state));
     }
 
+    /// Dispatch the event that the page up key was pressed.
     pub fn event_page_up(&mut self, mod_state: &ModifierState) {
         self.dispatch(|sp| sp.event_page_up(mod_state));
     }
 
+    /// Dispatch the event that the page down key was pressed.
     pub fn event_page_down(&mut self, mod_state: &ModifierState) {
         self.dispatch(|sp| sp.event_page_down(mod_state));
     }
 
+    /// Yield an iterator that provides the currently visible lines for display.
     pub fn display_line_iter<'a>(&'a self) -> Box<Iterator<Item = DisplayLine> + 'a> {
         let iter = self.d().line_iter();
         let start_line = self.c().start_line();
@@ -357,12 +459,14 @@ impl Presenter {
 }
 
 impl ComposeCommandPresenter {
+    /// Allocate a sub-presenter for command composition and input to running programs.
     fn new(commons: Box<PresenterCommons>) -> Box<Self> {
         let mut presenter = ComposeCommandPresenter { commons };
         presenter.to_last_line();
         Box::new(presenter)
     }
 
+    /// Make the last line visible.
     fn to_last_line(&mut self) {
         let cnt = self.line_iter().count();
         self.commons.last_line_shown = cnt;
@@ -400,6 +504,9 @@ impl SubPresenter for ComposeCommandPresenter {
         self
     }
 
+    /// Handle a click.
+    ///
+    /// If a command was clicked, cycle through the visibility of output and error.
     fn handle_click(
         mut self: Box<Self>,
         button: usize,
@@ -433,6 +540,9 @@ impl SubPresenter for ComposeCommandPresenter {
         (self, NeedRedraw::No)
     }
 
+    /// Handle pressing modifier + letter.
+    ///
+    /// If Ctrl-R is pressed, go to history browse mode with search for contained strings.
     fn event_control_key(
         mut self: Box<Self>,
         mod_state: &ModifierState,
@@ -453,14 +563,25 @@ impl SubPresenter for ComposeCommandPresenter {
         }
     }
 
+    /// Handle pressing cursor up.
+    ///
+    /// Go to history browse mode without search.
     fn event_cursor_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         HistoryPresenter::new(self.commons, HistorySearchMode::Browse, true)
     }
 
+    /// Handle pressing cursor down.
+    ///
+    /// Go to history browse mode without search.
     fn event_cursor_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false)
     }
 
+    /// Handle pressing page up.
+    ///
+    /// Scroll page-wise on Shift-PageUp.
+    ///
+    /// Go to history browse mode with prefix search if no modifiers were pressed.
     fn event_page_up(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
         match mod_state.as_tuple() {
             (true, false, false) => {
@@ -484,6 +605,11 @@ impl SubPresenter for ComposeCommandPresenter {
         }
     }
 
+    /// Handle pressing page down.
+    ///
+    /// Scroll page-wise on Shift-PageDown.
+    ///
+    /// Go to history browse mode with prefix search if no modifiers were pressed.
     fn event_page_down(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
         match mod_state.as_tuple() {
             (true, false, false) => {
@@ -507,6 +633,9 @@ impl SubPresenter for ComposeCommandPresenter {
 }
 
 impl HistoryPresenter {
+    /// Allocate a new sub-presenter for history browsing.
+    ///
+    /// The filter for determining which items to show is passed in mode.
     fn new(
         commons: Box<PresenterCommons>,
         mode: HistorySearchMode,
@@ -520,13 +649,16 @@ impl HistoryPresenter {
         Box::new(presenter)
     }
 
+    /// Scroll to last line
     fn to_last_line(&mut self) {
         let cnt = self.line_iter().count();
         self.commons.last_line_shown = cnt;
     }
 
+    /// Ensure that the selected item is visible on screen.
+    ///
+    /// If the selection is already visible, do nothing. Otherwise, center it on the screen.
     fn show_selection(&mut self) -> NeedRedraw {
-        // If the selection is already visible, do nothing. Otherwise, center it on the screen.
         let start_line = self.commons.start_line();
         if start_line <= self.search.item_ind &&
             self.search.item_ind < self.commons.last_line_shown
@@ -575,6 +707,10 @@ impl SubPresenter for HistoryPresenter {
         )
     }
 
+    /// Handle pressing the return key.
+    ///
+    /// Extract the selected line from history, switch state to the normal presenter and make it
+    /// handle the line as if it was entered.
     fn event_return(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
         let propagate = if self.search.item_ind < self.search.matching_items.len() {
             let hist_ind = self.search.matching_items[self.search.item_ind];
@@ -592,6 +728,9 @@ impl SubPresenter for HistoryPresenter {
         }
     }
 
+    /// Handle changes to the input.
+    ///
+    /// If we are searching, update the search string and try to scroll as little as possible.
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
         let prefix = String::from(self.commons.current_line.text());
         let mut search = self.commons.session.bash.history.search(

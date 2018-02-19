@@ -16,44 +16,60 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Various iterators and their items as used in the model.
+
 use super::interaction::*;
 
-// Type of line
+/// Type of a line for internal processing.
 #[derive(Debug, PartialEq)]
 pub enum LineType {
+    /// A command prompt.
     Prompt,
+    /// A command with its visibility and position for changing that.
     Command(OutputVisibility, CommandPosition),
+    /// Output from a program (error or normal).
     Output,
+
+    /// The input line.
     Input,
+    /// A menu item that has been selected and its position in the menu.
     SelectedMenuItem(usize),
+
+    /// A non-selected menu item and its position in the menu.
     MenuItem(usize),
+    /// Non-interactive lines in a menu
     MenuDecoration,
 }
 
-// A line to be displayed.
+/// A line to be displayed.
 #[derive(Debug, PartialEq)]
 pub struct LineItem<'a> {
     // TODO Color
-    // Type/Prefix
+    /// Type/Prefix
     pub is_a: LineType,
 
-    // Text to be displayed
+    /// Text to be displayed
     pub text: &'a str,
 
-    // Cursor position, if any
+    /// Cursor position, if any
     pub cursor_col: Option<usize>,
 }
 
+/// Iterator to generate CommandPosition elements over the archived elements of a session.
 pub struct CpArchiveIter {
+    /// The index of the current archived conversation.
     pub this: usize,
 }
 
+/// Iterator to generate CommandPosition elements over the elements of a conversation.
 pub struct CpConvIter {
+    /// The index of the current conversation.
     pub this: CommandPosition,
 }
 
 
 impl<'a> LineItem<'a> {
+    /// Create a new line item.
     pub fn new(l: &'a str, is_a: LineType, cursor_col: Option<usize>) -> Self {
         Self {
             text: l,
@@ -66,6 +82,7 @@ impl<'a> LineItem<'a> {
 impl Iterator for CpArchiveIter {
     type Item = CommandPosition;
 
+    /// Return the next CommandPosition for an archived conversation.
     fn next(&mut self) -> Option<Self::Item> {
         let this = self.this;
         self.this += 1;
@@ -76,6 +93,7 @@ impl Iterator for CpArchiveIter {
 impl Iterator for CpConvIter {
     type Item = CommandPosition;
 
+    /// Return the next CommandPosition for an interaction inside a conversation.
     fn next(&mut self) -> Option<Self::Item> {
         match self.this {
             CommandPosition::CurrentInteraction => None,

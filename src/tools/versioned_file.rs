@@ -16,11 +16,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Helper functions to work with files that start with a format-describing header.
 
 use std::path::Path;
 use std::fs::File;
 use std::io::{Result, Error, ErrorKind, Write, Read};
 
+/// Create a file and write the file format header
 pub fn create<P: AsRef<Path>>(path: P, format_string: &str) -> Result<File> {
     let mut file = File::create(path)?;
 
@@ -34,6 +36,7 @@ pub fn create<P: AsRef<Path>>(path: P, format_string: &str) -> Result<File> {
     Ok(file)
 }
 
+/// Open a file and check if it begins with the desired header
 pub fn open<P: AsRef<Path>>(path: P, format_string: &str) -> Result<File> {
     let mut file = File::open(path)?;
 

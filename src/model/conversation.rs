@@ -16,18 +16,23 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! A conversation is a number of commands run with the same prompt string.
+
 use std::iter;
 
 use super::iterators::*;
 use super::interaction::*;
 
-// A number of commands that are executed in the same folder.
+/// A number of commands that are executed with the same prompt string.
 pub struct Conversation {
+    /// List of programs and their outputs for this prompt.
     pub interactions: Vec<Interaction>,
+    /// The prompt for this conversation.
     prompt: String,
 }
 
 impl Conversation {
+    /// Creates a new conversation without any interactions.
     pub fn new(prompt: String) -> Conversation {
         Conversation {
             prompt,
@@ -35,10 +40,14 @@ impl Conversation {
         }
     }
 
+    /// Add an interaction to the conversation.
     pub fn add_interaction(&mut self, interaction: Interaction) {
         self.interactions.push(interaction);
     }
 
+    /// Return an iterator for this conversation.
+    ///
+    /// The provided CommandPosition is that of the conversation.
     pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> Box<Iterator<Item = LineItem> + 'a> {
         Box::new(
             self.interactions
@@ -51,6 +60,7 @@ impl Conversation {
         )
     }
 
+    /// Hide the output of all interactions.
     #[allow(dead_code)]
     pub fn hide_output(&mut self) {
         for i in self.interactions.iter_mut() {

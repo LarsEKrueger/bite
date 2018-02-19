@@ -16,17 +16,24 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! The collected output of a program.
+//!
+//! Consists of the lines are read from either stdout or stderr.
+
 use super::iterators::*;
 use super::line::*;
 
-// The full output of a program
+/// The full output of a program
 #[derive(Debug, PartialEq)]
 pub struct Response {
+    /// Is it to be shown in the GUI?
     pub visible: bool,
+    /// Lines to be shown.
     pub lines: Vec<Line>,
 }
 
 impl Response {
+    /// Create an empty response with the given visibility.
     pub fn new(visible: bool) -> Response {
         Response {
             visible,
@@ -34,16 +41,19 @@ impl Response {
         }
     }
 
+    /// Add a line to the response.
     pub fn add_line(&mut self, line: String) {
         self.lines.push(Line::new(line));
     }
 
+    /// Iterate over the lines
     pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         Box::new(self.lines.iter().map(|l| {
             LineItem::new(&l.text, LineType::Output, None)
         }))
     }
 
+    /// Return a correctly typed iterator without any data in it.
     pub fn empty_line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         let mut iter = self.lines.iter().map(|l| {
             LineItem::new(&l.text, LineType::Output, None)

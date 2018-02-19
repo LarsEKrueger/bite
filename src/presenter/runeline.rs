@@ -16,17 +16,24 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Text input line.
+//!
+//! Handles utf8 input.
+
+/// Character and byte index where the next character will be inserted.
 struct Cursor {
     char_index: usize,
     byte_index: usize,
 }
 
+/// Current string and cursor position.
 pub struct Runeline {
     line: String,
     cursor: Cursor,
 }
 
 impl Cursor {
+    /// A new cursor always starts at the beginning of the line.
     fn new() -> Self {
         Self {
             char_index: 0,
@@ -36,6 +43,7 @@ impl Cursor {
 }
 
 impl Runeline {
+    /// A new input line starts empty.
     pub fn new() -> Self {
         Self {
             line: String::new(),
@@ -43,6 +51,7 @@ impl Runeline {
         }
     }
 
+    /// Clear the line to an empty string.
     pub fn clear(&mut self) -> String {
         use std::mem;
         self.cursor.char_index = 0;
@@ -50,19 +59,23 @@ impl Runeline {
         mem::replace(&mut self.line, String::new())
     }
 
+    /// Retrieve the input as a slice.
     pub fn text(&self) -> &str {
         &self.line
     }
 
+    /// Retrieve the input left of the cursor.
     pub fn text_before_cursor(&self) -> &str {
         &self.line[0..self.cursor.byte_index]
     }
 
+    /// Retrieve the cursor position as how many characters are shown left of it.
     #[allow(dead_code)]
     pub fn char_index(&self) -> usize {
         self.cursor.char_index
     }
 
+    /// Move the cursor one code point to the left.
     pub fn move_left(&mut self) {
         if self.cursor.char_index > 0 {
             loop {
@@ -76,6 +89,7 @@ impl Runeline {
         }
     }
 
+    /// Move the cursor one code point to the right.
     pub fn move_right(&mut self) {
         if self.cursor.byte_index < self.line.len() {
             loop {
@@ -91,12 +105,16 @@ impl Runeline {
         }
     }
 
+    /// Insert a string at the current cursor position.
+    ///
+    /// Move as many characters to the right as the new string contains.
     pub fn insert_str(&mut self, text: &str) {
         self.line.insert_str(self.cursor.byte_index, text);
         self.cursor.byte_index += text.len();
         self.cursor.char_index += text.chars().count();
     }
 
+    /// Delete the character under the cursor.
     pub fn delete_right(&mut self) {
         // Find the length of the character under the cursor
         let mut rest = self.line.split_off(self.cursor.byte_index);
@@ -107,6 +125,7 @@ impl Runeline {
         self.line.push_str(&rest.split_off(bytes_in_char));
     }
 
+    /// Delete the character left of the cursor if there is one.
     pub fn delete_left(&mut self) {
         if self.cursor.char_index > 0 {
             self.move_left();
@@ -114,10 +133,15 @@ impl Runeline {
         }
     }
 
+    /// Check if the byte index is at the start of an utf8 code point.
     fn is_char_boundary(&self) -> bool {
         self.line.is_char_boundary(self.cursor.byte_index)
     }
 
+    /// Replace the string with the new one.
+    ///
+    /// The cursor can be placed at the beginning of the line or at the same character position as
+    /// the old string.
     pub fn replace(&mut self, s: String, stay_there: bool) {
         self.line = s;
 

@@ -16,6 +16,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Bash script interpreter.
+//!
+//! This is the basic component for a non-interactive bash interpreter. The interactive part in
+//! handled in [`Session`].
+//!
+//! [`Session`]: ../session/struct.Session.html
+
 use nom::IResult;
 use std::env;
 use std::mem;

@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Operations on previous command input.
+
 use std::path::{Path, PathBuf};
 
 use std::error::Error;

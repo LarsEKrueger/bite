@@ -16,12 +16,19 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! A command and its output.
+//!
+//! This command might be still running.
+
 use std::iter;
 
 use super::iterators::*;
 use super::response::*;
 
-// Which output is visible
+/// Which output is visible.
+///
+/// The GUI concept dictates that at most one output (stdout or stderr) is visible. The internal
+/// state allows both of them to be visible.
 #[derive(Debug, PartialEq)]
 pub enum OutputVisibility {
     None,
@@ -29,7 +36,7 @@ pub enum OutputVisibility {
     Error,
 }
 
-// Where to find a command
+/// Where to find a command
 #[derive(Debug, PartialEq, Clone)]
 pub enum CommandPosition {
     Archived(usize, usize),
@@ -37,7 +44,10 @@ pub enum CommandPosition {
     CurrentInteraction,
 }
 
-// A command and its output
+/// A command and its output.
+///
+/// This is just a visual representation of a command and not connected to a running process in any
+/// way.
 #[derive(Debug, PartialEq)]
 pub struct Interaction {
     command: String,
@@ -46,6 +56,9 @@ pub struct Interaction {
 }
 
 impl Interaction {
+    /// Create a new command without any output yet.
+    ///
+    /// Does not start a program.
     pub fn new(command: String) -> Interaction {
         Interaction {
             command,
@@ -54,14 +67,17 @@ impl Interaction {
         }
     }
 
+    /// Add a line as read from stdout.
     pub fn add_output(&mut self, line: String) {
         self.output.add_line(line);
     }
 
+    /// Add a line as if read from stderr.
     pub fn add_error(&mut self, line: String) {
         self.errors.add_line(line);
     }
 
+    /// Get the visible response, if any.
     pub fn visible_response(&self) -> Option<&Response> {
         if self.output.visible {
             Some(&self.output)
@@ -72,6 +88,7 @@ impl Interaction {
         }
     }
 
+    /// Get the iterator over the items in this interaction.
     pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> Box<Iterator<Item = LineItem> + 'a> {
         // In order to satisfy the type, we need to return a chain of iterators. Thus, if neither
         // response is visible, we take the output iterator and skip to the end.
@@ -93,20 +110,27 @@ impl Interaction {
         )
     }
 
+    /// Check if there are any errror lines.
     pub fn has_errors(&self) -> bool {
         !self.errors.lines.is_empty()
     }
 
+    /// Make the error lines visible
     pub fn show_errors(&mut self) {
         self.errors.visible = true;
         self.output.visible = false;
     }
 
+    /// Hide all output.
     pub fn hide_output(&mut self) {
         self.errors.visible = false;
         self.output.visible = false;
     }
 
+    /// If there are errors, show them.
+    ///
+    /// This is to be called before archiving the interaction, i.e. after a program has finished
+    /// running.
     pub fn prepare_archiving(&mut self) {
         if self.has_errors() {
             self.show_errors();
@@ -115,9 +139,13 @@ impl Interaction {
 }
 
 impl CommandPosition {
+    /// Iterator to create CommandPosition elements over the whole vector of archived
+    /// conversations.
     pub fn archive_iter() -> CpArchiveIter {
         CpArchiveIter { this: 0 }
     }
+
+    /// Iterator to create CommandPostion elements starting at a given command position.
     pub fn conv_iter(&self) -> CpConvIter {
         CpConvIter { this: (*self).clone() }
     }

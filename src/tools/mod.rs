@@ -16,6 +16,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Various tools that support the implementation, but are not part of the model-view-presenter
+//! pattern.
+
 pub mod commandline;
 pub mod polling;
 pub mod versioned_file;

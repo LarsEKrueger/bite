@@ -16,6 +16,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Generic types to be used in the model.
+
+/// Command as returned by the bash parser.
 #[derive(Debug, PartialEq)]
 pub enum Command {
     Incomplete,

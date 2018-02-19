@@ -16,7 +16,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// A line as output by a program.
+//! A line as output by program.
+//!
+//! This is to be extended for handling colors and attributes in the output.
+
+/// A line as output by a program.
 #[derive(Debug, PartialEq)]
 pub struct Line {
     pub text: String,

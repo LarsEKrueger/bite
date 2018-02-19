@@ -16,6 +16,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! The model component of the model-view-presenter pattern.
+//!
+//! All modules deal with the bash script interpreter, either interactively or non-interactively.
+
 pub mod bash;
 pub mod conversation;
 pub mod execute;
