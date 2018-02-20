@@ -89,6 +89,13 @@ non-GUI program.
 * [X] 0.1.6 clean up architecture
 * [X] 0.1.7 document API
 * [X] 0.2 Commands from history (up/down,page up/down,search)
+* [ ] 0.2.1 port variables infrastructure (map struct, different value types)
+* [ ] 0.2.2 read permanent variables from env at start
+* [ ] 0.2.3 set environment for commands
+* [ ] 0.2.4 parse and set permanent variables (no export)
+* [ ] 0.2.5 parse and set permanent variables (with export)
+* [ ] 0.2.6 parse and set transient variables
+* [ ] 0.2.7 variable expansion
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
