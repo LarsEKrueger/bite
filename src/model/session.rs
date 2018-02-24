@@ -132,7 +132,8 @@ impl Session {
                         self.bash.history.add_command(line.clone());
 
                         // Run command or send to stdin
-                        match execute::spawn_command(&v) {
+                        let cmd_res =  execute::spawn_command(&v,self.bash.variables.iter_exported()); 
+                        match cmd_res {
                             Ok((tx, rx)) => {
                                 ::std::mem::replace(
                                     &mut self.current_interaction,

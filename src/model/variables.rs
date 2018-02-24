@@ -24,6 +24,8 @@ use boolinator::Boolinator;
 use model::bash::script_parser;
 use model::error::{Error, Result};
 
+use std::ffi::OsString;
+
 /// Stack of variables.
 ///
 ///
@@ -132,6 +134,16 @@ impl Stack {
             }
         }
     }
+
+    pub fn iter_exported<'a>(&'a self) -> Box<Iterator<Item=(OsString,OsString)>+'a>{
+       let frame_vars = self.frames.iter().rev().flat_map( |frm| frm.iter_exported());
+
+       let iter : Box<Iterator<Item=(OsString,OsString)>> = match &self.temporary {
+           &Some(ref t) => Box::new(frame_vars.chain(t.iter_exported())),
+           &None => Box::new(frame_vars)
+       };
+       Box::new(self.global.iter_exported().chain(iter))
+    }
 }
 
 impl Context {
@@ -169,6 +181,15 @@ impl Context {
             Entry::Vacant(v) => Ok(v.insert(Variable::new_scalar_string(value))),
         }
     }
+
+    fn iter_exported<'a>(&'a self) -> Box<Iterator<Item=(OsString,OsString)>+'a>{
+       Box::new(
+           self.variables
+           .iter()
+           .filter(|&(_,v)| v.is_exported())
+           .map(|(k,v)| (OsString::from(k),OsString::from(v.as_string()))))
+
+    }
 }
 
 
@@ -190,12 +211,23 @@ impl Variable {
         };
     }
 
+    pub fn as_string(&self) -> &String {
+        match self.value {
+            VariableValue::Scalar(_, ref s) => s
+        }
+
+    }
+
     pub fn is_writeable(&self) -> bool {
         !self.read_only
     }
 
     pub fn set_exported(&mut self) {
         self.exported = true;
+    }
+
+    pub fn is_exported(&self) -> bool {
+        self.exported
     }
 
     pub fn set_visible(&mut self) {

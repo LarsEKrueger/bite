@@ -29,6 +29,7 @@ use std::time::Duration;
 use std::process::{Child, ChildStderr, ChildStdout, Command, ExitStatus, Stdio};
 use std::os::unix::io::AsRawFd;
 use std::io::{Read, Write};
+use std::ffi::OsStr;
 
 use libc::{fd_set, select, timeval, FD_ISSET, FD_SET, FD_ZERO};
 
@@ -49,9 +50,13 @@ pub enum CommandOutput {
 /// Spawn a command in a controlling thread.
 ///
 /// Return the channel ends to the controlling function.
-pub fn spawn_command(
+pub fn spawn_command<I,K,V>(
     cmd: &Vec<String>,
-) -> Result<(Sender<String>, Receiver<CommandOutput>), String> {
+    envs:I
+) -> Result<(Sender<String>, Receiver<CommandOutput>), String>where
+    I: IntoIterator<Item = (K, V)>,
+    K: AsRef<OsStr>,
+    V: AsRef<OsStr>,  {
     let (output_tx, output_rx) = channel();
     let (input_tx, input_rx) = channel();
 
@@ -60,6 +65,8 @@ pub fn spawn_command(
     if let Some((cmd, args)) = cmd.split_first() {
         match Command::new(cmd)
             .args(args)
+            .env_clear()
+            .envs(envs)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
