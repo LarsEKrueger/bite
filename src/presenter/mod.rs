@@ -21,13 +21,14 @@
 //! The presenter dispatches all events to sub-presenters that handle different views, e.g. command
 //! composition or history browsing.
 
-use std::fmt::{Display, Formatter, Error};
+use std::fmt::{Display, Formatter};
 
 mod runeline;
 
 use model::session::*;
 use model::iterators::*;
 use model::interaction::*;
+use model::error::*;
 use model::bash::*;
 use model::bash::history::*;
 
@@ -168,7 +169,7 @@ impl ModifierState {
 
 impl Display for ModifierState {
     /// Show the modifier state as a prefix for a key.
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter) -> ::std::result::Result<(), ::std::fmt::Error> {
         fn b2s(b: bool, s: &str) -> &str {
             if b { s } else { "" }
         }
@@ -215,15 +216,15 @@ impl PresenterCommons {
     /// Allocate a new data struct.
     ///
     /// This will be passed from sub-presenter to sub-presenter on state changes.
-    pub fn new() -> Self {
-        PresenterCommons {
-            session: Session::new(),
+    pub fn new() -> Result<Self> {
+        Ok(PresenterCommons {
+            session: Session::new()?,
             window_width: 0,
             window_height: 0,
             button_down: None,
             current_line: runeline::Runeline::new(),
             last_line_shown: 0,
-        }
+        })
     }
 
     /// Compute the index of the first line to be shown.
@@ -243,10 +244,10 @@ impl PresenterCommons {
 
 impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
-    pub fn new() -> Self {
-        Presenter(Some(ComposeCommandPresenter::new(
-            Box::new(PresenterCommons::new()),
-        )))
+    pub fn new() -> Result<Self> {
+        Ok(Presenter(Some(ComposeCommandPresenter::new(
+            Box::new(PresenterCommons::new()?),
+        ))))
     }
 
     /// Access sub-presenter read-only for dynamic dispatch

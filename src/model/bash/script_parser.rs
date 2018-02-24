@@ -18,7 +18,7 @@
 
 //! Bash script parser.
 
-use nom::newline;
+use nom::{newline, alpha, IResult, is_alphanumeric};
 
 /*
 %token IF THEN ELSE ELIF FI CASE ESAC FOR SELECT WHILE UNTIL DO DONE FUNCTION COPROC
@@ -415,6 +415,26 @@ named!(
 
 named!(word_letter<char>, none_of!(" \n\t\"\'|&;()<>"));
 
+fn is_alphanum_or_underscore(c: u8) -> bool {
+    is_alphanumeric(c) || c == b'_'
+}
+
+named!(alpha_or_underscore, alt!(alpha | tag!("_")));
+named!(
+    identifier,
+    recognize!(preceded!(
+        alpha_or_underscore,
+        take_while!(is_alphanum_or_underscore)))
+);
+
+pub fn legal_identifier(s: &str) -> bool {
+    if let IResult::Done(b"", _) = identifier(s.as_bytes()) {
+        true
+    } else {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nom::IResult;
@@ -469,5 +489,19 @@ mod tests {
                 ])
             )
         );
+    }
+
+    #[test]
+    fn test_identifier() {
+        use nom::verbose_errors::Err;
+        use nom::ErrorKind;
+        assert_eq!(identifier(b"bc"), IResult::Done(&b""[..], &b"bc"[..]));
+        assert_eq!(identifier(b"_bc"), IResult::Done(&b""[..], &b"_bc"[..]));
+        assert_eq!(identifier(b"_bc0_"), IResult::Done(&b""[..], &b"_bc0_"[..]));
+        assert_eq!(identifier(b"_bc0_."), IResult::Done(&b"."[..], &b"_bc0_"[..]));
+        assert_eq!(identifier(b"0_bc0_"), IResult::Error(Err::Position(ErrorKind::Alt,&b"0_bc0_"[..])));
+
+        assert_eq!(legal_identifier("id10t"), true);
+        assert_eq!(legal_identifier("1d10t"), false);
     }
 }

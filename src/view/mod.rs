@@ -141,7 +141,9 @@ impl Gui {
         let EMPTY = cstr!("");
         let IMNONE = cstr!("@im=none");
 
-        let presenter = Presenter::new();
+        let presenter = Presenter::new().or_else(
+            |e| Err(e.readable("during initialisation")),
+        )?;
 
         unsafe {
             let display = XOpenDisplay(null());

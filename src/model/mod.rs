@@ -30,3 +30,4 @@ pub mod response;
 pub mod session;
 pub mod types;
 pub mod variables;
+pub mod error;

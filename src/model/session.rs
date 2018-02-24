@@ -25,6 +25,7 @@ use super::conversation::*;
 use super::interaction::*;
 use super::iterators::*;
 use super::types::*;
+use super::error::*;
 use super::execute;
 
 /// A number of closed conversations and the current one
@@ -43,15 +44,15 @@ pub struct Session {
 
 impl Session {
     /// Create a new session with its own interpreter.
-    pub fn new() -> Self {
-        let bash = bash::Bash::new();
+    pub fn new() -> Result<Self> {
+        let bash = bash::Bash::new()?;
 
-        Session {
+        Ok(Session {
             current_interaction: None,
             archived: vec![],
             current_conversation: Conversation::new(bash.expand_ps1()),
             bash,
-        }
+        })
     }
 
     /// Open a new conversation and archive the current one.
@@ -208,7 +209,7 @@ mod tests {
     use super::*;
 
     fn new_test_session(prompt: String) -> Session {
-        let bash = bash::Bash::new();
+        let bash = bash::Bash::new().expect("Can't make test bash instance");
         Session {
             current_interaction: None,
             archived: vec![],

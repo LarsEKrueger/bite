@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn basic() {
-        let mut bash = Bash::new();
+        let mut bash = Bash::new().expect("Can't make test bash instance");
         bash.test_set_host_name("my.host.name");
         bash.test_set_user_name("myname");
         assert_eq!(

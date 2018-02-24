@@ -90,13 +90,17 @@ non-GUI program.
 * [X] 0.1.7 document API
 * [X] 0.2 Commands from history (up/down,page up/down,search)
 * [X] 0.2.1 port variables infrastructure (map struct, different value types)
-* [ ] 0.2.2 read permanent variables from env at start
+* [X] 0.2.2 read permanent variables from env at start
 * [ ] 0.2.3 set environment for commands
 * [ ] 0.2.4 parse and set permanent variables (no export)
 * [ ] 0.2.5 parse and set permanent variables (with export)
 * [ ] 0.2.6 parse and set transient variables
 * [ ] 0.2.7 variable expansion
 * [ ] 0.2.8 dynamic variables
+* [ ] 0.2.9 indexed arrays
+* [ ] 0.2.10 associative arrays
+* [ ] 0.2.11 integer / lower case / upper case
+* [ ] 0.2.12 name references
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
@@ -133,6 +137,7 @@ non-GUI program.
 * [ ] Make the command line arguments of a program fold out
 * [X] Consume all stdout/stderr data before exit in `send_output`
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
+* [ ] Put proper bug reporting email address in error.rs
 
 # Ideas
 * Integrate mosh functionality

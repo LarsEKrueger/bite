@@ -35,6 +35,8 @@ pub mod prompt_parser;
 pub mod history;
 
 use super::types::*;
+use super::error::*;
+use super::variables;
 
 /// All relevant info about the current user.
 ///
@@ -71,6 +73,9 @@ pub struct Bash {
 
     /// List of all lines we have successfully parsed.
     pub history: history::History,
+
+    /// Stack of variables
+    pub variables: variables::Stack,
 }
 
 const VERSION: &'static str = "0.0";
@@ -101,7 +106,7 @@ fn format_error_message(error: ::nom::Err<&[u8]>, line: &String) -> Vec<String> 
 
 impl Bash {
     /// Create a new bash script interpreter.
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         // It's highly unlikely that this will change.
         let current_host_name = {
             // Host names are at most 255 bytes long, plus the zero.
@@ -162,12 +167,16 @@ impl Bash {
 
         let history = history::History::new(&current_user.home_dir);
 
-        Self {
+        let mut variables = variables::Stack::new();
+        variables.import_from_environment()?;
+
+        Ok(Self {
             line: String::new(),
             current_host_name,
             current_user,
             history,
-        }
+            variables,
+        })
     }
 
     /// Returns the version string for display.
