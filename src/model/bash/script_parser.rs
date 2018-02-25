@@ -128,9 +128,25 @@ macro_rules! spaced (
 
 named!(
     simple_command<super::Command>,
-    map!(spaced!(many1!(word)), |cs| {
-        super::Command::SimpleCommand(cs)
-    })
+    do_parse!(
+        assignments :             many0!(assignment)
+        >>
+        words : spaced!(many0!(word)) >>
+
+        (super::Command::new_simple_command(assignments,words))
+
+    )
+);
+
+named!(assignment<super::Assignment>,
+    do_parse!(
+        var_name : identifier >>
+        tag!("=") >>
+        var_value : word >>
+        ({
+            super::Assignment::new(String::from_utf8_lossy(var_name).into_owned(),var_value)
+        } )
+    )
 );
 
 /*
@@ -223,7 +239,7 @@ arith_command:	ARITH_CMD
 	;
 
 cond_command:	COND_START COND_CMD COND_END
-	; 
+	;
 
 elif_clause:	ELIF compound_list THEN compound_list
 	|	ELIF compound_list THEN compound_list ELSE compound_list
@@ -453,7 +469,7 @@ mod tests {
             simple_command(b"ab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                Command::SimpleCommand(vec![
+                Command::new_simple_command(vec![],vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -465,7 +481,7 @@ mod tests {
             simple_command(b" \tab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                Command::SimpleCommand(vec![
+                Command::new_simple_command(vec![],vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -481,7 +497,7 @@ mod tests {
             parse_script(b" ab bc   cd \t\tde\n"),
             IResult::Done(
                 &b""[..],
-                Command::SimpleCommand(vec![
+                Command::new_simple_command(vec![],vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),

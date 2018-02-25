@@ -21,12 +21,15 @@
 use std::sync::mpsc::{Receiver, Sender};
 
 use super::bash;
+use super::bash::execute;
 use super::conversation::*;
 use super::interaction::*;
 use super::iterators::*;
 use super::types::*;
 use super::error::*;
-use super::execute;
+
+use super::bash::ExecutionResult;
+
 
 /// A number of closed conversations and the current one
 pub struct Session {
@@ -127,20 +130,26 @@ impl Session {
                         inter.prepare_archiving();
                         self.archive_interaction(inter);
                     }
-                    Command::SimpleCommand(v) => {
+                    _ => {
                         // Add to history
                         self.bash.history.add_command(line.clone());
 
-                        // Run command or send to stdin
-                        let cmd_res =  execute::spawn_command(&v,self.bash.variables.iter_exported()); 
-                        match cmd_res {
-                            Ok((tx, rx)) => {
+                        // Execute
+                        match self.bash.execute(cmd) {
+                            ExecutionResult::Ignore => {}
+                            ExecutionResult::Internal => {
+                                // Create a dummy interaction for interal commands
+                                let mut inter = Interaction::new(line);
+                                inter.prepare_archiving();
+                                self.archive_interaction(inter);
+                            }
+                            ExecutionResult::Spawned((tx, rx)) => {
                                 ::std::mem::replace(
                                     &mut self.current_interaction,
                                     Some((tx, rx, Interaction::new(line.clone()))),
                                 );
                             }
-                            Err(msg) => {
+                            ExecutionResult::Err(msg) => {
                                 // Something happened during program start
                                 let mut inter = Interaction::new(line);
                                 inter.add_error(format!("Error executing command: {}", msg));

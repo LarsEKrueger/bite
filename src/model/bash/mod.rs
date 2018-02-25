@@ -29,10 +29,12 @@ use std::mem;
 use std::ptr;
 use std::ffi::CStr;
 use libc::{c_char, gethostname, gid_t, uid_t};
+use std::sync::mpsc::{Receiver, Sender};
 
 pub mod script_parser;
 pub mod prompt_parser;
 pub mod history;
+pub mod execute;
 
 use super::types::*;
 use super::error::*;
@@ -56,6 +58,14 @@ struct UserInfo {
 
     /// Path of the defaul shell to execute
     _shell: String,
+}
+
+/// Result of spawning a new command.
+pub enum ExecutionResult {
+    Ignore,
+    Spawned((Sender<String>, Receiver<execute::CommandOutput>)),
+    Internal,
+    Err(String),
 }
 
 /// Complete interpreter state.
@@ -262,5 +272,71 @@ impl Bash {
     /// Checks if the current user is root.
     pub fn current_user_is_root(&self) -> bool {
         self.current_user.uid == 0
+    }
+
+    /// Execute a command.
+    ///
+    /// Ignore any error cases.
+    pub fn execute(&mut self, cmd: Command) -> ExecutionResult {
+        match cmd {
+            Command::Incomplete |
+            Command::Error(_) => ExecutionResult::Ignore,
+            Command::SimpleCommand(sc) => {
+
+                // If there is no command, perform the assignments to global variables. If not,
+                // perform them to temporary context, execute and drop the temporary context.
+                if sc.words.is_empty() {
+                    match self.assign_to_global_context(sc.assignments) {
+                        Ok(_) => ExecutionResult::Internal,
+                        Err(e) => ExecutionResult::Err(e.readable("while setting variables")),
+                    }
+                } else {
+                    match self.assign_to_temp_context(sc.assignments) {
+                        Ok(_) => {
+                            // Spawn the command if there is one
+                            let res = match execute::spawn_command(
+                                &sc.words,
+                                self.variables.iter_exported(),
+                            ) {
+                                Ok(r) => ExecutionResult::Spawned(r),
+                                Err(e) => ExecutionResult::Err(e),
+                            };
+                            self.drop_temp_context();
+                            res
+                        }
+                        Err(e) => ExecutionResult::Err(
+                            e.readable("while setting temporary variables"),
+                        ),
+
+                    }
+                }
+            }
+        }
+
+    }
+
+    /// Assign variables in global context
+    fn assign_to_global_context(&mut self, assignments: Vec<Assignment>) -> Result<()> {
+        let ref mut global = self.variables.global;
+        for assignment in assignments {
+            global.bind_variable(&assignment.name, &assignment.value)?;
+        }
+        Ok(())
+    }
+
+    /// Assign variables in temporary context
+    fn assign_to_temp_context(&mut self, assignments: Vec<Assignment>) -> Result<()> {
+        let context = self.variables.create_temp_context();
+        for assignment in assignments {
+            context
+                .bind_variable(&assignment.name, &assignment.value)?
+                .set_exported();
+        }
+        Ok(())
+    }
+
+    /// Drop a temporary context.
+    fn drop_temp_context(&mut self) {
+        self.variables.drop_temp_context();
     }
 }

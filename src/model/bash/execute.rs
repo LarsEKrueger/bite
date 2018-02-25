@@ -47,16 +47,19 @@ pub enum CommandOutput {
     Terminated(ExitStatus),
 }
 
+
 /// Spawn a command in a controlling thread.
 ///
 /// Return the channel ends to the controlling function.
-pub fn spawn_command<I,K,V>(
+pub fn spawn_command<I, K, V>(
     cmd: &Vec<String>,
-    envs:I
-) -> Result<(Sender<String>, Receiver<CommandOutput>), String>where
+    envs: I,
+) -> Result<(Sender<String>, Receiver<CommandOutput>), String>
+where
     I: IntoIterator<Item = (K, V)>,
     K: AsRef<OsStr>,
-    V: AsRef<OsStr>,  {
+    V: AsRef<OsStr>,
+{
     let (output_tx, output_rx) = channel();
     let (input_tx, input_rx) = channel();
 

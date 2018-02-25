@@ -30,9 +30,9 @@ use std::ffi::OsString;
 ///
 ///
 pub struct Stack {
-    temporary: Option<Context>,
+    pub temporary: Option<Context>,
     frames: Vec<Context>,
-    global: Context,
+    pub global: Context,
     remake_export_env: bool,
 }
 
@@ -135,14 +135,29 @@ impl Stack {
         }
     }
 
-    pub fn iter_exported<'a>(&'a self) -> Box<Iterator<Item=(OsString,OsString)>+'a>{
-       let frame_vars = self.frames.iter().rev().flat_map( |frm| frm.iter_exported());
+    pub fn iter_exported<'a>(&'a self) -> Box<Iterator<Item = (OsString, OsString)> + 'a> {
+        let frame_vars = self.frames.iter().rev().flat_map(|frm| frm.iter_exported());
 
-       let iter : Box<Iterator<Item=(OsString,OsString)>> = match &self.temporary {
-           &Some(ref t) => Box::new(frame_vars.chain(t.iter_exported())),
-           &None => Box::new(frame_vars)
-       };
-       Box::new(self.global.iter_exported().chain(iter))
+        let iter: Box<Iterator<Item = (OsString, OsString)>> = match &self.temporary {
+            &Some(ref t) => Box::new(frame_vars.chain(t.iter_exported())),
+            &None => Box::new(frame_vars),
+        };
+        Box::new(self.global.iter_exported().chain(iter))
+    }
+
+    pub fn create_temp_context(&mut self) -> &mut Context {
+        if self.temporary.is_none() {
+            self.temporary = Some(Context::new(
+                ContextType::Temp,
+                "",
+                (self.frames.len() + 2) as i32,
+            ));
+        }
+        self.temporary.as_mut().unwrap()
+    }
+
+    pub fn drop_temp_context(&mut self) {
+        self.temporary = None;
     }
 }
 
@@ -166,7 +181,7 @@ impl Context {
         self.variables.contains_key(name)
     }
 
-    fn bind_variable<'a>(&'a mut self, name: &str, value: &str) -> Result<&'a mut Variable> {
+    pub fn bind_variable<'a>(&'a mut self, name: &str, value: &str) -> Result<&'a mut Variable> {
         use std::collections::hash_map::Entry;
         match self.variables.entry(String::from(name)) {
             Entry::Occupied(o) => {
@@ -182,12 +197,13 @@ impl Context {
         }
     }
 
-    fn iter_exported<'a>(&'a self) -> Box<Iterator<Item=(OsString,OsString)>+'a>{
-       Box::new(
-           self.variables
-           .iter()
-           .filter(|&(_,v)| v.is_exported())
-           .map(|(k,v)| (OsString::from(k),OsString::from(v.as_string()))))
+    fn iter_exported<'a>(&'a self) -> Box<Iterator<Item = (OsString, OsString)> + 'a> {
+        Box::new(
+            self.variables
+                .iter()
+                .filter(|&(_, v)| v.is_exported())
+                .map(|(k, v)| (OsString::from(k), OsString::from(v.as_string()))),
+        )
 
     }
 }
@@ -213,7 +229,7 @@ impl Variable {
 
     pub fn as_string(&self) -> &String {
         match self.value {
-            VariableValue::Scalar(_, ref s) => s
+            VariableValue::Scalar(_, ref s) => s,
         }
 
     }

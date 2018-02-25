@@ -23,5 +23,41 @@
 pub enum Command {
     Incomplete,
     Error(Vec<String>),
-    SimpleCommand(Vec<String>),
+    SimpleCommand(SimpleCommand),
+}
+
+/// Simple command can have assignements for temporary variables and the words that make up the
+/// actual command.
+///
+/// Either of the two can be empty.
+#[derive(Debug, PartialEq)]
+pub struct SimpleCommand {
+    pub assignments: Vec<Assignment>,
+    pub words: Vec<String>,
+}
+
+/// Assignment part of a command
+#[derive(Debug, PartialEq)]
+pub struct Assignment {
+    /// name of the variable to assign
+    pub name: String,
+    /// Value to be assigned
+    pub value: String,
+
+    // TODO: Assignment operation (assign or add)
+}
+
+
+impl Command {
+    pub fn new_simple_command(assignments: Vec<Assignment>, words: Vec<String>) -> Self {
+        Command::SimpleCommand(SimpleCommand { assignments, words })
+
+    }
+}
+
+
+impl Assignment {
+    pub fn new(name: String, value: String) -> Self {
+        Self { name, value }
+    }
 }
