@@ -97,7 +97,7 @@ pub struct Gui {
 }
 
 /// Default font to draw the output
-const FONTNAME: &'static str = "-*-peep-medium-r-*-*-14-*-*-*-*-*-*-*\0";
+const FONTNAME: &'static str = "-*-fixed-medium-r-*-*-14-*-*-*-*-70-iso10646-*\0";
 
 /// Create the input context.
 ///
