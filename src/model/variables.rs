@@ -30,9 +30,7 @@ use std::ffi::OsString;
 ///
 ///
 pub struct Stack {
-    pub temporary: Option<Context>,
     frames: Vec<Context>,
-    pub global: Context,
     remake_export_env: bool,
 }
 
@@ -99,9 +97,7 @@ pub trait DynamicVariable {
 impl Stack {
     pub fn new() -> Self {
         Self {
-            temporary: None,
-            frames: vec![],
-            global: Context::new(ContextType::Global, "", 0),
+            frames: vec![Context::new(ContextType::Global, "", 0)],
             remake_export_env: false,
         }
     }
@@ -110,7 +106,7 @@ impl Stack {
         let mut remake_export_env = false;
         for (key, value) in ::std::env::vars() {
             let mut temp_var = self.bind_variable(&key, &value)?;
-            temp_var.set_exported();
+            temp_var.set_exported(true);
             if !script_parser::legal_identifier(&key) {
                 temp_var.set_invisible();
             }
@@ -121,43 +117,119 @@ impl Stack {
     }
 
     pub fn bind_variable(&mut self, name: &str, value: &str) -> Result<&mut Variable> {
-        if let Some(ref mut temp) = self.temporary {
-            temp.bind_variable(name, value)
+        if let Some(pos) = self.frames.iter_mut().rev().position(
+            |frm| frm.has_variable(name),
+        )
+        {
+            let pos = self.frames.len() - 1 - pos;
+            self.frames[pos].bind_variable(name, value)
         } else {
-            if let Some(frm) = self.frames.iter_mut().rev().find(
-                |frm| frm.has_variable(name),
-            )
-            {
-                frm.bind_variable(name, value)
+            // Set it in global context.
+            if let Some(global) = self.frames.first_mut() {
+                global.bind_variable(name, value)
             } else {
-                self.global.bind_variable(name, value)
+                Err(Error::InternalError(
+                    file!(),
+                    line!(),
+                    String::from("no global context found"),
+                ))
             }
         }
     }
 
-    pub fn iter_exported<'a>(&'a self) -> Box<Iterator<Item = (OsString, OsString)> + 'a> {
-        let frame_vars = self.frames.iter().rev().flat_map(|frm| frm.iter_exported());
+    pub fn find_variable(&mut self, name: &str) -> Option<&mut Variable> {
+        if let Some(pos) = self.frames.iter_mut().rev().position(|ctx| {
+            ctx.find_variable(name).is_some()
+        })
+        {
+            let pos = self.frames.len() - 1 - pos;
+            let ref mut frm = self.frames[pos];
+            frm.find_variable(name)
+        } else {
+            None
+        }
+    }
 
-        let iter: Box<Iterator<Item = (OsString, OsString)>> = match &self.temporary {
-            &Some(ref t) => Box::new(frame_vars.chain(t.iter_exported())),
-            &None => Box::new(frame_vars),
-        };
-        Box::new(self.global.iter_exported().chain(iter))
+    pub fn find_variable_or_create_global(&mut self, name: &str) -> Result<&mut Variable> {
+        if let Some(pos) = self.frames.iter_mut().rev().position(
+            |frm| frm.has_variable(name),
+        )
+        {
+            let pos = self.frames.len() - 1 - pos;
+            let l = self.frames.len();
+            if let Some(variable) = self.frames[pos].find_variable(name) {
+                Ok(variable)
+            } else {
+                Err(Error::InternalError(
+                    file!(),
+                    line!(),
+                    format!(
+                        "variable could not be found again (pos={},frames={})",
+                        pos,
+                        l
+                    ),
+                ))
+            }
+        } else {
+            // Set it in global context.
+            if let Some(global) = self.frames.first_mut() {
+                global.bind_variable(name, "")
+            } else {
+                Err(Error::InternalError(
+                    file!(),
+                    line!(),
+                    String::from("no global context found"),
+                ))
+            }
+        }
+    }
+
+    pub fn iter<'a>(&'a self) -> Box<Iterator<Item = (&String, &Variable)> + 'a> {
+        Box::new(self.frames.iter().rev().flat_map(|frm| frm.iter()))
+    }
+
+    pub fn iter_exported<'a>(&'a self) -> Box<Iterator<Item = (OsString, OsString)> + 'a> {
+        Box::new(self.frames.iter().rev().flat_map(|frm| frm.iter_exported()))
+    }
+
+    pub fn get_global_context(&mut self) -> Result<&mut Context> {
+        if let Some(ctx) = self.frames.first_mut() {
+            Ok(ctx)
+        } else {
+            Err(Error::InternalError(
+                file!(),
+                line!(),
+                String::from("no global context found"),
+            ))
+        }
     }
 
     pub fn create_temp_context(&mut self) -> &mut Context {
-        if self.temporary.is_none() {
-            self.temporary = Some(Context::new(
-                ContextType::Temp,
-                "",
-                (self.frames.len() + 2) as i32,
-            ));
+        if let Some(pos) = self.frames.iter().rev().position(|ctx| ctx.is_temp()) {
+            let pos = self.frames.len() - 1 - pos;
+            &mut self.frames[pos]
+        } else {
+            let l = self.frames.len();
+            self.frames.push(
+                Context::new(ContextType::Temp, "", (l) as i32),
+            );
+            self.frames.last_mut().unwrap()
         }
-        self.temporary.as_mut().unwrap()
     }
 
     pub fn drop_temp_context(&mut self) {
-        self.temporary = None;
+        loop {
+            let drop = if let Some(true) = self.frames.last().map(|t| t.is_temp()) {
+                true
+            } else {
+                false
+            };
+            if drop {
+                self.frames.pop();
+            } else {
+                break;
+            }
+        }
     }
 }
 
@@ -197,6 +269,14 @@ impl Context {
         }
     }
 
+    fn find_variable<'a>(&'a mut self, name: &str) -> Option<&'a mut Variable> {
+        self.variables.get_mut(name)
+    }
+
+    fn iter<'a>(&'a self) -> Box<Iterator<Item = (&String, &Variable)> + 'a> {
+        Box::new(self.variables.iter())
+    }
+
     fn iter_exported<'a>(&'a self) -> Box<Iterator<Item = (OsString, OsString)> + 'a> {
         Box::new(
             self.variables
@@ -230,16 +310,24 @@ impl Variable {
     pub fn as_string(&self) -> &String {
         match self.value {
             VariableValue::Scalar(_, ref s) => s,
+            // TODO: Add cases for other types
         }
-
     }
 
     pub fn is_writeable(&self) -> bool {
         !self.read_only
     }
 
-    pub fn set_exported(&mut self) {
-        self.exported = true;
+    pub fn is_readonly(&self) -> bool {
+        self.read_only
+    }
+
+    pub fn set_readonly(&mut self, ro: bool) {
+        self.read_only = ro;
+    }
+
+    pub fn set_exported(&mut self, exp: bool) {
+        self.exported = exp;
     }
 
     pub fn is_exported(&self) -> bool {
@@ -252,5 +340,24 @@ impl Variable {
 
     pub fn set_invisible(&mut self) {
         self.visible = false;
+    }
+
+    pub fn print_for_builtins(&self, name: &str, w: &mut ::std::io::Write) {
+        let mut flags = String::new();
+        if self.read_only {
+            flags += "r"
+        }
+        if self.exported {
+            flags += "x"
+        }
+        let (fs, assignment) = match self.value {
+            VariableValue::Scalar(VariableType::String, ref s) => ("", format!("=\"{}\"", s)),
+            // TODO: Add cases for other types
+        };
+        flags += fs;
+        if !flags.is_empty() {
+            flags.insert(0, '-');
+        }
+        write!(w, "declare {} {}{}\n", flags, name, assignment).expect("internal error");
     }
 }

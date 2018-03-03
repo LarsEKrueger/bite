@@ -93,7 +93,7 @@ non-GUI program.
 * [X] 0.2.2 read permanent variables from env at start
 * [X] 0.2.3 set environment for commands
 * [X] 0.2.4 parse and set permanent variables (no export)
-* [ ] 0.2.5 parse and set permanent variables (with export)
+* [X] 0.2.5 parse and set permanent variables (with export)
 * [X] 0.2.6 parse and set temporary variables
 * [ ] 0.2.7 variable expansion
 * [ ] 0.2.8 dynamic variables
@@ -129,15 +129,17 @@ non-GUI program.
 * [ ] 2.1 shell program editor with preview
 
 # TODOs
+* [ ] Fix history entries to have no end-of-line
+* [ ] End history search mode on cursor left / right. Keep the selected line for edit.
 * [ ] Merge history during save
 * [ ] Indicate return code of a completed program in the GUI
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
 * [ ] History search: Decorate menu
-* [ ] Show the full command line of a program
+* [X] Show the full command line of a program
 * [ ] Make the command line arguments of a program fold out
 * [X] Consume all stdout/stderr data before exit in `send_output`
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
-* [ ] Put proper bug reporting email address in error.rs
+* [X] Put proper bug reporting email address in error.rs
 
 # Ideas
 * Integrate mosh functionality

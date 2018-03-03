@@ -52,7 +52,7 @@ pub enum CommandOutput {
 ///
 /// Return the channel ends to the controlling function.
 pub fn spawn_command<I, K, V>(
-    cmd: &Vec<String>,
+    cmd: &[String],
     envs: I,
 ) -> Result<(Sender<String>, Receiver<CommandOutput>), String>
 where

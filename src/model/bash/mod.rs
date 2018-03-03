@@ -28,6 +28,7 @@ use std::env;
 use std::mem;
 use std::ptr;
 use std::ffi::CStr;
+use std::collections::HashMap;
 use libc::{c_char, gethostname, gid_t, uid_t};
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -35,10 +36,12 @@ pub mod script_parser;
 pub mod prompt_parser;
 pub mod history;
 pub mod execute;
+pub mod special_builtins;
 
 use super::types::*;
 use super::error::*;
 use super::variables;
+use self::special_builtins::*;
 
 /// All relevant info about the current user.
 ///
@@ -60,13 +63,23 @@ struct UserInfo {
     _shell: String,
 }
 
+/// Output and error lines of a builtin command
+pub struct BuiltinOutput {
+    pub output: Vec<String>,
+    pub errors: Vec<String>,
+}
+
 /// Result of spawning a new command.
 pub enum ExecutionResult {
     Ignore,
     Spawned((Sender<String>, Receiver<execute::CommandOutput>)),
+    Builtin(BuiltinOutput),
     Internal,
     Err(String),
 }
+
+/// Function for builtin commands
+type BuiltinRunner = fn(&mut Bash, Vec<String>) -> Result<BuiltinOutput>;
 
 /// Complete interpreter state.
 pub struct Bash {
@@ -112,6 +125,17 @@ fn format_error_message(error: ::nom::Err<&[u8]>, line: &String) -> Vec<String> 
     };
 
     msg.lines().map(String::from).collect()
+}
+
+
+/// Table of special builtin commands and their runners
+lazy_static!{
+    static ref SPECIAL_BUILTINS: HashMap<&'static str, BuiltinRunner> = {
+        let mut map: HashMap<&'static str, BuiltinRunner> = HashMap::new();
+        map.insert("export", export_runner);
+        map.insert("readonly", readonly_runner);
+        map
+    };
 }
 
 impl Bash {
@@ -165,6 +189,7 @@ impl Bash {
                         .to_string_lossy()
                         .into_owned(),
                 },
+                // TODO: Return this as an error
                 _ => UserInfo {
                     uid: ::std::u32::MAX,
                     _gid: ::std::u32::MAX,
@@ -293,14 +318,7 @@ impl Bash {
                 } else {
                     match self.assign_to_temp_context(sc.assignments) {
                         Ok(_) => {
-                            // Spawn the command if there is one
-                            let res = match execute::spawn_command(
-                                &sc.words,
-                                self.variables.iter_exported(),
-                            ) {
-                                Ok(r) => ExecutionResult::Spawned(r),
-                                Err(e) => ExecutionResult::Err(e),
-                            };
+                            let res = self.execute_simple_command(sc.words);
                             self.drop_temp_context();
                             res
                         }
@@ -315,9 +333,35 @@ impl Bash {
 
     }
 
+    /// Execute a builtin command or spawn a thread to run an external command
+    fn execute_simple_command(&mut self, words: Vec<String>) -> ExecutionResult {
+        if words.is_empty() {
+            ExecutionResult::Internal
+        } else {
+            // Check if this a special builtin command
+            if let Some(builtin) = SPECIAL_BUILTINS.get(words[0].as_str()) {
+                match self.run_builtin(*builtin, words) {
+                    Ok(r) => ExecutionResult::Builtin(r),
+                    Err(e) => ExecutionResult::Err(e.readable("")),
+                }
+            } else {
+                // Spawn the command if there is one
+                match execute::spawn_command(&words[..], self.variables.iter_exported()) {
+                    Ok(r) => ExecutionResult::Spawned(r),
+                    Err(e) => ExecutionResult::Err(e),
+                }
+            }
+        }
+    }
+
+    /// Run a builtin command and retrieve its output and error lines
+    fn run_builtin(&mut self, runner: BuiltinRunner, params: Vec<String>) -> Result<BuiltinOutput> {
+        runner(self, params)
+    }
+
     /// Assign variables in global context
     fn assign_to_global_context(&mut self, assignments: Vec<Assignment>) -> Result<()> {
-        let ref mut global = self.variables.global;
+        let global = self.variables.get_global_context()?;
         for assignment in assignments {
             global.bind_variable(&assignment.name, &assignment.value)?;
         }
@@ -330,7 +374,7 @@ impl Bash {
         for assignment in assignments {
             context
                 .bind_variable(&assignment.name, &assignment.value)?
-                .set_exported();
+                .set_exported(true);
         }
         Ok(())
     }

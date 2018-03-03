@@ -29,25 +29,34 @@ pub enum Error {
     CouldNotSetVariable(String),
 
     /// This is probably an implementation bug.
-    InternalError(String),
+    InternalError(&'static str, u32, String),
 }
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 impl Error {
     pub fn readable(self, suffix: &str) -> String {
-        String::from(self.cause()) + " " + suffix
+        String::from(self.cause(suffix))
     }
 
-    fn cause(self) -> String {
+    fn cause(self, suffix: &str) -> String {
         match self {
             Error::VariableIsReadOnly(name) => {
-                format!("tried to modify a read-only variable '{}'", name)
+                format!("tried to modify a read-only variable '{}' {}", name, suffix)
             }
-            Error::UnknownVariable(name) => format!("tried to access unknown variable '{}'", name),
-            Error::CouldNotSetVariable(name) => format!("failed to change variable '{}'", name),
-            Error::InternalError(msg) => {
-                format!("Internal error: {}\nReport to bugs@bugs.bugs", msg)
+            Error::UnknownVariable(name) => {
+                format!("tried to access unknown variable '{}' {}", name, suffix)
+            }
+            Error::CouldNotSetVariable(name) => {
+                format!("failed to change variable '{}' {}", name, suffix)
+            }
+            Error::InternalError(file, line, msg) => {
+                format!(
+                    "Internal error '{}' in {}:{}\nReport at https://github.com/LarsEKrueger/bite/issues",
+                    msg,
+                    file,
+                    line
+                )
             }
         }
     }

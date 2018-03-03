@@ -40,6 +40,9 @@ extern crate boolinator;
 extern crate cstr;
 
 #[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
 extern crate nom;
 
 extern crate bincode;

@@ -447,9 +447,24 @@ pub fn legal_identifier(s: &str) -> bool {
     if let IResult::Done(b"", _) = identifier(s.as_bytes()) {
         true
     } else {
+
         false
     }
 }
+
+named!(pub assignment_or_name<(&[u8],Option<String>)>,
+do_parse!(
+   name : identifier >>
+   value : alt_complete!(
+       do_parse!(
+        tag!("=") >> 
+        w:word >> (Some(w))
+       ) |
+       map!(eof!(),|_| None)
+   )
+   >> (name,value)
+)
+);
 
 #[cfg(test)]
 mod tests {
@@ -519,5 +534,11 @@ mod tests {
 
         assert_eq!(legal_identifier("id10t"), true);
         assert_eq!(legal_identifier("1d10t"), false);
+    }
+
+    #[test]
+    fn test_assignment_or_name() {
+        assert_eq!(assignment_or_name(b"STUFF"), IResult::Done(&b""[..], (&b"STUFF"[..],None)));
+        assert_eq!(assignment_or_name(b"STUFF=thing"), IResult::Done(&b""[..], (&b"STUFF"[..],Some(String::from("thing")))));
     }
 }

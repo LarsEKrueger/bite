@@ -77,6 +77,27 @@ impl Interaction {
         self.errors.add_line(line);
     }
 
+    /// Add a number of stdout lines at once.
+    pub fn add_output_vec(&mut self, mut lines: Vec<String>) {
+        for l in lines.drain(..) {
+            self.add_output(l);
+        }
+    }
+
+    /// Add a number of stderr lines at once.
+    pub fn add_errors_vec(&mut self, mut lines: Vec<String>) {
+        for l in lines.drain(..) {
+            self.add_error(l);
+        }
+    }
+
+    /// Add a number of stderr lines at once.
+    pub fn add_errors_lines(&mut self, lines: String) {
+        for l in lines.lines() {
+            self.add_error(String::from(l));
+        }
+    }
+
     /// Get the visible response, if any.
     pub fn visible_response(&self) -> Option<&Response> {
         if self.output.visible {

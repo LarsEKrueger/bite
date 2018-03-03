@@ -149,10 +149,17 @@ impl Session {
                                     Some((tx, rx, Interaction::new(line.clone()))),
                                 );
                             }
+                            ExecutionResult::Builtin(bi) => {
+                                let mut inter = Interaction::new(line);
+                                inter.add_output_vec(bi.output);
+                                inter.add_errors_vec(bi.errors);
+                                inter.prepare_archiving();
+                                self.archive_interaction(inter);
+                            }
                             ExecutionResult::Err(msg) => {
                                 // Something happened during program start
                                 let mut inter = Interaction::new(line);
-                                inter.add_error(format!("Error executing command: {}", msg));
+                                inter.add_errors_lines(msg);
                                 inter.prepare_archiving();
                                 self.archive_interaction(inter);
                             }
