@@ -252,9 +252,7 @@ impl Bash {
                 self.line = line;
             }
             Command::Error(_) => {}
-            _ => {
-                self.history.add_command(line);
-            }
+            _ => {}
         }
         command
     }
