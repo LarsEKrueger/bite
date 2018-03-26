@@ -110,13 +110,12 @@ macro_rules! spaced (
 named!(
     simple_command<super::Command>,
     do_parse!(
-        assignments : many0!(assignment) >>
         words : spaced!(many0!(word)) >>
-        (super::Command::new_simple_command(assignments,words))
+        (super::Command::SimpleCommand(words))
     )
 );
 
-named!(assignment<super::Assignment>,
+named!(pub assignment<super::Assignment>,
     do_parse!(
         var_name : identifier >>
         tag!("=") >>
@@ -426,7 +425,7 @@ do_parse!(
    name : identifier >>
    value : alt_complete!(
        do_parse!(
-        tag!("=") >> 
+        tag!("=") >>
         w:word >> (Some(w))
        ) |
        map!(eof!(),|_| None)
@@ -453,7 +452,7 @@ mod tests {
             simple_command(b"ab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                Command::new_simple_command(vec![],vec![
+                Command::SimpleCommand(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -465,7 +464,7 @@ mod tests {
             simple_command(b" \tab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                Command::new_simple_command(vec![],vec![
+                Command::SimpleCommand(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -481,7 +480,7 @@ mod tests {
             parse_script(b" ab bc   cd \t\tde\n"),
             IResult::Done(
                 &b""[..],
-                Command::new_simple_command(vec![],vec![
+                Command::SimpleCommand(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -499,7 +498,9 @@ mod tests {
         assert_eq!(identifier(b"_bc"), IResult::Done(&b""[..], &b"_bc"[..]));
         assert_eq!(identifier(b"_bc0_"), IResult::Done(&b""[..], &b"_bc0_"[..]));
         assert_eq!(identifier(b"_bc0_."), IResult::Done(&b"."[..], &b"_bc0_"[..]));
-        assert_eq!(identifier(b"0_bc0_"), IResult::Error(Err::Position(ErrorKind::Alt,&b"0_bc0_"[..])));
+        assert_eq!(identifier(b"0_bc0_"),
+        IResult::Error(Err::Position(
+            ErrorKind::Alt,&b"0_bc0_"[..])));
 
         assert_eq!(legal_identifier("id10t"), true);
         assert_eq!(legal_identifier("1d10t"), false);
@@ -508,6 +509,7 @@ mod tests {
     #[test]
     fn test_assignment_or_name() {
         assert_eq!(assignment_or_name(b"STUFF"), IResult::Done(&b""[..], (&b"STUFF"[..],None)));
-        assert_eq!(assignment_or_name(b"STUFF=thing"), IResult::Done(&b""[..], (&b"STUFF"[..],Some(String::from("thing")))));
+        assert_eq!(assignment_or_name(b"STUFF=thing"),
+        IResult::Done(&b""[..], (&b"STUFF"[..],Some(String::from("thing")))));
     }
 }

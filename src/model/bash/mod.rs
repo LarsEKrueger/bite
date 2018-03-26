@@ -304,19 +304,21 @@ impl Bash {
         match cmd {
             Command::Incomplete |
             Command::Error(_) => ExecutionResult::Ignore,
-            Command::SimpleCommand(sc) => {
+            Command::SimpleCommand(words) => {
+                let words = self.expand_word_list(&words);
+                let (assignments, words) = self.separate_out_assignments(words);
 
                 // If there is no command, perform the assignments to global variables. If not,
                 // perform them to temporary context, execute and drop the temporary context.
-                if sc.words.is_empty() {
-                    match self.assign_to_global_context(sc.assignments) {
+                if words.is_empty() {
+                    match self.assign_to_global_context(assignments) {
                         Ok(_) => ExecutionResult::Internal,
                         Err(e) => ExecutionResult::Err(e.readable("while setting variables")),
                     }
                 } else {
-                    match self.assign_to_temp_context(sc.assignments) {
+                    match self.assign_to_temp_context(assignments) {
                         Ok(_) => {
-                            let res = self.execute_simple_command(sc.words);
+                            let res = self.execute_simple_command(words);
                             self.drop_temp_context();
                             res
                         }
@@ -328,7 +330,6 @@ impl Bash {
                 }
             }
         }
-
     }
 
     /// Execute a builtin command or spawn a thread to run an external command
@@ -353,8 +354,8 @@ impl Bash {
     }
 
     /// Run a builtin command and retrieve its output and error lines
-    fn run_builtin(&mut self, runner: BuiltinRunner, params: Vec<String>) -> Result<BuiltinOutput> {
-        runner(self, params)
+    fn run_builtin(&mut self, runner: BuiltinRunner, ps: Vec<String>) -> Result<BuiltinOutput> {
+        runner(self, ps)
     }
 
     /// Assign variables in global context
@@ -380,5 +381,50 @@ impl Bash {
     /// Drop a temporary context.
     fn drop_temp_context(&mut self) {
         self.variables.drop_temp_context();
+    }
+
+    /// Expand all words in the list.
+    fn expand_word_list(&self, words: &[String]) -> Vec<String> {
+        // TODO
+        words.to_vec()
+    }
+
+    /// Split the word list into assignments and regular words.
+    ///
+    /// This is an instance method as we need to access the shell flags later.
+    fn separate_out_assignments(&self, words: Vec<String>) -> (Vec<Assignment>, Vec<String>) {
+        let mut out_words = vec![];
+        let mut out_assignments = vec![];
+
+        // Iterate over the words and make assignments. Break the loop at the first non-assignment.
+        // TODO: Fix here for shell flag -k.
+        let mut i = words.into_iter();
+        loop {
+            match i.next() {
+                None => break,
+                Some(w) => {
+                    // Parse the word as an assignment.
+                    match script_parser::assignment(w.as_bytes()) {
+                        IResult::Done(_, a) => out_assignments.push(a),
+                        IResult::Error(_) |
+                        IResult::Incomplete(_) => {
+                            out_words.push(w);
+                            break;
+                        }
+                    }
+
+                }
+            }
+        }
+
+        // Move the remaining words.
+        loop {
+            match i.next() {
+                None => break,
+                Some(w) => out_words.push(w),
+            }
+
+        }
+        (out_assignments, out_words)
     }
 }
