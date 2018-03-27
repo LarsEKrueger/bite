@@ -49,6 +49,38 @@ Finally, long-running programs are automatically managed in a separate tab as
 well. Their output is captured is a way that they do not interfere with
 foreground operations.
 
+As the primary purpose of this program is to improve on the usability of the
+shell/term combination, only a subset of bash's features will be implemented:
+
+* prompt
+* history
+* global variables
+* temporary variables
+* brace expansion, tilde expansion, variable expansion (limited), arithmetic expansion,
+  pathname expansion, history expansion
+* pipelines (limited)
+* redirection (only output to file)
+* aliases
+* job control
+* builtin commands (limited)
+* command lists (limited to &&, ||, ;)
+* compound commands (limited to for, if, while)
+* shell variables (limited)
+* completion
+
+The following features will not be implemented:
+
+* functions
+* here documents
+* coprocesses
+* comments
+* arrays
+* recursive variable expansion
+* name references
+
+The included features appear to be the most frequently-used interactve constructs while the
+features left out are deemed inconvenient to enter in an interactive shell.
+
 # Planned Features, Step 2
 
 ## Progress Information
@@ -97,17 +129,13 @@ non-GUI program.
 * [X] 0.2.6 parse and set temporary variables
 * [ ] 0.2.7 variable expansion
 * [ ] 0.2.8 dynamic variables
-* [ ] 0.2.9 indexed arrays
-* [ ] 0.2.10 associative arrays
-* [ ] 0.2.11 integer / lower case / upper case
-* [ ] 0.2.12 name references
+* [ ] 0.2.11 integer variables
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
 * [ ] 0.6 control statements
-* [ ] 0.7 redirections, here documents
+* [ ] 0.7 redirections
 * [ ] 0.8 Run start-up and shut-down scripts
-* [ ] 0.9 full port of readline (based on e.g. https://github.com/kkawakam/rustyline)
 * [ ] 0.10 Handle colors in output, error, and prompt
 * [ ] 0.11 Parse comments
 * [ ] 0.12 functions
