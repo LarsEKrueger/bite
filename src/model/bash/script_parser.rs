@@ -20,25 +20,6 @@
 
 use nom::{newline, alpha, IResult, is_alphanumeric};
 
-/*
-%token IF THEN ELSE ELIF FI CASE ESAC FOR SELECT WHILE UNTIL DO DONE FUNCTION COPROC
-%token COND_START COND_END COND_ERROR
-%token IN BANG TIME TIMEOPT TIMEIGN
-%token <word> WORD ASSIGNMENT_WORD REDIR_WORD
-%token <number> NUMBER
-%token <word_list> ARITH_CMD ARITH_FOR_EXPRS
-%token <command> COND_CMD
-%token AND_AND OR_OR GREATER_GREATER LESS_LESS LESS_AND LESS_LESS_LESS
-%token GREATER_AND SEMI_SEMI SEMI_AND SEMI_SEMI_AND
-%token LESS_LESS_MINUS AND_GREATER AND_GREATER_GREATER LESS_GREATER
-%token GREATER_BAR BAR_AND
-%start inputunit
-
-%left '&' ';' '\n' yacc_EOF
-%left AND_AND OR_OR
-%right '|' BAR_AND
-*/
-
 named!(
     pub parse_script<super::Command>,
     terminated!(simple_command
@@ -129,12 +110,9 @@ macro_rules! spaced (
 named!(
     simple_command<super::Command>,
     do_parse!(
-        assignments :             many0!(assignment)
-        >>
+        assignments : many0!(assignment) >>
         words : spaced!(many0!(word)) >>
-
         (super::Command::new_simple_command(assignments,words))
-
     )
 );
 
@@ -413,15 +391,6 @@ STRING_INT_ALIST other_token_alist[] = {
   { "newline", '\n' },
   { (char *)NULL, 0}
 };
-*/
-
-/* others not listed here:
-	WORD			look at yylval.word
-	ASSIGNMENT_WORD		look at yylval.word
-	NUMBER			look at yylval.number
-	ARITH_CMD		look at yylval.word_list
-	ARITH_FOR_EXPRS		look at yylval.word_list
-	COND_CMD		look at yylval.command
 */
 
 named!(
