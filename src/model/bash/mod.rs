@@ -305,7 +305,7 @@ impl Bash {
             Command::Incomplete |
             Command::Error(_) => ExecutionResult::Ignore,
             Command::SimpleCommand(words) => {
-                let words = self.expand_word_list(&words);
+                let words = self.expand_word_list(words);
                 let (assignments, words) = self.separate_out_assignments(words);
 
                 // If there is no command, perform the assignments to global variables. If not,
@@ -384,9 +384,21 @@ impl Bash {
     }
 
     /// Expand all words in the list.
-    fn expand_word_list(&self, words: &[String]) -> Vec<String> {
-        // TODO
-        words.to_vec()
+    fn expand_word_list(&self, words: Vec<String>) -> Vec<String> {
+        let mut out_words = vec![];
+
+        for w in words {
+            // TODO: handle assigning builtins
+            self.expand_word(&mut out_words, w);
+        }
+
+        out_words
+    }
+
+    /// Expand a single word
+    fn expand_word(&self, out_words: &mut Vec<String>, word: String) {
+
+        out_words.push(word);
     }
 
     /// Split the word list into assignments and regular words.
