@@ -56,8 +56,8 @@ shell/term combination, only a subset of bash's features will be implemented:
 * history
 * global variables
 * temporary variables
-* brace expansion (limited), tilde expansion, variable expansion (limited), arithmetic expansion,
-  pathname expansion, history expansion
+* brace expansion (limited), tilde expansion (limited), variable expansion (limited),
+  pathname expansion, history expansion, arithmetic expansion
 * pipelines (limited)
 * redirection (only output to file)
 * aliases
@@ -137,14 +137,12 @@ non-GUI program.
 * [ ] 0.6 control statements
 * [ ] 0.7 redirections
 * [ ] 0.8 Run start-up and shut-down scripts
-* [ ] 0.10 Handle colors in output, error, and prompt
-* [ ] 0.11 Parse comments
-* [ ] 0.12 functions
-* [ ] 0.13 Sub-Shells
-* [ ] 0.13 Coprocesses
-* [ ] 0.14 Full prompt string interpreter (with variables)
-* [ ] 0.15 Draw GUI using Xft
-* [ ] 0.16 Design a Unicode BiTE logo and use it in prompts for \s
+* [ ] 0.9 Handle colors in output, error, and prompt
+* [ ] 0.10 Sub-Shells
+* [ ] 0.11 History Expansion, Arithmetic Expansion
+* [ ] 0.12 Full prompt string interpreter (with variables)
+* [ ] 0.13 Draw GUI using Xft
+* [ ] 0.14 Design a Unicode BiTE logo and use it in prompts for \s
 * [ ] 1.0 Full bash compliance, standalone program passes bash test suite
 * [ ] 1.1 Tabs for TUIs
 * [ ] 1.2 Tabs for background programs
