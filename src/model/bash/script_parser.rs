@@ -393,7 +393,7 @@ STRING_INT_ALIST other_token_alist[] = {
 */
 
 named!(
-    word<String>,
+    pub word<String>,
     map!(many1!(word_letter), |c| c.into_iter().collect())
 );
 
@@ -405,7 +405,7 @@ fn is_alphanum_or_underscore(c: u8) -> bool {
 
 named!(alpha_or_underscore, alt!(alpha | tag!("_")));
 named!(
-    identifier,
+    pub identifier,
     recognize!(preceded!(
         alpha_or_underscore,
         take_while!(is_alphanum_or_underscore)))
@@ -422,16 +422,16 @@ pub fn legal_identifier(s: &str) -> bool {
 
 named!(pub assignment_or_name<(&[u8],Option<String>)>,
 do_parse!(
-   name : identifier >>
-   value : alt_complete!(
-       do_parse!(
-        tag!("=") >>
-        w:word >> (Some(w))
-       ) |
-       map!(eof!(),|_| None)
-   )
-   >> (name,value)
-)
+    name : identifier >>
+    value : alt_complete!(
+        do_parse!(
+            tag!("=") >>
+            w:word >> (Some(w))
+            ) |
+        map!(eof!(),|_| None)
+        )
+    >> (name,value)
+    )
 );
 
 #[cfg(test)]
@@ -512,4 +512,5 @@ mod tests {
         assert_eq!(assignment_or_name(b"STUFF=thing"),
         IResult::Done(&b""[..], (&b"STUFF"[..],Some(String::from("thing")))));
     }
+
 }

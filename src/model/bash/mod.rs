@@ -33,6 +33,7 @@ use libc::{c_char, gethostname, gid_t, uid_t};
 use std::sync::mpsc::{Receiver, Sender};
 
 pub mod script_parser;
+pub mod expansion_parser;
 pub mod prompt_parser;
 pub mod history;
 pub mod execute;
@@ -385,20 +386,27 @@ impl Bash {
 
     /// Expand all words in the list.
     fn expand_word_list(&self, words: Vec<String>) -> Vec<String> {
+        // TODO: map
         let mut out_words = vec![];
-
         for w in words {
-            // TODO: handle assigning builtins
-            self.expand_word(&mut out_words, w);
+            out_words.push(self.expand_word(w));
         }
-
         out_words
     }
 
     /// Expand a single word
-    fn expand_word(&self, out_words: &mut Vec<String>, word: String) {
+    fn expand_word(&self, word: String) -> String {
+        match expansion_parser::expansion(word.as_bytes()) {
+            IResult::Done(_, exp) => self.rebuild_expansion(exp),
+            IResult::Error(_) |
+            IResult::Incomplete(_) => word,
+        }
+    }
 
-        out_words.push(word);
+    fn rebuild_expansion(&self, exp: Expansion) -> String {
+        let mut word = String::new();
+
+        word
     }
 
     /// Split the word list into assignments and regular words.
@@ -409,7 +417,6 @@ impl Bash {
         let mut out_assignments = vec![];
 
         // Iterate over the words and make assignments. Break the loop at the first non-assignment.
-        // TODO: Fix here for shell flag -k.
         let mut i = words.into_iter();
         loop {
             match i.next() {
@@ -435,7 +442,6 @@ impl Bash {
                 None => break,
                 Some(w) => out_words.push(w),
             }
-
         }
         (out_assignments, out_words)
     }

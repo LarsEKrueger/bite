@@ -37,6 +37,29 @@ pub struct Assignment {
     // TODO: Assignment operation (assign or add)
 }
 
+/// The structure that comes from parsing an expansion
+pub type Expansion = Vec<ExpSpan>;
+
+/// A segment that can be expanded.
+#[derive(Debug, PartialEq)]
+pub enum ExpSpan {
+    /// Copy this string
+    Verbatim(String),
+
+    /// Add the content of this variable.
+    ///
+    /// TODO: Add operator
+    Variable(String),
+
+    /// Add $HOME
+    Tilde,
+
+    /// Data for bracket expansion
+    Bracket(Vec<String>),
+
+    /// Add file names
+    Glob(String),
+}
 
 impl Assignment {
     pub fn new(name: String, value: String) -> Self {

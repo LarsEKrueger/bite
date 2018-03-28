@@ -56,7 +56,7 @@ shell/term combination, only a subset of bash's features will be implemented:
 * history
 * global variables
 * temporary variables
-* brace expansion, tilde expansion, variable expansion (limited), arithmetic expansion,
+* brace expansion (limited), tilde expansion, variable expansion (limited), arithmetic expansion,
   pathname expansion, history expansion
 * pipelines (limited)
 * redirection (only output to file)
@@ -76,6 +76,7 @@ The following features will not be implemented:
 * comments
 * arrays
 * recursive variable expansion
+* recursive brace expansion
 * name references
 
 The included features appear to be the most frequently-used interactve constructs while the
