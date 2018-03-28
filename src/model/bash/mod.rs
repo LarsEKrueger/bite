@@ -389,24 +389,43 @@ impl Bash {
         // TODO: map
         let mut out_words = vec![];
         for w in words {
-            out_words.push(self.expand_word(w));
+            self.expand_word(&mut out_words, w);
         }
         out_words
     }
 
     /// Expand a single word
-    fn expand_word(&self, word: String) -> String {
+    fn expand_word(&self, out_words: &mut Vec<String>, word: String) {
         match expansion_parser::expansion(word.as_bytes()) {
-            IResult::Done(_, exp) => self.rebuild_expansion(exp),
+            IResult::Done(_, exp) => self.rebuild_expansion(out_words, exp),
             IResult::Error(_) |
-            IResult::Incomplete(_) => word,
-        }
+            IResult::Incomplete(_) => out_words.push(word),
+        };
     }
 
-    fn rebuild_expansion(&self, exp: Expansion) -> String {
-        let mut word = String::new();
+    /// Add all expanded combinations to out_words.
+    ///
+    /// Only bracket expansion and globbing can produce multiple outputs. We perform globbing last.
+    /// Bracket expansion is done using the classic outer-product indexing.
+    /// As bracket expansion is quite rare, we perform a test to simplify the indexing.
+    fn rebuild_expansion(&self, out_words: &mut Vec<String>, exp: Expansion) {
+        // Find the bracket spans.
+        let mut bracket_idx: Vec<(usize, usize)> = exp.iter()
+            .enumerate()
+            .filter(|&(_, s)| if let ExpSpan::Bracket(_) = *s {
+                true
+            } else {
+                false
+            })
+            .map(|(i, _)| (i, 0 as usize))
+            .collect();
 
-        word
+        if bracket_idx.is_empty() {
+            // TODO: Concat the items and then glob.
+        } else {
+            // TODO: Outer-product indexing,
+
+        }
     }
 
     /// Split the word list into assignments and regular words.
