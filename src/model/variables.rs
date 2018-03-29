@@ -137,14 +137,34 @@ impl Stack {
         }
     }
 
-    pub fn find_variable(&mut self, name: &str) -> Option<&mut Variable> {
+    pub fn variable_as_str<'a>(&'a self, name: &str) -> Result<&'a str> {
+        match self.find_variable(name) {
+            Some(v) => Ok(v.as_str()),
+            None => Err(Error::UnknownVariable(String::from(name))),
+        }
+    }
+
+    pub fn find_variable<'a>(&'a self, name: &str) -> Option<&'a Variable> {
+        if let Some(pos) = self.frames.iter().rev().position(|ctx| {
+            ctx.find_variable(name).is_some()
+        })
+        {
+            let pos = self.frames.len() - 1 - pos;
+            let ref frm = self.frames[pos];
+            frm.find_variable(name)
+        } else {
+            None
+        }
+    }
+
+    pub fn find_variable_mut(&mut self, name: &str) -> Option<&mut Variable> {
         if let Some(pos) = self.frames.iter_mut().rev().position(|ctx| {
             ctx.find_variable(name).is_some()
         })
         {
             let pos = self.frames.len() - 1 - pos;
             let ref mut frm = self.frames[pos];
-            frm.find_variable(name)
+            frm.find_variable_mut(name)
         } else {
             None
         }
@@ -157,7 +177,7 @@ impl Stack {
         {
             let pos = self.frames.len() - 1 - pos;
             let l = self.frames.len();
-            if let Some(variable) = self.frames[pos].find_variable(name) {
+            if let Some(variable) = self.frames[pos].find_variable_mut(name) {
                 Ok(variable)
             } else {
                 Err(Error::InternalError(
@@ -269,7 +289,11 @@ impl Context {
         }
     }
 
-    fn find_variable<'a>(&'a mut self, name: &str) -> Option<&'a mut Variable> {
+    fn find_variable<'a>(&'a self, name: &str) -> Option<&'a Variable> {
+        self.variables.get(name)
+    }
+
+    fn find_variable_mut<'a>(&'a mut self, name: &str) -> Option<&'a mut Variable> {
         self.variables.get_mut(name)
     }
 
@@ -308,6 +332,13 @@ impl Variable {
     }
 
     pub fn as_string(&self) -> &String {
+        match self.value {
+            VariableValue::Scalar(_, ref s) => s,
+            // TODO: Add cases for other types
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
         match self.value {
             VariableValue::Scalar(_, ref s) => s,
             // TODO: Add cases for other types

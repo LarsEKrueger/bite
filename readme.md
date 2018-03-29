@@ -67,6 +67,7 @@ shell/term combination, only a subset of bash's features will be implemented:
 * compound commands (limited to for, if, while)
 * shell variables (limited)
 * completion
+* sub-shells
 
 The following features will not be implemented:
 
@@ -156,7 +157,7 @@ non-GUI program.
 * [ ] 2.1 shell program editor with preview
 
 # TODOs
-* [ ] Fix history entries to have no end-of-line
+* [X] Fix history entries to have no end-of-line
 * [ ] End history search mode on cursor left / right. Keep the selected line for edit.
 * [ ] Merge history during save
 * [ ] Indicate return code of a completed program in the GUI
@@ -167,12 +168,14 @@ non-GUI program.
 * [X] Consume all stdout/stderr data before exit in `send_output`
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
 * [X] Put proper bug reporting email address in error.rs
+* [ ] Handle quoted and escaped spaces in script parser.
 
 # Ideas
 * Integrate mosh functionality
 * Command line editor with vim keys (starts in insert mode)
 * Syntax highlighting for output
 * Image preview in ls
+* Integrate auto jump functionality.
 
 # References
 * utf8 input from https://gist.github.com/baines/5a49f1334281b2685af5dcae81a6fa8a

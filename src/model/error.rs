@@ -27,6 +27,8 @@ pub enum Error {
     UnknownVariable(String),
     /// For some other reasons, we could not set the variable.
     CouldNotSetVariable(String),
+    /// Illegal pattern in globbing
+    IllegalGlob(String),
 
     /// This is probably an implementation bug.
     InternalError(&'static str, u32, String),
@@ -50,6 +52,7 @@ impl Error {
             Error::CouldNotSetVariable(name) => {
                 format!("failed to change variable '{}' {}", name, suffix)
             }
+            Error::IllegalGlob(msg) => format!("illegal pattern '{}' {}", msg, suffix),
             Error::InternalError(file, line, msg) => {
                 format!(
                     "Internal error '{}' in {}:{}\nReport at https://github.com/LarsEKrueger/bite/issues",

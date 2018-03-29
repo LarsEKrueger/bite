@@ -306,7 +306,12 @@ impl Bash {
             Command::Incomplete |
             Command::Error(_) => ExecutionResult::Ignore,
             Command::SimpleCommand(words) => {
-                let words = self.expand_word_list(words);
+                let words = match self.expand_word_list(words) {
+                    Ok(w) => w,
+                    Err(e) => {
+                        return ExecutionResult::Err(e.readable("during expansion"));
+                    }
+                };
                 let (assignments, words) = self.separate_out_assignments(words);
 
                 // If there is no command, perform the assignments to global variables. If not,
@@ -385,22 +390,23 @@ impl Bash {
     }
 
     /// Expand all words in the list.
-    fn expand_word_list(&self, words: Vec<String>) -> Vec<String> {
-        // TODO: map
+    fn expand_word_list(&self, words: Vec<String>) -> Result<Vec<String>> {
+        // TODO: use map
         let mut out_words = vec![];
         for w in words {
-            self.expand_word(&mut out_words, w);
+            self.expand_word(&mut out_words, w)?;
         }
-        out_words
+        Ok(out_words)
     }
 
     /// Expand a single word
-    fn expand_word(&self, out_words: &mut Vec<String>, word: String) {
+    fn expand_word(&self, out_words: &mut Vec<String>, word: String) -> Result<()> {
         match expansion_parser::expansion(word.as_bytes()) {
-            IResult::Done(_, exp) => self.rebuild_expansion(out_words, exp),
+            IResult::Done(_, exp) => self.rebuild_expansion(out_words, exp)?,
             IResult::Error(_) |
             IResult::Incomplete(_) => out_words.push(word),
         };
+        Ok(())
     }
 
     /// Add all expanded combinations to out_words.
@@ -408,7 +414,7 @@ impl Bash {
     /// Only bracket expansion and globbing can produce multiple outputs. We perform globbing last.
     /// Bracket expansion is done using the classic outer-product indexing.
     /// As bracket expansion is quite rare, we perform a test to simplify the indexing.
-    fn rebuild_expansion(&self, out_words: &mut Vec<String>, exp: Expansion) {
+    fn rebuild_expansion(&self, out_words: &mut Vec<String>, exp: Expansion) -> Result<()> {
         // Find the bracket spans.
         let mut bracket_idx: Vec<(usize, usize)> = exp.iter()
             .enumerate()
@@ -421,11 +427,88 @@ impl Bash {
             .collect();
 
         if bracket_idx.is_empty() {
-            // TODO: Concat the items and then glob.
+            // Concat the items and then glob.
+            let (pat, has_glob) = self.expand(&exp, &bracket_idx)?;
+            if has_glob {
+                Bash::glob2words(out_words, pat)?;
+            } else {
+                out_words.push(pat);
+            }
         } else {
             // TODO: Outer-product indexing,
 
         }
+        Ok(())
+    }
+
+    fn expand(&self, exp: &Expansion, bracket_idx: &Vec<(usize, usize)>) -> Result<(String, bool)> {
+        let mut result = String::new();
+        let mut has_glob = false;
+
+        // Index into bracket_idx
+        let mut i_bracket_idx = 0;
+        for i in 0..exp.len() {
+            match exp[i] {
+                ExpSpan::Verbatim(ref s) => result.push_str(s),
+                ExpSpan::Variable(ref n) => {
+                    let v = self.variables.variable_as_str(n.as_str())?;
+                    result.push_str(v);
+                }
+                ExpSpan::Tilde => result.push_str(self.current_user.home_dir.as_str()),
+                ExpSpan::Bracket(ref v) => {
+                    if i_bracket_idx >= bracket_idx.len() {
+                        return Err(Error::InternalError(
+                            file!(),
+                            line!(),
+                            format!(
+                                "could not index into bracket index (exp=»{:?}«<<,bracket_idx=»{:?}«,i={},i_bracket_idx={})",
+                                exp,
+                                bracket_idx,
+                                i,
+                                i_bracket_idx
+                            ),
+                        ));
+                    }
+
+                    let idx = bracket_idx[i_bracket_idx].1;
+                    if idx >= v.len() {
+                        return Err(Error::InternalError(
+                            file!(),
+                            line!(),
+                            format!(
+                                "could not index into bracket vector (exp=»{:?}«<<,bracket_idx=»{:?}«,i={},i_bracket_idx={})",
+                                exp,
+                                bracket_idx,
+                                i,
+                                i_bracket_idx
+                            ),
+                        ));
+                    }
+                    result.push_str(v[i].as_str());
+                    i_bracket_idx += 1;
+                }
+                ExpSpan::Glob(ref g) => {
+                    has_glob = true;
+                    result.push_str(g)
+                }
+            }
+        }
+        return Ok((result, has_glob));
+    }
+
+    fn glob2words(out_words: &mut Vec<String>, pat: String) -> Result<()> {
+        use glob::glob;
+
+        for entry in glob(pat.as_str()).map_err(|pe| {
+            Error::IllegalGlob(String::from(pe.msg))
+        })?
+        {
+            match entry {
+                Ok(path) => out_words.push(path.to_string_lossy().into_owned()),
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     /// Split the word list into assignments and regular words.

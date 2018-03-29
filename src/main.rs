@@ -47,6 +47,8 @@ extern crate nom;
 
 extern crate bincode;
 
+extern crate glob;
+
 pub mod tools;
 pub mod model;
 pub mod presenter;
