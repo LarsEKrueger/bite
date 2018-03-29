@@ -131,7 +131,7 @@ non-GUI program.
 * [X] 0.2.5 parse and set permanent variables (with export)
 * [X] 0.2.6 parse and set temporary variables
 * [X] 0.2.7 variable expansion
-* [ ] 0.3 environment variables (read, set, pass to command)
+* [X] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
 * [ ] 0.6 control statements

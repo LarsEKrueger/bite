@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "bite"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "argparse 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bincode 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
