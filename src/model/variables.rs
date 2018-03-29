@@ -67,14 +67,9 @@ pub struct Variable {
 
 /// The value of a variable.
 ///
-/// As arrays have the same type for all values, we need to move that outside the value type. We
-/// store the even the integer values as strings like bash does, even if it hurts to read.
-pub enum VariableValue {
-    //NameRef(String),
-    Scalar(VariableType, String),
-    //Indexed(VariableType, Vec<String>),
-    //Associated(VariableType, HashMap<String, String>),
-    //Dynamic(Box<DynamicVariable>),
+pub struct VariableValue {
+    vtype: VariableType,
+    value: String,
 }
 
 /// The type of the variable.
@@ -84,14 +79,6 @@ pub enum VariableValue {
 pub enum VariableType {
     // Integer,
     String,
-    // LowerCase,
-    // UpperCase,
-}
-
-/// A dynamic variable will be read and might be set.
-pub trait DynamicVariable {
-    fn get(&self) -> String;
-    fn set(&mut self, &str);
 }
 
 impl Stack {
@@ -316,7 +303,10 @@ impl Context {
 impl Variable {
     fn new_scalar_string(value: &str) -> Self {
         Self {
-            value: VariableValue::Scalar(VariableType::String, String::from(value)),
+            value: VariableValue {
+                vtype: VariableType::String,
+                value: String::from(value),
+            },
             read_only: false,
             exported: false,
             visible: true,
@@ -324,25 +314,16 @@ impl Variable {
     }
 
     pub fn set_value(&mut self, value: &str) {
-        self.value = match self.value {
-            VariableValue::Scalar(ref var_type, _) => {
-                VariableValue::Scalar(*var_type, String::from(value))
-            }
-        };
+        // TODO: handle integers
+        self.value.value = String::from(value);
     }
 
     pub fn as_string(&self) -> &String {
-        match self.value {
-            VariableValue::Scalar(_, ref s) => s,
-            // TODO: Add cases for other types
-        }
+        &self.value.value
     }
 
     pub fn as_str(&self) -> &str {
-        match self.value {
-            VariableValue::Scalar(_, ref s) => s,
-            // TODO: Add cases for other types
-        }
+        self.value.value.as_str()
     }
 
     pub fn is_writeable(&self) -> bool {
@@ -381,10 +362,7 @@ impl Variable {
         if self.exported {
             flags += "x"
         }
-        let (fs, assignment) = match self.value {
-            VariableValue::Scalar(VariableType::String, ref s) => ("", format!("=\"{}\"", s)),
-            // TODO: Add cases for other types
-        };
+        let (fs, assignment) = ("", format!("=\"{}\"", self.value.value));
         flags += fs;
         if !flags.is_empty() {
             flags.insert(0, '-');

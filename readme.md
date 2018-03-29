@@ -79,6 +79,7 @@ The following features will not be implemented:
 * recursive variable expansion
 * recursive brace expansion
 * name references
+* dynamic variables
 
 The included features appear to be the most frequently-used interactve constructs while the
 features left out are deemed inconvenient to enter in an interactive shell.
@@ -129,9 +130,7 @@ non-GUI program.
 * [X] 0.2.4 parse and set permanent variables (no export)
 * [X] 0.2.5 parse and set permanent variables (with export)
 * [X] 0.2.6 parse and set temporary variables
-* [ ] 0.2.7 variable expansion
-* [ ] 0.2.8 dynamic variables
-* [ ] 0.2.11 integer variables
+* [X] 0.2.7 variable expansion
 * [ ] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
@@ -140,6 +139,7 @@ non-GUI program.
 * [ ] 0.8 Run start-up and shut-down scripts
 * [ ] 0.9 Handle colors in output, error, and prompt
 * [ ] 0.10 Sub-Shells
+* [ ] 0.10.1 integer variables
 * [ ] 0.11 History Expansion, Arithmetic Expansion
 * [ ] 0.12 Full prompt string interpreter (with variables)
 * [ ] 0.13 Draw GUI using Xft
