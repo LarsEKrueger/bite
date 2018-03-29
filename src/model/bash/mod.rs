@@ -415,18 +415,17 @@ impl Bash {
     /// Bracket expansion is done using the classic outer-product indexing.
     /// As bracket expansion is quite rare, we perform a test to simplify the indexing.
     fn rebuild_expansion(&self, out_words: &mut Vec<String>, exp: Expansion) -> Result<()> {
-        // Find the bracket spans.
+        // bracket_idx [(alternatives, current)]
         let mut bracket_idx: Vec<(usize, usize)> = exp.iter()
-            .enumerate()
-            .filter(|&(_, s)| if let ExpSpan::Bracket(_) = *s {
-                true
+            .filter_map(|s| if let ExpSpan::Bracket(ref v) = *s {
+                Some((v.len(), 0 as usize))
             } else {
-                false
+                None
             })
-            .map(|(i, _)| (i, 0 as usize))
             .collect();
 
-        if bracket_idx.is_empty() {
+        // Outer-product indexing,
+        loop {
             // Concat the items and then glob.
             let (pat, has_glob) = self.expand(&exp, &bracket_idx)?;
             if has_glob {
@@ -434,9 +433,21 @@ impl Bash {
             } else {
                 out_words.push(pat);
             }
-        } else {
-            // TODO: Outer-product indexing,
 
+            // Now increment
+            let mut i_bracket_idx = 0;
+            while i_bracket_idx < bracket_idx.len() {
+                let ref mut bii = bracket_idx[i_bracket_idx];
+                if bii.1 + 1 < bii.0 {
+                    bii.1 += 1;
+                    break;
+                }
+                bii.1 = 0;
+                i_bracket_idx += 1;
+            }
+            if i_bracket_idx == bracket_idx.len() {
+                break;
+            }
         }
         Ok(())
     }
@@ -484,7 +495,7 @@ impl Bash {
                             ),
                         ));
                     }
-                    result.push_str(v[i].as_str());
+                    result.push_str(v[idx].as_str());
                     i_bracket_idx += 1;
                 }
                 ExpSpan::Glob(ref g) => {
