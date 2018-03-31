@@ -82,14 +82,14 @@ named!(
 ///  * \nnn     character code nnn in octal
 ///  * \\       a backslash
 ///
-///    The following two are only required for readline. We replace them with nothing as we don't need
-///    the markers.
+///    The following two are only required for readline. We replace them with nothing as we don't
+///    need the markers.
 ///  * \[       begin a sequence of non-printing chars
 ///  * \]       end a sequence of non-printing chars
 ///
 named_args!(
     backslashy<'a>(bash:&Bash)<String>,
-    do_parse!(tag!("\\") >> 
+    do_parse!(tag!("\\") >>
        res: alt!(
            map!(tag!("a"),|_| String::from("\x07")) |
            map!(tag!("e"),|_| String::from("\x1B")) |

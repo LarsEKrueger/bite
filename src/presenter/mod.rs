@@ -601,7 +601,7 @@ impl SubPresenter for ComposeCommandPresenter {
                 self.commons.current_line.clear();
                 self.commons.current_line.insert_str(&prefix);
                 HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true)
-            } 
+            }
             _ => self,
         }
     }
@@ -627,7 +627,7 @@ impl SubPresenter for ComposeCommandPresenter {
                 self.commons.current_line.clear();
                 self.commons.current_line.insert_str(&prefix);
                 HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false)
-            } 
+            }
             _ => self,
         }
     }

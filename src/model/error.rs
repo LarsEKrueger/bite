@@ -55,7 +55,10 @@ impl Error {
             Error::IllegalGlob(msg) => format!("illegal pattern '{}' {}", msg, suffix),
             Error::InternalError(file, line, msg) => {
                 format!(
-                    "Internal error '{}' in {}:{}\nReport at https://github.com/LarsEKrueger/bite/issues",
+                    concat!(
+                        "Internal error '{}' in {}:{}\n",
+                        "Report at https://github.com/LarsEKrueger/bite/issues"
+                    ),
                     msg,
                     file,
                     line

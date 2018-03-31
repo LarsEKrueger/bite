@@ -220,24 +220,38 @@ mod tests {
 
     #[test]
     fn simple() {
-        assert_eq!(expansion(b"STUFF"), IResult::Done(&b""[..], vec![ExpSpan::Verbatim(String::from("STUFF"))]));
-        assert_eq!(expansion(b"$STUFF"), IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
-        assert_eq!(expansion(b"${STUFF}"), IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
+        assert_eq!(
+            expansion(b"STUFF"),
+            IResult::Done(&b""[..], vec![ExpSpan::Verbatim(String::from("STUFF"))]));
+        assert_eq!(
+            expansion(b"$STUFF"),
+            IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
+        assert_eq!(
+            expansion(b"${STUFF}"),
+            IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
 
         assert_eq!(
-            expansion(b"{STU,FF}"), 
+            expansion(b"{STU,FF}"),
             IResult::Done(
-                &b""[..], 
+                &b""[..],
                 vec![ ExpSpan::Bracket(vec![String::from("STU"),String::from("FF")])
                 ]));
 
-        assert_eq!( expansion(b"*"), IResult::Done( &b""[..], vec![ ExpSpan::Glob(String::from("*"))]) );
-        assert_eq!( expansion(b"???"), IResult::Done( &b""[..], vec![ ExpSpan::Glob(String::from("???"))]) );
-        assert_eq!( expansion(b"*?"), IResult::Done( &b""[..], vec![ ExpSpan::Glob(String::from("*?"))]) );
+        assert_eq!(
+            expansion(b"*"),
+            IResult::Done( &b""[..], vec![ ExpSpan::Glob(String::from("*"))]) );
+        assert_eq!(
+            expansion(b"???"),
+            IResult::Done( &b""[..], vec![ ExpSpan::Glob(String::from("???"))]) );
+        assert_eq!(
+            expansion(b"*?"),
+            IResult::Done( &b""[..], vec![ ExpSpan::Glob(String::from("*?"))]) );
 
         assert_eq!( expsq_inner(b"l"), IResult::Done( &b""[..], String::from("l")) );
         assert_eq!( expsq_inner(b"l\\'x"), IResult::Done( &b""[..], String::from("l'x")) );
-        assert_eq!( exp_single_quote(b"'x'"), IResult::Done( &b""[..], vec![ExpSpan::Verbatim(String::from("x"))]));
+        assert_eq!(
+            exp_single_quote(b"'x'"),
+            IResult::Done( &b""[..], vec![ExpSpan::Verbatim(String::from("x"))]));
 
         assert_eq!(
             expansion(b"a'l'"),
@@ -277,14 +291,20 @@ mod tests {
 
     #[test]
     fn double_quotes() {
-        assert_eq!(expansion(b"\"STUFF\""), IResult::Done(&b""[..], vec![ExpSpan::Verbatim(String::from("STUFF"))]));
-        assert_eq!(expansion(b"\"$STUFF\""), IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
-        assert_eq!(expansion(b"\"${STUFF}\""), IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
+        assert_eq!(
+            expansion(b"\"STUFF\""),
+            IResult::Done(&b""[..], vec![ExpSpan::Verbatim(String::from("STUFF"))]));
+        assert_eq!(
+            expansion(b"\"$STUFF\""),
+            IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
+        assert_eq!(
+            expansion(b"\"${STUFF}\""),
+            IResult::Done(&b""[..], vec![ExpSpan::Variable(String::from("STUFF"))]));
 
         assert_eq!(
-            expansion(b"\"{STU,FF}\""), 
+            expansion(b"\"{STU,FF}\""),
             IResult::Done(
-                &b""[..], 
+                &b""[..],
                 vec![ ExpSpan::Bracket(vec![String::from("STU"),String::from("FF")])
                 ]));
     }
@@ -300,7 +320,7 @@ mod tests {
             expansion(b"~/$STUFF"),
             IResult::Done(
                 &b""[..],
-                vec![ExpSpan::Tilde, 
+                vec![ExpSpan::Tilde,
                      ExpSpan::Verbatim(String::from("/")),
                      ExpSpan::Variable(String::from("STUFF"))]));
         assert_eq!(

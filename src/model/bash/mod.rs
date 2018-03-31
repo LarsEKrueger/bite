@@ -480,7 +480,10 @@ impl Bash {
                             file!(),
                             line!(),
                             format!(
-                                "could not index into bracket index (exp=»{:?}«<<,bracket_idx=»{:?}«,i={},i_bracket_idx={})",
+                                concat!(
+                                    "could not index into bracket index ",
+                                    "(exp=»{:?}«<<,bracket_idx=»{:?}«,i={},i_bracket_idx={})"
+                                ),
                                 exp,
                                 bracket_idx,
                                 i,
@@ -495,7 +498,10 @@ impl Bash {
                             file!(),
                             line!(),
                             format!(
-                                "could not index into bracket vector (exp=»{:?}«<<,bracket_idx=»{:?}«,i={},i_bracket_idx={})",
+                                concat!(
+                                    "could not index into bracket vector ",
+                                    "(exp=»{:?}«<<,bracket_idx=»{:?}«,i={},i_bracket_idx={})"
+                                ),
                                 exp,
                                 bracket_idx,
                                 i,

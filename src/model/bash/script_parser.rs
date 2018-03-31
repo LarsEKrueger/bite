@@ -263,8 +263,13 @@ newline_list:
 
 /// separated_list_map that handles the return value of the separator.
 ///
-/// `separated_list_map!(I -> IResult<I,T>, (T,&mut Vec<O>) -> (),  I -> IResult<I,O>) => I -> IResult<I, Vec<O>>`
-/// separated_list_map(sep, updateFun, X) returns Vec<X> will return Incomplete if there may be more elements
+/// `separated_list_map!(
+///   I -> IResult<I,T>,
+///   (T,&mut Vec<O>) -> (),
+///   I -> IResult<I,O>) =>
+///   I -> IResult<I, Vec<O>>`
+/// separated_list_map(sep, updateFun, X) returns Vec<X> will return Incomplete if there may be
+/// more elements
 #[macro_export]
 macro_rules! separated_list_map(
   ($i:expr, $sep:ident!( $($args:tt)* ), $u:expr, $submac:ident!( $($args2:tt)* )) => (
@@ -300,7 +305,8 @@ macro_rules! separated_list_map(
                   break;
                 },
                 IResult::Incomplete(Needed::Size(needed)) => {
-                  let (size,overflowed) = needed.overflowing_add(($i).input_len() - input.input_len());
+                  let (size,overflowed) =
+                      needed.overflowing_add(($i).input_len() - input.input_len());
                   ret = match overflowed {
                     true  => IResult::Incomplete(Needed::Unknown),
                     false => IResult::Incomplete(Needed::Size(size)),

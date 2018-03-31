@@ -20,8 +20,8 @@
 //!
 //! BiTE combines bash and xterm into one program.
 //!
-//! The software is designed as [`model`]-[`view`]-[`presenter`]. You can find the respective components in
-//! their own modules.
+//! The software is designed as [`model`]-[`view`]-[`presenter`]. You can find the respective
+//! components in their own modules.
 //!
 //! [`model`]: ../model/index.html
 //! [`view`]: ../view/index.html
