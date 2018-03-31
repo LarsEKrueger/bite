@@ -144,6 +144,7 @@ non-GUI program.
 * [ ] 0.12 Full prompt string interpreter (with variables)
 * [ ] 0.13 Draw GUI using Xft
 * [ ] 0.14 Design a Unicode BiTE logo and use it in prompts for \s
+* [ ] 0.15 Bug Fixing
 * [ ] 1.0 Full bash compliance, standalone program passes bash test suite
 * [ ] 1.1 Tabs for TUIs
 * [ ] 1.2 Tabs for background programs
