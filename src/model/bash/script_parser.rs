@@ -18,20 +18,15 @@
 
 //! Bash script parser.
 
-use nom::{newline, alpha, IResult, is_alphanumeric};
+use nom::{newline, alpha, IResult, is_alphanumeric, ErrorKind, InputLength, Needed};
+use super::{Command, CommandTerm, CommandInfo, CommandReaction};
 
-named!(
-    pub parse_script<super::Command>,
-    terminated!(simple_command
-                , newline)
+named!(pub parse_script<Command>,
+    alt_complete!(
+        map!(preceded!(myspace,newline), |_| Command::None) |
+        terminated!( simple_list, preceded!(myspace,newline))
+        )
 );
-/*
-inputunit:	simple_list simple_list_terminator
-	|	'\n'
-	|	error '\n'
-	|	yacc_EOF
-	;
-*/
 
 /*
 word_list:	WORD
@@ -99,19 +94,11 @@ redirection_list: redirection
 
 named!(myspace, eat_separator!(&b" \t"[..]));
 
-macro_rules! spaced (
-  ($i:expr, $($args:tt)*) => (
-    {
-      sep!($i, myspace, $($args)*)
-    }
-  )
-);
-
-named!(
-    simple_command<super::Command>,
+named!(simple_command<CommandInfo>,
     do_parse!(
-        words : spaced!(many0!(word)) >>
-        (super::Command::SimpleCommand(words))
+        myspace >>
+        words : many1!(terminated!(word,myspace)) >>
+        (CommandInfo::new ( words ) )
     )
 );
 
@@ -125,14 +112,6 @@ named!(pub assignment<super::Assignment>,
         } )
     )
 );
-
-/*
-simple_command:	simple_command_element
-	|	simple_command simple_command_element
-	;
-*/
-
-//named!(command<Command>, do_parse!(simple_command));
 
 /*
 command:	simple_command
@@ -282,7 +261,161 @@ newline_list:
 	;
 */
 
-// named!(simple_list, apply!(simple_list1));
+/// separated_list_map that handles the return value of the separator.
+///
+/// `separated_list_map!(I -> IResult<I,T>, (T,&mut Vec<O>) -> (),  I -> IResult<I,O>) => I -> IResult<I, Vec<O>>`
+/// separated_list_map(sep, updateFun, X) returns Vec<X> will return Incomplete if there may be more elements
+#[macro_export]
+macro_rules! separated_list_map(
+  ($i:expr, $sep:ident!( $($args:tt)* ), $u:expr, $submac:ident!( $($args2:tt)* )) => (
+    {
+      //FIXME: use crate vec
+      let mut res   = ::std::vec::Vec::new();
+      let mut input = $i.clone();
+
+      // get the first element
+      let input_ = input.clone();
+      match $submac!(input_, $($args2)*) {
+        IResult::Error(_)      => IResult::Done(input, ::std::vec::Vec::new()),
+        IResult::Incomplete(i) => IResult::Incomplete(i),
+        IResult::Done(i,o)     => {
+          if i.input_len() == input.input_len() {
+            IResult::Error(error_position!(ErrorKind::SeparatedList,input))
+          } else {
+            res.push(o);
+            input = i;
+
+            let ret;
+
+            loop {
+              // get the separator first
+              let input_ = input.clone();
+              match $sep!(input_, $($args)*) {
+                IResult::Error(_) => {
+                  ret = IResult::Done(input, res);
+                  break;
+                }
+                IResult::Incomplete(Needed::Unknown) => {
+                  ret = IResult::Incomplete(Needed::Unknown);
+                  break;
+                },
+                IResult::Incomplete(Needed::Size(needed)) => {
+                  let (size,overflowed) = needed.overflowing_add(($i).input_len() - input.input_len());
+                  ret = match overflowed {
+                    true  => IResult::Incomplete(Needed::Unknown),
+                    false => IResult::Incomplete(Needed::Size(size)),
+                  };
+                  break;
+                },
+                IResult::Done(i2,sep_val)     => {
+                  let i2_len = i2.input_len();
+                  if i2_len == input.input_len() {
+                    ret = IResult::Done(input, res);
+                    break;
+                  }
+
+                  $u(&mut res, sep_val);
+
+                  // get the element next
+                  match $submac!(i2, $($args2)*) {
+                    IResult::Error(_) => {
+                      ret = IResult::Done(input, res);
+                      break;
+                    },
+                    IResult::Incomplete(Needed::Unknown) => {
+                      ret = IResult::Incomplete(Needed::Unknown);
+                      break;
+                    },
+                    IResult::Incomplete(Needed::Size(needed)) => {
+                      let (size,overflowed) = needed.overflowing_add(($i).input_len() - i2_len);
+                      ret = match overflowed {
+                        true  => IResult::Incomplete(Needed::Unknown),
+                        false => IResult::Incomplete(Needed::Size(size)),
+                      };
+                      break;
+                    },
+                    IResult::Done(i3,o3)    => {
+                      if i3.input_len() == i2_len {
+                        ret = IResult::Done(input, res);
+                        break;
+                      }
+                      res.push(o3);
+                      input = i3;
+                    }
+                  }
+                }
+              }
+            }
+
+            ret
+          }
+        },
+      }
+    }
+  );
+  ($i:expr, $submac:ident!( $($args:tt)* ), $u:expr, $g:expr) => (
+    separated_list_map!($i, $submac!($($args)*), $u, call!($g));
+  );
+  ($i:expr, $f:expr, $u:expr, $submac:ident!( $($args:tt)* )) => (
+    separated_list_map!($i, call!($f), $u, $submac!($($args)*));
+  );
+  ($i:expr, $f:expr, $u:expr, $g:expr) => (
+    separated_list_map!($i, call!($f), $u, call!($g));
+  );
+);
+
+/// Parse a list of commands to be executed in one run.
+///
+/// This parser is equivalent to bash's simple_list and simple_list1 rules.
+///
+/// We also need to handle the precedence of && and || over ; and &. We do this by breaking
+/// simple_list1 with the four alternatives into two nested rules that are used to return an
+/// expression tree.
+///
+/// The last CommandInfo can have an additional ; or &, but not an && or ||
+named!(simple_list<Command>,
+       // This expressions of lower precedence: ; and &
+       do_parse!(
+           cts : separated_list_map!(simple_list_sep, updateReaction, simple_list_hi) >>
+           cr : opt!(simple_list_sep) >>
+           ( Command::new_expression(cts,cr))
+           )
+      );
+
+/// Helper to set the CommandReaction of the last entry
+fn updateReaction(cis: &mut Vec<CommandTerm>, cr: CommandReaction) {
+    cis.last_mut().map(|ci| ci.set_reaction(cr));
+}
+
+/// Separator for simple_list, i.e. & and ;
+named!(simple_list_sep<CommandReaction>,
+       alt_complete!(
+           map!(tag!(";"), |_| CommandReaction::Normal) |
+           map!(tag!("&"), |_| CommandReaction::Background)
+           )
+      );
+
+/// Helper parser to ensure precedence of && and || over & and ;
+named!(simple_list_hi<CommandTerm>,
+       // This expression has higher precedence: && and ||
+       map!(
+           separated_list_map!(simple_list_sep_hi, updateReaction_hi, simple_command),
+           CommandTerm::new
+           )
+      );
+
+/// Helper to set the CommandReaction of the last entry
+fn updateReaction_hi(cis: &mut Vec<CommandInfo>, cr: CommandReaction) {
+    cis.last_mut().map(|ci| ci.set_reaction(cr));
+}
+
+/// Separator for simple_list_hi, i.e. && and ||
+named!(simple_list_sep_hi<CommandReaction>,
+       alt_complete!(
+           map!(tag!("&&"), |_| CommandReaction::And) |
+           map!(tag!("||"), |_| CommandReaction::Or)
+           )
+      );
 
 /*
 simple_list:	simple_list1
@@ -392,8 +525,7 @@ STRING_INT_ALIST other_token_alist[] = {
 };
 */
 
-named!(
-    pub word<String>,
+named!(pub word<String>,
     map!(many1!(word_letter), |c| c.into_iter().collect())
 );
 
@@ -404,8 +536,7 @@ fn is_alphanum_or_underscore(c: u8) -> bool {
 }
 
 named!(alpha_or_underscore, alt!(alpha | tag!("_")));
-named!(
-    pub identifier,
+named!(pub identifier,
     recognize!(preceded!(
         alpha_or_underscore,
         take_while!(is_alphanum_or_underscore)))
@@ -415,7 +546,6 @@ pub fn legal_identifier(s: &str) -> bool {
     if let IResult::Done(b"", _) = identifier(s.as_bytes()) {
         true
     } else {
-
         false
     }
 }
@@ -441,18 +571,18 @@ mod tests {
     use super::super::*;
 
     #[test]
-    fn test_word() {
+    fn parse_word() {
         assert_eq!(word(b"bc"), IResult::Done(&b""[..], "bc".to_string()));
         assert_eq!(word(b"bc<"), IResult::Done(&b"<"[..], "bc".to_string()));
     }
 
     #[test]
-    fn test_simple_command() {
+    fn parse_simple_command() {
         assert_eq!(
             simple_command(b"ab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                Command::SimpleCommand(vec![
+                CommandInfo::new(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -464,7 +594,7 @@ mod tests {
             simple_command(b" \tab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                Command::SimpleCommand(vec![
+                CommandInfo::new(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -472,26 +602,139 @@ mod tests {
                 ])
             )
         );
+
+        // A simple command is not allowed to be empty.
+        assert_eq!(
+            simple_command(b" \t \t\t"),
+            IResult::Incomplete(::nom::Needed::Size(6))
+        );
     }
 
     #[test]
-    fn test_parse() {
+    fn parse_script_one() {
         assert_eq!(
             parse_script(b" ab bc   cd \t\tde\n"),
             IResult::Done(
                 &b""[..],
-                Command::SimpleCommand(vec![
+                Command::Expression(vec![CommandTerm::new(vec![CommandInfo::new(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
                     String::from("de"),
-                ])
+                ])])])
+            )
+        );
+
+        assert_eq!(
+            parse_script(b" \t \t\t\n"),
+            IResult::Done(
+                &b""[..],
+                Command::None
             )
         );
     }
 
     #[test]
-    fn test_identifier() {
+    fn parse_simple_list_hi() {
+
+        fn test_ci_new(word: &str, cr: CommandReaction) -> CommandInfo {
+            CommandInfo {
+                words: vec![String::from(word)],
+                reaction: cr,
+            }
+        }
+
+        assert_eq!(
+            parse_script(b"ab&&bc||cd\n"),
+            IResult::Done(
+                &b""[..],
+                Command::Expression(vec![CommandTerm::new(
+                        vec![
+                        test_ci_new("ab",CommandReaction::And),
+                        test_ci_new("bc",CommandReaction::Or),
+                        test_ci_new("cd",CommandReaction::Normal)
+                        ])])
+            )
+        );
+
+    }
+
+    #[test]
+    fn parse_simple_list_lo() {
+        fn test_ct_new(word: &str, cr: CommandReaction) -> CommandTerm {
+            CommandTerm {
+                commands: vec![
+                    CommandInfo {
+                        words: vec![String::from(word)],
+                        reaction:cr
+                    }
+                ],
+            }
+        }
+        assert_eq!(
+            parse_script(b"ab;bc&cd\n"),
+            IResult::Done(
+                &b""[..],
+                Command::Expression(vec![
+                        test_ct_new("ab",CommandReaction::Normal),
+                        test_ct_new("bc",CommandReaction::Background),
+                        test_ct_new("cd",CommandReaction::Normal)
+                        ])
+            )
+        );
+        assert_eq!(
+            parse_script(b"ab;\n"),
+            IResult::Done(
+                &b""[..],
+                Command::Expression(vec![
+                        test_ct_new("ab",CommandReaction::Normal),
+                        ])
+            )
+        );
+        assert_eq!(
+            parse_script(b"ab;bc&cd&\n"),
+            IResult::Done(
+                &b""[..],
+                Command::Expression(vec![
+                        test_ct_new("ab",CommandReaction::Normal),
+                        test_ct_new("bc",CommandReaction::Background),
+                        test_ct_new("cd",CommandReaction::Background)
+                        ])
+            )
+        );
+
+        /// Weird corner cases
+        assert_eq!(
+            parse_script(b"ab && bc & cd&\n"),
+            IResult::Done(
+                &b""[..],
+                Command::Expression(vec![
+                                    CommandTerm {
+                                        commands: vec![
+                                            CommandInfo {
+                                                words: vec![String::from("ab")],
+                                                reaction:CommandReaction::And
+                                            },
+                                            CommandInfo {
+                                                words: vec![String::from("bc")],
+                                                reaction:CommandReaction::Background
+                                            }
+                                        ],
+                                    },
+                                    test_ct_new("cd",CommandReaction::Background)
+                        ])
+            )
+        );
+
+        /// Parsing errors
+        assert_eq!( parse_script(b"ab ; && bc\n"),
+                    IResult::Error(::nom::Err::Position(::nom::ErrorKind::Alt,&b"ab ; && bc\n"[..]))
+                    );
+    }
+
+
+    #[test]
+    fn parse_identifier() {
         use nom::verbose_errors::Err;
         use nom::ErrorKind;
         assert_eq!(identifier(b"bc"), IResult::Done(&b""[..], &b"bc"[..]));

@@ -305,8 +305,9 @@ impl Bash {
         match cmd {
             Command::Incomplete |
             Command::Error(_) => ExecutionResult::Ignore,
-            Command::SimpleCommand(words) => {
-                let words = match self.expand_word_list(words) {
+            Command::None => ExecutionResult::Ignore,
+            Command::SimpleCommand(ci) => {
+                let words = match self.expand_word_list(ci.words) {
                     Ok(w) => w,
                     Err(e) => {
                         return ExecutionResult::Err(e.readable("during expansion"));
@@ -334,6 +335,13 @@ impl Bash {
 
                     }
                 }
+            }
+            Command::Expression(_exp) => {
+                // TODO: Run the expression.
+                ExecutionResult::Err(
+                    Error::InternalError(file!(), line!(), String::from("not implemented"))
+                        .readable(""),
+                )
             }
         }
     }
