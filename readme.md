@@ -132,19 +132,24 @@ non-GUI program.
 * [X] 0.2.6 parse and set temporary variables
 * [X] 0.2.7 variable expansion
 * [X] 0.3 environment variables (read, set, pass to command)
+* [ ] 0.3.1 sequence of commands (no backgrounding)
+* [ ] 0.3.2 sequence of commands (&& and ||)
+* [ ] 0.3.3 not operator in command sequences
+* [ ] 0.3.4 pipelines (no redirection)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
 * [ ] 0.6 control statements
 * [ ] 0.7 redirections
-* [ ] 0.8 Run start-up and shut-down scripts
-* [ ] 0.9 Handle colors in output, error, and prompt
-* [ ] 0.10 Sub-Shells
-* [ ] 0.10.1 integer variables
-* [ ] 0.11 History Expansion, Arithmetic Expansion
-* [ ] 0.12 Full prompt string interpreter (with variables)
-* [ ] 0.13 Draw GUI using Xft
-* [ ] 0.14 Design a Unicode BiTE logo and use it in prompts for \s
-* [ ] 0.15 Bug Fixing
+* [ ] 0.8 backgrounding
+* [ ] 0.9 Run start-up and shut-down scripts
+* [ ] 0.10 Handle colors in output, error, and prompt
+* [ ] 0.11 Sub-Shells
+* [ ] 0.11.1 integer variables
+* [ ] 0.12 History Expansion, Arithmetic Expansion
+* [ ] 0.13 Full prompt string interpreter (with variables)
+* [ ] 0.14 Draw GUI using Xft
+* [ ] 0.15 Design a Unicode BiTE logo and use it in prompts for \s
+* [ ] 0.16 Bug Fixing
 * [ ] 1.0 Full bash compliance, standalone program passes bash test suite
 * [ ] 1.1 Tabs for TUIs
 * [ ] 1.2 Tabs for background programs
@@ -170,6 +175,7 @@ non-GUI program.
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
 * [X] Put proper bug reporting email address in error.rs
 * [ ] Handle quoted and escaped spaces in script parser.
+* [ ] Make parser return slices.
 
 # Ideas
 * Integrate mosh functionality
