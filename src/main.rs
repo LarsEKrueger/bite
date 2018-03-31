@@ -49,6 +49,10 @@ extern crate bincode;
 
 extern crate glob;
 
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
+
 pub mod tools;
 pub mod model;
 pub mod presenter;
