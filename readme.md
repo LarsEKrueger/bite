@@ -133,10 +133,9 @@ non-GUI program.
 * [X] 0.2.7 variable expansion
 * [X] 0.3 environment variables (read, set, pass to command)
 * [ ] 0.3.1 sequence of commands (no backgrounding)
-* [ ] 0.3.2 sequence of commands (&& and ||)
-* [ ] 0.3.3 not operator in command sequences
-* [ ] 0.3.4 indicate return code in display
-* [ ] 0.3.5 pipelines (no redirection)
+* [ ] 0.3.2 not operator in command sequences
+* [ ] 0.3.3 indicate return code in display
+* [ ] 0.3.4 pipelines (no redirection)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
 * [ ] 0.6 control statements
@@ -177,6 +176,7 @@ non-GUI program.
 * [X] Put proper bug reporting email address in error.rs
 * [ ] Handle quoted and escaped spaces in script parser.
 * [ ] Make parser return slices.
+* [ ] Decide how to handle multi-line commands.
 
 # Ideas
 * Integrate mosh functionality
