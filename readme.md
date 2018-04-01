@@ -135,7 +135,8 @@ non-GUI program.
 * [ ] 0.3.1 sequence of commands (no backgrounding)
 * [ ] 0.3.2 sequence of commands (&& and ||)
 * [ ] 0.3.3 not operator in command sequences
-* [ ] 0.3.4 pipelines (no redirection)
+* [ ] 0.3.4 indicate return code in display
+* [ ] 0.3.5 pipelines (no redirection)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
 * [ ] 0.6 control statements
