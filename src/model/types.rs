@@ -27,8 +27,6 @@ pub enum Command {
     Error(Vec<String>),
     /// No command, e.g. due to empty input
     None,
-    /// One command
-    SimpleCommand(CommandInfo),
     /// Command expression.
     ///
     /// This is always a tree of maximal depth 2. Level 0 corresponds to commands separated by &

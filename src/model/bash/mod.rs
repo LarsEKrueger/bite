@@ -306,42 +306,45 @@ impl Bash {
             Command::Incomplete |
             Command::Error(_) => ExecutionResult::Ignore,
             Command::None => ExecutionResult::Ignore,
-            Command::SimpleCommand(ci) => {
-                let words = match self.expand_word_list(ci.words) {
-                    Ok(w) => w,
-                    Err(e) => {
-                        return ExecutionResult::Err(e.readable("during expansion"));
-                    }
-                };
-                let (assignments, words) = self.separate_out_assignments(words);
+            Command::Expression(exp) => {
+                // TODO: Run the whole expression.
+                if let Some(ct) = exp.first() {
+                    if let Some(ci) = ct.commands.first() {
+                        let words = match self.expand_word_list(&ci.words) {
+                            Ok(w) => w,
+                            Err(e) => {
+                                return ExecutionResult::Err(e.readable("during expansion"));
+                            }
+                        };
+                        let (assignments, words) = self.separate_out_assignments(words);
 
-                // If there is no command, perform the assignments to global variables. If not,
-                // perform them to temporary context, execute and drop the temporary context.
-                if words.is_empty() {
-                    match self.assign_to_global_context(assignments) {
-                        Ok(_) => ExecutionResult::Internal,
-                        Err(e) => ExecutionResult::Err(e.readable("while setting variables")),
+                        // If there is no command, perform the assignments to global variables. If not,
+                        // perform them to temporary context, execute and drop the temporary context.
+                        if words.is_empty() {
+                            match self.assign_to_global_context(assignments) {
+                                Ok(_) => ExecutionResult::Internal,
+                                Err(e) => ExecutionResult::Err(
+                                    e.readable("while setting variables"),
+                                ),
+                            }
+                        } else {
+                            match self.assign_to_temp_context(assignments) {
+                                Ok(_) => {
+                                    let res = self.execute_simple_command(words);
+                                    self.drop_temp_context();
+                                    res
+                                }
+                                Err(e) => ExecutionResult::Err(
+                                    e.readable("while setting temporary variables"),
+                                ),
+                            }
+                        }
+                    } else {
+                        ExecutionResult::Ignore
                     }
                 } else {
-                    match self.assign_to_temp_context(assignments) {
-                        Ok(_) => {
-                            let res = self.execute_simple_command(words);
-                            self.drop_temp_context();
-                            res
-                        }
-                        Err(e) => ExecutionResult::Err(
-                            e.readable("while setting temporary variables"),
-                        ),
-
-                    }
+                    ExecutionResult::Ignore
                 }
-            }
-            Command::Expression(_exp) => {
-                // TODO: Run the expression.
-                ExecutionResult::Err(
-                    Error::InternalError(file!(), line!(), String::from("not implemented"))
-                        .readable(""),
-                )
             }
         }
     }
@@ -398,7 +401,7 @@ impl Bash {
     }
 
     /// Expand all words in the list.
-    fn expand_word_list(&self, words: Vec<String>) -> Result<Vec<String>> {
+    fn expand_word_list(&self, words: &Vec<String>) -> Result<Vec<String>> {
         // TODO: use map
         let mut out_words = vec![];
         for w in words {
@@ -408,11 +411,11 @@ impl Bash {
     }
 
     /// Expand a single word
-    fn expand_word(&self, out_words: &mut Vec<String>, word: String) -> Result<()> {
+    fn expand_word(&self, out_words: &mut Vec<String>, word: &String) -> Result<()> {
         match expansion_parser::expansion(word.as_bytes()) {
             IResult::Done(_, exp) => self.rebuild_expansion(out_words, exp)?,
             IResult::Error(_) |
-            IResult::Incomplete(_) => out_words.push(word),
+            IResult::Incomplete(_) => out_words.push(word.clone()),
         };
         Ok(())
     }
