@@ -18,18 +18,11 @@
 
 //! Organizes the past and current programs and their outputs.
 
-use std::sync::mpsc::{Receiver, Sender};
-
 use super::bash;
-use super::bash::execute;
 use super::conversation::*;
 use super::interaction::*;
 use super::iterators::*;
-use super::types::*;
 use super::error::*;
-
-use super::bash::ExecutionResult;
-
 
 /// A number of closed conversations and the current one
 pub struct Session {
@@ -37,10 +30,6 @@ pub struct Session {
     pub archived: Vec<Conversation>,
     /// Current conversation
     pub current_conversation: Conversation,
-    /// Current interaction
-    current_interaction:
-        Option<(Sender<String>, Receiver<execute::CommandOutput>, Interaction)>,
-
     /// Bash script interpreter.
     pub bash: bash::Bash,
 }
@@ -51,7 +40,6 @@ impl Session {
         let bash = bash::Bash::new()?;
 
         Ok(Session {
-            current_interaction: None,
             archived: vec![],
             current_conversation: Conversation::new(bash.expand_ps1()),
             bash,
@@ -68,106 +56,6 @@ impl Session {
     /// Move the given interaction to the list of completed interactions.
     pub fn archive_interaction(&mut self, interaction: Interaction) {
         self.current_conversation.add_interaction(interaction);
-    }
-
-    /// Poll the channels to retrieve input from a running program.
-    pub fn poll_interaction(&mut self) -> bool {
-        let mut clear_spawned = false;
-        let mut needs_marking = false;
-        if let Some((_, ref cmd_output, ref mut inter)) = self.current_interaction {
-            if let Ok(line) = cmd_output.try_recv() {
-                needs_marking = true;
-                match line {
-                    execute::CommandOutput::FromOutput(line) => {
-                        inter.add_output(line);
-                    }
-                    execute::CommandOutput::FromError(line) => {
-                        inter.add_error(line);
-                    }
-                    execute::CommandOutput::Terminated(_exit_code) => {
-                        // TODO: show the exit code if there is an error
-                        clear_spawned = true;
-                    }
-                }
-            }
-        }
-        if clear_spawned {
-            if let Some((_, _, mut inter)) =
-                ::std::mem::replace(&mut self.current_interaction, None)
-            {
-                inter.prepare_archiving();
-                self.archive_interaction(inter);
-            }
-        }
-        needs_marking
-    }
-
-    /// Process a line that the user has entered.
-    ///
-    /// If a program is running, send it to its stdin. If not, send it to the interpreter.
-    pub fn add_line(&mut self, line: String) {
-        let mut line_ret = line.clone();
-        line_ret.push_str("\n");
-
-        // If we have a current interaction, send it the line. Otherwise try to run the command.
-        match self.current_interaction {
-            Some((ref tx, _, ref mut inter)) => {
-                inter.add_output(line.clone());
-                // Send current_line to running program
-                tx.send(line + "\n").unwrap();
-            }
-            None => {
-                let cmd = self.bash.add_line(line_ret.as_str());
-                match cmd {
-                    Command::Incomplete => {}
-                    Command::Error(err) => {
-                        // Parser error. Create a fake interaction with the bad command line and
-                        // the error message
-                        let mut inter = Interaction::new(line);
-                        for l in err.into_iter() {
-                            inter.add_error(l);
-                        }
-                        inter.prepare_archiving();
-                        self.archive_interaction(inter);
-                    }
-                    _ => {
-                        // Add to history
-                        self.bash.history.add_command(line.clone());
-
-                        // Execute
-                        match self.bash.execute(cmd) {
-                            ExecutionResult::Ignore => {}
-                            ExecutionResult::Internal => {
-                                // Create a dummy interaction for interal commands
-                                let mut inter = Interaction::new(line);
-                                inter.prepare_archiving();
-                                self.archive_interaction(inter);
-                            }
-                            ExecutionResult::Spawned((tx, rx)) => {
-                                ::std::mem::replace(
-                                    &mut self.current_interaction,
-                                    Some((tx, rx, Interaction::new(line.clone()))),
-                                );
-                            }
-                            ExecutionResult::Builtin(bi) => {
-                                let mut inter = Interaction::new(line);
-                                inter.add_output_vec(bi.output);
-                                inter.add_errors_vec(bi.errors);
-                                inter.prepare_archiving();
-                                self.archive_interaction(inter);
-                            }
-                            ExecutionResult::Err(msg) => {
-                                // Something happened during program start
-                                let mut inter = Interaction::new(line);
-                                inter.add_errors_lines(msg);
-                                inter.prepare_archiving();
-                                self.archive_interaction(inter);
-                            }
-                        };
-                    }
-                }
-            }
-        };
     }
 
     /// Find the interaction that is referenced by the command position.
@@ -187,35 +75,26 @@ impl Session {
                 &mut self.current_conversation.interactions[inter_index]
             }
             CommandPosition::CurrentInteraction => {
-                if let Some((_, _, ref mut inter)) = self.current_interaction {
-                    inter
-                } else {
-                    panic!("find_interaction_from_command: Expected current interaction")
-                }
+                //           if let Some((_, _, ref mut inter)) = self.current_interaction {
+                //               inter
+                //           } else {
+                panic!("find_interaction_from_command: Expected current interaction")
             }
+            //       }
         }
     }
 
     /// Return an iterator over the currently visible items.
     pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        let archived_iter = self.archived
-            .iter()
-            .zip(CommandPosition::archive_iter())
-            .flat_map(|(c, pos)| c.line_iter(pos))
-            .chain(self.current_conversation.line_iter(
-                CommandPosition::CurrentConversation(0),
-            ));
-
-        // If we have a current interaction, we display it. We don't need to draw the line editor
-        // as it is special and will be drawn accordingly.
-        match self.current_interaction {
-            None => Box::new(archived_iter),
-            Some((_, _, ref inter)) => {
-                Box::new(archived_iter.chain(inter.line_iter(
-                    CommandPosition::CurrentInteraction,
-                )))
-            }
-        }
+        Box::new(
+            self.archived
+                .iter()
+                .zip(CommandPosition::archive_iter())
+                .flat_map(|(c, pos)| c.line_iter(pos))
+                .chain(self.current_conversation.line_iter(
+                    CommandPosition::CurrentConversation(0),
+                )),
+        )
 
     }
 }
@@ -228,7 +107,6 @@ mod tests {
     fn new_test_session(prompt: String) -> Session {
         let bash = bash::Bash::new().expect("Can't make test bash instance");
         Session {
-            current_interaction: None,
             archived: vec![],
             current_conversation: Conversation::new(prompt),
             bash,

@@ -23,6 +23,8 @@
 
 use std::fmt::{Display, Formatter};
 
+use std::sync::mpsc::{Receiver, Sender};
+
 mod runeline;
 
 use model::session::*;
@@ -31,6 +33,7 @@ use model::interaction::*;
 use model::error::*;
 use model::bash::*;
 use model::bash::history::*;
+use model::types::*;
 
 /// GUI agnostic representation of the modifier keys
 pub struct ModifierState {
@@ -69,6 +72,11 @@ trait SubPresenter {
 
     /// Provide write access to the data that is common to the presenter in all modi.
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons>;
+
+    /// Poll anything that needs polling.
+    ///
+    /// Return true if there was new data.
+    fn poll_interaction(self: Box<Self>) -> (Box<SubPresenter>, bool);
 
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a>;
@@ -137,6 +145,21 @@ struct PresenterCommons {
 struct ComposeCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
+}
+
+/// Presenter to run commands and send input to their stdin.
+struct ExecuteCommandPresenter {
+    /// Common data.
+    commons: Box<PresenterCommons>,
+
+    /// Current interaction
+    current_interaction: Interaction,
+
+    /// Channel to running command
+    cmd_input: Sender<String>,
+
+    /// Channel from running command
+    cmd_output: Receiver<execute::CommandOutput>,
 }
 
 /// Presenter to select an item from the history.
@@ -305,7 +328,7 @@ impl Presenter {
     /// Tell the view that is should it redraw itself soon.
     pub fn poll_interaction(&mut self) -> NeedRedraw {
         let last_line_visible_pre = self.last_line_visible();
-        let needs_redraw = self.cm().session.poll_interaction();
+        let needs_redraw = self.dispatch_res(|sp| sp.poll_interaction());
         if last_line_visible_pre {
             self.to_last_line();
         }
@@ -459,6 +482,45 @@ impl Presenter {
     }
 }
 
+/// Check if the response selector has been clicked and update the visibility flags
+/// accordingly.
+///
+/// This is used by ComposeCommandPresenter and ExecuteCommandPresenter.
+fn check_response_clicked<T: SubPresenter>(
+    pres: &mut T,
+    button: usize,
+    x: usize,
+    y: usize,
+) -> bool {
+    // Find the item that was clicked
+    let click_line_index = pres.commons().start_line() + y;
+    let is_a = pres.line_iter().nth(click_line_index).map(|i| i.is_a);
+    match (is_a, button) {
+        (Some(LineType::Command(_, pos)), 1) => {
+            if x < COMMAND_PREFIX_LEN {
+                // Click on a command
+                {
+                    let inter = pres.commons_mut().session.find_interaction_from_command(
+                        pos,
+                    );
+                    let (ov, ev) = match (inter.output.visible, inter.errors.visible) {
+                        (true, false) => (false, true),
+                        (false, true) => (false, false),
+                        _ => (true, false),
+                    };
+                    inter.output.visible = ov;
+                    inter.errors.visible = ev;
+                }
+                return true;
+            }
+        }
+        _ => {
+            // Unhandled combination, ignore
+        }
+    }
+    false
+}
+
 impl ComposeCommandPresenter {
     /// Allocate a sub-presenter for command composition and input to running programs.
     fn new(commons: Box<PresenterCommons>) -> Box<Self> {
@@ -483,6 +545,10 @@ impl SubPresenter for ComposeCommandPresenter {
         &mut self.commons
     }
 
+    fn poll_interaction(self: Box<Self>) -> (Box<SubPresenter>, bool) {
+        (self, false)
+    }
+
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         Box::new(self.commons.session.line_iter().chain(::std::iter::once(
             LineItem::new(
@@ -495,9 +561,63 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn event_return(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         let line = self.commons.current_line.clear();
-        self.commons.session.add_line(line);
-        self.to_last_line();
-        self
+        let mut line_ret = line.clone();
+        line_ret.push_str("\n");
+        let cmd = self.commons.session.bash.add_line(line_ret.as_str());
+        match cmd {
+            Command::Incomplete => self,
+            Command::Error(err) => {
+                // Parser error. Create a fake interaction with the bad command line and
+                // the error message
+                let mut inter = Interaction::new(line);
+                for l in err.into_iter() {
+                    inter.add_error(l);
+                }
+                inter.prepare_archiving();
+                self.commons.session.archive_interaction(inter);
+                self
+            }
+            _ => {
+                // Add to history
+                self.commons.session.bash.history.add_command(line.clone());
+
+                // Execute
+                match self.commons.session.bash.execute(cmd) {
+                    ExecutionResult::Ignore => self,
+                    ExecutionResult::Internal => {
+                        // Create a dummy interaction for interal commands
+                        let mut inter = Interaction::new(line);
+                        inter.prepare_archiving();
+                        self.commons.session.archive_interaction(inter);
+                        self
+                    }
+                    ExecutionResult::Spawned((tx, rx)) => {
+                        Box::new(ExecuteCommandPresenter {
+                            commons: self.commons,
+                            cmd_input: tx,
+                            cmd_output: rx,
+                            current_interaction: Interaction::new(line.clone()),
+                        })
+                    }
+                    ExecutionResult::Builtin(bi) => {
+                        let mut inter = Interaction::new(line);
+                        inter.add_output_vec(bi.output);
+                        inter.add_errors_vec(bi.errors);
+                        inter.prepare_archiving();
+                        self.commons.session.archive_interaction(inter);
+                        self
+                    }
+                    ExecutionResult::Err(msg) => {
+                        // Something happened during program start
+                        let mut inter = Interaction::new(line);
+                        inter.add_errors_lines(msg);
+                        inter.prepare_archiving();
+                        self.commons.session.archive_interaction(inter);
+                        self
+                    }
+                }
+            }
+        }
     }
 
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
@@ -514,31 +634,12 @@ impl SubPresenter for ComposeCommandPresenter {
         x: usize,
         y: usize,
     ) -> (Box<SubPresenter>, NeedRedraw) {
-        // Find the item that was clicked
-        let click_line_index = self.commons.start_line() + y;
-        let is_a = self.line_iter().nth(click_line_index).map(|i| i.is_a);
-        match (is_a, button) {
-            (Some(LineType::Command(_, pos)), 1) => {
-                if x < COMMAND_PREFIX_LEN {
-                    // Click on a command
-                    {
-                        let inter = self.commons.session.find_interaction_from_command(pos);
-                        let (ov, ev) = match (inter.output.visible, inter.errors.visible) {
-                            (true, false) => (false, true),
-                            (false, true) => (false, false),
-                            _ => (true, false),
-                        };
-                        inter.output.visible = ov;
-                        inter.errors.visible = ev;
-                    }
-                    return (self, NeedRedraw::Yes);
-                }
-            }
-            _ => {
-                // Unhandled combination, ignore
-            }
-        }
-        (self, NeedRedraw::No)
+        let redraw = if check_response_clicked(&mut *self, button, x, y) {
+            NeedRedraw::Yes
+        } else {
+            NeedRedraw::No
+        };
+        (self, redraw)
     }
 
     /// Handle pressing modifier + letter.
@@ -633,6 +734,111 @@ impl SubPresenter for ComposeCommandPresenter {
     }
 }
 
+impl SubPresenter for ExecuteCommandPresenter {
+    fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
+        &self.commons
+    }
+
+    fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons> {
+        &mut self.commons
+    }
+
+    fn poll_interaction(mut self: Box<Self>) -> (Box<SubPresenter>, bool) {
+        let mut clear_spawned = false;
+        let mut needs_marking = false;
+        if let Ok(line) = self.cmd_output.try_recv() {
+            needs_marking = true;
+            match line {
+                execute::CommandOutput::FromOutput(line) => {
+                    self.current_interaction.add_output(line);
+                }
+                execute::CommandOutput::FromError(line) => {
+                    self.current_interaction.add_error(line);
+                }
+                execute::CommandOutput::Terminated(_exit_code) => {
+                    // TODO: show the exit code if there is an error
+                    clear_spawned = true;
+                }
+            }
+        }
+        if clear_spawned {
+            self.current_interaction.prepare_archiving();
+            let ci = ::std::mem::replace(
+                &mut self.current_interaction,
+                Interaction::new(String::from("")),
+            );
+            self.commons.session.archive_interaction(ci);
+            (ComposeCommandPresenter::new(self.commons), needs_marking)
+        } else {
+            (self, needs_marking)
+        }
+    }
+
+    fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+        Box::new(
+            self.commons.session.line_iter().chain(
+                self.current_interaction
+                    .line_iter(CommandPosition::CurrentInteraction)
+                    .chain(::std::iter::once(LineItem::new(
+                        self.commons.current_line.text(),
+                        LineType::Input,
+                        Some(self.commons.current_line_pos()),
+                    ))),
+            ),
+        )
+    }
+
+    fn event_return(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        let line = self.commons.current_line.clear();
+        self.current_interaction.add_output(line.clone());
+        self.cmd_input.send(line + "\n").unwrap();
+        self
+    }
+
+    fn event_cursor_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        self
+    }
+
+    fn event_cursor_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        self
+    }
+
+    fn event_page_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        self
+    }
+
+    fn event_page_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        self
+    }
+
+    fn event_control_key(
+        self: Box<Self>,
+        _mod_state: &ModifierState,
+        _letter: u8,
+    ) -> (Box<SubPresenter>, bool) {
+        (self, false)
+    }
+
+    fn event_update_line(self: Box<Self>) -> Box<SubPresenter> {
+        self
+    }
+
+    fn handle_click(
+        mut self: Box<Self>,
+        button: usize,
+        x: usize,
+        y: usize,
+    ) -> (Box<SubPresenter>, NeedRedraw) {
+        let redraw = if check_response_clicked(&mut *self, button, x, y) {
+            NeedRedraw::Yes
+        } else {
+            NeedRedraw::No
+        };
+        (self, redraw)
+    }
+}
+
+
 impl HistoryPresenter {
     /// Allocate a new sub-presenter for history browsing.
     ///
@@ -681,6 +887,10 @@ impl SubPresenter for HistoryPresenter {
 
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons> {
         &mut self.commons
+    }
+
+    fn poll_interaction(self: Box<Self>) -> (Box<SubPresenter>, bool) {
+        (self, false)
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
