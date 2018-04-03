@@ -18,6 +18,9 @@
 
 //! Error codes for all bash operations
 
+use std::sync::mpsc::Sender;
+use super::bash::execute::*;
+
 /// Errors codes
 #[derive(Debug)]
 pub enum Error {
@@ -30,6 +33,9 @@ pub enum Error {
     /// Illegal pattern in globbing
     IllegalGlob(String),
 
+    /// Could not start a program.
+    CouldNotStartProgram(String),
+
     /// This is probably an implementation bug.
     InternalError(&'static str, u32, String),
 }
@@ -38,32 +44,54 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 impl Error {
     pub fn readable(self, suffix: &str) -> String {
-        String::from(self.cause(suffix))
+        String::from(self.cause("", suffix))
     }
 
-    fn cause(self, suffix: &str) -> String {
+    fn cause(self, prefix: &str, suffix: &str) -> String {
         match self {
             Error::VariableIsReadOnly(name) => {
-                format!("tried to modify a read-only variable '{}' {}", name, suffix)
+                format!(
+                    "{}tried to modify a read-only variable '{}' {}",
+                    prefix,
+                    name,
+                    suffix
+                )
             }
             Error::UnknownVariable(name) => {
-                format!("tried to access unknown variable '{}' {}", name, suffix)
+                format!(
+                    "{}tried to access unknown variable '{}' {}",
+                    prefix,
+                    name,
+                    suffix
+                )
             }
             Error::CouldNotSetVariable(name) => {
-                format!("failed to change variable '{}' {}", name, suffix)
+                format!("{}failed to change variable '{}' {}", prefix, name, suffix)
             }
-            Error::IllegalGlob(msg) => format!("illegal pattern '{}' {}", msg, suffix),
+            Error::IllegalGlob(msg) => format!("{}illegal pattern '{}' {}", prefix, msg, suffix),
+            Error::CouldNotStartProgram(msg) => {
+                format!("{}could not start program {} {}", prefix, msg, suffix)
+            }
             Error::InternalError(file, line, msg) => {
                 format!(
                     concat!(
-                        "Internal error '{}' in {}:{}\n",
+                        "{}Internal error '{}' in {}:{}\n",
                         "Report at https://github.com/LarsEKrueger/bite/issues"
                     ),
+                    prefix,
                     msg,
                     file,
                     line
                 )
             }
+        }
+    }
+
+    pub fn send(self, output_tx: &mut Sender<CommandOutput>, prefix: &str) {
+        for l in self.cause(prefix, "").lines() {
+            output_tx
+                .send(CommandOutput::FromError(String::from(l)))
+                .unwrap();
         }
     }
 }

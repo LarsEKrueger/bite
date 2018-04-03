@@ -592,13 +592,6 @@ impl SubPresenter for ComposeCommandPresenter {
                 // Execute
                 match bash.execute(cmd) {
                     ExecutionResult::Ignore => self,
-                    ExecutionResult::Internal => {
-                        // Create a dummy interaction for interal commands
-                        let mut inter = Interaction::new(line);
-                        inter.prepare_archiving();
-                        self.commons.session.archive_interaction(inter);
-                        self
-                    }
                     ExecutionResult::Spawned((tx, rx)) => {
                         Box::new(ExecuteCommandPresenter {
                             commons: self.commons,
@@ -763,8 +756,9 @@ impl SubPresenter for ExecuteCommandPresenter {
                 execute::CommandOutput::FromError(line) => {
                     self.current_interaction.add_error(line);
                 }
-                execute::CommandOutput::Terminated(_exit_code) => {
+                execute::CommandOutput::Terminated(_exit_code, bash) => {
                     // TODO: show the exit code if there is an error
+                    self.commons.bash = Some(bash);
                     clear_spawned = true;
                 }
             }

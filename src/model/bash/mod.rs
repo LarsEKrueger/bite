@@ -27,10 +27,12 @@ use nom::IResult;
 use std::env;
 use std::mem;
 use std::ptr;
+use std::thread;
 use std::ffi::CStr;
 use std::collections::HashMap;
 use libc::{c_char, gethostname, gid_t, uid_t};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::process::ExitStatus;
 
 pub mod script_parser;
 pub mod expansion_parser;
@@ -75,12 +77,11 @@ pub enum ExecutionResult {
     Ignore,
     Spawned((Sender<String>, Receiver<execute::CommandOutput>)),
     Builtin(BuiltinOutput),
-    Internal,
     Err(String),
 }
 
 /// Function for builtin commands
-type BuiltinRunner = fn(&mut Bash, Vec<String>) -> Result<BuiltinOutput>;
+type BuiltinRunner = fn(&mut Bash, &mut Sender<execute::CommandOutput>, Vec<String>) -> ExitStatus;
 
 /// Complete interpreter state.
 pub struct Bash {
@@ -301,78 +302,28 @@ impl Bash {
     /// Execute a command.
     ///
     /// Ignore any error cases.
-    pub fn execute(&mut self, cmd: Command) -> ExecutionResult {
+    pub fn execute(self, cmd: Command) -> ExecutionResult {
         match cmd {
             Command::Incomplete |
             Command::Error(_) => ExecutionResult::Ignore,
             Command::None => ExecutionResult::Ignore,
             Command::Expression(exp) => {
-                // TODO: Run the whole expression.
-                if let Some(ct) = exp.first() {
-                    if let Some(ci) = ct.commands.first() {
-                        let words = match self.expand_word_list(&ci.words) {
-                            Ok(w) => w,
-                            Err(e) => {
-                                return ExecutionResult::Err(e.readable("during expansion"));
-                            }
-                        };
-                        let (assignments, words) = self.separate_out_assignments(words);
-
-                        // If there is no command, perform the assignments to global variables. If not,
-                        // perform them to temporary context, execute and drop the temporary context.
-                        if words.is_empty() {
-                            match self.assign_to_global_context(assignments) {
-                                Ok(_) => ExecutionResult::Internal,
-                                Err(e) => ExecutionResult::Err(
-                                    e.readable("while setting variables"),
-                                ),
-                            }
-                        } else {
-                            match self.assign_to_temp_context(assignments) {
-                                Ok(_) => {
-                                    let res = self.execute_simple_command(words);
-                                    self.drop_temp_context();
-                                    res
-                                }
-                                Err(e) => ExecutionResult::Err(
-                                    e.readable("while setting temporary variables"),
-                                ),
-                            }
-                        }
-                    } else {
-                        ExecutionResult::Ignore
-                    }
-                } else {
-                    ExecutionResult::Ignore
-                }
-            }
-        }
-    }
-
-    /// Execute a builtin command or spawn a thread to run an external command
-    fn execute_simple_command(&mut self, words: Vec<String>) -> ExecutionResult {
-        if words.is_empty() {
-            ExecutionResult::Internal
-        } else {
-            // Check if this a special builtin command
-            if let Some(builtin) = SPECIAL_BUILTINS.get(words[0].as_str()) {
-                match self.run_builtin(*builtin, words) {
-                    Ok(r) => ExecutionResult::Builtin(r),
-                    Err(e) => ExecutionResult::Err(e.readable("")),
-                }
-            } else {
-                // Spawn the command if there is one
-                match execute::spawn_command(&words[..], self.variables.iter_exported()) {
-                    Ok(r) => ExecutionResult::Spawned(r),
-                    Err(e) => ExecutionResult::Err(e),
-                }
+                let (output_tx, output_rx) = channel();
+                let (input_tx, input_rx) = channel();
+                thread::spawn(move || self.run_commands(output_tx, input_rx, exp));
+                ExecutionResult::Spawned((input_tx, output_rx))
             }
         }
     }
 
     /// Run a builtin command and retrieve its output and error lines
-    fn run_builtin(&mut self, runner: BuiltinRunner, ps: Vec<String>) -> Result<BuiltinOutput> {
-        runner(self, ps)
+    fn run_builtin(
+        &mut self,
+        runner: BuiltinRunner,
+        output_tx: &mut Sender<execute::CommandOutput>,
+        ps: Vec<String>,
+    ) -> ExitStatus {
+        runner(self, output_tx, ps)
     }
 
     /// Assign variables in global context

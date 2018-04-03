@@ -132,7 +132,7 @@ non-GUI program.
 * [X] 0.2.6 parse and set temporary variables
 * [X] 0.2.7 variable expansion
 * [X] 0.3 environment variables (read, set, pass to command)
-* [ ] 0.3.1 sequence of commands (no backgrounding)
+* [X] 0.3.1 sequence of commands (no backgrounding)
 * [ ] 0.3.2 not operator in command sequences
 * [ ] 0.3.3 indicate return code in display
 * [ ] 0.3.4 pipelines (no redirection)

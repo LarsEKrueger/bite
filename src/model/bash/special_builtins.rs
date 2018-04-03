@@ -18,14 +18,23 @@
 
 //! Special builtin runnemutrs
 
+use std::sync::mpsc::Sender;
+use std::process::ExitStatus;
+use std::os::unix::process::ExitStatusExt;
+
 use argparse::{ArgumentParser, StoreTrue, List};
 use super::*;
+use super::execute::*;
 use super::script_parser;
 
 /// Runner function for export special builtin
 ///
 /// export [-fn] [-p] [name[=value]]
-pub fn export_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOutput> {
+pub fn export_runner(
+    bash: &mut Bash,
+    output_tx: &mut Sender<CommandOutput>,
+    words: Vec<String>,
+) -> ExitStatus {
     let mut negat = false;
     let mut funct = false;
     let mut print = false;
@@ -34,6 +43,7 @@ pub fn export_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOutpu
     let mut output = vec![];
     let mut errors = vec![];
 
+    let mut ret_code = ExitStatus::from_raw(0);
     if let Ok(()) = {
         let mut ap = ArgumentParser::new();
         ap.set_description("export - builtin");
@@ -81,26 +91,31 @@ pub fn export_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOutpu
                                 }
                                 Err(e) => {
                                     use std::io::Write;
-                                    write!(&mut output, "{}", e.readable("")).unwrap();
+                                    write!(&mut output, "export: {}", e.readable("")).unwrap();
+                                    ret_code=ExitStatus::from_raw(1);
                                 }
                             }
                         }
                     }
             }
         }
-
     };
 
-    Ok(BuiltinOutput {
-        output: String::from_utf8_lossy(&output[..])
-            .lines()
-            .map(String::from)
-            .collect(),
-        errors: String::from_utf8_lossy(&errors[..])
-            .lines()
-            .map(String::from)
-            .collect(),
-    })
+    for l in String::from_utf8_lossy(&output[..])
+        .lines()
+        .map(String::from)
+        .map(CommandOutput::FromOutput)
+    {
+        output_tx.send(l).unwrap();
+    }
+    for l in String::from_utf8_lossy(&errors[..])
+        .lines()
+        .map(String::from)
+        .map(CommandOutput::FromError)
+    {
+        output_tx.send(l).unwrap();
+    }
+    ret_code
 }
 
 /// Runner function for readonly special builtin
@@ -108,7 +123,11 @@ pub fn export_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOutpu
 /// # Parameters
 ///
 /// readonly [-aAf] [-p] [name[=value]]
-pub fn readonly_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOutput> {
+pub fn readonly_runner(
+    bash: &mut Bash,
+    output_tx: &mut Sender<CommandOutput>,
+    words: Vec<String>,
+) -> ExitStatus {
     let mut array = false;
     let mut assoc = false;
     let mut funct = false;
@@ -116,6 +135,8 @@ pub fn readonly_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOut
     let mut assignments: Vec<String> = vec![];
     let mut output = vec![];
     let mut errors = vec![];
+
+    let mut ret_code = ExitStatus::from_raw(0);
     if let Ok(()) = {
         let mut ap = ArgumentParser::new();
         ap.set_description("readonly - builtin");
@@ -168,7 +189,8 @@ pub fn readonly_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOut
                                 }
                                 Err(e) => {
                                     use std::io::Write;
-                                    write!(&mut output, "{}", e.readable("")).unwrap();
+                                    write!(&mut output, "readonly: {}", e.readable("")).unwrap();
+ret_code = ExitStatus::from_raw(1);
                                 }
                             }
                         }
@@ -176,14 +198,19 @@ pub fn readonly_runner(bash: &mut Bash, words: Vec<String>) -> Result<BuiltinOut
             }
         }
     };
-    Ok(BuiltinOutput {
-        output: String::from_utf8_lossy(&output[..])
-            .lines()
-            .map(String::from)
-            .collect(),
-        errors: String::from_utf8_lossy(&errors[..])
-            .lines()
-            .map(String::from)
-            .collect(),
-    })
+    for l in String::from_utf8_lossy(&output[..])
+        .lines()
+        .map(String::from)
+        .map(CommandOutput::FromOutput)
+    {
+        output_tx.send(l).unwrap();
+    }
+    for l in String::from_utf8_lossy(&errors[..])
+        .lines()
+        .map(String::from)
+        .map(CommandOutput::FromError)
+    {
+        output_tx.send(l).unwrap();
+    }
+    ret_code
 }
