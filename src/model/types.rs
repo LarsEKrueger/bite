@@ -46,6 +46,7 @@ pub struct CommandTerm {
 pub struct CommandInfo {
     pub words: Vec<String>,
     pub reaction: CommandReaction,
+    pub invert: bool,
 }
 
 /// How to react on the failure of a command
@@ -134,6 +135,7 @@ impl CommandInfo {
         Self {
             words,
             reaction: CommandReaction::Normal,
+            invert: false,
         }
     }
 
@@ -160,11 +162,13 @@ mod tests {
             Command::Expression(
                 vec![CommandTerm {
                     commands:vec![CommandInfo {
-                        words:vec![String::from("ab")],
-                        reaction:CommandReaction::Normal
+                        words: vec![String::from("ab")],
+                        reaction: CommandReaction::Normal,
+                        invert : false
                     }, CommandInfo {
-                        words:vec![String::from("bc")],
-                        reaction:CommandReaction::Background
+                        words: vec![String::from("bc")],
+                        reaction: CommandReaction::Background,
+                        invert : false
                     }
                     ],
                 }]),

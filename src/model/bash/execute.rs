@@ -90,12 +90,12 @@ impl Bash {
                         // TODO: Handle backgrounding
                     }
                     CommandReaction::And => {
-                        if !ret_code.success() {
+                        if !(cmd.invert ^ ret_code.success()) {
                             break;
                         }
                     }
                     CommandReaction::Or => {
-                        if ret_code.success() {
+                        if cmd.invert ^ ret_code.success() {
                             break;
                         }
                     }

@@ -405,7 +405,7 @@ named!(simple_list_sep<CommandReaction>,
 named!(simple_list_hi<CommandTerm>,
        // This expression has higher precedence: && and ||
        map!(
-           separated_list_map!(simple_list_sep_hi, updateReaction_hi, simple_command),
+           separated_list_map!(simple_list_sep_hi, updateReaction_hi, pipeline_command),
            CommandTerm::new
            )
       );
@@ -423,24 +423,23 @@ named!(simple_list_sep_hi<CommandReaction>,
            )
       );
 
-/*
-simple_list:	simple_list1
-	|	simple_list1 '&'
-	|	simple_list1 ';'
-	;
-*/
-
-// named!(simple_list1, apply!(pipeline_command));
-/*
-simple_list1:	simple_list1 AND_AND newline_list simple_list1
-	|	simple_list1 OR_OR newline_list simple_list1
-	|	simple_list1 '&' simple_list1
-	|	simple_list1 ';' simple_list1
-	|	pipeline_command
-	;
-*/
-
-//named!(pipeline_command, apply!(pipeline));
+named!(pipeline_command<CommandInfo>,
+       alt!(
+           do_parse!(
+               tag!("!") >>
+               many1!(one_of!(" \t")) >>
+               ci : pipeline_command >>
+               (
+                   CommandInfo {
+                       words : ci.words,
+                       reaction : ci.reaction,
+                       invert : true ^ ci.invert
+                   }
+               )
+               )
+           | simple_command
+           )
+      );
 /*
 pipeline_command: pipeline
 	|	BANG pipeline_command
@@ -647,6 +646,7 @@ mod tests {
             CommandInfo {
                 words: vec![String::from(word)],
                 reaction: cr,
+                invert: false,
             }
         }
 
@@ -672,7 +672,8 @@ mod tests {
                 commands: vec![
                     CommandInfo {
                         words: vec![String::from(word)],
-                        reaction:cr
+                        reaction: cr,
+                        invert : false
                     }
                 ],
             }
@@ -719,11 +720,13 @@ mod tests {
                                         commands: vec![
                                             CommandInfo {
                                                 words: vec![String::from("ab")],
-                                                reaction:CommandReaction::And
+                                                reaction:CommandReaction::And,
+                                                invert : false
                                             },
                                             CommandInfo {
                                                 words: vec![String::from("bc")],
-                                                reaction:CommandReaction::Background
+                                                reaction:CommandReaction::Background,
+                                                invert : false
                                             }
                                         ],
                                     },
@@ -738,6 +741,43 @@ mod tests {
                     );
     }
 
+    #[test]
+    fn parse_pipeline_command() {
+        assert_eq!(
+            pipeline_command(b"! ab"),
+            IResult::Done(
+                &b""[..],
+                CommandInfo{ 
+                    words : vec![String::from("ab")],
+                    reaction : CommandReaction::Normal,
+                    invert : true
+                }
+            )
+        );
+        assert_eq!(
+            pipeline_command(b"! ! ab"),
+            IResult::Done(
+                &b""[..],
+                CommandInfo{ 
+                    words : vec![String::from("ab")],
+                    reaction : CommandReaction::Normal,
+                    invert : false
+                }
+            )
+        );
+        assert_eq!(
+            pipeline_command(b"!ab"),
+            IResult::Done(
+                &b""[..],
+                CommandInfo{ 
+                    words : vec![String::from("!ab")],
+                    reaction : CommandReaction::Normal,
+                    invert : false
+                }
+            )
+        );
+
+    }
 
     #[test]
     fn parse_identifier() {
