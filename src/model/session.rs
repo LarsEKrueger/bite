@@ -18,11 +18,9 @@
 
 //! Organizes the past and current programs and their outputs.
 
-use super::bash;
 use super::conversation::*;
 use super::interaction::*;
 use super::iterators::*;
-use super::error::*;
 
 /// A number of closed conversations and the current one
 pub struct Session {
@@ -30,20 +28,15 @@ pub struct Session {
     pub archived: Vec<Conversation>,
     /// Current conversation
     pub current_conversation: Conversation,
-    /// Bash script interpreter.
-    pub bash: bash::Bash,
 }
 
 impl Session {
     /// Create a new session with its own interpreter.
-    pub fn new() -> Result<Self> {
-        let bash = bash::Bash::new()?;
-
-        Ok(Session {
+    pub fn new(prompt: String) -> Self {
+        Session {
             archived: vec![],
-            current_conversation: Conversation::new(bash.expand_ps1()),
-            bash,
-        })
+            current_conversation: Conversation::new(prompt),
+        }
     }
 
     /// Open a new conversation and archive the current one.
@@ -105,11 +98,9 @@ mod tests {
     use super::*;
 
     fn new_test_session(prompt: String) -> Session {
-        let bash = bash::Bash::new().expect("Can't make test bash instance");
         Session {
             archived: vec![],
             current_conversation: Conversation::new(prompt),
-            bash,
         }
     }
 
