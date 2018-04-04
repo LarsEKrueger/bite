@@ -215,7 +215,7 @@ impl Gui {
 
             let font_set = XCreateFontSet(
                 display,
-                (FONTNAME as *const str as *const [c_char] as *const c_char),
+                FONTNAME as *const str as *const [c_char] as *const c_char,
                 &mut missing_charset_list_return,
                 &mut missing_charset_count_return,
                 &mut def_string_return,
@@ -321,7 +321,7 @@ impl Gui {
                 self.font_set,
                 self.gc,
                 column * self.font_width,
-                (self.font_height * row + self.font_ascent),
+                self.font_height * row + self.font_ascent,
                 utf8.as_ptr() as *const i8,
                 utf8.len() as i32,
             )
