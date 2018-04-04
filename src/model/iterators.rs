@@ -20,13 +20,15 @@
 
 use super::interaction::*;
 
+use std::process::ExitStatus;
+
 /// Type of a line for internal processing.
 #[derive(Debug, PartialEq)]
 pub enum LineType {
     /// A command prompt.
     Prompt,
     /// A command with its visibility and position for changing that.
-    Command(OutputVisibility, CommandPosition),
+    Command(OutputVisibility, CommandPosition, Option<ExitStatus>),
     /// Output from a program (error or normal).
     Output,
 

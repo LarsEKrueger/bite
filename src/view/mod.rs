@@ -30,6 +30,7 @@ use std::ptr::{null, null_mut};
 
 use tools::polling;
 use presenter::*;
+use presenter::display_line::*;
 
 /// Initial width of the window in pixels
 const WIDTH: i32 = 400;
@@ -94,6 +95,15 @@ pub struct Gui {
     ///
     /// Contains all the business logic, i.e. what to draw and when and how to react to input.
     presenter: Presenter,
+
+    /// Color table.
+    ///
+    /// Entries are (foreground, background).
+    ///
+    /// TODO: Check if that should be better different GCs.
+    ///
+    /// Ensure that the order matches presenter::Color.
+    colors: [(u32, u32); Color::MaxColor as usize],
 }
 
 /// Default font to draw the output
@@ -244,6 +254,13 @@ impl Gui {
             let font_height = (*font_extents).max_logical_extent.height;
             let font_width = (*font_extents).max_logical_extent.width;
 
+            let colors = [
+                (0x000000, 0xffffff), // Background
+                (0x000000, 0xffffff), // Normal
+                (0xffffff, 0xFF1313), // StatusError
+                (0x000000, 0x5DDC5D), // StatusOk
+            ];
+
             let gui = Gui {
                 display,
                 window,
@@ -269,6 +286,8 @@ impl Gui {
                 redraw_time: SystemTime::now(),
 
                 gate: polling::Gate::new(::std::time::Duration::from_millis(10)),
+
+                colors,
             };
             Ok(gui)
         }
@@ -309,19 +328,40 @@ impl Gui {
     /// Although DisplayLine contains a cursor position in this row, the cursor itself will not be
     /// drawn here.
     pub fn draw_line(&self, row: i32, line: &DisplayLine) {
-        self.draw_utf8(0, row, &line.text);
+        let mut col = 0;
+        for cs in line.strips.iter() {
+            let ref color = self.colors[cs.color.clone() as usize];
+            self.draw_utf8(col as i32, row, &cs.text, color.0, color.1);
+            col += cs.text.chars().count();
+        }
     }
 
     /// Draw a line with the first character starting at the given character position
-    pub fn draw_utf8(&self, column: i32, row: i32, utf8: &str) {
+    pub fn draw_utf8(&self, column: i32, row: i32, utf8: &str, fg_color: u32, bg_color: u32) {
+        let x = self.font_width * column;
+        let y = self.font_height * row;
+        let n = utf8.chars().count() as u32;
+
         unsafe {
+            XSetForeground(self.display, self.gc, bg_color as u64);
+            XFillRectangle(
+                self.display,
+                self.window,
+                self.gc,
+                x,
+                y,
+                n * self.font_width as u32,
+                self.font_height as u32,
+            );
+
+            XSetForeground(self.display, self.gc, fg_color as u64);
             Xutf8DrawString(
                 self.display,
                 self.window,
                 self.font_set,
                 self.gc,
-                column * self.font_width,
-                self.font_height * row + self.font_ascent,
+                x,
+                y + self.font_ascent,
                 utf8.as_ptr() as *const i8,
                 utf8.len() as i32,
             )

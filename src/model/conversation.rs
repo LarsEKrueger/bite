@@ -91,7 +91,11 @@ mod tests {
             li.next(),
             Some(LineItem {
                 text: "command 1.1",
-                is_a: LineType::Command(OutputVisibility::Output, CommandPosition::Archived(0, 0)),
+                is_a: LineType::Command(
+                    OutputVisibility::Output,
+                    CommandPosition::Archived(0, 0),
+                    None,
+                ),
                 cursor_col: None,
             })
         );
@@ -115,7 +119,11 @@ mod tests {
             li.next(),
             Some(LineItem {
                 text: "command 1.2",
-                is_a: LineType::Command(OutputVisibility::Error, CommandPosition::Archived(0, 1)),
+                is_a: LineType::Command(
+                    OutputVisibility::Error,
+                    CommandPosition::Archived(0, 1),
+                    None,
+                ),
                 cursor_col: None,
             })
         );

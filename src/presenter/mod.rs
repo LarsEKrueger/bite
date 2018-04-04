@@ -29,6 +29,7 @@ mod runeline;
 mod compose_command;
 mod execute_command;
 mod history;
+pub mod display_line;
 
 use model::session::*;
 use model::iterators::*;
@@ -40,6 +41,7 @@ use model::types::*;
 
 use self::compose_command::*;
 use self::history::*;
+use self::display_line::*;
 
 /// GUI agnostic representation of the modifier keys
 pub struct ModifierState {
@@ -53,14 +55,6 @@ pub struct ModifierState {
 pub enum NeedRedraw {
     No,
     Yes,
-}
-
-/// Item for the output iterator to be shown by the GUI.
-///
-/// Each line can have its own cursor, but the GUI might render them to blink synchronously.
-pub struct DisplayLine {
-    pub text: String,
-    pub cursor_col: Option<usize>,
 }
 
 /// Constant to indicate how long the prefix of Command line items (as output by line_iter) is.
@@ -184,34 +178,6 @@ impl Display for ModifierState {
             b2s(self.control_pressed, "Ctrl-"),
             b2s(self.meta_pressed, "Meta-")
         )
-    }
-}
-
-impl DisplayLine {
-    /// Create a line to be displayed from an session item.
-    ///
-    /// Decorate the line according to its type and update the cursor position.
-    fn new(line: LineItem) -> DisplayLine {
-        // Depending on the type, choose the offset and draw the decoration
-        let deco = match line.is_a {
-            LineType::Output => "  ",
-            LineType::Prompt => "",
-            LineType::Command(ref ov, _) => {
-                match ov {
-                    &OutputVisibility::None => " » ",
-                    &OutputVisibility::Output => "O» ",
-                    &OutputVisibility::Error => "E» ",
-                }
-            }
-            LineType::Input => "",
-            LineType::MenuDecoration => "",
-            LineType::SelectedMenuItem(_) => "==> ",
-            LineType::MenuItem(_) => "    ",
-        };
-        DisplayLine {
-            text: deco.to_owned() + line.text,
-            cursor_col: line.cursor_col,
-        }
     }
 }
 
@@ -461,7 +427,7 @@ impl Presenter {
     pub fn display_line_iter<'a>(&'a self) -> Box<Iterator<Item = DisplayLine> + 'a> {
         let iter = self.d().line_iter();
         let start_line = self.c().start_line();
-        Box::new(iter.skip(start_line).map(DisplayLine::new))
+        Box::new(iter.skip(start_line).map(DisplayLine::from))
     }
 }
 
@@ -479,7 +445,7 @@ fn check_response_clicked<T: SubPresenter>(
     let click_line_index = pres.commons().start_line() + y;
     let is_a = pres.line_iter().nth(click_line_index).map(|i| i.is_a);
     match (is_a, button) {
-        (Some(LineType::Command(_, pos)), 1) => {
+        (Some(LineType::Command(_, pos, _)), 1) => {
             if x < COMMAND_PREFIX_LEN {
                 // Click on a command
                 {

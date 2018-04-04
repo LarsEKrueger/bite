@@ -134,7 +134,7 @@ non-GUI program.
 * [X] 0.3 environment variables (read, set, pass to command)
 * [X] 0.3.1 sequence of commands (no backgrounding)
 * [X] 0.3.2 not operator in command sequences
-* [ ] 0.3.3 indicate return code in display
+* [X] 0.3.3 indicate return code in display
 * [ ] 0.3.4 pipelines (no redirection)
 * [ ] 0.4 pipelines
 * [ ] 0.5 expressions
@@ -166,7 +166,7 @@ non-GUI program.
 * [X] Fix history entries to have no end-of-line
 * [ ] End history search mode on cursor left / right. Keep the selected line for edit.
 * [ ] Merge history during save
-* [ ] Indicate return code of a completed program in the GUI
+* [X] Indicate return code of a completed program in the GUI
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
 * [ ] History search: Decorate menu
 * [X] Show the full command line of a program
@@ -189,3 +189,4 @@ non-GUI program.
 * utf8 input from https://gist.github.com/baines/5a49f1334281b2685af5dcae81a6fa8a
 * fontset creation from https://www.debian.org/doc/manuals/intro-i18n/ch-examples.en.html
 * user id checking from https://github.com/rust-lang/rust/blob/1.23.0/src/libstd/sys/unix/os.rs
+* color palette: http://paletton.com/#uid=7000J0ktCwUitFfnGzUxBqFBlle

@@ -38,11 +38,11 @@ pub struct Stack {
 ///
 /// TODO: Does scope have to be signed?
 pub struct Context {
-    name: String,
-    scope: i32,
+    _name: String,
+    _scope: i32,
     ctxType: ContextType,
-    has_locals: bool,
-    has_tempvars: bool,
+    _has_locals: bool,
+    _has_tempvars: bool,
     variables: HashMap<String, Variable>,
 }
 
@@ -68,7 +68,7 @@ pub struct Variable {
 /// The value of a variable.
 ///
 pub struct VariableValue {
-    vtype: VariableType,
+    _vtype: VariableType,
     value: String,
 }
 
@@ -243,11 +243,11 @@ impl Stack {
 impl Context {
     fn new(ctxType: ContextType, name: &str, scope: i32) -> Self {
         Self {
-            name: String::from(name),
-            scope,
+            _name: String::from(name),
+            _scope: scope,
             ctxType,
-            has_locals: false,
-            has_tempvars: false,
+            _has_locals: false,
+            _has_tempvars: false,
             variables: HashMap::new(),
         }
     }
@@ -304,7 +304,7 @@ impl Variable {
     fn new_scalar_string(value: &str) -> Self {
         Self {
             value: VariableValue {
-                vtype: VariableType::String,
+                _vtype: VariableType::String,
                 value: String::from(value),
             },
             read_only: false,

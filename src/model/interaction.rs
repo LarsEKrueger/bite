@@ -21,6 +21,7 @@
 //! This command might be still running.
 
 use std::iter;
+use std::process::ExitStatus;
 
 use super::iterators::*;
 use super::response::*;
@@ -53,6 +54,7 @@ pub struct Interaction {
     command: String,
     pub output: Response,
     pub errors: Response,
+    exit_status: Option<ExitStatus>,
 }
 
 impl Interaction {
@@ -62,9 +64,15 @@ impl Interaction {
     pub fn new(command: String) -> Interaction {
         Interaction {
             command,
+            exit_status: None,
             output: Response::new(true),
             errors: Response::new(false),
         }
+    }
+
+    /// Set the exit status of the interaction.
+    pub fn set_exit_status(&mut self, exit_status: ExitStatus) {
+        self.exit_status = Some(exit_status);
     }
 
     /// Add a line as read from stdout.
@@ -125,7 +133,7 @@ impl Interaction {
         Box::new(
             iter::once(LineItem::new(
                 &self.command,
-                LineType::Command(ov, pos),
+                LineType::Command(ov, pos, self.exit_status),
                 None,
             )).chain(resp_lines),
         )
@@ -195,6 +203,7 @@ mod tests {
                     is_a: LineType::Command(
                         OutputVisibility::Output,
                         CommandPosition::CurrentConversation(0),
+                        None,
                     ),
                     cursor_col: None,
                 })
@@ -222,6 +231,7 @@ mod tests {
                     is_a: LineType::Command(
                         OutputVisibility::Error,
                         CommandPosition::Archived(1, 0),
+                        None,
                     ),
                     cursor_col: None,
                 })
@@ -249,6 +259,7 @@ mod tests {
                     is_a: LineType::Command(
                         OutputVisibility::None,
                         CommandPosition::CurrentInteraction,
+                        None,
                     ),
                     cursor_col: None,
                 })

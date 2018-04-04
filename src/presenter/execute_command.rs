@@ -73,8 +73,8 @@ impl SubPresenter for ExecuteCommandPresenter {
                 execute::CommandOutput::FromError(line) => {
                     self.current_interaction.add_error(line);
                 }
-                execute::CommandOutput::Terminated(_exit_code, bash) => {
-                    // TODO: show the exit code if there is an error
+                execute::CommandOutput::Terminated(exit_code, bash) => {
+                    self.current_interaction.set_exit_status(exit_code);
                     self.commons.bash = Some(bash);
                     clear_spawned = true;
                 }
