@@ -19,7 +19,7 @@
 //! Bash script parser.
 
 use nom::{newline, alpha, IResult, is_alphanumeric, ErrorKind, InputLength, Needed};
-use super::{ParsedCommand, CommandLogic, Command, Pipeline, CommandReaction};
+use super::{ParsedCommand, CommandLogic, Command, Pipeline, CommandReaction, PipelineMode};
 
 named!(pub parse_script<ParsedCommand>,
     alt_complete!(
@@ -395,10 +395,12 @@ fn updateReaction(cis: &mut Vec<CommandLogic>, cr: CommandReaction) {
 
 /// Separator for simple_list, i.e. & and ;
 named!(command_sequence_sep<CommandReaction>,
-       alt_complete!(
-           map!(tag!(";"), |_| CommandReaction::Normal) |
-           map!(tag!("&"), |_| CommandReaction::Background)
-           )
+       preceded!(myspace,
+                 alt_complete!(
+                     map!(tag!(";"), |_| CommandReaction::Normal) |
+                     map!(tag!("&"), |_| CommandReaction::Background)
+                     )
+                )
       );
 
 /// Helper parser to ensure precedence of && and || over & and ;
@@ -417,15 +419,19 @@ fn updateReaction_cl(cis: &mut Vec<Pipeline>, cr: CommandReaction) {
 
 /// Separator for command_logic, i.e. && and ||
 named!(command_logic_sep<CommandReaction>,
-       alt_complete!(
-           map!(tag!("&&"), |_| CommandReaction::And) |
-           map!(tag!("||"), |_| CommandReaction::Or)
-           )
+       preceded!(myspace,
+                 alt_complete!(
+                     map!(tag!("&&"), |_| CommandReaction::And) |
+                     map!(tag!("||"), |_| CommandReaction::Or)
+                     )
+                )
       );
 
+/// Pipeline with optional inversion
 named!(pipeline_command<Pipeline>,
        alt!(
            do_parse!(
+               myspace >>
                tag!("!") >>
                many1!(one_of!(" \t")) >>
                ci : pipeline_command >>
@@ -437,9 +443,10 @@ named!(pipeline_command<Pipeline>,
                    }
                )
                )
-           | map!(simple_command, Pipeline::new)
+           | pipeline
            )
       );
+
 /*
 pipeline_command: pipeline
 	|	BANG pipeline_command
@@ -449,13 +456,32 @@ pipeline_command: pipeline
 	;
 */
 
-//named!(pipeline, apply!(command));
-/*
-pipeline:	pipeline '|' newline_list pipeline
-	|	pipeline BAR_AND newline_list pipeline
-	|	command
-	;
+/// Pipeline command
+named!(pipeline<Pipeline>,
+        map!(separated_list_map!( pipeline_sep, update_pipeline, simple_command),
+        Pipeline::new)
+      );
 
+/// Separator for pipelines
+named!(pipeline_sep<PipelineMode>,
+       preceded!(myspace,
+                 alt_complete!(
+                     map!(tag!("|&"),|_| PipelineMode::StdOutStdErr)|
+                     do_parse!(
+                         not!(tag!("||")) >>
+                         tag!("|") >>
+                         ( PipelineMode::StdOut)
+                         )
+                     )
+                )
+      );
+
+/// Updater for pipeline commands
+fn update_pipeline(commands: &mut Vec<Command>, mode: PipelineMode) {
+    commands.last_mut().map(|cmd| cmd.set_pipeline_mode(mode));
+}
+
+/*
 timespec:	TIME
 	|	TIME TIMEOPT
 	|	TIME TIMEOPT TIMEIGN
@@ -626,6 +652,7 @@ mod tests {
                     CommandLogic::new(
                         vec![
                         Pipeline::new(
+                            vec![
                             Command::new(
                                 vec![
                                 String::from("ab"),
@@ -634,6 +661,7 @@ mod tests {
                                 String::from("de"),
                                 ]
                                 )
+                            ]
                             )
                         ]
                         )
@@ -656,7 +684,7 @@ mod tests {
 
         fn test_cmd_new(word: &str, cr: CommandReaction) -> Pipeline {
             Pipeline {
-                commands: vec![ Command { words: vec![String::from(word)] } ],
+                commands: vec![ Command { words: vec![String::from(word)] , mode : PipelineMode::Nothing} ],
                 reaction: cr,
                 invert: false,
             }
@@ -664,6 +692,19 @@ mod tests {
 
         assert_eq!(
             parse_script(b"ab&&bc||cd\n"),
+            IResult::Done(
+                &b""[..],
+                ParsedCommand::CommandSequence(vec![CommandLogic::new(
+                        vec![
+                        test_cmd_new("ab",CommandReaction::And),
+                        test_cmd_new("bc",CommandReaction::Or),
+                        test_cmd_new("cd",CommandReaction::Normal)
+                        ])])
+            )
+        );
+
+        assert_eq!(
+            parse_script(b"ab && bc || cd\n"),
             IResult::Done(
                 &b""[..],
                 ParsedCommand::CommandSequence(vec![CommandLogic::new(
@@ -684,7 +725,9 @@ mod tests {
                 pipelines: vec![
                     Pipeline {
                         commands: vec![
-                            Command { words: vec![String::from(word)],
+                            Command {
+                                words: vec![String::from(word)],
+                                mode: PipelineMode::Nothing
                             }],
                         reaction: cr,
                         invert : false
@@ -734,12 +777,20 @@ mod tests {
                     CommandLogic {
                         pipelines : vec![
                             Pipeline {
-                                commands: vec![ Command{ words: vec![String::from("ab")]}],
+                                commands: vec![
+                                    Command {
+                                        words: vec![String::from("ab")],
+                                        mode:PipelineMode::Nothing
+                                    }],
                                 reaction:CommandReaction::And,
                                 invert : false
                             },
                             Pipeline {
-                                commands: vec![ Command { words: vec![String::from("bc")]}],
+                                commands: vec![
+                                    Command {
+                                        words: vec![String::from("bc")],
+                                        mode:PipelineMode::Nothing
+                                    }],
                                 reaction:CommandReaction::Background,
                                 invert : false
                             }
@@ -763,8 +814,29 @@ mod tests {
             pipeline_command(b"! ab"),
             IResult::Done(
                 &b""[..],
-                Pipeline { 
-                    commands : vec![Command { words : vec![String::from("ab")]}],
+                Pipeline {
+                    commands : vec![
+                        Command {
+                            words : vec![String::from("ab")],
+                            mode:PipelineMode::Nothing
+                        }
+                    ],
+                    reaction : CommandReaction::Normal,
+                    invert : true
+                }
+            )
+        );
+        assert_eq!(
+            pipeline_command(b" ! ab"),
+            IResult::Done(
+                &b""[..],
+                Pipeline {
+                    commands : vec![
+                        Command {
+                            words : vec![String::from("ab")],
+                            mode:PipelineMode::Nothing
+                        }
+                    ],
                     reaction : CommandReaction::Normal,
                     invert : true
                 }
@@ -775,7 +847,12 @@ mod tests {
             IResult::Done(
                 &b""[..],
                 Pipeline{ 
-                    commands : vec![Command {words : vec![String::from("ab")]}],
+                    commands : vec![
+                        Command {
+                            words : vec![String::from("ab")],
+                            mode:PipelineMode::Nothing
+                        }
+                    ],
                     reaction : CommandReaction::Normal,
                     invert : false
                 }
@@ -786,10 +863,87 @@ mod tests {
             IResult::Done(
                 &b""[..],
                 Pipeline{ 
-                    commands : vec![Command {words : vec![String::from("!ab")]}],
+                    commands : vec![
+                        Command {
+                            words : vec![String::from("!ab")],
+                            mode:PipelineMode::Nothing
+                        }
+                    ],
                     reaction : CommandReaction::Normal,
                     invert : false
                 }
+            )
+        );
+
+    }
+
+    #[test]
+    fn parse_pipeline() {
+        assert_eq!(
+            pipeline_command(b"ab|cd de | de fg"),
+            IResult::Done(
+                &b""[..],
+                Pipeline{ 
+                    commands : vec![
+                        Command {
+                            words : vec![String::from("ab")],
+                            mode:PipelineMode::StdOut
+                        },
+                        Command {
+                            words : vec![String::from("cd"),String::from("de")],
+                            mode:PipelineMode::StdOut
+                        },
+                        Command {
+                            words : vec![String::from("de"),String::from("fg")],
+                            mode:PipelineMode::Nothing
+                        },
+                    ],
+                    reaction : CommandReaction::Normal,
+                    invert : false
+                }
+            )
+        );
+
+        assert_eq!(
+            parse_script(b"ab|cd de || ! de fg | hi\n"),
+            IResult::Done(
+                &b""[..],
+                ParsedCommand::CommandSequence (
+                    vec![
+                    CommandLogic {
+                        pipelines: vec![
+                            Pipeline {
+                                commands : vec![
+                                    Command {
+                                        words : vec![String::from("ab")],
+                                        mode:PipelineMode::StdOut
+                                    },
+                                    Command {
+                                        words : vec![String::from("cd"),String::from("de")],
+                                        mode:PipelineMode::Nothing,
+                                    },
+                                ],
+                                reaction : CommandReaction::Or,
+                                invert : false
+                            },
+                            Pipeline {
+                                commands : vec![
+                                    Command {
+                                        words : vec![String::from("de"),String::from("fg")],
+                                        mode:PipelineMode::StdOut
+                                    },
+                                    Command {
+                                        words : vec![String::from("hi")],
+                                        mode:PipelineMode::Nothing
+                                    },
+                                ],
+                                reaction : CommandReaction::Normal,
+                                invert : true
+                            }
+                        ]
+                    }
+                    ]
+                )
             )
         );
 

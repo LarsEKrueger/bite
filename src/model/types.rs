@@ -52,7 +52,9 @@ pub struct Pipeline {
 /// A command and its parameters
 #[derive(Debug, PartialEq)]
 pub struct Command {
+    /// The words of this command
     pub words: Vec<String>,
+    pub mode: PipelineMode,
 }
 
 /// How to react on the failure of a command
@@ -66,6 +68,21 @@ pub enum CommandReaction {
     And,
     /// Short-cut OR
     Or,
+}
+
+/// How to pipeline
+#[derive(Debug, PartialEq)]
+pub enum PipelineMode {
+    /// Do nothing.
+    ///
+    /// This is used for the last command of a pipeline
+    Nothing,
+
+    /// Only send stdout to the next program
+    StdOut,
+
+    /// Send stdout and stderr to the next program
+    StdOutStdErr,
 }
 
 /// Assignment part of a command
@@ -139,9 +156,9 @@ impl CommandLogic {
 }
 
 impl Pipeline {
-    pub fn new(command: Command) -> Self {
+    pub fn new(commands: Vec<Command>) -> Self {
         Self {
-            commands: vec![command],
+            commands,
             reaction: CommandReaction::Normal,
             invert: false,
         }
@@ -154,7 +171,14 @@ impl Pipeline {
 
 impl Command {
     pub fn new(words: Vec<String>) -> Self {
-        Self { words }
+        Self {
+            words,
+            mode: PipelineMode::Nothing,
+        }
+    }
+
+    pub fn set_pipeline_mode(&mut self, mode: PipelineMode) {
+        self.mode = mode;
     }
 }
 
@@ -167,23 +191,38 @@ mod tests {
     fn sequence() {
         assert_eq!(
             ParsedCommand::new_sequence(
-                vec![CommandLogic::new(vec![
-                                      Pipeline::new(Command::new(vec![String::from("ab")])),
-                                      Pipeline::new(Command::new( vec![String::from("bc")]))
-                ])],
+                vec![CommandLogic::new(
+                    vec![
+                    Pipeline::new(
+                        vec![
+                        Command::new(vec![String::from("ab")])
+                        ]),
+                    Pipeline::new(
+                        vec![
+                        Command::new( vec![String::from("bc")])
+                        ])
+                    ]
+                    )
+                ],
                 Some(CommandReaction::Background)
                 ),
             ParsedCommand::CommandSequence(
                 vec![CommandLogic {
                     pipelines:vec![Pipeline {
                         commands : vec![
-                        Command { words: vec![String::from("ab")] },
+                            Command {
+                                words: vec![String::from("ab")],
+                                mode: PipelineMode::Nothing
+                            },
                         ],
                         reaction: CommandReaction::Normal,
                         invert : false
                     }, Pipeline {
                         commands : vec![
-                        Command { words: vec![String::from("bc")] },
+                            Command {
+                                words: vec![String::from("bc")],
+                                mode: PipelineMode::Nothing
+                             },
                         ],
                         reaction: CommandReaction::Background,
                         invert : false
