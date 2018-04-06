@@ -29,10 +29,6 @@ named!(pub parse_script<ParsedCommand>,
 );
 
 /*
-word_list:	WORD
-	|	word_list WORD
-	;
-
 redirection:	'>' WORD
 	|	'<' WORD
 	|	NUMBER '>' WORD
@@ -117,21 +113,14 @@ named!(pub assignment<super::Assignment>,
 command:	simple_command
 	|	shell_command
 	|	shell_command redirection_list
-	|	function_def
-	|	coproc
 	;
 
 shell_command:	for_command
-	|	case_command
  	|	WHILE compound_list DO compound_list DONE
-	|	UNTIL compound_list DO compound_list DONE
-	|	select_command
 	|	if_command
 	|	subshell
 	|	group_command
-	|	arith_command
 	|	cond_command
-	|	arith_for_command
 	;
 
 for_command:	FOR WORD newline_list DO compound_list DONE
@@ -144,42 +133,7 @@ for_command:	FOR WORD newline_list DO compound_list DONE
 	|	FOR WORD newline_list IN list_terminator newline_list '{' compound_list '}'
 	;
 
-arith_for_command:	FOR ARITH_FOR_EXPRS list_terminator newline_list DO compound_list DONE
-	|		FOR ARITH_FOR_EXPRS list_terminator newline_list '{' compound_list '}'
-	|		FOR ARITH_FOR_EXPRS DO compound_list DONE
-	|		FOR ARITH_FOR_EXPRS '{' compound_list '}'
-	;
-
-select_command:	SELECT WORD newline_list DO list DONE
-	|	SELECT WORD newline_list '{' list '}'
-	|	SELECT WORD ';' newline_list DO list DONE
-	|	SELECT WORD ';' newline_list '{' list '}'
-	|	SELECT WORD newline_list IN word_list list_terminator newline_list DO list DONE
-	|	SELECT WORD newline_list IN word_list list_terminator newline_list '{' list '}'
-	;
-
-case_command:	CASE WORD newline_list IN newline_list ESAC
-	|	CASE WORD newline_list IN case_clause_sequence newline_list ESAC
-	|	CASE WORD newline_list IN case_clause ESAC
-	;
-
-function_def:	WORD '(' ')' newline_list function_body
-	|	FUNCTION WORD '(' ')' newline_list function_body
-	|	FUNCTION WORD newline_list function_body
-	;
-
-function_body:	shell_command
-	|	shell_command redirection_list
-	;
-
 subshell:	'(' compound_list ')'
-	;
-
-coproc:		COPROC shell_command
-	|	COPROC shell_command redirection_list
-	|	COPROC WORD shell_command
-	|	COPROC WORD shell_command redirection_list
-	|	COPROC simple_command
 	;
 
 if_command:	IF compound_list THEN compound_list FI
@@ -191,37 +145,12 @@ if_command:	IF compound_list THEN compound_list FI
 group_command:	'{' compound_list '}'
 	;
 
-arith_command:	ARITH_CMD
-	;
-
 cond_command:	COND_START COND_CMD COND_END
 	;
 
 elif_clause:	ELIF compound_list THEN compound_list
 	|	ELIF compound_list THEN compound_list ELSE compound_list
 	|	ELIF compound_list THEN compound_list elif_clause
-	;
-
-case_clause:	pattern_list
-	|	case_clause_sequence pattern_list
-	;
-
-pattern_list:	newline_list pattern ')' compound_list
-	|	newline_list pattern ')' newline_list
-	|	newline_list '(' pattern ')' compound_list
-	|	newline_list '(' pattern ')' newline_list
-	;
-
-case_clause_sequence:  pattern_list SEMI_SEMI
-	|	case_clause_sequence pattern_list SEMI_SEMI
-	|	pattern_list SEMI_AND
-	|	case_clause_sequence pattern_list SEMI_AND
-	|	pattern_list SEMI_SEMI_AND
-	|	case_clause_sequence pattern_list SEMI_SEMI_AND
-	;
-
-pattern:	WORD
-	|	pattern '|' WORD
 	;
 
 /* A list allows leading or trailing newlines and
@@ -247,17 +176,6 @@ list1:		list1 AND_AND newline_list list1
 	|	list1 ';' newline_list list1
 	|	list1 '\n' newline_list list1
 	|	pipeline_command
-	;
-*/
-
-/*
-list_terminator:'\n'
-	|	';'
-	|	yacc_EOF
-	;
-
-newline_list:
-	|	newline_list '\n'
 	;
 */
 
@@ -486,74 +404,6 @@ timespec:	TIME
 	|	TIME TIMEOPT
 	|	TIME TIMEOPT TIMEIGN
 	;
-
-STRING_INT_ALIST word_token_alist[] = {
-  { "if", IF },
-  { "then", THEN },
-  { "else", ELSE },
-  { "elif", ELIF },
-  { "fi", FI },
-  { "case", CASE },
-  { "esac", ESAC },
-  { "for", FOR },
-#if defined (SELECT_COMMAND)
-  { "select", SELECT },
-#endif
-  { "while", WHILE },
-  { "until", UNTIL },
-  { "do", DO },
-  { "done", DONE },
-  { "in", IN },
-  { "function", FUNCTION },
-#if defined (COMMAND_TIMING)
-  { "time", TIME },
-#endif
-  { "{", '{' },
-  { "}", '}' },
-  { "!", BANG },
-#if defined (COND_COMMAND)
-  { "[[", COND_START },
-  { "]]", COND_END },
-#endif
-#if defined (COPROCESS_SUPPORT)
-  { "coproc", COPROC },
-#endif
-  { (char *)NULL, 0}
-};
-
-STRING_INT_ALIST other_token_alist[] = {
-  { "--", TIMEIGN },
-  { "-p", TIMEOPT },
-  { "&&", AND_AND },
-  { "||", OR_OR },
-  { ">>", GREATER_GREATER },
-  { "<<", LESS_LESS },
-  { "<&", LESS_AND },
-  { ">&", GREATER_AND },
-  { ";;", SEMI_SEMI },
-  { ";&", SEMI_AND },
-  { ";;&", SEMI_SEMI_AND },
-  { "<<-", LESS_LESS_MINUS },
-  { "<<<", LESS_LESS_LESS },
-  { "&>", AND_GREATER },
-  { "&>>", AND_GREATER_GREATER },
-  { "<>", LESS_GREATER },
-  { ">|", GREATER_BAR },
-  { "|&", BAR_AND },
-  { "EOF", yacc_EOF },
-  { ">", '>' },
-  { "<", '<' },
-  { "-", '-' },
-  { "{", '{' },
-  { "}", '}' },
-  { ";", ';' },
-  { "(", '(' },
-  { ")", ')' },
-  { "|", '|' },
-  { "&", '&' },
-  { "newline", '\n' },
-  { (char *)NULL, 0}
-};
 */
 
 named!(pub word<String>,
