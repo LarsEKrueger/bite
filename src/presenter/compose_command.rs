@@ -74,8 +74,8 @@ impl SubPresenter for ComposeCommandPresenter {
         let mut bash = bash.expect(format!("Internal error! {}:{}", file!(), line!()).as_str());
         let cmd = bash.add_line(line_ret.as_str());
         match cmd {
-            Command::Incomplete => self,
-            Command::Error(err) => {
+            ParsedCommand::Incomplete => self,
+            ParsedCommand::Error(err) => {
                 // Parser error. Create a fake interaction with the bad command line and
                 // the error message
                 let mut inter = Interaction::new(line);

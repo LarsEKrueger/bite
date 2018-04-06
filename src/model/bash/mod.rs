@@ -234,7 +234,7 @@ impl Bash {
     /// If the parse was successful and complete, return a command to be executed.
     ///
     /// If the parse failed, indicate so.
-    pub fn add_line(&mut self, l: &str) -> Command {
+    pub fn add_line(&mut self, l: &str) -> ParsedCommand {
         // Append the line to the last one and try to (re-)parse.
         self.line.push_str(l);
 
@@ -243,17 +243,17 @@ impl Bash {
         let command = {
             let bytes = line.as_bytes();
             match script_parser::parse_script(bytes) {
-                IResult::Incomplete(_) => Command::Incomplete,
-                IResult::Error(e) => Command::Error(format_error_message(e, &line)),
+                IResult::Incomplete(_) => ParsedCommand::Incomplete,
+                IResult::Error(e) => ParsedCommand::Error(format_error_message(e, &line)),
                 IResult::Done(_, o) => o,
             }
         };
         match command {
-            Command::Incomplete => {
+            ParsedCommand::Incomplete => {
                 // Put line back
                 self.line = line;
             }
-            Command::Error(_) => {}
+            ParsedCommand::Error(_) => {}
             _ => {}
         }
         command
@@ -302,12 +302,12 @@ impl Bash {
     /// Execute a command.
     ///
     /// Ignore any error cases.
-    pub fn execute(self, cmd: Command) -> ExecutionResult {
+    pub fn execute(self, cmd: ParsedCommand) -> ExecutionResult {
         match cmd {
-            Command::Incomplete |
-            Command::Error(_) => ExecutionResult::Ignore,
-            Command::None => ExecutionResult::Ignore,
-            Command::Expression(exp) => {
+            ParsedCommand::Incomplete |
+            ParsedCommand::Error(_) => ExecutionResult::Ignore,
+            ParsedCommand::None => ExecutionResult::Ignore,
+            ParsedCommand::CommandSequence(exp) => {
                 let (output_tx, output_rx) = channel();
                 let (input_tx, input_rx) = channel();
                 thread::spawn(move || self.run_commands(output_tx, input_rx, exp));

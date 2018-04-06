@@ -20,33 +20,39 @@
 
 /// Command as returned by the bash parser.
 #[derive(Debug, PartialEq)]
-pub enum Command {
+pub enum ParsedCommand {
     /// Parser demands more input
     Incomplete,
     /// Parsing error
     Error(Vec<String>),
     /// No command, e.g. due to empty input
     None,
-    /// Command expression.
+    /// Command sequence.
     ///
-    /// This is always a tree of maximal depth 2. Level 0 corresponds to commands separated by &
-    /// and ;. Level 1 corresponds to commands separated by && and ||. Commands at a level are
-    /// evaluated left to right.
-    Expression(Vec<CommandTerm>),
+    /// This is always a tree of maximal depth 3. Level 0 corresponds to the commands in a
+    /// pipeline. Level 1 corresponds to commands separated by & and ;. Level 2 corresponds to
+    /// commands separated by && and ||. Commands at a level are evaluated left to right.
+    CommandSequence(Vec<CommandLogic>),
 }
 
-/// A list of commands and the reaction to them.
+/// A list of commands as
 #[derive(Debug, PartialEq)]
-pub struct CommandTerm {
-    pub commands: Vec<CommandInfo>,
+pub struct CommandLogic {
+    pub pipelines: Vec<Pipeline>,
 }
 
-/// Command and flags.
+/// A pipeline
 #[derive(Debug, PartialEq)]
-pub struct CommandInfo {
-    pub words: Vec<String>,
+pub struct Pipeline {
+    pub commands: Vec<Command>,
     pub reaction: CommandReaction,
     pub invert: bool,
+}
+
+/// A command and its parameters
+#[derive(Debug, PartialEq)]
+pub struct Command {
+    pub words: Vec<String>,
 }
 
 /// How to react on the failure of a command
@@ -97,19 +103,19 @@ pub enum ExpSpan {
     Glob(String),
 }
 
-impl Command {
-    pub fn new_expression(
-        mut terms: Vec<CommandTerm>,
+impl ParsedCommand {
+    pub fn new_sequence(
+        mut logic: Vec<CommandLogic>,
         last_reaction: Option<CommandReaction>,
     ) -> Self {
         if let Some(last_reaction) = last_reaction {
-            terms.last_mut().map(|ct| {
-                ct.commands.last_mut().map(
-                    |ci| ci.set_reaction(last_reaction),
+            logic.last_mut().map(|exp| {
+                exp.pipelines.last_mut().map(
+                    |pi| pi.set_reaction(last_reaction),
                 )
             });
         };
-        Command::Expression(terms)
+        ParsedCommand::CommandSequence(logic)
     }
 }
 
@@ -119,21 +125,23 @@ impl Assignment {
     }
 }
 
-impl CommandTerm {
-    pub fn new(commands: Vec<CommandInfo>) -> Self {
-        Self { commands }
+impl CommandLogic {
+    pub fn new(pipelines: Vec<Pipeline>) -> Self {
+        Self { pipelines }
     }
 
     //./ Set the reaction of the last CommandInfo.
     pub fn set_reaction(&mut self, reaction: CommandReaction) {
-        self.commands.last_mut().map(|ci| ci.set_reaction(reaction));
+        self.pipelines.last_mut().map(
+            |pi| pi.set_reaction(reaction),
+        );
     }
 }
 
-impl CommandInfo {
-    pub fn new(words: Vec<String>) -> Self {
+impl Pipeline {
+    pub fn new(command: Command) -> Self {
         Self {
-            words,
+            commands: vec![command],
             reaction: CommandReaction::Normal,
             invert: false,
         }
@@ -144,29 +152,39 @@ impl CommandInfo {
     }
 }
 
+impl Command {
+    pub fn new(words: Vec<String>) -> Self {
+        Self { words }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn command_new_expression() {
+    fn sequence() {
         assert_eq!(
-            Command::new_expression(
-                vec![CommandTerm::new(vec![
-                                      CommandInfo::new(vec![String::from("ab")]),
-                                      CommandInfo::new(vec![String::from("bc")])
+            ParsedCommand::new_sequence(
+                vec![CommandLogic::new(vec![
+                                      Pipeline::new(Command::new(vec![String::from("ab")])),
+                                      Pipeline::new(Command::new( vec![String::from("bc")]))
                 ])],
                 Some(CommandReaction::Background)
                 ),
-            Command::Expression(
-                vec![CommandTerm {
-                    commands:vec![CommandInfo {
-                        words: vec![String::from("ab")],
+            ParsedCommand::CommandSequence(
+                vec![CommandLogic {
+                    pipelines:vec![Pipeline {
+                        commands : vec![
+                        Command { words: vec![String::from("ab")] },
+                        ],
                         reaction: CommandReaction::Normal,
                         invert : false
-                    }, CommandInfo {
-                        words: vec![String::from("bc")],
+                    }, Pipeline {
+                        commands : vec![
+                        Command { words: vec![String::from("bc")] },
+                        ],
                         reaction: CommandReaction::Background,
                         invert : false
                     }
@@ -174,5 +192,4 @@ mod tests {
                 }]),
         );
     }
-
 }

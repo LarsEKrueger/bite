@@ -19,12 +19,12 @@
 //! Bash script parser.
 
 use nom::{newline, alpha, IResult, is_alphanumeric, ErrorKind, InputLength, Needed};
-use super::{Command, CommandTerm, CommandInfo, CommandReaction};
+use super::{ParsedCommand, CommandLogic, Command, Pipeline, CommandReaction};
 
-named!(pub parse_script<Command>,
+named!(pub parse_script<ParsedCommand>,
     alt_complete!(
-        map!(preceded!(myspace,newline), |_| Command::None) |
-        terminated!( simple_list, preceded!(myspace,newline))
+        map!(preceded!(myspace,newline), |_| ParsedCommand::None) |
+        terminated!( command_sequence, preceded!(myspace,newline))
         )
 );
 
@@ -94,11 +94,11 @@ redirection_list: redirection
 
 named!(myspace, eat_separator!(&b" \t"[..]));
 
-named!(simple_command<CommandInfo>,
+named!(simple_command<Command>,
     do_parse!(
         myspace >>
         words : many1!(terminated!(word,myspace)) >>
-        (CommandInfo::new ( words ) )
+        (Command::new ( words ) )
     )
 );
 
@@ -379,22 +379,22 @@ macro_rules! separated_list_map(
 /// expression tree.
 ///
 /// The last CommandInfo can have an additional ; or &, but not an && or ||
-named!(simple_list<Command>,
+named!(command_sequence<ParsedCommand>,
        // This expressions of lower precedence: ; and &
        do_parse!(
-           cts : separated_list_map!(simple_list_sep, updateReaction, simple_list_hi) >>
-           cr : opt!(simple_list_sep) >>
-           ( Command::new_expression(cts,cr))
+           seq : separated_list_map!(command_sequence_sep, updateReaction, command_logic) >>
+           cr : opt!(command_sequence_sep) >>
+           ( ParsedCommand::new_sequence(seq,cr))
            )
       );
 
 /// Helper to set the CommandReaction of the last entry
-fn updateReaction(cis: &mut Vec<CommandTerm>, cr: CommandReaction) {
+fn updateReaction(cis: &mut Vec<CommandLogic>, cr: CommandReaction) {
     cis.last_mut().map(|ci| ci.set_reaction(cr));
 }
 
 /// Separator for simple_list, i.e. & and ;
-named!(simple_list_sep<CommandReaction>,
+named!(command_sequence_sep<CommandReaction>,
        alt_complete!(
            map!(tag!(";"), |_| CommandReaction::Normal) |
            map!(tag!("&"), |_| CommandReaction::Background)
@@ -402,42 +402,42 @@ named!(simple_list_sep<CommandReaction>,
       );
 
 /// Helper parser to ensure precedence of && and || over & and ;
-named!(simple_list_hi<CommandTerm>,
+named!(command_logic<CommandLogic>,
        // This expression has higher precedence: && and ||
        map!(
-           separated_list_map!(simple_list_sep_hi, updateReaction_hi, pipeline_command),
-           CommandTerm::new
+           separated_list_map!(command_logic_sep, updateReaction_cl, pipeline_command),
+           CommandLogic::new
            )
       );
 
 /// Helper to set the CommandReaction of the last entry
-fn updateReaction_hi(cis: &mut Vec<CommandInfo>, cr: CommandReaction) {
+fn updateReaction_cl(cis: &mut Vec<Pipeline>, cr: CommandReaction) {
     cis.last_mut().map(|ci| ci.set_reaction(cr));
 }
 
-/// Separator for simple_list_hi, i.e. && and ||
-named!(simple_list_sep_hi<CommandReaction>,
+/// Separator for command_logic, i.e. && and ||
+named!(command_logic_sep<CommandReaction>,
        alt_complete!(
            map!(tag!("&&"), |_| CommandReaction::And) |
            map!(tag!("||"), |_| CommandReaction::Or)
            )
       );
 
-named!(pipeline_command<CommandInfo>,
+named!(pipeline_command<Pipeline>,
        alt!(
            do_parse!(
                tag!("!") >>
                many1!(one_of!(" \t")) >>
                ci : pipeline_command >>
                (
-                   CommandInfo {
-                       words : ci.words,
+                   Pipeline{
+                       commands : ci.commands,
                        reaction : ci.reaction,
                        invert : true ^ ci.invert
                    }
                )
                )
-           | simple_command
+           | map!(simple_command, Pipeline::new)
            )
       );
 /*
@@ -587,7 +587,7 @@ mod tests {
             simple_command(b"ab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                CommandInfo::new(vec![
+                Command::new(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -599,7 +599,7 @@ mod tests {
             simple_command(b" \tab bc   cd \t\tde"),
             IResult::Done(
                 &b""[..],
-                CommandInfo::new(vec![
+                Command::new(vec![
                     String::from("ab"),
                     String::from("bc"),
                     String::from("cd"),
@@ -621,12 +621,24 @@ mod tests {
             parse_script(b" ab bc   cd \t\tde\n"),
             IResult::Done(
                 &b""[..],
-                Command::Expression(vec![CommandTerm::new(vec![CommandInfo::new(vec![
-                    String::from("ab"),
-                    String::from("bc"),
-                    String::from("cd"),
-                    String::from("de"),
-                ])])])
+                ParsedCommand::CommandSequence(
+                    vec![
+                    CommandLogic::new(
+                        vec![
+                        Pipeline::new(
+                            Command::new(
+                                vec![
+                                String::from("ab"),
+                                String::from("bc"),
+                                String::from("cd"),
+                                String::from("de"),
+                                ]
+                                )
+                            )
+                        ]
+                        )
+                    ]
+                    )
             )
         );
 
@@ -634,17 +646,17 @@ mod tests {
             parse_script(b" \t \t\t\n"),
             IResult::Done(
                 &b""[..],
-                Command::None
+                ParsedCommand::None
             )
         );
     }
 
     #[test]
-    fn parse_simple_list_hi() {
+    fn parse_command_logic() {
 
-        fn test_ci_new(word: &str, cr: CommandReaction) -> CommandInfo {
-            CommandInfo {
-                words: vec![String::from(word)],
+        fn test_cmd_new(word: &str, cr: CommandReaction) -> Pipeline {
+            Pipeline {
+                commands: vec![ Command { words: vec![String::from(word)] } ],
                 reaction: cr,
                 invert: false,
             }
@@ -654,11 +666,11 @@ mod tests {
             parse_script(b"ab&&bc||cd\n"),
             IResult::Done(
                 &b""[..],
-                Command::Expression(vec![CommandTerm::new(
+                ParsedCommand::CommandSequence(vec![CommandLogic::new(
                         vec![
-                        test_ci_new("ab",CommandReaction::And),
-                        test_ci_new("bc",CommandReaction::Or),
-                        test_ci_new("cd",CommandReaction::Normal)
+                        test_cmd_new("ab",CommandReaction::And),
+                        test_cmd_new("bc",CommandReaction::Or),
+                        test_cmd_new("cd",CommandReaction::Normal)
                         ])])
             )
         );
@@ -667,11 +679,13 @@ mod tests {
 
     #[test]
     fn parse_simple_list_lo() {
-        fn test_ct_new(word: &str, cr: CommandReaction) -> CommandTerm {
-            CommandTerm {
-                commands: vec![
-                    CommandInfo {
-                        words: vec![String::from(word)],
+        fn test_ct_new(word: &str, cr: CommandReaction) -> CommandLogic {
+            CommandLogic {
+                pipelines: vec![
+                    Pipeline {
+                        commands: vec![
+                            Command { words: vec![String::from(word)],
+                            }],
                         reaction: cr,
                         invert : false
                     }
@@ -682,7 +696,7 @@ mod tests {
             parse_script(b"ab;bc&cd\n"),
             IResult::Done(
                 &b""[..],
-                Command::Expression(vec![
+                ParsedCommand::CommandSequence(vec![
                         test_ct_new("ab",CommandReaction::Normal),
                         test_ct_new("bc",CommandReaction::Background),
                         test_ct_new("cd",CommandReaction::Normal)
@@ -693,7 +707,7 @@ mod tests {
             parse_script(b"ab;\n"),
             IResult::Done(
                 &b""[..],
-                Command::Expression(vec![
+                ParsedCommand::CommandSequence(vec![
                         test_ct_new("ab",CommandReaction::Normal),
                         ])
             )
@@ -702,7 +716,7 @@ mod tests {
             parse_script(b"ab;bc&cd&\n"),
             IResult::Done(
                 &b""[..],
-                Command::Expression(vec![
+                ParsedCommand::CommandSequence(vec![
                         test_ct_new("ab",CommandReaction::Normal),
                         test_ct_new("bc",CommandReaction::Background),
                         test_ct_new("cd",CommandReaction::Background)
@@ -715,25 +729,27 @@ mod tests {
             parse_script(b"ab && bc & cd&\n"),
             IResult::Done(
                 &b""[..],
-                Command::Expression(vec![
-                                    CommandTerm {
-                                        commands: vec![
-                                            CommandInfo {
-                                                words: vec![String::from("ab")],
-                                                reaction:CommandReaction::And,
-                                                invert : false
-                                            },
-                                            CommandInfo {
-                                                words: vec![String::from("bc")],
-                                                reaction:CommandReaction::Background,
-                                                invert : false
-                                            }
-                                        ],
-                                    },
-                                    test_ct_new("cd",CommandReaction::Background)
-                        ])
-            )
-        );
+                ParsedCommand::CommandSequence(
+                    vec![
+                    CommandLogic {
+                        pipelines : vec![
+                            Pipeline {
+                                commands: vec![ Command{ words: vec![String::from("ab")]}],
+                                reaction:CommandReaction::And,
+                                invert : false
+                            },
+                            Pipeline {
+                                commands: vec![ Command { words: vec![String::from("bc")]}],
+                                reaction:CommandReaction::Background,
+                                invert : false
+                            }
+                        ],
+                    },
+                    test_ct_new("cd",CommandReaction::Background)
+                    ]
+                    )
+                    )
+                    );
 
         /// Parsing errors
         assert_eq!( parse_script(b"ab ; && bc\n"),
@@ -747,8 +763,8 @@ mod tests {
             pipeline_command(b"! ab"),
             IResult::Done(
                 &b""[..],
-                CommandInfo{ 
-                    words : vec![String::from("ab")],
+                Pipeline { 
+                    commands : vec![Command { words : vec![String::from("ab")]}],
                     reaction : CommandReaction::Normal,
                     invert : true
                 }
@@ -758,8 +774,8 @@ mod tests {
             pipeline_command(b"! ! ab"),
             IResult::Done(
                 &b""[..],
-                CommandInfo{ 
-                    words : vec![String::from("ab")],
+                Pipeline{ 
+                    commands : vec![Command {words : vec![String::from("ab")]}],
                     reaction : CommandReaction::Normal,
                     invert : false
                 }
@@ -769,8 +785,8 @@ mod tests {
             pipeline_command(b"!ab"),
             IResult::Done(
                 &b""[..],
-                CommandInfo{ 
-                    words : vec![String::from("!ab")],
+                Pipeline{ 
+                    commands : vec![Command {words : vec![String::from("!ab")]}],
                     reaction : CommandReaction::Normal,
                     invert : false
                 }

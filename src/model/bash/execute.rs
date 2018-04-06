@@ -71,31 +71,34 @@ impl Bash {
         mut self,
         mut output_tx: Sender<CommandOutput>,
         mut input_rx: Receiver<String>,
-        terms: Vec<CommandTerm>,
+        terms: Vec<CommandLogic>,
     ) {
         let mut ret_code = ExitStatus::from_raw(0);
         for term in terms {
-            for cmd in term.commands {
-                match self.run_command(&mut output_tx, &mut input_rx, cmd.words) {
-                    Ok(rc) => {
-                        ret_code = rc;
-                    }
-                    Err(e) => {
-                        e.send(&mut output_tx, "");
+            for pipe in term.pipelines {
+                // TODO: build pipeline
+                for cmd in pipe.commands {
+                    match self.run_command(&mut output_tx, &mut input_rx, cmd.words) {
+                        Ok(rc) => {
+                            ret_code = rc;
+                        }
+                        Err(e) => {
+                            e.send(&mut output_tx, "");
+                        }
                     }
                 }
-                match cmd.reaction {
+                match pipe.reaction {
                     CommandReaction::Normal |
                     CommandReaction::Background => {
                         // TODO: Handle backgrounding
                     }
                     CommandReaction::And => {
-                        if !(cmd.invert ^ ret_code.success()) {
+                        if !(pipe.invert ^ ret_code.success()) {
                             break;
                         }
                     }
                     CommandReaction::Or => {
-                        if cmd.invert ^ ret_code.success() {
+                        if pipe.invert ^ ret_code.success() {
                             break;
                         }
                     }
