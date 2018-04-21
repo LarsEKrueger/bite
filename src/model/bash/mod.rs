@@ -33,6 +33,8 @@ use std::collections::HashMap;
 use libc::{c_char, gethostname, gid_t, uid_t};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::process::ExitStatus;
+use std::sync::{Arc, Mutex};
+use std::os::unix::io::RawFd;
 
 pub mod script_parser;
 pub mod expansion_parser;
@@ -81,7 +83,7 @@ pub enum ExecutionResult {
 }
 
 /// Function for builtin commands
-type BuiltinRunner = fn(&mut Bash, &mut Sender<execute::CommandOutput>, Vec<String>) -> ExitStatus;
+type BuiltinRunner = fn(Arc<Mutex<Bash>>, RawFd, RawFd, RawFd, Vec<String>);
 
 /// Complete interpreter state.
 pub struct Bash {
@@ -310,20 +312,10 @@ impl Bash {
             ParsedCommand::CommandSequence(exp) => {
                 let (output_tx, output_rx) = channel();
                 let (input_tx, input_rx) = channel();
-                thread::spawn(move || self.run_commands(output_tx, input_rx, exp));
+                thread::spawn(move || self.run_command_sequence(output_tx, input_rx, exp));
                 ExecutionResult::Spawned((input_tx, output_rx))
             }
         }
-    }
-
-    /// Run a builtin command and retrieve its output and error lines
-    fn run_builtin(
-        &mut self,
-        runner: BuiltinRunner,
-        output_tx: &mut Sender<execute::CommandOutput>,
-        ps: Vec<String>,
-    ) -> ExitStatus {
-        runner(self, output_tx, ps)
     }
 
     /// Assign variables in global context

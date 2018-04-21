@@ -49,6 +49,8 @@ extern crate bincode;
 
 extern crate glob;
 
+extern crate nix;
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;

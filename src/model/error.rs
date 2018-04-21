@@ -36,6 +36,12 @@ pub enum Error {
     /// Could not start a program.
     CouldNotStartProgram(String),
 
+    /// Could not create pipe
+    CouldNotCreatePipe(String),
+
+    /// Could not lock a mutex
+    CouldNotLock(String),
+
     /// This is probably an implementation bug.
     InternalError(&'static str, u32, String),
 }
@@ -47,7 +53,7 @@ impl Error {
         String::from(self.cause("", suffix))
     }
 
-    fn cause(self, prefix: &str, suffix: &str) -> String {
+    pub fn cause(self, prefix: &str, suffix: &str) -> String {
         match self {
             Error::VariableIsReadOnly(name) => {
                 format!(
@@ -71,6 +77,17 @@ impl Error {
             Error::IllegalGlob(msg) => format!("{}illegal pattern '{}' {}", prefix, msg, suffix),
             Error::CouldNotStartProgram(msg) => {
                 format!("{}could not start program {} {}", prefix, msg, suffix)
+            }
+            Error::CouldNotCreatePipe(msg) => {
+                format!("{}could not create pipe {} {}", prefix, msg, suffix)
+            }
+            Error::CouldNotLock(msg) => {
+                format!(
+                    "{}could not get exclusive access to internal state {} {}",
+                    prefix,
+                    msg,
+                    suffix
+                )
             }
             Error::InternalError(file, line, msg) => {
                 format!(

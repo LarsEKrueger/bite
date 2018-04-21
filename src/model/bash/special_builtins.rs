@@ -18,32 +18,81 @@
 
 //! Special builtin runnemutrs
 
-use std::sync::mpsc::Sender;
-use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
+use std::sync::{Arc, Mutex};
+use std::os::unix::io::{FromRawFd, RawFd};
+use std::fs::File;
 
 use argparse::{ArgumentParser, StoreTrue, List};
 use super::*;
-use super::execute::*;
 use super::script_parser;
+
+
+/// Lock the mutex and run a function with error handling
+fn do_with_lock<T, F>(thing: &mut Arc<Mutex<T>>, stderr: &mut File, fun: F)
+where
+    F: FnOnce(&mut T),
+{
+    match thing.lock() {
+        Err(e) => {
+            use std::io::Write;
+            use std::error::Error;
+            write!(
+                stderr,
+                "{}\n",
+                self::Error::InternalError(file!(), line!(), e.description().to_string())
+                    .cause("export: ", "")
+            ).unwrap();
+        }
+        Ok(ref mut inner) => fun(inner),
+    }
+}
+
+/// Lock the mutex and run a function with double error handling
+fn do_with_lock_err<T, F>(thing: &mut Arc<Mutex<T>>, stderr: &mut File, prefix: &str, fun: F)
+where
+    F: FnOnce(&mut T) -> Result<()>,
+{
+    match thing.lock() {
+        Err(e) => {
+            use std::io::Write;
+            use std::error::Error;
+            write!(
+                stderr,
+                "{}\n",
+                self::Error::InternalError(file!(), line!(), e.description().to_string())
+                    .cause("export: ", "")
+            ).unwrap();
+        }
+        Ok(ref mut inner) => {
+            fun(inner).map_err(|e| {
+                use std::io::Write;
+                write!(stderr, "{}", e.cause(prefix, "")).unwrap();
+            });
+        }
+    }
+}
+
 
 /// Runner function for export special builtin
 ///
 /// export [-fn] [-p] [name[=value]]
 pub fn export_runner(
-    bash: &mut Bash,
-    output_tx: &mut Sender<CommandOutput>,
+    mut bash: Arc<Mutex<Bash>>,
+    stdin: RawFd,
+    stdout: RawFd,
+    stderr: RawFd,
     words: Vec<String>,
-) -> ExitStatus {
+) {
     let mut negat = false;
     let mut funct = false;
     let mut print = false;
 
-    let mut assignments: Vec<String> = vec![];
-    let mut output = vec![];
-    let mut errors = vec![];
+    let _stdin = unsafe { File::from_raw_fd(stdin) };
+    let mut stdout = unsafe { File::from_raw_fd(stdout) };
+    let mut stderr = unsafe { File::from_raw_fd(stderr) };
 
-    let mut ret_code = ExitStatus::from_raw(0);
+    let mut assignments: Vec<String> = vec![];
+
     if let Ok(()) = {
         let mut ap = ArgumentParser::new();
         ap.set_description("export - builtin");
@@ -65,16 +114,22 @@ pub fn export_runner(
             "Names",
         );
 
-        ap.parse(words, &mut output, &mut errors)
+        ap.parse(words, &mut stdout, &mut stderr)
     } {
         if !negat && !funct && assignments.is_empty() {
             print = true;
         }
         if print {
-            for (name,variable) in bash.variables.iter()
-                .filter(|&(_,ref v)| v.is_exported()) {
-                    variable.print_for_builtins(name,&mut output)
-                }
+            do_with_lock(
+                &mut bash,
+                &mut stderr,
+                |bash|
+                {
+                    for (name,variable) in bash.variables.iter()
+                        .filter(|&(_,ref v)| v.is_exported()) {
+                            variable.print_for_builtins(name,&mut stdout)
+                        }
+                });
         }
         else {
             for assignment in assignments {
@@ -82,40 +137,25 @@ pub fn export_runner(
                     script_parser::assignment_or_name(assignment.as_bytes()) {
                         let name = String::from_utf8_lossy(name);
                         if rest.is_empty() {
-                            match bash.variables.find_variable_or_create_global( &name) {
-                                Ok(variable) => {
-                                    variable.set_exported(!negat);
-                                    if let Some(value) = maybe_value {
-                                        variable.set_value(&value);
-                                    }
+                            do_with_lock_err(
+                                &mut bash,
+                                &mut stderr,
+                                "export: ",
+                                |bash| {
+                                    bash.variables.find_variable_or_create_global( &name).map(
+                                        |variable| {
+                                            variable.set_exported(!negat);
+                                            if let Some(value) = maybe_value {
+                                                variable.set_value(&value);
+                                            }
+                                        })
                                 }
-                                Err(e) => {
-                                    use std::io::Write;
-                                    write!(&mut output, "export: {}", e.readable("")).unwrap();
-                                    ret_code=ExitStatus::from_raw(1);
-                                }
-                            }
+                                );
                         }
                     }
             }
         }
     };
-
-    for l in String::from_utf8_lossy(&output[..])
-        .lines()
-        .map(String::from)
-        .map(CommandOutput::FromOutput)
-    {
-        output_tx.send(l).unwrap();
-    }
-    for l in String::from_utf8_lossy(&errors[..])
-        .lines()
-        .map(String::from)
-        .map(CommandOutput::FromError)
-    {
-        output_tx.send(l).unwrap();
-    }
-    ret_code
 }
 
 /// Runner function for readonly special builtin
@@ -124,19 +164,22 @@ pub fn export_runner(
 ///
 /// readonly [-aAf] [-p] [name[=value]]
 pub fn readonly_runner(
-    bash: &mut Bash,
-    output_tx: &mut Sender<CommandOutput>,
+    mut bash: Arc<Mutex<Bash>>,
+    stdin: RawFd,
+    stdout: RawFd,
+    stderr: RawFd,
     words: Vec<String>,
-) -> ExitStatus {
+) {
     let mut array = false;
     let mut assoc = false;
     let mut funct = false;
     let mut print = false;
     let mut assignments: Vec<String> = vec![];
-    let mut output = vec![];
-    let mut errors = vec![];
 
-    let mut ret_code = ExitStatus::from_raw(0);
+    let _stdin = unsafe { File::from_raw_fd(stdin) };
+    let mut stdout = unsafe { File::from_raw_fd(stdout) };
+    let mut stderr = unsafe { File::from_raw_fd(stderr) };
+
     if let Ok(()) = {
         let mut ap = ArgumentParser::new();
         ap.set_description("readonly - builtin");
@@ -163,16 +206,21 @@ pub fn readonly_runner(
             "Names",
         );
 
-        ap.parse(words, &mut output, &mut errors)
+        ap.parse(words, &mut stdout, &mut stderr)
     } {
         if !array && !assoc && !funct && assignments.is_empty() {
             print = true;
         }
         if print {
-            for (name,variable) in bash.variables.iter()
+            do_with_lock(
+                &mut bash,
+                &mut stderr,
+                |bash|
+                for (name,variable) in bash.variables.iter()
                 .filter(|&(_,ref v)| v.is_readonly()) {
-                    variable.print_for_builtins(name,&mut output)
+                    variable.print_for_builtins(name,&mut stdout)
                 }
+                );
         }
         else {
             for assignment in assignments {
@@ -180,37 +228,27 @@ pub fn readonly_runner(
                     script_parser::assignment_or_name(assignment.as_bytes()) {
                         let name = String::from_utf8_lossy(name);
                         if rest.is_empty() {
-                            match bash.variables.find_variable_or_create_global( &name) {
-                                Ok(variable) => {
-                                    variable.set_readonly(true);
-                                    if let Some(value) = maybe_value {
-                                        variable.set_value(&value);
+                            do_with_lock(
+                                &mut bash,
+                                &mut stderr,
+                                |bash|
+                                match bash.variables.find_variable_or_create_global( &name) {
+                                    Ok(variable) => {
+                                        variable.set_readonly(true);
+                                        if let Some(value) = maybe_value {
+                                            variable.set_value(&value);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        use std::io::Write;
+                                        write!(&mut stdout,
+                                               "readonly: {}", e.readable("")).unwrap();
                                     }
                                 }
-                                Err(e) => {
-                                    use std::io::Write;
-                                    write!(&mut output, "readonly: {}", e.readable("")).unwrap();
-ret_code = ExitStatus::from_raw(1);
-                                }
-                            }
+                                );
                         }
                     }
             }
         }
     };
-    for l in String::from_utf8_lossy(&output[..])
-        .lines()
-        .map(String::from)
-        .map(CommandOutput::FromOutput)
-    {
-        output_tx.send(l).unwrap();
-    }
-    for l in String::from_utf8_lossy(&errors[..])
-        .lines()
-        .map(String::from)
-        .map(CommandOutput::FromError)
-    {
-        output_tx.send(l).unwrap();
-    }
-    ret_code
 }

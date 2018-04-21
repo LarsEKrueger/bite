@@ -534,7 +534,8 @@ mod tests {
 
         fn test_cmd_new(word: &str, cr: CommandReaction) -> Pipeline {
             Pipeline {
-                commands: vec![ Command { words: vec![String::from(word)] , mode : PipelineMode::Nothing} ],
+                commands: vec![ Command { words: vec![String::from(word)],
+                mode : PipelineMode::Nothing} ],
                 reaction: cr,
                 invert: false,
             }
@@ -696,7 +697,7 @@ mod tests {
             pipeline_command(b"! ! ab"),
             IResult::Done(
                 &b""[..],
-                Pipeline{ 
+                Pipeline{
                     commands : vec![
                         Command {
                             words : vec![String::from("ab")],
@@ -712,7 +713,7 @@ mod tests {
             pipeline_command(b"!ab"),
             IResult::Done(
                 &b""[..],
-                Pipeline{ 
+                Pipeline{
                     commands : vec![
                         Command {
                             words : vec![String::from("!ab")],
@@ -733,7 +734,7 @@ mod tests {
             pipeline_command(b"ab|cd de | de fg"),
             IResult::Done(
                 &b""[..],
-                Pipeline{ 
+                Pipeline{
                     commands : vec![
                         Command {
                             words : vec![String::from("ab")],
