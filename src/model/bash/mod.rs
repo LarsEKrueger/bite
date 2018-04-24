@@ -83,7 +83,7 @@ pub enum ExecutionResult {
 }
 
 /// Function for builtin commands
-type BuiltinRunner = fn(Arc<Mutex<Bash>>, RawFd, RawFd, RawFd, Vec<String>);
+type BuiltinRunner = fn(Arc<Mutex<Bash>>, RawFd, RawFd, RawFd, Vec<String>) -> ExitStatus;
 
 /// Complete interpreter state.
 pub struct Bash {

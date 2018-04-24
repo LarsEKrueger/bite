@@ -25,17 +25,17 @@
 
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{Ordering, AtomicBool};
 use std::time::Duration;
 use std::process as spr;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::{FromRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
-use std::io::{Read, Write};
 use std::error::Error;
 use std::thread::JoinHandle;
-use std::collections::HashSet;
 
-use libc::{fd_set, select, timeval, FD_ISSET, FD_SET, FD_ZERO};
-use nix::unistd::{pipe, dup};
+use nix::unistd::{pipe, dup, read, write};
+use nix::sys::select::{FdSet, select};
+use nix::sys::time::{TimeVal, TimeValLike};
 
 use tools::polling;
 use super::*;
@@ -55,14 +55,11 @@ pub enum CommandOutput {
 
 
 /// Read a line from a pipe and report if it worked.
-fn read_line<T>(pipe: &mut T) -> Option<String>
-where
-    T: Read,
-{
+fn read_line(fd: RawFd) -> Option<String> {
     // Convert complete line as lossy UTF-8
     let mut one = [b' '; 1];
     let mut line = vec![];
-    while let Ok(1) = pipe.read(&mut one) {
+    while let Ok(1) = read(fd, &mut one) {
         if one[0] == b'\n' {
             return Some(String::from(String::from_utf8_lossy(&line[..])));
         }
@@ -73,18 +70,33 @@ where
 
 /// Things to wait for in run_pipeline
 enum WaitFor {
-    Builtin(JoinHandle<()>, Option<RawFd>),
+    /// A builtin function is executed in a thread
+    ///
+    /// (thread, running, is_last, reader)
+    Builtin(JoinHandle<ExitStatus>, Arc<AtomicBool>, bool, Option<RawFd>),
+
+    /// An external command
+    ///
+    /// (child, is_last, reader)
     Command(spr::Child, bool, Option<RawFd>),
 }
 
 
-#[derive(PartialEq, Eq, Hash)]
-struct CloseMe(RawFd);
+struct CloseMe(RawFd, bool);
 
 impl Drop for CloseMe {
     fn drop(self: &mut CloseMe) {
-        let _ = ::nix::unistd::close(self.0);
+        if self.1 {
+            let _ = ::nix::unistd::close(self.0);
+        }
     }
+}
+
+fn remove_handle(to_close: &mut Vec<CloseMe>, h: RawFd) {
+    to_close.iter_mut().find(|hi| hi.0 == h).map(
+        |cm| cm.1 = false,
+    );
+    to_close.retain(|hi| hi.0 != h);
 }
 
 impl Bash {
@@ -135,8 +147,8 @@ impl Bash {
     /// This method can block until the last command in the pipeline finished.
     fn run_pipeline(
         bash: Arc<Mutex<Bash>>,
-        _output_tx: &mut Sender<CommandOutput>,
-        _input_rx: &mut Receiver<String>,
+        output_tx: &mut Sender<CommandOutput>,
+        input_rx: &mut Receiver<String>,
         pipeline: &Pipeline,
     ) -> Result<ExitStatus> {
         // Algo
@@ -151,123 +163,33 @@ impl Bash {
         })?;
 
         // pipes we need to close on error.
-        let mut to_close = HashSet::new();
-        to_close.insert(CloseMe(pipe_stdin.0));
-        to_close.insert(CloseMe(pipe_stdin.1));
+        let mut to_close = Vec::new();
+        to_close.push(CloseMe(pipe_stdin.0, true));
+        to_close.push(CloseMe(pipe_stdin.1, true));
 
         // Build the pipe handles
-        let handles = {
-            let bash = bash.lock().map_err(|e| {
-                BashError::CouldNotLock(e.description().to_string())
-            })?;
-            bash.build_handles(&mut to_close, &pipeline.commands)?
-        };
-
+        let handles = Bash::build_handles(&mut to_close, &pipeline.commands)?;
         debug_assert!(handles.len() == pipeline.commands.len());
 
-        // Array of things to wait for (threads and commands).
-        let mut wait_for = Vec::new();
-
-        let exit_status = Ok(ExitStatus::from_raw(0));
-
-        // Start a thread for builtins or a command if not.
-        for cmd_ind in 0..handles.len() {
-            let is_last = cmd_ind + 1 == handles.len();
-            let words = &pipeline.commands[cmd_ind].words;
-
-            let (assignments, words) = {
-                let bash = bash.lock().map_err(|e| {
-                    BashError::CouldNotLock(e.description().to_string())
-                })?;
-                let words = bash.expand_word_list(&words)?;
-                bash.separate_out_assignments(words)
-            };
-
-            // There are three cases:
-            // 1. Assignments only. Do the assignments and close the handles. This is possible as
-            //    the assignment operation will never print anything. The bash instance must be
-            //    protected with a mutex as other commands in the pipeline could change variables
-            //    as well.
-            // 2. Builtin. Do the assignment, then run the builtin in a separate thread. The
-            //    builtin will close its handles at the end, just as command would do.
-            // 3. Command. Start the command and give it its handles. If that worked, add it to the
-            //    list of things to wait for.
-
-            // If there is no command, perform the assignments to global variables. If not,
-            // perform them to temporary context, execute and drop the temporary context.
-            if words.is_empty() {
-                // Case 1: Simple assignment.
-                // If we can't get the mutex, tell the user why and skip assignment.
-                bash.lock()
-                    .map_err(|e| BashError::CouldNotLock(e.description().to_string()))
-                    .map(|mut bash| bash.assign_to_global_context(assignments))?;
-            } else {
-                {
-                    let mut bash = bash.lock().map_err(|e| {
-                        BashError::CouldNotLock(e.description().to_string())
-                    })?;
-                    bash.assign_to_temp_context(assignments)?;
-                }
-
-                // Check if this a special builtin command
-                if let Some(builtin) = SPECIAL_BUILTINS.get(words[0].as_str()) {
-                    // Case 2: Buildin. Run in thread and let it close the handles.
-                    let bmc = bash.clone();
-                    let stdin = handles[cmd_ind].0;
-                    let stdout = handles[cmd_ind].1;
-                    let stderr = handles[cmd_ind].2;
-                    let reader = handles[cmd_ind].3;
-                    wait_for.push(WaitFor::Builtin(
-                        ::std::thread::spawn(
-                            move || builtin(bmc, stdin, stdout, stderr, words),
-                        ),
-                        reader,
-                    ));
-                    to_close.remove(&CloseMe(stdin));
-                    to_close.remove(&CloseMe(stdout));
-                    to_close.remove(&CloseMe(stderr));
-
-                    reader.map(|fd| to_close.remove(&CloseMe(fd)));
-                } else {
-                    // Case 3: Command.
-                    {
-                        let bash = bash.lock().map_err(|e| {
-                            BashError::CouldNotLock(e.description().to_string())
-                        })?;
-
-                        // TODO: Handles
-                        spr::Command::new(&words[0])
-                            .args(&words[1..])
-                            .env_clear()
-                            .envs(bash.variables.iter_exported())
-                            .stdin(spr::Stdio::piped())
-                            .stdout(spr::Stdio::piped())
-                            .stderr(spr::Stdio::piped())
-                            .spawn()
-                            .map_err(|e| {
-                                BashError::CouldNotStartProgram(e.description().to_string())
-                            })
-                            .map(|child| {
-                                wait_for.push(WaitFor::Command(child, is_last, handles[cmd_ind].3))
-                            })?;
-                    }
-                }
-
-            }
-            {
-                let mut bash = bash.lock().map_err(|e| {
-                    BashError::CouldNotLock(e.description().to_string())
-                })?;
-                bash.drop_temp_context();
-            }
-        }
+        let wait_for = Bash::start_commands(
+            bash,
+            &mut to_close,
+            &pipeline.commands,
+            pipe_stdin.1,
+            &handles,
+        )?;
 
         // Read from all stderrs and the last stdout as well as write to the
         // first stdin.
-
-        // TODO
-
-        exit_status
+        debug_assert!(handles.len() != 0);
+        Ok(Bash::wait_for_commands(
+            wait_for,
+            output_tx,
+            input_rx,
+            pipe_stdin.0,
+            handles.last().unwrap().1,
+            handles,
+        ))
     }
 
     /// Build the pipeline handles to connect the programs.
@@ -278,10 +200,9 @@ impl Bash {
     ///   stderr handle for command,
     ///   stderr handle for thread if exists)
     fn build_handles(
-        &self,
-        to_close: &mut HashSet<CloseMe>,
+        to_close: &mut Vec<CloseMe>,
         commands: &Vec<self::Command>,
-    ) -> Result<(Vec<(RawFd, RawFd, RawFd, Option<RawFd>)>)> {
+    ) -> Result<Vec<(RawFd, RawFd, RawFd, Option<RawFd>)>> {
         let mut handles = Vec::new();
         for cmd in commands {
             let h = match cmd.mode {
@@ -306,108 +227,261 @@ impl Bash {
                     (cmd_stdout.0, cmd_stdout.1, cmd_stderr, None)
                 }
             };
-            to_close.insert(CloseMe(h.0));
-            to_close.insert(CloseMe(h.1));
-            to_close.insert(CloseMe(h.2));
-            h.3.map(|fd| to_close.insert(CloseMe(fd)));
+            to_close.push(CloseMe(h.0, true));
+            to_close.push(CloseMe(h.1, true));
+            to_close.push(CloseMe(h.2, true));
+            h.3.map(|fd| to_close.push(CloseMe(fd, true)));
             handles.push(h);
         }
         Ok(handles)
     }
 
-    fn wait_for_command(
-        mut child: spr::Child,
+    fn start_commands(
+        bash: Arc<Mutex<Bash>>,
+        to_close: &mut Vec<CloseMe>,
+        commands: &Vec<self::Command>,
+        last_stdout: RawFd,
+        handles: &Vec<(RawFd, RawFd, RawFd, Option<RawFd>)>,
+    ) -> Result<Vec<WaitFor>> {
+        // TODO: Link last_stdout
+
+        // Array of things to wait for (threads and commands).
+        let mut wait_for = Vec::new();
+
+        // Start a thread for builtins or a command if not.
+        for cmd_ind in 0..handles.len() {
+            let is_last = cmd_ind + 1 == handles.len();
+            let words = &commands[cmd_ind].words;
+
+            let stdin = handles[cmd_ind].0;
+            let stdout = handles[cmd_ind].1;
+            let stderr = handles[cmd_ind].2;
+            let reader = handles[cmd_ind].3;
+
+            let (assignments, words) = {
+                let bash = bash.lock().map_err(|e| {
+                    BashError::CouldNotLock(e.description().to_string())
+                })?;
+                let words = bash.expand_word_list(&words)?;
+                bash.separate_out_assignments(words)
+            };
+
+            // There are three cases:
+            // 1. Assignments only. Do the assignments and close the handles. This is possible as
+            //    the assignment operation will never print anything. The bash instance must be
+            //    protected with a mutex as other commands in the pipeline could change variables
+            //    as well.
+            // 2. Builtin. Do the assignment, then run the builtin in a separate thread. The
+            //    builtin will close its handles at the end, just as command would do.
+            // 3. Command. Start the command and give it its handles. If that worked, add it to the
+            //    list of things to wait for.
+
+            // If there is no command, perform the assignments to global variables. If not,
+            // perform them to temporary context, execute and drop the temporary context.
+            if words.is_empty() {
+                // Case 1: Simple assignment.
+                // If we can't get the mutex, tell the user why and skip assignment.
+                let _ = bash.lock()
+                    .map_err(|e| BashError::CouldNotLock(e.description().to_string()))
+                    .map(|mut bash| bash.assign_to_global_context(assignments))?;
+            } else {
+                {
+                    // TODO: Do this in the thread for builtins?
+                    let mut bash = bash.lock().map_err(|e| {
+                        BashError::CouldNotLock(e.description().to_string())
+                    })?;
+                    bash.assign_to_temp_context(assignments)?;
+                }
+
+                // Check if this a special builtin command
+                if let Some(builtin) = SPECIAL_BUILTINS.get(words[0].as_str()) {
+                    // Case 2: Buildin. Run in thread and let it close the handles.
+                    let bmc = bash.clone();
+
+                    // Remove the handles before spawning. What could go wrong?
+                    remove_handle(to_close, stdin);
+                    remove_handle(to_close, stdout);
+                    remove_handle(to_close, stderr);
+                    reader.map(|fd| remove_handle(to_close, fd));
+
+                    let running = Arc::new(AtomicBool::new(true));
+                    let rc = running.clone();
+
+                    wait_for.push(WaitFor::Builtin(
+                        ::std::thread::spawn(move || {
+                            let es = builtin(bmc, stdin, stdout, stderr, words);
+                            rc.store(false, Ordering::SeqCst);
+                            es
+                        }),
+                        running,
+                        is_last,
+                        reader,
+                    ));
+                } else {
+                    // Case 3: Command.
+                    let bash = bash.lock().map_err(|e| {
+                        BashError::CouldNotLock(e.description().to_string())
+                    })?;
+
+                    spr::Command::new(&words[0])
+                        .args(&words[1..])
+                        .env_clear()
+                        .envs(bash.variables.iter_exported())
+                        .stdin(unsafe { spr::Stdio::from_raw_fd(stdin) })
+                        .stdout(unsafe { spr::Stdio::from_raw_fd(stdout) })
+                        .stderr(unsafe { spr::Stdio::from_raw_fd(stderr) })
+                        .spawn()
+                        .map_err(|e| {
+                            BashError::CouldNotStartProgram(e.description().to_string())
+                        })
+                        .map(|child| {
+                            let res = wait_for.push(WaitFor::Command(child, is_last, reader));
+                            // Remove the handles after successful spawning.
+                            remove_handle(to_close, stdin);
+                            remove_handle(to_close, stdout);
+                            remove_handle(to_close, stderr);
+                            reader.map(|fd| remove_handle(to_close, fd));
+                            res
+                        })?;
+                }
+            }
+            {
+                let mut bash = bash.lock().map_err(|e| {
+                    BashError::CouldNotLock(e.description().to_string())
+                })?;
+                bash.drop_temp_context();
+            }
+        }
+        Ok(wait_for)
+    }
+
+    fn wait_for_commands(
+        mut wait_for: Vec<WaitFor>,
         output_tx: &mut Sender<CommandOutput>,
         input_rx: &mut Receiver<String>,
-    ) -> Result<ExitStatus> {
-        let fd_out = child.stdout.as_ref().map(|c| c.as_raw_fd());
-        let fd_err = child.stderr.as_ref().map(|c| c.as_raw_fd());
-
+        pipe_stdin: RawFd,
+        pipe_stdout: RawFd,
+        handles: Vec<(RawFd, RawFd, RawFd, Option<RawFd>)>,
+    ) -> ExitStatus {
         let mut gate = polling::Gate::new(Duration::from_millis(1));
+        let mut exit_status = ExitStatus::from_raw(0);
+
         'reader: loop {
             if gate.can_exit() {
-                match child.try_wait() {
-                    Err(_) => {}
-                    Ok(Some(status)) => {
-                        return Ok(status);
+                // Go over the things we wait for and check if they exited
+                let mut i = 0;
+                while i < wait_for.len() {
+                    let mut remove_me = false;
+
+                    // Flag if we need to join the thread later
+                    let mut join_thread = false;
+                    match wait_for[i] {
+                        WaitFor::Builtin(_, ref running, _, _) => {
+                            if !running.load(Ordering::SeqCst) {
+                                // Can't join here as we need to consume the WaitFor.
+                                join_thread = true;
+                                remove_me = true;
+                            }
+                        }
+                        WaitFor::Command(ref mut child, ref is_last, _) => {
+                            match child.try_wait() {
+                                Err(_) => {
+                                    // TODO: Report this error.
+                                }
+                                Ok(Some(status)) => {
+                                    if *is_last {
+                                        exit_status = status;
+                                    }
+                                    remove_me = true;
+                                }
+                                Ok(None) => {}
+                            }
+                        }
                     }
-                    Ok(None) => {}
+
+                    if remove_me {
+                        let wf = wait_for.remove(i);
+                        if join_thread {
+                            if let WaitFor::Builtin(thread, _, is_last, _) = wf {
+                                match thread.join() {
+                                    Err(_) => {
+                                        // TODO: Report this error.
+                                    }
+                                    Ok(es) => {
+                                        if is_last {
+                                            exit_status = es;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        i += 1;
+                    }
+                }
+
+                // Exit if there is nothing to wait for
+                if handles.is_empty() {
+                    break;
                 }
             }
 
-            let kill_child = if let Ok(line) = input_rx.try_recv() {
-                if let Some(ref mut stdin) = child.stdin.as_mut() {
-                    println!("sending '{}' to child", line);
-                    // TODO: handle ErrorKind::Interrupted
-                    // For now, kill the child and let the loop exit
-                    match stdin.write(line.as_bytes()) {
-                        Ok(_n) => {
-                            // TODO handle n != line.len()
-                            false
-                        }
-                        Err(_) => true,
+            // TODO: handle ErrorKind::Interrupted
+            if let Ok(line) = input_rx.try_recv() {
+                println!("sending '{}' to child", line);
+                // For now, kill the child and let the loop exit
+                match write(pipe_stdin, line.as_bytes()) {
+                    Ok(_n) => {
+                        // TODO handle n != line.len()
                     }
-                } else {
-                    false
+                    Err(_) => {
+                        // TODO handle error here
+                    }
                 }
-            } else {
-                false
-            };
-            if kill_child {
-                let _ = child.kill();
             }
             gate.wait();
 
-            let (chg_out, chg_err) = unsafe {
-                let mut rfds: fd_set = ::std::mem::uninitialized();
-                let mut tv = timeval {
-                    tv_sec: 0,
-                    tv_usec: 10000,
-                };
-                FD_ZERO(&mut rfds);
-                let mut fd_max = 0;
-                if let Some(fd_out) = fd_out {
-                    FD_SET(fd_out, &mut rfds);
-                    fd_max = ::std::cmp::max(fd_max, fd_out + 1);
+            {
+                let mut rdfs = FdSet::new();
+                rdfs.insert(pipe_stdout);
+                for h in handles.iter() {
+                    if let Some(fd) = h.3 {
+                        rdfs.insert(fd);
+                    }
                 }
-                if let Some(fd_err) = fd_err {
-                    FD_SET(fd_err, &mut rfds);
-                    fd_max = ::std::cmp::max(fd_max, fd_err + 1);
-                }
-                let retval = select(
-                    fd_max,
-                    &mut rfds,
-                    ::std::ptr::null_mut(),
-                    ::std::ptr::null_mut(),
-                    &mut tv,
-                );
-                // Error or timeout
-                if retval <= 0 {
-                    (false, false)
-                } else {
-                    (
-                        fd_out.map_or(false, |f| FD_ISSET(f, &mut rfds)),
-                        fd_err.map_or(false, |f| FD_ISSET(f, &mut rfds)),
-                    )
-                }
-            };
+                let mut timeout = TimeVal::milliseconds(10);
+                let (chg_out, first_err) =
+                    match select(None, Some(&mut rdfs), None, None, Some(&mut timeout)) {
+                        Ok(0) | Err(_) => {
+                            // Error or timeout
+                            (false, None)
+                        }
+                        Ok(_) => {
+                            // Who was ready?
+                            let first_err = handles.iter().find(|h| match h.3 {
+                                Some(fd) => rdfs.contains(fd),
+                                None => false,
+                            });
+                            (rdfs.contains(pipe_stdout), first_err)
+                        }
+                    };
 
-            if chg_out {
-                if let Some(line) = read_line::<spr::ChildStdout>(child.stdout.as_mut().unwrap()) {
-                    gate.mark();
-                    output_tx
-                        .send(CommandOutput::FromOutput(line))
-                        .unwrap_or_else(|_| { let _ = child.kill(); });
+                if chg_out {
+                    if let Some(line) = read_line(pipe_stdout) {
+                        gate.mark();
+                        output_tx.send(CommandOutput::FromOutput(line)).unwrap();
+                    }
                 }
-            }
-            if chg_err {
-                if let Some(line) = read_line::<spr::ChildStderr>(child.stderr.as_mut().unwrap()) {
-                    gate.mark();
-                    output_tx
-                        .send(CommandOutput::FromError(line))
-                        .unwrap_or_else(|_| { let _ = child.kill(); });
+                if let Some(h) = first_err {
+                    if let Some(fd) = h.3 {
+                        if let Some(line) = read_line(fd) {
+                            gate.mark();
+                            output_tx.send(CommandOutput::FromError(line)).unwrap();
+                        }
+                    }
                 }
             }
         }
+        exit_status
     }
 }

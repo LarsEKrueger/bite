@@ -20,6 +20,7 @@
 
 use std::sync::{Arc, Mutex};
 use std::os::unix::io::{FromRawFd, RawFd};
+use std::os::unix::process::ExitStatusExt;
 use std::fs::File;
 
 use argparse::{ArgumentParser, StoreTrue, List};
@@ -28,7 +29,7 @@ use super::script_parser;
 
 
 /// Lock the mutex and run a function with error handling
-fn do_with_lock<T, F>(thing: &mut Arc<Mutex<T>>, stderr: &mut File, fun: F)
+fn do_with_lock<T, F>(thing: &mut Arc<Mutex<T>>, stderr: &mut File, fun: F) -> Option<ExitStatus>
 where
     F: FnOnce(&mut T),
 {
@@ -42,13 +43,22 @@ where
                 self::Error::InternalError(file!(), line!(), e.description().to_string())
                     .cause("export: ", "")
             ).unwrap();
+            Some(ExitStatus::from_raw(1))
         }
-        Ok(ref mut inner) => fun(inner),
+        Ok(ref mut inner) => {
+            fun(inner);
+            None
+        }
     }
 }
 
 /// Lock the mutex and run a function with double error handling
-fn do_with_lock_err<T, F>(thing: &mut Arc<Mutex<T>>, stderr: &mut File, prefix: &str, fun: F)
+fn do_with_lock_err<T, F>(
+    thing: &mut Arc<Mutex<T>>,
+    stderr: &mut File,
+    prefix: &str,
+    fun: F,
+) -> Option<ExitStatus>
 where
     F: FnOnce(&mut T) -> Result<()>,
 {
@@ -62,12 +72,17 @@ where
                 self::Error::InternalError(file!(), line!(), e.description().to_string())
                     .cause("export: ", "")
             ).unwrap();
+            Some(ExitStatus::from_raw(1))
         }
         Ok(ref mut inner) => {
-            fun(inner).map_err(|e| {
-                use std::io::Write;
-                write!(stderr, "{}", e.cause(prefix, "")).unwrap();
-            });
+            match fun(inner) {
+                Err(e) => {
+                    use std::io::Write;
+                    write!(stderr, "{}", e.cause(prefix, "")).unwrap();
+                    Some(ExitStatus::from_raw(1))
+                }
+                Ok(_) => None,
+            }
         }
     }
 }
@@ -82,17 +97,19 @@ pub fn export_runner(
     stdout: RawFd,
     stderr: RawFd,
     words: Vec<String>,
-) {
+) -> ExitStatus {
     let mut negat = false;
     let mut funct = false;
     let mut print = false;
 
+    // Put this in a file to auto-close it on exit.
     let _stdin = unsafe { File::from_raw_fd(stdin) };
     let mut stdout = unsafe { File::from_raw_fd(stdout) };
     let mut stderr = unsafe { File::from_raw_fd(stderr) };
 
     let mut assignments: Vec<String> = vec![];
 
+    let mut exit_status = ExitStatus::from_raw(0);
     if let Ok(()) = {
         let mut ap = ArgumentParser::new();
         ap.set_description("export - builtin");
@@ -120,7 +137,7 @@ pub fn export_runner(
             print = true;
         }
         if print {
-            do_with_lock(
+            if let Some(es) = do_with_lock(
                 &mut bash,
                 &mut stderr,
                 |bash|
@@ -129,7 +146,10 @@ pub fn export_runner(
                         .filter(|&(_,ref v)| v.is_exported()) {
                             variable.print_for_builtins(name,&mut stdout)
                         }
-                });
+                })
+            {
+                exit_status = es;
+            }
         }
         else {
             for assignment in assignments {
@@ -137,7 +157,7 @@ pub fn export_runner(
                     script_parser::assignment_or_name(assignment.as_bytes()) {
                         let name = String::from_utf8_lossy(name);
                         if rest.is_empty() {
-                            do_with_lock_err(
+                            if let Some(es) = do_with_lock_err(
                                 &mut bash,
                                 &mut stderr,
                                 "export: ",
@@ -149,13 +169,16 @@ pub fn export_runner(
                                                 variable.set_value(&value);
                                             }
                                         })
-                                }
-                                );
+                                })
+                            {
+                                exit_status = es;
+                            }
                         }
                     }
             }
         }
-    };
+    }
+    exit_status
 }
 
 /// Runner function for readonly special builtin
@@ -169,16 +192,19 @@ pub fn readonly_runner(
     stdout: RawFd,
     stderr: RawFd,
     words: Vec<String>,
-) {
+) -> ExitStatus {
     let mut array = false;
     let mut assoc = false;
     let mut funct = false;
     let mut print = false;
     let mut assignments: Vec<String> = vec![];
 
+    // Put this in a file to auto-close it on exit.
     let _stdin = unsafe { File::from_raw_fd(stdin) };
     let mut stdout = unsafe { File::from_raw_fd(stdout) };
     let mut stderr = unsafe { File::from_raw_fd(stderr) };
+
+    let mut exit_status = ExitStatus::from_raw(0);
 
     if let Ok(()) = {
         let mut ap = ArgumentParser::new();
@@ -212,15 +238,17 @@ pub fn readonly_runner(
             print = true;
         }
         if print {
-            do_with_lock(
+            if let Some(es) = do_with_lock(
                 &mut bash,
                 &mut stderr,
                 |bash|
                 for (name,variable) in bash.variables.iter()
                 .filter(|&(_,ref v)| v.is_readonly()) {
                     variable.print_for_builtins(name,&mut stdout)
-                }
-                );
+                })
+            {
+                exit_status = es;
+            }
         }
         else {
             for assignment in assignments {
@@ -228,7 +256,7 @@ pub fn readonly_runner(
                     script_parser::assignment_or_name(assignment.as_bytes()) {
                         let name = String::from_utf8_lossy(name);
                         if rest.is_empty() {
-                            do_with_lock(
+                            if let Some(es) = do_with_lock(
                                 &mut bash,
                                 &mut stderr,
                                 |bash|
@@ -244,11 +272,14 @@ pub fn readonly_runner(
                                         write!(&mut stdout,
                                                "readonly: {}", e.readable("")).unwrap();
                                     }
-                                }
-                                );
+                                })
+                            {
+                                exit_status = es;
+                            }
                         }
                     }
             }
         }
-    };
+    }
+    exit_status
 }
