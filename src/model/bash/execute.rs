@@ -171,7 +171,7 @@ impl Bash {
         let handles = Bash::build_handles(&mut to_close, &pipeline.commands)?;
         debug_assert!(handles.len() == pipeline.commands.len());
 
-        let wait_for = Bash::start_commands(
+        let (wait_for, pipe_stdout) = Bash::start_commands(
             bash,
             &mut to_close,
             &pipeline.commands,
@@ -187,7 +187,7 @@ impl Bash {
             output_tx,
             input_rx,
             pipe_stdin.0,
-            handles.last().unwrap().1,
+            pipe_stdout,
             handles,
         ))
     }
@@ -214,17 +214,17 @@ impl Bash {
                     let cmd_stderr = pipe().map_err(|e| {
                         BashError::CouldNotCreatePipe(e.description().to_string())
                     })?;
-                    (cmd_stdout.0, cmd_stdout.1, cmd_stderr.0, Some(cmd_stderr.1))
+                    (cmd_stdout.1, cmd_stdout.0, cmd_stderr.1, Some(cmd_stderr.0))
                 }
                 PipelineMode::StdOutStdErr => {
                     // Create a pipe and dup the input handle as stderr.
                     let cmd_stdout = pipe().map_err(|e| {
                         BashError::CouldNotCreatePipe(e.description().to_string())
                     })?;
-                    let cmd_stderr = dup(cmd_stdout.0).map_err(|e| {
+                    let cmd_stderr = dup(cmd_stdout.1).map_err(|e| {
                         BashError::CouldNotCreatePipe(e.description().to_string())
                     })?;
-                    (cmd_stdout.0, cmd_stdout.1, cmd_stderr, None)
+                    (cmd_stdout.1, cmd_stdout.0, cmd_stderr, None)
                 }
             };
             to_close.push(CloseMe(h.0, true));
@@ -236,15 +236,18 @@ impl Bash {
         Ok(handles)
     }
 
+    /// Start the commands of the pipeline.
+    ///
+    /// This function will link the pipes together.
+    ///
+    /// * `last_stdout` - RawFd of the stdout of the last command.
     fn start_commands(
         bash: Arc<Mutex<Bash>>,
         to_close: &mut Vec<CloseMe>,
         commands: &Vec<self::Command>,
-        last_stdout: RawFd,
+        mut last_stdout: RawFd,
         handles: &Vec<(RawFd, RawFd, RawFd, Option<RawFd>)>,
-    ) -> Result<Vec<WaitFor>> {
-        // TODO: Link last_stdout
-
+    ) -> Result<(Vec<WaitFor>, RawFd)> {
         // Array of things to wait for (threads and commands).
         let mut wait_for = Vec::new();
 
@@ -252,11 +255,6 @@ impl Bash {
         for cmd_ind in 0..handles.len() {
             let is_last = cmd_ind + 1 == handles.len();
             let words = &commands[cmd_ind].words;
-
-            let stdin = handles[cmd_ind].0;
-            let stdout = handles[cmd_ind].1;
-            let stderr = handles[cmd_ind].2;
-            let reader = handles[cmd_ind].3;
 
             let (assignments, words) = {
                 let bash = bash.lock().map_err(|e| {
@@ -293,23 +291,27 @@ impl Bash {
                     bash.assign_to_temp_context(assignments)?;
                 }
 
+                let stdout = handles[cmd_ind].0;
+                let next_stdin = handles[cmd_ind].1;
+                let stderr = handles[cmd_ind].2;
+                let reader = handles[cmd_ind].3;
+
                 // Check if this a special builtin command
                 if let Some(builtin) = SPECIAL_BUILTINS.get(words[0].as_str()) {
                     // Case 2: Buildin. Run in thread and let it close the handles.
                     let bmc = bash.clone();
 
                     // Remove the handles before spawning. What could go wrong?
-                    remove_handle(to_close, stdin);
+                    remove_handle(to_close, last_stdout);
                     remove_handle(to_close, stdout);
                     remove_handle(to_close, stderr);
-                    reader.map(|fd| remove_handle(to_close, fd));
 
                     let running = Arc::new(AtomicBool::new(true));
                     let rc = running.clone();
 
                     wait_for.push(WaitFor::Builtin(
                         ::std::thread::spawn(move || {
-                            let es = builtin(bmc, stdin, stdout, stderr, words);
+                            let es = builtin(bmc, last_stdout, stdout, stderr, words);
                             rc.store(false, Ordering::SeqCst);
                             es
                         }),
@@ -327,7 +329,7 @@ impl Bash {
                         .args(&words[1..])
                         .env_clear()
                         .envs(bash.variables.iter_exported())
-                        .stdin(unsafe { spr::Stdio::from_raw_fd(stdin) })
+                        .stdin(unsafe { spr::Stdio::from_raw_fd(last_stdout) })
                         .stdout(unsafe { spr::Stdio::from_raw_fd(stdout) })
                         .stderr(unsafe { spr::Stdio::from_raw_fd(stderr) })
                         .spawn()
@@ -337,13 +339,13 @@ impl Bash {
                         .map(|child| {
                             let res = wait_for.push(WaitFor::Command(child, is_last, reader));
                             // Remove the handles after successful spawning.
-                            remove_handle(to_close, stdin);
+                            remove_handle(to_close, last_stdout);
                             remove_handle(to_close, stdout);
                             remove_handle(to_close, stderr);
-                            reader.map(|fd| remove_handle(to_close, fd));
                             res
                         })?;
                 }
+                last_stdout = next_stdin;
             }
             {
                 let mut bash = bash.lock().map_err(|e| {
@@ -352,7 +354,7 @@ impl Bash {
                 bash.drop_temp_context();
             }
         }
-        Ok(wait_for)
+        Ok((wait_for, last_stdout))
     }
 
     fn wait_for_commands(
