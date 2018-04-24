@@ -423,7 +423,7 @@ impl Bash {
                 }
 
                 // Exit if there is nothing to wait for
-                if handles.is_empty() {
+                if wait_for.is_empty() {
                     break;
                 }
             }
