@@ -177,6 +177,7 @@ non-GUI program.
 * [ ] Handle quoted and escaped spaces in script parser.
 * [ ] Make parser return slices.
 * [ ] Decide how to handle multi-line commands.
+* [ ] Keep partially parsed lines outside bash instance.
 
 # Ideas
 * Integrate mosh functionality
