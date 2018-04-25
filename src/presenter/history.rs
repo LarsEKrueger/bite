@@ -37,12 +37,7 @@ impl HistoryPresenter {
         mode: HistorySearchMode,
         reverse: bool,
     ) -> Box<HistoryPresenter> {
-        let search = commons
-            .bash
-            .as_ref()
-            .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
-            .history
-            .search(mode, reverse);
+        let search = commons.history.search(mode, reverse);
         let mut presenter = HistoryPresenter { commons, search };
 
         presenter.to_last_line();
@@ -95,14 +90,7 @@ impl SubPresenter for HistoryPresenter {
                 .zip(0..)
                 .map(move |(hist_ind, match_ind)| {
                     LineItem::new(
-                        self.commons
-                            .bash
-                            .as_ref()
-                            .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
-                            .history
-                            .items
-                            [*hist_ind]
-                            .as_str(),
+                        self.commons.history.items[*hist_ind].as_str(),
                         if match_ind == self.search.item_ind {
                             LineType::SelectedMenuItem(*hist_ind)
                         } else {
@@ -126,14 +114,7 @@ impl SubPresenter for HistoryPresenter {
     fn event_return(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
         let propagate = if self.search.item_ind < self.search.matching_items.len() {
             let hist_ind = self.search.matching_items[self.search.item_ind];
-            let item = self.commons
-                .bash
-                .as_ref()
-                .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
-                .history
-                .items
-                [hist_ind]
-                .clone();
+            let item = self.commons.history.items[hist_ind].clone();
             self.commons.current_line.replace(item, false);
             true
         } else {
@@ -152,12 +133,10 @@ impl SubPresenter for HistoryPresenter {
     /// If we are searching, update the search string and try to scroll as little as possible.
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
         let prefix = String::from(self.commons.current_line.text());
-        let mut search = self.commons
-            .bash
-            .as_ref()
-            .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
-            .history
-            .search(HistorySearchMode::Contained(prefix), false);
+        let mut search = self.commons.history.search(
+            HistorySearchMode::Contained(prefix),
+            false,
+        );
 
         // Find the index into matching_items that is closest to search.item_ind to move the
         // highlight only a litte.
@@ -171,13 +150,7 @@ impl SubPresenter for HistoryPresenter {
             0
         };
         let mut ind_item = 0;
-        let mut dist = self.commons
-            .bash
-            .as_ref()
-            .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
-            .history
-            .items
-            .len();
+        let mut dist = self.commons.history.items.len();
         for i in 0..search.matching_items.len() {
             let history_ind = search.matching_items[i];
             let d = abs_diff(last_history_ind, history_ind);

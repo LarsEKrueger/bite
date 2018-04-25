@@ -98,9 +98,6 @@ pub struct Bash {
     /// This is required as NOM cannot continue a partial parse.
     line: String,
 
-    /// List of all lines we have successfully parsed.
-    pub history: history::History,
-
     /// Stack of variables
     pub variables: variables::Stack,
 }
@@ -204,7 +201,6 @@ impl Bash {
             }
         };
 
-        let history = history::History::new(&current_user.home_dir);
 
         let mut variables = variables::Stack::new();
         variables.import_from_environment()?;
@@ -213,7 +209,6 @@ impl Bash {
             line: String::new(),
             current_host_name,
             current_user,
-            history,
             variables,
         })
     }
@@ -291,7 +286,6 @@ impl Bash {
     }
 
     /// Reads the path of the home directory from the interpreter for display purposes.
-    #[allow(dead_code)]
     pub fn get_current_user_home_dir<'a>(&'a self) -> &'a str {
         &self.current_user.home_dir
     }
@@ -304,7 +298,7 @@ impl Bash {
     /// Execute a command.
     ///
     /// Ignore any error cases.
-    pub fn execute(self, cmd: ParsedCommand) -> ExecutionResult {
+    pub fn execute(bash: &Arc<Mutex<Bash>>, cmd: ParsedCommand) -> ExecutionResult {
         match cmd {
             ParsedCommand::Incomplete |
             ParsedCommand::Error(_) => ExecutionResult::Ignore,
@@ -312,7 +306,10 @@ impl Bash {
             ParsedCommand::CommandSequence(exp) => {
                 let (output_tx, output_rx) = channel();
                 let (input_tx, input_rx) = channel();
-                thread::spawn(move || self.run_command_sequence(output_tx, input_rx, exp));
+                let bash = bash.clone();
+                thread::spawn(move || {
+                    Bash::run_command_sequence(bash, output_tx, input_rx, exp)
+                });
                 ExecutionResult::Spawned((input_tx, output_rx))
             }
         }

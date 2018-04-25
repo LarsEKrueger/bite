@@ -70,9 +70,11 @@ impl SubPresenter for ComposeCommandPresenter {
         let line = self.commons.current_line.clear();
         let mut line_ret = line.clone();
         line_ret.push_str("\n");
-        let bash = ::std::mem::replace(&mut self.commons.bash, None);
-        let mut bash = bash.expect(format!("Internal error! {}:{}", file!(), line!()).as_str());
-        let cmd = bash.add_line(line_ret.as_str());
+        let cmd = self.commons
+            .bash
+            .lock()
+            .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
+            .add_line(line_ret.as_str());
         match cmd {
             ParsedCommand::Incomplete => self,
             ParsedCommand::Error(err) => {
@@ -88,10 +90,10 @@ impl SubPresenter for ComposeCommandPresenter {
             }
             _ => {
                 // Add to history
-                bash.history.add_command(line.clone());
+                self.commons.history.add_command(line.clone());
 
                 // Execute
-                match bash.execute(cmd) {
+                match Bash::execute(&self.commons.bash, cmd) {
                     ExecutionResult::Ignore => self,
                     ExecutionResult::Spawned((tx, rx)) => {
                         ExecuteCommandPresenter::new(self.commons, line.clone(), tx, rx)

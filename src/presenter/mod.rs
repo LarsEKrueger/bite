@@ -22,7 +22,7 @@
 //! composition or history browsing.
 
 use std::fmt::{Display, Formatter};
-
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 
 mod runeline;
@@ -141,7 +141,12 @@ pub struct PresenterCommons {
     current_line: runeline::Runeline,
 
     /// Bash script interpreter.
-    bash: Option<Bash>,
+    ///
+    /// We need to keep it in a mutex from the start because we don't get it out once it's in one.
+    bash: Arc<Mutex<Bash>>,
+
+    /// List of all lines we have successfully parsed.
+    pub history: History,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -188,6 +193,7 @@ impl PresenterCommons {
     pub fn new() -> Result<Self> {
         let bash = Bash::new()?;
         let prompt = bash.expand_ps1();
+        let history = History::new(bash.get_current_user_home_dir());
         Ok(PresenterCommons {
             session: Session::new(prompt),
             window_width: 0,
@@ -195,7 +201,8 @@ impl PresenterCommons {
             button_down: None,
             current_line: runeline::Runeline::new(),
             last_line_shown: 0,
-            bash: Some(bash),
+            bash: Arc::new(Mutex::new(bash)),
+            history,
         })
     }
 

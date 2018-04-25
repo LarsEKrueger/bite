@@ -50,9 +50,8 @@ pub enum CommandOutput {
     FromError(String),
 
     /// The program terminated.
-    Terminated(ExitStatus, Bash),
+    Terminated(ExitStatus),
 }
-
 
 /// Read a line from a pipe and report if it worked.
 fn read_line(fd: RawFd) -> Option<String> {
@@ -69,6 +68,7 @@ fn read_line(fd: RawFd) -> Option<String> {
 }
 
 /// Things to wait for in run_pipeline
+#[derive(Debug)]
 enum WaitFor {
     /// A builtin function is executed in a thread
     ///
@@ -81,7 +81,7 @@ enum WaitFor {
     Command(spr::Child, bool, Option<RawFd>),
 }
 
-
+#[derive(Debug)]
 struct CloseMe(RawFd, bool);
 
 impl Drop for CloseMe {
@@ -102,16 +102,15 @@ fn remove_handle(to_close: &mut Vec<CloseMe>, h: RawFd) {
 impl Bash {
     /// Thread function to accept the output of the running program and provide it with input.
     pub fn run_command_sequence(
-        self,
+        bash: Arc<Mutex<Bash>>,
         mut output_tx: Sender<CommandOutput>,
         mut input_rx: Receiver<String>,
         sequence: Vec<CommandLogic>,
     ) {
         let mut ret_code = ExitStatus::from_raw(0);
-        let bash_mutex = Arc::new(Mutex::new(self));
         for expr in sequence {
             for pipe in expr.pipelines {
-                match Bash::run_pipeline(bash_mutex.clone(), &mut output_tx, &mut input_rx, &pipe) {
+                match Bash::run_pipeline(bash.clone(), &mut output_tx, &mut input_rx, &pipe) {
                     Ok(rc) => {
                         ret_code = rc;
                     }
@@ -137,9 +136,7 @@ impl Bash {
                 }
             }
         }
-        //output_tx
-        //    .send(CommandOutput::Terminated(ret_code, self))
-        //    .unwrap();
+        output_tx.send(CommandOutput::Terminated(ret_code)).unwrap();
     }
 
     /// Run the pipeline and wait for its completion.
@@ -467,7 +464,6 @@ impl Bash {
                             (rdfs.contains(pipe_stdout), first_err)
                         }
                     };
-
                 if chg_out {
                     if let Some(line) = read_line(pipe_stdout) {
                         gate.mark();
