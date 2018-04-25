@@ -172,7 +172,7 @@ impl Bash {
             bash,
             &mut to_close,
             &pipeline.commands,
-            pipe_stdin.1,
+            pipe_stdin.0,
             &handles,
         )?;
 
@@ -183,7 +183,7 @@ impl Bash {
             wait_for,
             output_tx,
             input_rx,
-            pipe_stdin.0,
+            pipe_stdin.1,
             pipe_stdout,
             handles,
         ))
