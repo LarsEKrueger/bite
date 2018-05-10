@@ -66,7 +66,7 @@ shell/term combination, only a subset of bash's features will be implemented:
 * command lists (limited to &&, ||, ;)
 * compound commands (limited to for, if, while)
 * shell variables (limited)
-* completion
+* completion (limited)
 * sub-shells
 
 The following features will not be implemented:
@@ -83,6 +83,8 @@ The following features will not be implemented:
 
 The included features appear to be the most frequently-used interactve constructs while the
 features left out are deemed inconvenient to enter in an interactive shell.
+This list is subject to change (e.g. due to an to-be-implemented feature
+depends on an not-to-be-implemented feature).
 
 # Planned Features, Step 2
 
@@ -137,19 +139,25 @@ non-GUI program.
 * [X] 0.3.3 indicate return code in display
 * [X] 0.3.4 pipelines (no redirection)
 * [X] 0.4 pipelines
-* [ ] 0.5 expressions
-* [ ] 0.6 control statements
-* [ ] 0.7 redirections
-* [ ] 0.8 backgrounding
-* [ ] 0.9 Run start-up and shut-down scripts
-* [ ] 0.10 Handle colors in output, error, and prompt
-* [ ] 0.11 Sub-Shells
-* [ ] 0.11.1 integer variables
-* [ ] 0.12 History Expansion, Arithmetic Expansion
-* [ ] 0.13 Full prompt string interpreter (with variables)
-* [ ] 0.14 Draw GUI using Xft
-* [ ] 0.15 Design a Unicode BiTE logo and use it in prompts for \s
-* [ ] 0.16 Bug Fixing
+* [ ] 0.4.1 cd command
+* [ ] 0.4.2 array variables / DIRSTACK
+* [ ] 0.4.3 pushd / popd
+* [ ] 0.4.4 dirs
+* [ ] 0.4.5 completion (internal)
+* [ ] 0.5 cd and completion
+* [ ] 0.6 backgrounding
+* [ ] 0.7 Handle colors in output, error, and prompt
+* [ ] 0.8 Run start-up and shut-down scripts
+* [ ] 0.9 Sub-Shells
+* [ ] 0.9.1 integer variables
+* [ ] 0.10 expressions
+* [ ] 0.11 control statements
+* [ ] 0.12 redirections
+* [ ] 0.13 History Expansion, Arithmetic Expansion
+* [ ] 0.14 Full prompt string interpreter (with variables)
+* [ ] 0.15 Draw GUI using Xft
+* [ ] 0.16 Design a Unicode BiTE logo and use it in prompts for \s
+* [ ] 0.17 Bug Fixing
 * [ ] 1.0 Full bash compliance, standalone program passes bash test suite
 * [ ] 1.1 Tabs for TUIs
 * [ ] 1.2 Tabs for background programs
