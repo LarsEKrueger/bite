@@ -41,12 +41,12 @@ pub mod expansion_parser;
 pub mod prompt_parser;
 pub mod history;
 pub mod execute;
-pub mod special_builtins;
+pub mod builtins;
 
 use super::types::*;
 use super::error::*;
 use super::variables;
-use self::special_builtins::*;
+use self::builtins::*;
 
 /// All relevant info about the current user.
 ///
@@ -133,8 +133,9 @@ fn format_error_message(error: ::nom::Err<&[u8]>, line: &String) -> Vec<String> 
 lazy_static!{
     static ref SPECIAL_BUILTINS: HashMap<&'static str, BuiltinRunner> = {
         let mut map: HashMap<&'static str, BuiltinRunner> = HashMap::new();
-        map.insert("export", export_runner);
-        map.insert("readonly", readonly_runner);
+        map.insert("export", export::export_runner);
+        map.insert("readonly", readonly::readonly_runner);
+        map.insert("cd", cd::cd_runner);
         map
     };
 }
