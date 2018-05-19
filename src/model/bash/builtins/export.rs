@@ -71,6 +71,7 @@ pub fn export_runner(
             if let Some(es) = do_with_lock(
                 &mut bash,
                 &mut stderr,
+                "export: ",
                 |bash|
                 {
                     for (name,variable) in bash.variables.iter()

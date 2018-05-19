@@ -77,9 +77,25 @@ pub fn cd_runner(
 
         ap.parse(words, &mut stdout, &mut stderr)
     } {
+        if let Some(es) = do_with_lock_err(
+            &mut bash,
+            &mut stderr,
+            "cd: ",
+            |bash| {
+                if dir.is_empty() {
+                    dir=bash.get_current_user_home_dir().to_string();
+                    Ok(())
+                } else if dir == "-" {
+                    dir = bash.variable.variable_as_str("OLDPWD");
+                }
+            }
+            )
+            {
+                exit_status = es;
+            }
 
-
-    }
+        use std::io::Write;
+        write!( stdout, "changing dir to »{}«\n", dir);
 
     exit_status
 }

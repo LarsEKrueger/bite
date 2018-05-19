@@ -79,6 +79,7 @@ pub fn readonly_runner(
             if let Some(es) = do_with_lock(
                 &mut bash,
                 &mut stderr,
+                "readonly: ",
                 |bash|
                 for (name,variable) in bash.variables.iter()
                 .filter(|&(_,ref v)| v.is_readonly()) {
@@ -97,6 +98,7 @@ pub fn readonly_runner(
                             if let Some(es) = do_with_lock(
                                 &mut bash,
                                 &mut stderr,
+                "readonly: ",
                                 |bash|
                                 match bash.variables.find_variable_or_create_global( &name) {
                                     Ok(variable) => {

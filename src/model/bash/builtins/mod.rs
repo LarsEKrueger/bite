@@ -29,7 +29,12 @@ use super::script_parser;
 use super::*;
 
 /// Lock the mutex and run a function with error handling
-fn do_with_lock<T, F>(thing: &mut Arc<Mutex<T>>, stderr: &mut File, fun: F) -> Option<ExitStatus>
+fn do_with_lock<T, F>(
+    thing: &mut Arc<Mutex<T>>,
+    stderr: &mut File,
+    prefix: &str,
+    fun: F,
+) -> Option<ExitStatus>
 where
     F: FnOnce(&mut T),
 {
@@ -41,7 +46,7 @@ where
                 stderr,
                 "{}\n",
                 self::Error::InternalError(file!(), line!(), e.description().to_string())
-                    .cause("export: ", "")
+                    .cause(prefix, "")
             ).unwrap();
             Some(ExitStatus::from_raw(1))
         }
@@ -70,7 +75,7 @@ where
                 stderr,
                 "{}\n",
                 self::Error::InternalError(file!(), line!(), e.description().to_string())
-                    .cause("export: ", "")
+                    .cause(prefix, "")
             ).unwrap();
             Some(ExitStatus::from_raw(1))
         }
