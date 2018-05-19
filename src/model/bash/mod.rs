@@ -135,7 +135,6 @@ lazy_static!{
         let mut map: HashMap<&'static str, BuiltinRunner> = HashMap::new();
         map.insert("export", export::export_runner);
         map.insert("readonly", readonly::readonly_runner);
-        map.insert("cd", cd::cd_runner);
         map
     };
 }
