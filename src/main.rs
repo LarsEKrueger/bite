@@ -72,6 +72,8 @@ pub fn main() {
     #[cfg(debug_assertions)]
     println!("Command Line\n{:?}", params);
 
+    model::bash::start();
+
     let mut gui = match ::view::Gui::new() {
         Err(err) => {
             println!("Can't init GUI: {}", err);
