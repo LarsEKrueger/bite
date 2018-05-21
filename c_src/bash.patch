@@ -1,0 +1,180 @@
+diff --git a/Makefile.in b/Makefile.in
+index c7b62bc0..559f3895 100644
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -302,7 +302,7 @@ HISTORY_SOURCE	= $(HIST_LIBSRC)/history.c $(HIST_LIBSRC)/histexpand.c \
+ 		  $(HIST_LIBSRC)/history.h $(HIST_LIBSRC)/histlib.h
+ HISTORY_OBJ	= $(HIST_LIBDIR)/history.o $(HIST_LIBDIR)/histexpand.o \
+ 		  $(HIST_LIBDIR)/histsearch.o $(HIST_LIBDIR)/histfile.o \
+-		  $(HIST_LIBDIR)/shell.o
++		  $(HIST_LIBDIR)/shell.o $(HIST_LIBDIR)/mbutil.o
+ 
+ # You only need termcap (or curses) if you are linking with GNU Readline.
+ TERM_LIBSRC = $(LIBSRC)/termcap
+@@ -562,10 +562,108 @@ OTHER_INSTALLED_DOCS = CHANGES COMPAT NEWS POSIX RBASH README
+ 
+ LOADABLES_DIR = ${top_builddir}/examples/loadables
+ 
++BUILTINS_OBJS = \
++  builtins/builtins.o \
++  builtins/alias.o \
++  builtins/bind.o \
++  builtins/break.o \
++  builtins/builtin.o \
++  builtins/caller.o \
++  builtins/cd.o \
++  builtins/colon.o \
++  builtins/command.o \
++  builtins/common.o \
++  builtins/declare.o \
++  builtins/echo.o \
++  builtins/enable.o \
++  builtins/eval.o \
++  builtins/evalfile.o \
++  builtins/evalstring.o \
++  builtins/exec.o \
++  builtins/exit.o \
++  builtins/fc.o \
++  builtins/fg_bg.o \
++  builtins/hash.o \
++  builtins/help.o \
++  builtins/history.o \
++  builtins/jobs.o \
++  builtins/kill.o \
++  builtins/let.o \
++  builtins/mapfile.o \
++  builtins/pushd.o \
++  builtins/read.o \
++  builtins/return.o \
++  builtins/set.o \
++  builtins/setattr.o \
++  builtins/shift.o \
++  builtins/source.o \
++  builtins/suspend.o \
++  builtins/test.o \
++  builtins/times.o \
++  builtins/trap.o \
++  builtins/type.o \
++  builtins/ulimit.o \
++  builtins/umask.o \
++  builtins/wait.o \
++  builtins/getopts.o \
++  builtins/shopt.o \
++  builtins/printf.o \
++  builtins/getopt.o \
++  builtins/bashgetopt.o \
++  builtins/complete.o
++
++SHLIB_OBJS = \
++  lib/sh/clktck.o \
++  lib/sh/clock.o \
++  lib/sh/getenv.o \
++  lib/sh/oslib.o \
++  lib/sh/setlinebuf.o \
++  lib/sh/strnlen.o \
++  lib/sh/itos.o \
++  lib/sh/zread.o \
++  lib/sh/zwrite.o \
++  lib/sh/shtty.o \
++  lib/sh/shmatch.o \
++  lib/sh/eaccess.o \
++  lib/sh/netconn.o \
++  lib/sh/netopen.o \
++  lib/sh/timeval.o \
++  lib/sh/makepath.o \
++  lib/sh/pathcanon.o \
++  lib/sh/pathphys.o \
++  lib/sh/tmpfile.o \
++  lib/sh/stringlist.o \
++  lib/sh/stringvec.o \
++  lib/sh/spell.o \
++  lib/sh/shquote.o \
++  lib/sh/strtrans.o \
++  lib/sh/snprintf.o \
++  lib/sh/mailstat.o \
++  lib/sh/fmtulong.o \
++  lib/sh/fmtullong.o \
++  lib/sh/fmtumax.o \
++  lib/sh/zcatfd.o \
++  lib/sh/zmapfd.o \
++  lib/sh/winsize.o \
++  lib/sh/wcsdup.o \
++  lib/sh/fpurge.o \
++  lib/sh/zgetline.o \
++  lib/sh/mbscmp.o \
++  lib/sh/mbschr.o \
++  lib/sh/uconvert.o \
++  lib/sh/ufuncs.o \
++  lib/sh/casemod.o \
++  lib/sh/input_avail.o \
++  lib/sh/mbscasecmp.o \
++  lib/sh/fnxform.o \
++  lib/sh/unicode.o \
++  lib/sh/shmbchar.o \
++  lib/sh/wcsnwidth.o
++
+ # Keep GNU Make from exporting the entire environment for small machines.
+ .NOEXPORT:
+ 
+-.made: $(Program) bashbug $(SDIR)/man2html$(EXEEXT)
++.made: $(Program) bashbug $(SDIR)/man2html$(EXEEXT) libBash.a
+ 	@echo "$(Program) last made for a $(Machine) running $(OS)" >.made
+ 
+ $(Program):  .build $(OBJECTS) $(BUILTINS_DEP) $(LIBDEP)
+@@ -574,6 +672,12 @@ $(Program):  .build $(OBJECTS) $(BUILTINS_DEP) $(LIBDEP)
+ 	ls -l $(Program)
+ 	-$(SIZE) $(Program)
+ 
++libBash.a: .build $(OBJECTS) $(BUILTINS_DEP) $(LIBDEP)
++	$(RM) -f $@
++	$(AR) $(ARFLAGS) $@ $(OBJECTS) $(BUILTINS_OBJS) \
++	  $(GLOB_OBJ) $(SHLIB_OBJS) $(HISTORY_OBJ) $(TILDE_OBJ)
++	-test -n "$(RANLIB)" && $(RANLIB) $@
++
+ .build:	$(SOURCES) config.h Makefile version.h $(VERSPROG)
+ 	@echo
+ 	@echo "	  ***********************************************************"
+diff --git a/shell.c b/shell.c
+index 45b77f9e..3bd5ee2c 100644
+--- a/shell.c
++++ b/shell.c
+@@ -353,18 +353,10 @@ _cygwin32_check_tmp ()
+ }
+ #endif /* __CYGWIN__ */
+ 
+-#if defined (NO_MAIN_ENV_ARG)
+-/* systems without third argument to main() */
+-int
+-main (argc, argv)
+-     int argc;
+-     char **argv;
+-#else /* !NO_MAIN_ENV_ARG */
+-int
+-main (argc, argv, env)
+-     int argc;
+-     char **argv, **env;
+-#endif /* !NO_MAIN_ENV_ARG */
++static char * argv_store[] = { "bite" };
++
++void
++bash_main ()
+ {
+   register int i;
+   int code, old_errexit_flag;
+@@ -373,11 +365,14 @@ main (argc, argv, env)
+ #endif
+   volatile int locally_skip_execution;
+   volatile int arg_index, top_level_arg_index;
+-#ifdef __OPENNT
++  int argc;
++  char * * argv;
+   char **env;
+ 
+   env = environ;
+-#endif /* __OPENNT */
++
++  argc = 1;
++  argv = argv_store;
+ 
+   USE_VAR(argc);
+   USE_VAR(argv);

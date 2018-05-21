@@ -16,10 +16,170 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+//! Build script for own code and bash wrapper.
+//!
+//! This is based on https://github.com/gpg-rs/libgcrypt
+
 extern crate gcc;
 
+use std::env;
+use std::ffi::OsString;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{self, Child, Command, Stdio};
+use std::str;
+
 fn main() {
+    // Internal C code
     gcc::Build::new().file("c_src/myCreateIC.c").compile(
         "mystuff",
     );
+
+    // Bash-as-a-library
+
+    // Download bash source if it's not there
+    if !Path::new("c_src/bash/configure").exists() {
+        run(Command::new("git").args(&["submodule", "update", "--init"]));
+
+        // Patch source
+        run(Command::new("git").args(
+            &[
+                "apply",
+                "c_src/bash.patch",
+                "--directory=c_src/bash",
+            ],
+        ));
+    }
+
+    // Build bash
+    if let Some(build) = try_build() {
+
+        return;
+    }
+
+    process::exit(1);
+}
+
+fn spawn(cmd: &mut Command) -> Option<Child> {
+    println!("running: {:?}", cmd);
+    match cmd.stdin(Stdio::null()).spawn() {
+        Ok(child) => Some(child),
+        Err(e) => {
+            println!("failed to execute command: {:?}\nerror: {}", cmd, e);
+            None
+        }
+    }
+}
+
+fn run(cmd: &mut Command) -> bool {
+    if let Some(mut child) = spawn(cmd) {
+        match child.wait() {
+            Ok(status) => {
+                if !status.success() {
+                    println!(
+                        "command did not execute successfully: {:?}\n\
+                     expected success, got: {}",
+                        cmd,
+                        status
+                    );
+                } else {
+                    return true;
+                }
+            }
+            Err(e) => {
+                println!("failed to execute command: {:?}\nerror: {}", cmd, e);
+            }
+        }
+    }
+    false
+}
+
+fn try_build() -> Option<PathBuf> {
+    let src = PathBuf::from(env::current_dir().unwrap())
+        .join("c_src")
+        .join("bash");
+    let dst = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let build = dst.clone().join("build");
+    let target = env::var("TARGET").unwrap();
+    let host = env::var("HOST").unwrap();
+
+    let compiler = gcc::Build::new().get_compiler();
+    let mut cflags = compiler.args().iter().fold(OsString::new(), |mut c, a| {
+        c.push(a);
+        c.push(" ");
+        c
+    });
+
+    cflags.push("-fPIC");
+
+    let _ = fs::create_dir_all(&build);
+
+    // Run configure if required
+    if !build.clone().join("Makefile").exists() {
+        if !run(
+            Command::new("sh")
+                .current_dir(&build)
+                .env("CC", compiler.path())
+                .env("CFLAGS", &cflags)
+                .arg(src.join("configure"))
+                .args(
+                    &[
+                        "--build",
+                        &gnu_target(&host),
+                        "--host",
+                        &gnu_target(&target),
+                        &format!("--prefix={}", msys_compatible(&dst)),
+                        "--without-bash-malloc",
+                        "--disable-readline",
+                    ],
+                ),
+        )
+        {
+            return None;
+        }
+    }
+
+    if !run(
+        Command::new("make")
+            .current_dir(&build)
+            .arg("-j")
+            .arg(env::var("NUM_JOBS").unwrap())
+            .arg("libBash.a"),
+    )
+    {
+        return None;
+    }
+
+    println!("cargo:rustc-link-search=native={}", build.display());
+    println!("cargo:rustc-link-lib=Bash");
+    println!("cargo:rustc-link-lib=curses");
+    println!("cargo:rustc-link-lib=dl");
+    Some(build)
+}
+
+fn msys_compatible<P: AsRef<Path>>(path: P) -> String {
+    #[allow(unused_imports)]
+    use std::ascii::AsciiExt;
+
+    let mut path = path.as_ref().to_string_lossy().into_owned();
+    if !cfg!(windows) || Path::new(&path).is_relative() {
+        return path;
+    }
+
+    if let Some(b'a'...b'z') = path.as_bytes().first().map(u8::to_ascii_lowercase) {
+        if path.split_at(1).1.starts_with(":\\") {
+            (&mut path[..1]).make_ascii_lowercase();
+            path.remove(1);
+            path.insert(0, '/');
+        }
+    }
+    path.replace("\\", "/")
+}
+
+fn gnu_target(target: &str) -> &str {
+    match target {
+        "i686-pc-windows-gnu" => "i686-w64-mingw32",
+        "x86_64-pc-windows-gnu" => "x86_64-w64-mingw32",
+        s => s,
+    }
 }
