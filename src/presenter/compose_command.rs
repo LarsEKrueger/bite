@@ -70,53 +70,54 @@ impl SubPresenter for ComposeCommandPresenter {
         let line = self.commons.current_line.clear();
         let mut line_ret = line.clone();
         line_ret.push_str("\n");
-        let cmd = self.commons
-            .bash
-            .lock()
-            .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
-            .add_line(line_ret.as_str());
-        match cmd {
-            ParsedCommand::Incomplete => self,
-            ParsedCommand::Error(err) => {
-                // Parser error. Create a fake interaction with the bad command line and
-                // the error message
-                let mut inter = Interaction::new(line);
-                for l in err.into_iter() {
-                    inter.add_error(l);
-                }
-                inter.prepare_archiving();
-                self.commons.session.archive_interaction(inter);
-                self
-            }
-            _ => {
-                // Add to history
-                self.commons.history.add_command(line.clone());
+        // let cmd = self.commons
+        //     .bash
+        //     .lock()
+        //     .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
+        //     .add_line(line_ret.as_str());
+        // match cmd {
+        //     ParsedCommand::Incomplete => self,
+        //     ParsedCommand::Error(err) => {
+        //         // Parser error. Create a fake interaction with the bad command line and
+        //         // the error message
+        //         let mut inter = Interaction::new(line);
+        //         for l in err.into_iter() {
+        //             inter.add_error(l);
+        //         }
+        //         inter.prepare_archiving();
+        //         self.commons.session.archive_interaction(inter);
+        //         self
+        //     }
+        //     _ => {
+        //         // Add to history
+        //         self.commons.history.add_command(line.clone());
 
-                // Execute
-                match Bash::execute(&self.commons.bash, cmd) {
-                    ExecutionResult::Ignore => self,
-                    ExecutionResult::Spawned((tx, rx)) => {
-                        ExecuteCommandPresenter::new(self.commons, line.clone(), tx, rx)
-                    }
-                    ExecutionResult::Builtin(bi) => {
-                        let mut inter = Interaction::new(line);
-                        inter.add_output_vec(bi.output);
-                        inter.add_errors_vec(bi.errors);
-                        inter.prepare_archiving();
-                        self.commons.session.archive_interaction(inter);
-                        self
-                    }
-                    ExecutionResult::Err(msg) => {
-                        // Something happened during program start
-                        let mut inter = Interaction::new(line);
-                        inter.add_errors_lines(msg);
-                        inter.prepare_archiving();
-                        self.commons.session.archive_interaction(inter);
-                        self
-                    }
-                }
-            }
-        }
+        //         // Execute
+        //         // match Bash::execute(&self.commons.bash, cmd) {
+        //         //     ExecutionResult::Ignore => self,
+        //         //     ExecutionResult::Spawned((tx, rx)) => {
+        //         //         ExecuteCommandPresenter::new(self.commons, line.clone(), tx, rx)
+        //         //     }
+        //         //     ExecutionResult::Builtin(bi) => {
+        //         //         let mut inter = Interaction::new(line);
+        //         //         inter.add_output_vec(bi.output);
+        //         //         inter.add_errors_vec(bi.errors);
+        //         //         inter.prepare_archiving();
+        //         //         self.commons.session.archive_interaction(inter);
+        //         //         self
+        //         //     }
+        //         //     ExecutionResult::Err(msg) => {
+        //         //         // Something happened during program start
+        //         //         let mut inter = Interaction::new(line);
+        //         //         inter.add_errors_lines(msg);
+        //         //         inter.prepare_archiving();
+        //         //         self.commons.session.archive_interaction(inter);
+        //         //         self
+        //         //     }
+        //         // }
+        //     }
+        // }
+        self
     }
 
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
@@ -150,16 +151,16 @@ impl SubPresenter for ComposeCommandPresenter {
         letter: u8,
     ) -> (Box<SubPresenter>, bool) {
         match (mod_state.as_tuple(), letter) {
-            ((false, true, false), b'r') => {
-                // Control-R -> Start interactive history search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
-                (
-                    HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
-                    true,
-                )
-            }
+            // ((false, true, false), b'r') => {
+            //     // Control-R -> Start interactive history search
+            //     let prefix = String::from(self.commons.current_line.text_before_cursor());
+            //     self.commons.current_line.clear();
+            //     self.commons.current_line.insert_str(&prefix);
+            //     (
+            //         HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
+            //         true,
+            //     )
+            // }
             _ => (self, false),
         }
     }
@@ -168,14 +169,16 @@ impl SubPresenter for ComposeCommandPresenter {
     ///
     /// Go to history browse mode without search.
     fn event_cursor_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, true)
+        //HistoryPresenter::new(self.commons, HistorySearchMode::Browse, true)
+        self
     }
 
     /// Handle pressing cursor down.
     ///
     /// Go to history browse mode without search.
     fn event_cursor_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false)
+        // HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false)
+        self
     }
 
     /// Handle pressing page up.
@@ -184,26 +187,27 @@ impl SubPresenter for ComposeCommandPresenter {
     ///
     /// Go to history browse mode with prefix search if no modifiers were pressed.
     fn event_page_up(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
-        match mod_state.as_tuple() {
-            (true, false, false) => {
-                // Shift only -> Scroll
-                let middle = self.commons.window_height / 2;
-                if self.commons.last_line_shown > middle {
-                    self.commons.last_line_shown -= middle;
-                } else {
-                    self.commons.last_line_shown = 0;
-                }
-                self
-            }
-            (false, false, false) => {
-                // Nothing -> Prefix search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
-                HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true)
-            }
-            _ => self,
-        }
+        // match mod_state.as_tuple() {
+        //     (true, false, false) => {
+        //         // Shift only -> Scroll
+        //         let middle = self.commons.window_height / 2;
+        //         if self.commons.last_line_shown > middle {
+        //             self.commons.last_line_shown -= middle;
+        //         } else {
+        //             self.commons.last_line_shown = 0;
+        //         }
+        //         self
+        //     }
+        //     (false, false, false) => {
+        //         // Nothing -> Prefix search
+        //         let prefix = String::from(self.commons.current_line.text_before_cursor());
+        //         self.commons.current_line.clear();
+        //         self.commons.current_line.insert_str(&prefix);
+        //         HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true)
+        //     }
+        //     _ => self,
+        // }
+        self
     }
 
     /// Handle pressing page down.
@@ -212,23 +216,24 @@ impl SubPresenter for ComposeCommandPresenter {
     ///
     /// Go to history browse mode with prefix search if no modifiers were pressed.
     fn event_page_down(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
-        match mod_state.as_tuple() {
-            (true, false, false) => {
-                // Shift only -> Scroll
-                let middle = self.commons.window_height / 2;
-                let n = self.line_iter().count();
-                self.commons.last_line_shown =
-                    ::std::cmp::min(n, self.commons.last_line_shown + middle);
-                self
-            }
-            (false, false, false) => {
-                // Nothing -> Prefix search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
-                HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false)
-            }
-            _ => self,
-        }
+        // match mod_state.as_tuple() {
+        //     (true, false, false) => {
+        //         // Shift only -> Scroll
+        //         let middle = self.commons.window_height / 2;
+        //         let n = self.line_iter().count();
+        //         self.commons.last_line_shown =
+        //             ::std::cmp::min(n, self.commons.last_line_shown + middle);
+        //         self
+        //     }
+        //     (false, false, false) => {
+        //         // Nothing -> Prefix search
+        //         let prefix = String::from(self.commons.current_line.text_before_cursor());
+        //         self.commons.current_line.clear();
+        //         self.commons.current_line.insert_str(&prefix);
+        //         HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false)
+        //     }
+        //     _ => self,
+        // }
+        self
     }
 }

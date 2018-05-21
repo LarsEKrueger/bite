@@ -32,7 +32,7 @@ pub struct ExecuteCommandPresenter {
     cmd_input: Sender<String>,
 
     /// Channel from running command
-    cmd_output: Receiver<execute::CommandOutput>,
+    cmd_output: Receiver<String>,
 }
 
 impl ExecuteCommandPresenter {
@@ -40,7 +40,7 @@ impl ExecuteCommandPresenter {
         commons: Box<PresenterCommons>,
         prompt: String,
         cmd_input: Sender<String>,
-        cmd_output: Receiver<execute::CommandOutput>,
+        cmd_output: Receiver<String>,
     ) -> Box<Self> {
         let presenter = ExecuteCommandPresenter {
             commons,
@@ -66,18 +66,18 @@ impl SubPresenter for ExecuteCommandPresenter {
         let mut needs_marking = false;
         if let Ok(line) = self.cmd_output.try_recv() {
             needs_marking = true;
-            match line {
-                execute::CommandOutput::FromOutput(line) => {
-                    self.current_interaction.add_output(line);
-                }
-                execute::CommandOutput::FromError(line) => {
-                    self.current_interaction.add_error(line);
-                }
-                execute::CommandOutput::Terminated(exit_code) => {
-                    self.current_interaction.set_exit_status(exit_code);
-                    clear_spawned = true;
-                }
-            }
+            // match line {
+            //     execute::CommandOutput::FromOutput(line) => {
+            //         self.current_interaction.add_output(line);
+            //     }
+            //     execute::CommandOutput::FromError(line) => {
+            //         self.current_interaction.add_error(line);
+            //     }
+            //     execute::CommandOutput::Terminated(exit_code) => {
+            //         self.current_interaction.set_exit_status(exit_code);
+            //         clear_spawned = true;
+            //     }
+            // }
         }
         if clear_spawned {
             self.current_interaction.prepare_archiving();

@@ -28,7 +28,7 @@ use std::sync::mpsc::{Receiver, Sender};
 mod runeline;
 mod compose_command;
 mod execute_command;
-mod history;
+// mod history;
 pub mod display_line;
 
 use model::session::*;
@@ -36,11 +36,10 @@ use model::iterators::*;
 use model::interaction::*;
 use model::error::*;
 use model::bash::*;
-use model::bash::history::*;
 use model::types::*;
 
 use self::compose_command::*;
-use self::history::*;
+//use self::history::*;
 use self::display_line::*;
 
 /// GUI agnostic representation of the modifier keys
@@ -140,13 +139,8 @@ pub struct PresenterCommons {
     /// Currently edited input line
     current_line: runeline::Runeline,
 
-    /// Bash script interpreter.
-    ///
-    /// We need to keep it in a mutex from the start because we don't get it out once it's in one.
-    bash: Arc<Mutex<Bash>>,
-
-    /// List of all lines we have successfully parsed.
-    pub history: History,
+    // List of all lines we have successfully parsed.
+    // pub history: History,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -191,18 +185,15 @@ impl PresenterCommons {
     ///
     /// This will be passed from sub-presenter to sub-presenter on state changes.
     pub fn new() -> Result<Self> {
-        let bash = Bash::new()?;
-        let prompt = bash.expand_ps1();
-        let history = History::new(bash.get_current_user_home_dir());
+        // let history = History::new(bash.get_current_user_home_dir());
         Ok(PresenterCommons {
-            session: Session::new(prompt),
+            session: Session::new("stuff".to_string()),
             window_width: 0,
             window_height: 0,
             button_down: None,
             current_line: runeline::Runeline::new(),
             last_line_shown: 0,
-            bash: Arc::new(Mutex::new(bash)),
-            history,
+            // history,
         })
     }
 

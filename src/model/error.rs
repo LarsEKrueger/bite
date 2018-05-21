@@ -19,7 +19,6 @@
 //! Error codes for all bash operations
 
 use std::sync::mpsc::Sender;
-use super::bash::execute::*;
 
 /// Errors codes
 #[derive(Debug)]
@@ -101,14 +100,6 @@ impl Error {
                     line
                 )
             }
-        }
-    }
-
-    pub fn send(self, output_tx: &mut Sender<CommandOutput>, prefix: &str) {
-        for l in self.cause(prefix, "").lines() {
-            output_tx
-                .send(CommandOutput::FromError(String::from(l)))
-                .unwrap();
         }
     }
 }
