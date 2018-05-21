@@ -49,42 +49,9 @@ Finally, long-running programs are automatically managed in a separate tab as
 well. Their output is captured is a way that they do not interfere with
 foreground operations.
 
-As the primary purpose of this program is to improve on the usability of the
-shell/term combination, only a subset of bash's features will be implemented:
-
-* prompt
-* history
-* global variables
-* temporary variables
-* brace expansion (limited), tilde expansion (limited), variable expansion (limited),
-  pathname expansion, history expansion, arithmetic expansion
-* pipelines (limited)
-* redirection (only output to file)
-* aliases
-* job control
-* builtin commands (limited)
-* command lists (limited to &&, ||, ;)
-* compound commands (limited to for, if, while)
-* shell variables (limited)
-* completion (limited)
-* sub-shells
-
-The following features will not be implemented:
-
-* functions
-* here documents
-* coprocesses
-* comments
-* arrays
-* recursive variable expansion
-* recursive brace expansion
-* name references
-* dynamic variables
-
-The included features appear to be the most frequently-used interactve constructs while the
-features left out are deemed inconvenient to enter in an interactive shell.
-This list is subject to change (e.g. due to an to-be-implemented feature
-depends on an not-to-be-implemented feature).
+The regular bash functionality will be implemented by linking to the nearly
+unmodified bash source code and calling this C code from rust code. This can
+serve as a basis for rewriting some or all parts of bash in rust.
 
 # Planned Features, Step 2
 
@@ -139,12 +106,12 @@ non-GUI program.
 * [X] 0.3.3 indicate return code in display
 * [X] 0.3.4 pipelines (no redirection)
 * [X] 0.4 pipelines
-* [ ] 0.4.1 cd command
-* [ ] 0.4.2 array variables / DIRSTACK
-* [ ] 0.4.3 pushd / popd
-* [ ] 0.4.4 dirs
-* [ ] 0.4.5 completion (internal)
-* [ ] 0.5 cd and completion
+* [X] 0.4.1 link to bash as a library
+* [ ] 0.4.2 send bite input to bash
+* [ ] 0.4.3 send bite input to foreground programs
+* [ ] 0.4.4 get prompt from bash via channel
+* [ ] 0.4.5 get stdout and stdin from bash and foreground programs
+* [ ] 0.5 use original bash source for foreground operations
 * [ ] 0.6 backgrounding
 * [ ] 0.7 Handle colors in output, error, and prompt
 * [ ] 0.8 Run start-up and shut-down scripts
