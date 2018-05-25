@@ -70,6 +70,9 @@ impl SubPresenter for ComposeCommandPresenter {
         let line = self.commons.current_line.clear();
         let mut line_ret = line.clone();
         line_ret.push_str("\n");
+
+        ::model::bash::bite_add_input(line_ret.as_str());
+
         // let cmd = self.commons
         //     .bash
         //     .lock()

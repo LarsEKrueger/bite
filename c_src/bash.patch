@@ -135,7 +135,7 @@ index c7b62bc0..559f3895 100644
  	@echo
  	@echo "	  ***********************************************************"
 diff --git a/shell.c b/shell.c
-index 45b77f9e..3bd5ee2c 100644
+index 45b77f9e..01953206 100644
 --- a/shell.c
 +++ b/shell.c
 @@ -353,18 +353,10 @@ _cygwin32_check_tmp ()
@@ -178,3 +178,27 @@ index 45b77f9e..3bd5ee2c 100644
  
    USE_VAR(argc);
    USE_VAR(argv);
+@@ -399,8 +394,6 @@ main (argc, argv, env)
+   malloc_set_register (1);	/* XXX - change to 1 for malloc debugging */
+ #endif
+ 
+-  check_dev_tty ();
+-
+ #ifdef __CYGWIN__
+   _cygwin32_check_tmp ();
+ #endif /* __CYGWIN__ */
+@@ -752,7 +745,13 @@ main (argc, argv, env)
+        option shall be assumed." */
+     read_from_stdin = 1;
+ 
+-  set_bash_input ();
++  {
++    extern int bite_getch();
++    extern int bite_ungetch(int);
++    INPUT_STREAM location;
++    init_yy_io (bite_getch,
++        bite_ungetch, st_string, "bite stdin", location);
++  }
+ 
+   /* Bind remaining args to $1 ... $n */
+   arg_index = bind_args (argv, arg_index, argc, 1);
