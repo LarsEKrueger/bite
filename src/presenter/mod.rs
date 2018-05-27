@@ -22,7 +22,7 @@
 //! composition or history browsing.
 
 use std::fmt::{Display, Formatter};
-use std::sync::{Arc, Mutex};
+//use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 
 mod runeline;
@@ -35,8 +35,8 @@ use model::session::*;
 use model::iterators::*;
 use model::interaction::*;
 use model::error::*;
-use model::bash::*;
-use model::types::*;
+//use model::bash::*;
+//use model::types::*;
 
 use self::compose_command::*;
 //use self::history::*;

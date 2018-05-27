@@ -65,6 +65,7 @@ impl Runeline {
     }
 
     /// Retrieve the input left of the cursor.
+    #[allow(dead_code)]
     pub fn text_before_cursor(&self) -> &str {
         &self.line[0..self.cursor.byte_index]
     }
@@ -142,6 +143,7 @@ impl Runeline {
     ///
     /// The cursor can be placed at the beginning of the line or at the same character position as
     /// the old string.
+    #[allow(dead_code)]
     pub fn replace(&mut self, s: String, stay_there: bool) {
         self.line = s;
 

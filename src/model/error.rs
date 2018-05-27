@@ -18,8 +18,6 @@
 
 //! Error codes for all bash operations
 
-use std::sync::mpsc::Sender;
-
 /// Errors codes
 #[derive(Debug)]
 pub enum Error {

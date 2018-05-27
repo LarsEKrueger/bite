@@ -19,7 +19,7 @@
 //! Sub presenter for composing commands.
 
 use super::*;
-use super::execute_command::*;
+//use super::execute_command::*;
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -149,7 +149,7 @@ impl SubPresenter for ComposeCommandPresenter {
     ///
     /// If Ctrl-R is pressed, go to history browse mode with search for contained strings.
     fn event_control_key(
-        mut self: Box<Self>,
+        self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, bool) {
@@ -189,7 +189,7 @@ impl SubPresenter for ComposeCommandPresenter {
     /// Scroll page-wise on Shift-PageUp.
     ///
     /// Go to history browse mode with prefix search if no modifiers were pressed.
-    fn event_page_up(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
+    fn event_page_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         // match mod_state.as_tuple() {
         //     (true, false, false) => {
         //         // Shift only -> Scroll
@@ -218,7 +218,7 @@ impl SubPresenter for ComposeCommandPresenter {
     /// Scroll page-wise on Shift-PageDown.
     ///
     /// Go to history browse mode with prefix search if no modifiers were pressed.
-    fn event_page_down(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
+    fn event_page_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         // match mod_state.as_tuple() {
         //     (true, false, false) => {
         //         // Shift only -> Scroll

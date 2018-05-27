@@ -21,6 +21,7 @@
 use super::*;
 
 /// Presenter to run commands and send input to their stdin.
+#[allow(dead_code)]
 pub struct ExecuteCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
@@ -35,6 +36,7 @@ pub struct ExecuteCommandPresenter {
     cmd_output: Receiver<String>,
 }
 
+#[allow(dead_code)]
 impl ExecuteCommandPresenter {
     pub fn new(
         commons: Box<PresenterCommons>,
@@ -62,9 +64,9 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn poll_interaction(mut self: Box<Self>) -> (Box<SubPresenter>, bool) {
-        let mut clear_spawned = false;
+        let clear_spawned = false;
         let mut needs_marking = false;
-        if let Ok(line) = self.cmd_output.try_recv() {
+        if let Ok(_line) = self.cmd_output.try_recv() {
             needs_marking = true;
             // match line {
             //     execute::CommandOutput::FromOutput(line) => {
