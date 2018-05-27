@@ -135,7 +135,7 @@ index c7b62bc0..559f3895 100644
  	@echo
  	@echo "	  ***********************************************************"
 diff --git a/shell.c b/shell.c
-index 45b77f9e..01953206 100644
+index 45b77f9e..59d01f78 100644
 --- a/shell.c
 +++ b/shell.c
 @@ -353,18 +353,10 @@ _cygwin32_check_tmp ()
@@ -187,7 +187,16 @@ index 45b77f9e..01953206 100644
  #ifdef __CYGWIN__
    _cygwin32_check_tmp ();
  #endif /* __CYGWIN__ */
-@@ -752,7 +745,13 @@ main (argc, argv, env)
+@@ -538,6 +531,8 @@ main (argc, argv, env)
+   else
+     init_noninteractive ();
+ 
++  printf("bite: interactive %d\n", interactive_shell);
++
+   /*
+    * Some systems have the bad habit of starting login shells with lots of open
+    * file descriptors.  For instance, most systems that have picked up the
+@@ -752,7 +747,14 @@ main (argc, argv, env)
         option shall be assumed." */
      read_from_stdin = 1;
  
@@ -198,7 +207,44 @@ index 45b77f9e..01953206 100644
 +    INPUT_STREAM location;
 +    init_yy_io (bite_getch,
 +        bite_ungetch, st_string, "bite stdin", location);
++    read_from_stdin = 1;
 +  }
  
    /* Bind remaining args to $1 ... $n */
    arg_index = bind_args (argv, arg_index, argc, 1);
+diff --git a/y.tab.c b/y.tab.c
+index e9a57fcc..c7cb33a9 100644
+--- a/y.tab.c
++++ b/y.tab.c
+@@ -254,11 +254,11 @@ static void print_offending_line __P((void));
+ static void report_syntax_error __P((char *));
+ 
+ static void handle_eof_input_unit __P((void));
+-static void prompt_again __P((void));
++void prompt_again __P((void));
+ #if 0
+ static void reset_readline_prompt __P((void));
+ #endif
+-static void print_prompt __P((void));
++void print_prompt __P((void));
+ 
+ #if defined (HANDLE_MULTIBYTE)
+ static void set_line_mbstate __P((void));
+@@ -7645,7 +7645,7 @@ history_delimiting_chars (line)
+ 
+ /* Issue a prompt, or prepare to issue a prompt when the next character
+    is read. */
+-static void
++void
+ prompt_again ()
+ {
+   char *temp_prompt;
+@@ -7702,7 +7702,7 @@ set_current_prompt_level (x)
+   current_prompt_string = *prompt_string_pointer;
+ }
+       
+-static void
++void
+ print_prompt ()
+ {
+   fprintf (stderr, "%s", current_decoded_prompt);

@@ -22,6 +22,7 @@
 
 use libc::{c_char, c_int};
 use std::sync::{Arc, Mutex, Condvar, MutexGuard, PoisonError};
+use std::sync::mpsc::{Receiver, Sender};
 
 /// Line buffer to parse from
 lazy_static!{
@@ -49,10 +50,22 @@ pub fn bite_add_input(text: &str) {
 #[no_mangle]
 pub extern "C" fn bite_getch() -> c_int {
     let mut line = bite_input_buffer.lock().unwrap();
-    while line.len() == 0 {
-        line = {
-            bite_input_added.wait(line).unwrap()
+    // Print prompt once
+    if line.len() == 0 {
+        #[link(name = "Bash")]
+        extern "C" {
+            fn print_prompt();
+            fn prompt_again();
+        }
+        unsafe {
+            prompt_again();
+            // TODO: Send via channel
+            print_prompt()
         };
+    }
+    // Handle spurious wakeups
+    while line.len() == 0 {
+        line = bite_input_added.wait(line).unwrap();
     }
     line.remove(0) as c_int
 }
