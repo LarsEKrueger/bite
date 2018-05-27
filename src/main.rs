@@ -42,9 +42,6 @@ extern crate cstr;
 #[macro_use]
 extern crate lazy_static;
 
-#[macro_use]
-extern crate nom;
-
 extern crate bincode;
 
 extern crate glob;
@@ -72,7 +69,13 @@ pub fn main() {
     #[cfg(debug_assertions)]
     println!("Command Line\n{:?}", params);
 
-    model::bash::start();
+    match model::bash::start() {
+        Err(err) => {
+            println!("Can't start integrated bash: {}", err);
+            ::std::process::exit(1);
+        }
+        Ok(_) => {}
+    }
 
     let mut gui = match ::view::Gui::new() {
         Err(err) => {
