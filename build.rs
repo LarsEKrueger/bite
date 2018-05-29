@@ -52,7 +52,7 @@ fn main() {
     }
 
     // Build bash
-    if let Some(build) = try_build() {
+    if let Some(_build) = try_build() {
 
         return;
     }
@@ -158,15 +158,22 @@ fn try_build() -> Option<PathBuf> {
 }
 
 fn msys_compatible<P: AsRef<Path>>(path: P) -> String {
-    #[allow(unused_imports)]
-    use std::ascii::AsciiExt;
 
     let mut path = path.as_ref().to_string_lossy().into_owned();
     if !cfg!(windows) || Path::new(&path).is_relative() {
         return path;
     }
 
-    if let Some(b'a'...b'z') = path.as_bytes().first().map(u8::to_ascii_lowercase) {
+    let mut is_letter = false;
+    if let Some(c) = path.as_bytes().first() {
+        match c {
+            b'a'...b'z' | b'A'...b'Z' => {
+                is_letter = true;
+            }
+            _ => {}
+        }
+    }
+    if is_letter {
         if path.split_at(1).1.starts_with(":\\") {
             (&mut path[..1]).make_ascii_lowercase();
             path.remove(1);
