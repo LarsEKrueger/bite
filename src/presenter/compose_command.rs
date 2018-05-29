@@ -68,58 +68,12 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn event_return(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         let line = self.commons.current_line.clear();
-        let mut line_ret = line.clone();
-        line_ret.push_str("\n");
 
-        ::model::bash::bite_add_input(line_ret.as_str());
+        // let res = ExecuteCommandPresenter::new(self.commons, line);
 
-        // let cmd = self.commons
-        //     .bash
-        //     .lock()
-        //     .expect(format!("Internal error! {}:{}", file!(), line!()).as_str())
-        //     .add_line(line_ret.as_str());
-        // match cmd {
-        //     ParsedCommand::Incomplete => self,
-        //     ParsedCommand::Error(err) => {
-        //         // Parser error. Create a fake interaction with the bad command line and
-        //         // the error message
-        //         let mut inter = Interaction::new(line);
-        //         for l in err.into_iter() {
-        //             inter.add_error(l);
-        //         }
-        //         inter.prepare_archiving();
-        //         self.commons.session.archive_interaction(inter);
-        //         self
-        //     }
-        //     _ => {
-        //         // Add to history
-        //         self.commons.history.add_command(line.clone());
+        ::model::bash::bite_add_input(line.as_str());
+        ::model::bash::bite_add_input("\n");
 
-        //         // Execute
-        //         // match Bash::execute(&self.commons.bash, cmd) {
-        //         //     ExecutionResult::Ignore => self,
-        //         //     ExecutionResult::Spawned((tx, rx)) => {
-        //         //         ExecuteCommandPresenter::new(self.commons, line.clone(), tx, rx)
-        //         //     }
-        //         //     ExecutionResult::Builtin(bi) => {
-        //         //         let mut inter = Interaction::new(line);
-        //         //         inter.add_output_vec(bi.output);
-        //         //         inter.add_errors_vec(bi.errors);
-        //         //         inter.prepare_archiving();
-        //         //         self.commons.session.archive_interaction(inter);
-        //         //         self
-        //         //     }
-        //         //     ExecutionResult::Err(msg) => {
-        //         //         // Something happened during program start
-        //         //         let mut inter = Interaction::new(line);
-        //         //         inter.add_errors_lines(msg);
-        //         //         inter.prepare_archiving();
-        //         //         self.commons.session.archive_interaction(inter);
-        //         //         self
-        //         //     }
-        //         // }
-        //     }
-        // }
         self
     }
 

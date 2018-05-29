@@ -20,13 +20,17 @@
 //!
 //! Be aware that bash is full of global variables and must not be started more than once.
 
-use std::sync::{Mutex, Condvar, MutexGuard, PoisonError};
-use std::os::unix::io::{RawFd, IntoRawFd};
+use std::sync::{Arc, Mutex, Condvar, MutexGuard, PoisonError};
+use std::os::unix::io::{RawFd, IntoRawFd, FromRawFd};
 use std::path::Path;
 use std::error::Error;
+use std::sync::mpsc::{Sender, Receiver, channel};
+use std::thread::spawn;
+use std::process::ExitStatus;
+use std::fs::File;
 
 use nix::pty::*;
-use nix::unistd::{dup, dup2};
+use nix::unistd::{dup, dup2, read};
 use nix::fcntl::{OFlag, open};
 use nix::sys::stat::Mode;
 
@@ -110,7 +114,7 @@ struct PtsHandles {
     /// Stdout PTS slave (bash side)
     stdout_s: RawFd,
     /// Stdout backup. This will print to the terminal that started us.
-    stdout_b: RawFd,
+    stdout_b: File,
     /// Stdout PTS master (bite side)
     stderr_m: RawFd,
     /// Stdout PTS slave (bash side)
@@ -205,39 +209,94 @@ fn create_terminals() -> Result<PtsHandles, String> {
         stdin_b: save_stdin,
         stdout_m,
         stdout_s,
-        stdout_b: save_stdout,
+        stdout_b: unsafe { ::std::fs::File::from_raw_fd(save_stdout) },
         stderr_m,
         stderr_s,
         stderr_b: save_stderr,
     })
 }
 
-static mut pts_handles: Option<PtsHandles> = None;
+// static mut pts_handles: Option<PtsHandles> = None;
+
+/// Data to be sent to the receiver of the program's output.
+pub enum BashOutput {
+    /// A line was read from stdout.
+    FromOutput(String),
+
+    /// A line was read from stderr.
+    FromError(String),
+
+    /// The program terminated.
+    Terminated(ExitStatus),
+}
+
+/// Read a line from a pipe and report if it worked.
+fn read_line(fd: RawFd) -> Option<String> {
+    // Convert complete line as lossy UTF-8
+    let mut one = [b' '; 1];
+    let mut line = vec![];
+    while let Ok(1) = read(fd, &mut one) {
+        match one[0] {
+            b'\r' => {}
+            b'\n' => return Some(String::from(String::from_utf8_lossy(&line[..]))),
+            c => line.push(c),
+        }
+    }
+    None
+}
+
+/// Read from a RawFd until fails and send to the channel with the constructor
+fn read_lines(
+    fd: RawFd,
+    sender: Sender<BashOutput>,
+    construct: &Fn(String) -> BashOutput,
+    error: Arc<Mutex<File>>,
+) {
+    while let Some(line) = read_line(fd) {
+        error.lock().map(|mut error| {
+            use std::io::Write;
+            write!(error, "read_line: '{}'\n", line);
+        });
+        // sender.send(construct(line)).unwrap();
+    }
+}
 
 /// Start bash as a thread. Do not call more than once.
 ///
 /// As bash is full of global variables and longjmps, we need to run its main function as a whole
 /// in a thread.
-pub fn start() -> Result<(), String> {
+pub fn start() -> Result<Receiver<BashOutput>, String> {
     #[link(name = "Bash")]
     extern "C" {
         fn bash_main();
     }
 
-    unsafe {
-        pts_handles = Some(create_terminals()?);
+    let mut pts_handles = create_terminals()?;
 
-        // If we got here, we can print stuff through the backup handles.
-        use std::os::unix::io::FromRawFd;
-        use std::io::Write;
-        pts_handles.as_ref().map(|h| {
-            ::std::fs::File::from_raw_fd(h.stdout_b).write(
-                b"bite: Pseudo terminals correctly set up.\n",
-            )
-        });
-    }
+    // If we got here, we can print stuff through the backup handles.
+    use std::io::Write;
+    pts_handles.stdout_b.write(
+        b"bite: Pseudo terminals correctly set up.\n",
+    );
 
-    ::std::thread::spawn(move || unsafe { bash_main() });
+    let (sender, receiver) = channel();
 
-    Ok(())
+    let stdout_sender = sender.clone();
+    let (stdout_m, stderr_m) = (pts_handles.stdout_m, pts_handles.stderr_m);
+    let stdout_b = Arc::new(Mutex::new(pts_handles.stdout_b));
+    let stdout_bo = stdout_b.clone();
+    spawn(move || {
+        read_lines(stdout_m, stdout_sender, &BashOutput::FromOutput, stdout_bo)
+    });
+
+    let stdout_be = stdout_b.clone();
+
+    let stderr_sender = sender.clone();
+    spawn(move || {
+        read_lines(stderr_m, stderr_sender, &BashOutput::FromError, stdout_be)
+    });
+
+    spawn(move || unsafe { bash_main() });
+
+    Ok(receiver)
 }

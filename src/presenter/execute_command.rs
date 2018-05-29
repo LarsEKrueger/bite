@@ -28,27 +28,14 @@ pub struct ExecuteCommandPresenter {
 
     /// Current interaction
     current_interaction: Interaction,
-
-    /// Channel to running command
-    cmd_input: Sender<String>,
-
-    /// Channel from running command
-    cmd_output: Receiver<String>,
 }
 
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
-    pub fn new(
-        commons: Box<PresenterCommons>,
-        prompt: String,
-        cmd_input: Sender<String>,
-        cmd_output: Receiver<String>,
-    ) -> Box<Self> {
+    pub fn new(commons: Box<PresenterCommons>, prompt: String) -> Box<Self> {
         let presenter = ExecuteCommandPresenter {
             commons,
             current_interaction: Interaction::new(prompt),
-            cmd_input,
-            cmd_output,
         };
         Box::new(presenter)
     }
@@ -66,21 +53,21 @@ impl SubPresenter for ExecuteCommandPresenter {
     fn poll_interaction(mut self: Box<Self>) -> (Box<SubPresenter>, bool) {
         let clear_spawned = false;
         let mut needs_marking = false;
-        if let Ok(_line) = self.cmd_output.try_recv() {
-            needs_marking = true;
-            // match line {
-            //     execute::CommandOutput::FromOutput(line) => {
-            //         self.current_interaction.add_output(line);
-            //     }
-            //     execute::CommandOutput::FromError(line) => {
-            //         self.current_interaction.add_error(line);
-            //     }
-            //     execute::CommandOutput::Terminated(exit_code) => {
-            //         self.current_interaction.set_exit_status(exit_code);
-            //         clear_spawned = true;
-            //     }
-            // }
-        }
+        // if let Ok(_line) = self.cmd_output.try_recv() {
+        //     needs_marking = true;
+        //     // match line {
+        //     //     execute::CommandOutput::FromOutput(line) => {
+        //     //         self.current_interaction.add_output(line);
+        //     //     }
+        //     //     execute::CommandOutput::FromError(line) => {
+        //     //         self.current_interaction.add_error(line);
+        //     //     }
+        //     //     execute::CommandOutput::Terminated(exit_code) => {
+        //     //         self.current_interaction.set_exit_status(exit_code);
+        //     //         clear_spawned = true;
+        //     //     }
+        //     // }
+        // }
         if clear_spawned {
             self.current_interaction.prepare_archiving();
             let ci = ::std::mem::replace(
@@ -111,7 +98,7 @@ impl SubPresenter for ExecuteCommandPresenter {
     fn event_return(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         let line = self.commons.current_line.clear();
         self.current_interaction.add_output(line.clone());
-        self.cmd_input.send(line + "\n").unwrap();
+        // self.cmd_input.send(line + "\n").unwrap();
         self
     }
 
