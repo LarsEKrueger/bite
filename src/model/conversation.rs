@@ -28,7 +28,7 @@ pub struct Conversation {
     /// List of programs and their outputs for this prompt.
     pub interactions: Vec<Interaction>,
     /// The prompt for this conversation.
-    prompt: String,
+    pub prompt: String,
 }
 
 impl Conversation {

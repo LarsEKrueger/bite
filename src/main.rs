@@ -69,15 +69,15 @@ pub fn main() {
     #[cfg(debug_assertions)]
     println!("Command Line\n{:?}", params);
 
-    match model::bash::start() {
+    let (receiver, reader_barrier, bash_barrier) = match model::bash::start() {
         Err(err) => {
             println!("Can't start integrated bash: {}", err);
             ::std::process::exit(1);
         }
-        Ok(_) => {}
-    }
+        Ok(r) => r,
+    };
 
-    let mut gui = match ::view::Gui::new() {
+    let mut gui = match ::view::Gui::new(receiver) {
         Err(err) => {
             println!("Can't init GUI: {}", err);
             ::std::process::exit(1);
@@ -89,6 +89,9 @@ pub fn main() {
     //       session.new_interaction(params.single_program[0].clone());
     //       spawned = Some(execute::spawn_command(&params.single_program));
     //   }
+
+    reader_barrier.wait();
+    bash_barrier.wait();
 
     gui.main_loop();
     gui.finish();

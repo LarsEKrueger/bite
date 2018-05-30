@@ -25,16 +25,18 @@ use std::os::unix::io::{RawFd, IntoRawFd, FromRawFd};
 use std::path::Path;
 use std::error::Error;
 use std::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::Barrier;
 use std::thread::spawn;
 use std::process::ExitStatus;
 use std::fs::File;
+use std::ffi::CStr;
 
 use nix::pty::*;
 use nix::unistd::{dup, dup2, read};
 use nix::fcntl::{OFlag, open};
 use nix::sys::stat::Mode;
 
-use libc::{c_int, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
+use libc::{c_char, c_int, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 
 /// Line buffer to parse from
 lazy_static!{
@@ -60,6 +62,8 @@ pub fn bite_add_input(text: &str) {
         });
 }
 
+static mut bash_sender: Option<Mutex<Sender<BashOutput>>> = None;
+
 #[no_mangle]
 pub extern "C" fn bite_getch() -> c_int {
     let mut line = bite_input_buffer.lock().unwrap();
@@ -67,13 +71,19 @@ pub extern "C" fn bite_getch() -> c_int {
     if line.len() == 0 {
         #[link(name = "Bash")]
         extern "C" {
-            fn print_prompt();
             fn prompt_again();
+            static current_decoded_prompt: *const c_char;
         }
         unsafe {
             prompt_again();
-            // TODO: Send via channel
-            print_prompt()
+            // Send via channel
+            if let Some(ref mut sender) = bash_sender {
+                let prompt = CStr::from_ptr(current_decoded_prompt)
+                    .to_string_lossy()
+                    .to_string();
+                let _ = sender.lock().unwrap().send(BashOutput::Prompt(prompt));
+
+            }
         };
     }
     // Handle spurious wakeups
@@ -228,6 +238,9 @@ pub enum BashOutput {
 
     /// The program terminated.
     Terminated(ExitStatus),
+
+    /// Bash wanted to issue a prompt.
+    Prompt(String),
 }
 
 /// Read a line from a pipe and report if it worked.
@@ -250,14 +263,14 @@ fn read_lines(
     fd: RawFd,
     sender: Sender<BashOutput>,
     construct: &Fn(String) -> BashOutput,
-    error: Arc<Mutex<File>>,
+    _error: Arc<Mutex<File>>,
 ) {
     while let Some(line) = read_line(fd) {
-        error.lock().map(|mut error| {
-            use std::io::Write;
-            write!(error, "read_line: '{}'\n", line);
-        });
-        // sender.send(construct(line)).unwrap();
+        // let _ = error.lock().map(|mut error| {
+        //     use std::io::Write;
+        //     write!(error, "read_line: '{}'\n", line);
+        // });
+        let _ = sender.send(construct(line));
     }
 }
 
@@ -265,7 +278,7 @@ fn read_lines(
 ///
 /// As bash is full of global variables and longjmps, we need to run its main function as a whole
 /// in a thread.
-pub fn start() -> Result<Receiver<BashOutput>, String> {
+pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), String> {
     #[link(name = "Bash")]
     extern "C" {
         fn bash_main();
@@ -275,28 +288,40 @@ pub fn start() -> Result<Receiver<BashOutput>, String> {
 
     // If we got here, we can print stuff through the backup handles.
     use std::io::Write;
-    pts_handles.stdout_b.write(
+    let _ = pts_handles.stdout_b.write(
         b"bite: Pseudo terminals correctly set up.\n",
     );
 
     let (sender, receiver) = channel();
 
+    let reader_barrier = Arc::new(Barrier::new(3));
+    let bash_barrier = Arc::new(Barrier::new(2));
+
     let stdout_sender = sender.clone();
     let (stdout_m, stderr_m) = (pts_handles.stdout_m, pts_handles.stderr_m);
     let stdout_b = Arc::new(Mutex::new(pts_handles.stdout_b));
     let stdout_bo = stdout_b.clone();
+    let out_reader_barrier = reader_barrier.clone();
     spawn(move || {
+        out_reader_barrier.wait();
         read_lines(stdout_m, stdout_sender, &BashOutput::FromOutput, stdout_bo)
     });
 
     let stdout_be = stdout_b.clone();
-
     let stderr_sender = sender.clone();
+    let err_reader_barrier = reader_barrier.clone();
     spawn(move || {
+        err_reader_barrier.wait();
         read_lines(stderr_m, stderr_sender, &BashOutput::FromError, stdout_be)
     });
 
-    spawn(move || unsafe { bash_main() });
+    unsafe { bash_sender = Some(Mutex::new(sender)) };
 
-    Ok(receiver)
+    let bash_main_barrier = bash_barrier.clone();
+    spawn(move || {
+        bash_main_barrier.wait();
+        unsafe { bash_main() }
+    });
+
+    Ok((receiver, reader_barrier, bash_barrier))
 }

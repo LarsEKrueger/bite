@@ -23,7 +23,7 @@
 
 use std::fmt::{Display, Formatter};
 //use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::Receiver;
 
 mod runeline;
 mod compose_command;
@@ -35,10 +35,11 @@ use model::session::*;
 use model::iterators::*;
 use model::interaction::*;
 use model::error::*;
-//use model::bash::*;
+use model::bash::BashOutput;
 //use model::types::*;
 
 use self::compose_command::*;
+use self::execute_command::*;
 //use self::history::*;
 use self::display_line::*;
 
@@ -141,6 +142,7 @@ pub struct PresenterCommons {
 
     // List of all lines we have successfully parsed.
     // pub history: History,
+    receiver: Receiver<BashOutput>,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -184,16 +186,17 @@ impl PresenterCommons {
     /// Allocate a new data struct.
     ///
     /// This will be passed from sub-presenter to sub-presenter on state changes.
-    pub fn new() -> Result<Self> {
+    pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
         Ok(PresenterCommons {
-            session: Session::new("stuff".to_string()),
+            session: Session::new("System".to_string()),
             window_width: 0,
             window_height: 0,
             button_down: None,
             current_line: runeline::Runeline::new(),
             last_line_shown: 0,
             // history,
+            receiver,
         })
     }
 
@@ -214,9 +217,10 @@ impl PresenterCommons {
 
 impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
-    pub fn new() -> Result<Self> {
-        Ok(Presenter(Some(ComposeCommandPresenter::new(
-            Box::new(PresenterCommons::new()?),
+    pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
+        Ok(Presenter(Some(ExecuteCommandPresenter::new(
+            Box::new(PresenterCommons::new(receiver)?),
+            String::from("Startup"),
         ))))
     }
 

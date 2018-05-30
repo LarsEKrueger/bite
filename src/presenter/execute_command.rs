@@ -28,6 +28,9 @@ pub struct ExecuteCommandPresenter {
 
     /// Current interaction
     current_interaction: Interaction,
+
+    /// Prompt to set. If None, we didn't receive one yet
+    next_prompt: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -36,6 +39,7 @@ impl ExecuteCommandPresenter {
         let presenter = ExecuteCommandPresenter {
             commons,
             current_interaction: Interaction::new(prompt),
+            next_prompt: None,
         };
         Box::new(presenter)
     }
@@ -51,34 +55,40 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn poll_interaction(mut self: Box<Self>) -> (Box<SubPresenter>, bool) {
-        let clear_spawned = false;
         let mut needs_marking = false;
-        // if let Ok(_line) = self.cmd_output.try_recv() {
-        //     needs_marking = true;
-        //     // match line {
-        //     //     execute::CommandOutput::FromOutput(line) => {
-        //     //         self.current_interaction.add_output(line);
-        //     //     }
-        //     //     execute::CommandOutput::FromError(line) => {
-        //     //         self.current_interaction.add_error(line);
-        //     //     }
-        //     //     execute::CommandOutput::Terminated(exit_code) => {
-        //     //         self.current_interaction.set_exit_status(exit_code);
-        //     //         clear_spawned = true;
-        //     //     }
-        //     // }
-        // }
-        if clear_spawned {
-            self.current_interaction.prepare_archiving();
-            let ci = ::std::mem::replace(
-                &mut self.current_interaction,
-                Interaction::new(String::from("")),
-            );
-            self.commons.session.archive_interaction(ci);
-            (ComposeCommandPresenter::new(self.commons), needs_marking)
-        } else {
-            (self, needs_marking)
+        if let Ok(line) = self.commons_mut().receiver.try_recv() {
+            needs_marking = true;
+            match line {
+                BashOutput::FromOutput(line) => {
+                    self.current_interaction.add_output(line);
+                }
+                BashOutput::FromError(line) => {
+                    self.current_interaction.add_error(line);
+                }
+                BashOutput::Terminated(exit_code) => {
+                    self.current_interaction.set_exit_status(exit_code);
+                }
+                BashOutput::Prompt(prompt) => {
+                    self.next_prompt = Some(prompt);
+                }
+            }
         }
+        if !needs_marking {
+            let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
+            if let Some(prompt) = next_prompt {
+                self.current_interaction.prepare_archiving();
+                let ci = ::std::mem::replace(
+                    &mut self.current_interaction,
+                    Interaction::new(String::from("")),
+                );
+                self.commons.session.archive_interaction(ci);
+                if self.commons.session.current_conversation.prompt != prompt {
+                    self.commons.session.new_conversation(prompt);
+                }
+                return (ComposeCommandPresenter::new(self.commons), needs_marking);
+            }
+        }
+        (self, needs_marking)
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {

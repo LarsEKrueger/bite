@@ -135,10 +135,10 @@ index c7b62bc0..559f3895 100644
  	@echo
  	@echo "	  ***********************************************************"
 diff --git a/shell.c b/shell.c
-index 45b77f9e..35c9f27a 100644
+index 45b77f9e..5a152f90 100644
 --- a/shell.c
 +++ b/shell.c
-@@ -353,18 +353,20 @@ _cygwin32_check_tmp ()
+@@ -353,18 +353,23 @@ _cygwin32_check_tmp ()
  }
  #endif /* __CYGWIN__ */
  
@@ -156,9 +156,12 @@ index 45b77f9e..35c9f27a 100644
 -#endif /* !NO_MAIN_ENV_ARG */
 +void bash_use_pts( int stdin_s, int stdout_s, int stderr_s)
 +{
-+  /* We do not fclose the old file objects. This will cause a tiny memory leak
-+   * and maybe the loss of some buffered text. This should not be critical in
-+   * light of the other things that happen in this code.*/
++  /* We do not fclose the old file objects as this would close the already
++   * dup'ed pseudo terminals.
++   *
++   * This will cause a tiny memory leak and maybe the loss of some buffered
++   * text. This should not be critical in light of the other things that
++   * happen in this code.*/
 +   stdin = fdopen(stdin_s, "r");
 +   stdout = fdopen(stdout_s, "w");
 +   stderr = fdopen(stderr_s, "w");
@@ -171,7 +174,7 @@ index 45b77f9e..35c9f27a 100644
  {
    register int i;
    int code, old_errexit_flag;
-@@ -373,11 +375,14 @@ main (argc, argv, env)
+@@ -373,11 +378,14 @@ main (argc, argv, env)
  #endif
    volatile int locally_skip_execution;
    volatile int arg_index, top_level_arg_index;
@@ -188,7 +191,7 @@ index 45b77f9e..35c9f27a 100644
  
    USE_VAR(argc);
    USE_VAR(argv);
-@@ -399,8 +404,6 @@ main (argc, argv, env)
+@@ -399,8 +407,6 @@ main (argc, argv, env)
    malloc_set_register (1);	/* XXX - change to 1 for malloc debugging */
  #endif
  
@@ -197,7 +200,7 @@ index 45b77f9e..35c9f27a 100644
  #ifdef __CYGWIN__
    _cygwin32_check_tmp ();
  #endif /* __CYGWIN__ */
-@@ -538,6 +541,8 @@ main (argc, argv, env)
+@@ -538,6 +544,8 @@ main (argc, argv, env)
    else
      init_noninteractive ();
  
@@ -206,7 +209,7 @@ index 45b77f9e..35c9f27a 100644
    /*
     * Some systems have the bad habit of starting login shells with lots of open
     * file descriptors.  For instance, most systems that have picked up the
-@@ -752,7 +757,14 @@ main (argc, argv, env)
+@@ -752,7 +760,14 @@ main (argc, argv, env)
         option shall be assumed." */
      read_from_stdin = 1;
  
@@ -223,7 +226,7 @@ index 45b77f9e..35c9f27a 100644
    /* Bind remaining args to $1 ... $n */
    arg_index = bind_args (argv, arg_index, argc, 1);
 diff --git a/y.tab.c b/y.tab.c
-index e9a57fcc..c7cb33a9 100644
+index e9a57fcc..82dc6e83 100644
 --- a/y.tab.c
 +++ b/y.tab.c
 @@ -254,11 +254,11 @@ static void print_offending_line __P((void));
@@ -240,6 +243,15 @@ index e9a57fcc..c7cb33a9 100644
  
  #if defined (HANDLE_MULTIBYTE)
  static void set_line_mbstate __P((void));
+@@ -343,7 +343,7 @@ static int arith_for_lineno;
+ 
+ /* The decoded prompt string.  Used if READLINE is not defined or if
+    editing is turned off.  Analogous to current_readline_prompt. */
+-static char *current_decoded_prompt;
++char *current_decoded_prompt;
+ 
+ /* The last read token, or NULL.  read_token () uses this for context
+    checking. */
 @@ -7645,7 +7645,7 @@ history_delimiting_chars (line)
  
  /* Issue a prompt, or prepare to issue a prompt when the next character

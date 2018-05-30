@@ -27,10 +27,12 @@ use std::time::{Duration, SystemTime};
 use std::ffi::CStr;
 use std::cmp;
 use std::ptr::{null, null_mut};
+use std::sync::mpsc::Receiver;
 
 use tools::polling;
 use presenter::*;
 use presenter::display_line::*;
+use model::bash::BashOutput;
 
 /// Initial width of the window in pixels
 const WIDTH: i32 = 400;
@@ -145,15 +147,15 @@ impl Gui {
     ///
     /// Not all return codes are checked (yet), so might cause crashes that could have been
     /// detected at startup.
-    pub fn new() -> Result<Gui, String> {
+    pub fn new(receiver: Receiver<BashOutput>) -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
         let WM_DELETE_WINDOW = cstr!("WM_DELETE_WINDOW");
         let EMPTY = cstr!("");
         let IMNONE = cstr!("@im=none");
 
-        let presenter = Presenter::new().or_else(
-            |e| Err(e.readable("during initialisation")),
-        )?;
+        let presenter = Presenter::new(receiver).or_else(|e| {
+            Err(e.readable("during initialisation"))
+        })?;
 
         unsafe {
             let display = XOpenDisplay(null());
