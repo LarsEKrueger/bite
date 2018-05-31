@@ -109,25 +109,17 @@ non-GUI program.
 * [X] 0.4.1 link to bash as a library
 * [X] 0.4.2 send bite input to bash
 * [ ] 0.4.3 send bite input to foreground programs
-* [ ] 0.4.4 get prompt from bash via channel
-* [ ] 0.4.5 get stdout and stdin from bash and foreground programs
+* [X] 0.4.4 get prompt from bash via channel
+* [X] 0.4.5 get stdout and stdin from bash and foreground programs
+* [ ] 0.4.6 send Ctrl-C to running program
 * [ ] 0.5 use original bash source for foreground operations
-* [ ] 0.6 backgrounding
-* [ ] 0.7 Handle colors in output, error, and prompt
-* [ ] 0.8 Run start-up and shut-down scripts
-* [ ] 0.9 Sub-Shells
-* [ ] 0.9.1 integer variables
-* [ ] 0.10 expressions
-* [ ] 0.11 control statements
-* [ ] 0.12 redirections
-* [ ] 0.13 History Expansion, Arithmetic Expansion
-* [ ] 0.14 Full prompt string interpreter (with variables)
-* [ ] 0.15 Draw GUI using Xft
-* [ ] 0.16 Design a Unicode BiTE logo and use it in prompts for \s
-* [ ] 0.17 Bug Fixing
-* [ ] 1.0 Full bash compliance, standalone program passes bash test suite
-* [ ] 1.1 Tabs for TUIs
-* [ ] 1.2 Tabs for background programs
+* [ ] 0.6 use bash history
+* [ ] 0.7 Foreground TUIs
+    * [ ] Handle colors in output, error, and prompt
+* [ ] 0.9 Tabs for background programs
+* [ ] 0.10 Tabs for TUIs (automatic backgrounding)
+* [ ] 0.11 Draw GUI using Xft
+* [ ] 1.0 Full bash integration
 * [ ] 1.3 Basic compose / inspect interface
 * [ ] 1.4 Configure fonts and colors
 * [ ] 1.5 Single output operations (search, save)
@@ -138,21 +130,16 @@ non-GUI program.
 * [ ] 2.1 shell program editor with preview
 
 # TODOs
-* [X] Fix history entries to have no end-of-line
+* [ ] Scroll follows output during program execution
 * [ ] End history search mode on cursor left / right. Keep the selected line for edit.
 * [ ] Merge history during save
-* [X] Indicate return code of a completed program in the GUI
+* [ ] Indicate return code of a completed program in the GUI
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
 * [ ] History search: Decorate menu
 * [X] Show the full command line of a program
 * [ ] Make the command line arguments of a program fold out
-* [X] Consume all stdout/stderr data before exit in `send_output`
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
 * [X] Put proper bug reporting email address in error.rs
-* [ ] Handle quoted and escaped spaces in script parser.
-* [ ] Make parser return slices.
-* [ ] Decide how to handle multi-line commands.
-* [ ] Keep partially parsed lines outside bash instance.
 
 # Ideas
 * Integrate mosh functionality
