@@ -69,8 +69,8 @@ impl SubPresenter for ComposeCommandPresenter {
     fn event_return(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         let line = self.commons.current_line.clear();
 
-        ::model::bash::bite_add_input(line.as_str());
-        ::model::bash::bite_add_input("\n");
+        ::model::bash::bash_add_input(line.as_str());
+        ::model::bash::bash_add_input("\n");
 
         ExecuteCommandPresenter::new(self.commons, line)
     }

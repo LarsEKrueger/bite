@@ -107,8 +107,10 @@ impl SubPresenter for ExecuteCommandPresenter {
 
     fn event_return(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         let line = self.commons.current_line.clear();
-        self.current_interaction.add_output(line.clone());
-        // self.cmd_input.send(line + "\n").unwrap();
+        // TODO: disable write-back in bash and mark this line as input
+        // self.current_interaction.add_output(line.clone());
+        ::model::bash::programm_add_input(line.as_str());
+        ::model::bash::programm_add_input("\n");
         self
     }
 

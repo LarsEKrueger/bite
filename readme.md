@@ -108,7 +108,7 @@ non-GUI program.
 * [X] 0.4 pipelines
 * [X] 0.4.1 link to bash as a library
 * [X] 0.4.2 send bite input to bash
-* [ ] 0.4.3 send bite input to foreground programs
+* [X] 0.4.3 send bite input to foreground programs
 * [X] 0.4.4 get prompt from bash via channel
 * [X] 0.4.5 get stdout and stdin from bash and foreground programs
 * [ ] 0.4.6 send Ctrl-C to running program

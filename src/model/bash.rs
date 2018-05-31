@@ -30,9 +30,10 @@ use std::thread::spawn;
 use std::process::ExitStatus;
 use std::fs::File;
 use std::ffi::CStr;
+use std::io::Write;
 
 use nix::pty::*;
-use nix::unistd::{dup, dup2, read};
+use nix::unistd::{dup, dup2, read, write};
 use nix::fcntl::{OFlag, open};
 use nix::sys::stat::Mode;
 
@@ -49,7 +50,7 @@ static ref bite_input_added: Condvar = Condvar::new();
 }
 
 /// Bite side interface to send text to bash.
-pub fn bite_add_input(text: &str) {
+pub fn bash_add_input(text: &str) {
     let _ = bite_input_buffer
         .lock()
         .map(|mut line| {
@@ -133,11 +134,24 @@ struct PtsHandles {
     stderr_b: RawFd,
 }
 
+struct BashHandles {
+    /// Characters written to this handle will be sent to the program that bash runs.
+    prg_stdin: RawFd,
+
+    /// Characters written to this file will be sent to stdout of bite.
+    bite_stdout: Arc<Mutex<File>>,
+
+    /// Characters written to this file will be sent to stderr of bite.
+    bite_stderr: Arc<Mutex<File>>,
+}
+
 /// Create a single pts master/slave pair.
 ///
 /// Returns: (master, slave)
 fn create_terminal() -> Result<(RawFd, RawFd), String> {
-    let ptsm = posix_openpt(OFlag::O_EXCL).map_err(as_description)?;
+    let ptsm = posix_openpt(OFlag::O_RDWR | OFlag::O_EXCL).map_err(
+        as_description,
+    )?;
     grantpt(&ptsm).map_err(as_description)?;
     unlockpt(&ptsm).map_err(as_description)?;
     let sname = unsafe { ptsname(&ptsm).map_err(as_description) }?;
@@ -226,7 +240,28 @@ fn create_terminals() -> Result<PtsHandles, String> {
     })
 }
 
-// static mut pts_handles: Option<PtsHandles> = None;
+static mut bash_handles: Option<BashHandles> = None;
+
+pub fn bite_write_output(line: &str) {
+    unsafe {
+        bash_handles.as_ref().map(|h| {
+            h.bite_stdout.lock().map(|mut f| f.write(line.as_bytes()))
+        })
+    };
+}
+
+/// Send input to the foreground program running in bash.
+pub fn programm_add_input(line: &str) {
+    unsafe {
+        bash_handles.as_ref().map(|h| {
+            write(h.prg_stdin, line.as_bytes()).map_err(|e| {
+                h.bite_stdout.lock().map(|mut f| {
+                    write!(f, "write to {}: {}\n", h.prg_stdin, e.description())
+                })
+            })
+        })
+    };
+}
 
 /// Data to be sent to the receiver of the program's output.
 pub enum BashOutput {
@@ -267,7 +302,6 @@ fn read_lines(
 ) {
     while let Some(line) = read_line(fd) {
         // let _ = error.lock().map(|mut error| {
-        //     use std::io::Write;
         //     write!(error, "read_line: '{}'\n", line);
         // });
         let _ = sender.send(construct(line));
@@ -287,7 +321,6 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
     let mut pts_handles = create_terminals()?;
 
     // If we got here, we can print stuff through the backup handles.
-    use std::io::Write;
     let _ = pts_handles.stdout_b.write(
         b"bite: Pseudo terminals correctly set up.\n",
     );
@@ -322,6 +355,14 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
         bash_main_barrier.wait();
         unsafe { bash_main() }
     });
+
+    unsafe {
+        bash_handles = Some(BashHandles {
+            prg_stdin: pts_handles.stdin_m,
+            bite_stdout: stdout_b,
+            bite_stderr: Arc::new(Mutex::new(File::from_raw_fd(pts_handles.stderr_b))),
+        })
+    };
 
     Ok((receiver, reader_barrier, bash_barrier))
 }
