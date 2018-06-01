@@ -19,7 +19,6 @@
 //! Sub presenter for composing commands.
 
 use super::*;
-//use super::execute_command::*;
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -100,12 +99,14 @@ impl SubPresenter for ComposeCommandPresenter {
     /// Handle pressing modifier + letter.
     ///
     /// If Ctrl-R is pressed, go to history browse mode with search for contained strings.
+    /// If Ctrl-D is pressed, quit bite.
     fn event_control_key(
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
-    ) -> (Box<SubPresenter>, bool) {
+    ) -> (Box<SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), letter) {
+            ((false, true, false), b'd') => (self, PresenterCommand::Exit),
             // ((false, true, false), b'r') => {
             //     // Control-R -> Start interactive history search
             //     let prefix = String::from(self.commons.current_line.text_before_cursor());
@@ -116,7 +117,7 @@ impl SubPresenter for ComposeCommandPresenter {
             //         true,
             //     )
             // }
-            _ => (self, false),
+            _ => (self, PresenterCommand::Unknown),
         }
     }
 

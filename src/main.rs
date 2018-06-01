@@ -57,6 +57,8 @@ pub mod model;
 pub mod presenter;
 pub mod view;
 
+use model::bash::{bash_kill_last, bash_add_input};
+
 /// Main function that starts the program.
 pub fn main() {
     let EMPTY = cstr!("");
@@ -96,6 +98,9 @@ pub fn main() {
     gui.main_loop();
     gui.finish();
 
-    // TODO: make bash shutdown cleanly
-
+    // Make bash shutdown cleanly by killing a potentially running program and then telling bash to
+    // exit, which will make it terminate its thread.
+    // bash_kill_last();
+    bash_add_input("exit 0");
+    model::bash::stop();
 }

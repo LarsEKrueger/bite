@@ -62,6 +62,17 @@ pub enum NeedRedraw {
 /// This is used to check if we clicked the prefix.
 const COMMAND_PREFIX_LEN: usize = 4;
 
+pub enum PresenterCommand {
+    /// Unknown key combination, not handled
+    Unknown,
+
+    /// Key combination has been dealt with, redraw gui
+    Redraw,
+
+    /// Exit bite
+    Exit,
+}
+
 /// Trait to split the big presenter into several small ones.
 ///
 /// Each SubPresenter handles a different kind of interaction mode, e.g. command composition or
@@ -101,7 +112,7 @@ trait SubPresenter {
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
-    ) -> (Box<SubPresenter>, bool);
+    ) -> (Box<SubPresenter>, PresenterCommand);
 
     /// Handle the event when the input string was changed.
     fn event_update_line(self: Box<Self>) -> Box<SubPresenter>;
@@ -358,7 +369,7 @@ impl Presenter {
     }
 
     /// Dispatch the event that Modifier+Letter was pressed.
-    pub fn event_control_key(&mut self, mod_state: &ModifierState, letter: u8) -> bool {
+    pub fn event_control_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
         self.dispatch_res(|sp| sp.event_control_key(mod_state, letter))
     }
 

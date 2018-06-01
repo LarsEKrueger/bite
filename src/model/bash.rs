@@ -21,6 +21,7 @@
 //! Be aware that bash is full of global variables and must not be started more than once.
 
 use std::sync::{Arc, Mutex, Condvar, MutexGuard, PoisonError};
+use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT, Ordering};
 use std::os::unix::io::{RawFd, IntoRawFd, FromRawFd};
 use std::path::Path;
 use std::error::Error;
@@ -33,7 +34,7 @@ use std::ffi::CStr;
 use std::io::Write;
 
 use nix::pty::{SessionId, posix_openpt, grantpt, unlockpt, ptsname};
-use nix::unistd::{dup, dup2, read, write, Pid};
+use nix::unistd::{dup, dup2, read, write, Pid, close};
 use nix::fcntl::{OFlag, open};
 use nix::sys::stat::Mode;
 use nix::sys::signal::{kill, Signal};
@@ -111,10 +112,9 @@ where
     err.description().to_string()
 }
 
-#[allow(dead_code)]
 struct PtsHandles {
     /// Stdin PTS master (bite side)
-    stdin_m: RawFd,
+    prg_stdin: RawFd,
     /// Stdin PTS slave (bash side)
     stdin_s: RawFd,
     /// Stdin backup.
@@ -126,24 +126,13 @@ struct PtsHandles {
     /// Stdout PTS slave (bash side)
     stdout_s: RawFd,
     /// Stdout backup. This will print to the terminal that started us.
-    stdout_b: File,
+    bite_stdout: Arc<Mutex<File>>,
     /// Stdout PTS master (bite side)
     stderr_m: RawFd,
     /// Stdout PTS slave (bash side)
     stderr_s: RawFd,
     /// Stderr backup. This will print to the terminal that started us.
-    stderr_b: RawFd,
-}
-
-struct BashHandles {
-    /// Characters written to this handle will be sent to the program that bash runs.
-    prg_stdin: RawFd,
-
-    /// Characters written to this file will be sent to stdout of bite.
-    bite_stdout: Arc<Mutex<File>>,
-
-    /// Characters written to this file will be sent to stderr of bite.
-    _bite_stderr: Arc<Mutex<File>>,
+    bite_stderr: Arc<Mutex<File>>,
 }
 
 /// Create a single pts master/slave pair.
@@ -228,24 +217,26 @@ fn create_terminals() -> Result<PtsHandles, String> {
     }
 
     // We should be good to go. Keep the handles somewhere safe
-    Ok(PtsHandles {
-        stdin_m,
-        stdin_s,
-        stdin_b: save_stdin,
-        stdout_m,
-        stdout_s,
-        stdout_b: unsafe { ::std::fs::File::from_raw_fd(save_stdout) },
-        stderr_m,
-        stderr_s,
-        stderr_b: save_stderr,
-    })
+    unsafe {
+        Ok(PtsHandles {
+            prg_stdin: stdin_m,
+            stdin_s,
+            stdin_b: save_stdin,
+            stdout_m,
+            stdout_s,
+            bite_stdout: Arc::new(Mutex::new(::std::fs::File::from_raw_fd(save_stdout))),
+            stderr_m,
+            stderr_s,
+            bite_stderr: Arc::new(Mutex::new(::std::fs::File::from_raw_fd(save_stderr))),
+        })
+    }
 }
 
-static mut bash_handles: Option<BashHandles> = None;
+static mut pts_handles: Option<PtsHandles> = None;
 
 pub fn bite_write_output(line: &str) {
     unsafe {
-        bash_handles.as_ref().map(|h| {
+        pts_handles.as_ref().map(|h| {
             h.bite_stdout.lock().map(|mut f| f.write(line.as_bytes()))
         })
     };
@@ -254,7 +245,7 @@ pub fn bite_write_output(line: &str) {
 /// Send input to the foreground program running in bash.
 pub fn programm_add_input(line: &str) {
     unsafe {
-        bash_handles.as_ref().map(|h| {
+        pts_handles.as_ref().map(|h| {
             write(h.prg_stdin, line.as_bytes()).map_err(|e| {
                 h.bite_stdout.lock().map(|mut f| {
                     write!(f, "write to {}: {}\n", h.prg_stdin, e.description())
@@ -267,13 +258,15 @@ pub fn programm_add_input(line: &str) {
 /// Kill the last program we created.
 ///
 /// This should always be the foreground program. Also, race conditions do not really matter here.
-pub fn bite_kill_last() {
+pub fn bash_kill_last() {
     #[link(name = "Bash")]
     extern "C" {
         static last_made_pid: SessionId;
     }
     unsafe {
-        let _ = kill(Pid::from_raw(last_made_pid), Signal::SIGQUIT);
+        if last_made_pid != -1 {
+            let _ = kill(Pid::from_raw(last_made_pid), Signal::SIGQUIT);
+        }
     }
 }
 
@@ -307,6 +300,8 @@ fn read_line(fd: RawFd) -> Option<String> {
     None
 }
 
+static mut read_lines_quit: AtomicBool = ATOMIC_BOOL_INIT;
+
 /// Read from a RawFd until fails and send to the channel with the constructor
 fn read_lines(
     fd: RawFd,
@@ -314,11 +309,15 @@ fn read_lines(
     construct: &Fn(String) -> BashOutput,
     _error: Arc<Mutex<File>>,
 ) {
-    while let Some(line) = read_line(fd) {
-        // let _ = error.lock().map(|mut error| {
-        //     write!(error, "read_line: '{}'\n", line);
-        // });
-        let _ = sender.send(construct(line));
+    while !unsafe { read_lines_quit.load(Ordering::Relaxed) } {
+        if let Some(line) = read_line(fd) {
+            // let _ = error.lock().map(|mut error| {
+            //     write!(error, "read_line: '{}'\n", line);
+            // });
+            let _ = sender.send(construct(line));
+        } else {
+            return;
+        }
     }
 }
 
@@ -332,12 +331,7 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
         fn bash_main();
     }
 
-    let mut pts_handles = create_terminals()?;
-
-    // If we got here, we can print stuff through the backup handles.
-    let _ = pts_handles.stdout_b.write(
-        b"bite: Pseudo terminals correctly set up.\n",
-    );
+    let handles = create_terminals()?;
 
     let (sender, receiver) = channel();
 
@@ -345,16 +339,15 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
     let bash_barrier = Arc::new(Barrier::new(2));
 
     let stdout_sender = sender.clone();
-    let (stdout_m, stderr_m) = (pts_handles.stdout_m, pts_handles.stderr_m);
-    let stdout_b = Arc::new(Mutex::new(pts_handles.stdout_b));
-    let stdout_bo = stdout_b.clone();
+    let (stdout_m, stderr_m) = (handles.stdout_m, handles.stderr_m);
+    let stdout_bo = handles.bite_stdout.clone();
     let out_reader_barrier = reader_barrier.clone();
     spawn(move || {
         out_reader_barrier.wait();
         read_lines(stdout_m, stdout_sender, &BashOutput::FromOutput, stdout_bo)
     });
 
-    let stdout_be = stdout_b.clone();
+    let stdout_be = handles.bite_stdout.clone();
     let stderr_sender = sender.clone();
     let err_reader_barrier = reader_barrier.clone();
     spawn(move || {
@@ -370,13 +363,33 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
         unsafe { bash_main() }
     });
 
-    unsafe {
-        bash_handles = Some(BashHandles {
-            prg_stdin: pts_handles.stdin_m,
-            bite_stdout: stdout_b,
-            _bite_stderr: Arc::new(Mutex::new(File::from_raw_fd(pts_handles.stderr_b))),
-        })
-    };
+    unsafe { pts_handles = Some(handles) };
+
+    // If we got here, we can print stuff through the backup handles.
+    bite_write_output("bite: Pseudo terminals correctly set up.\n");
 
     Ok((receiver, reader_barrier, bash_barrier))
+}
+
+/// Try to stop the machinery.
+pub fn stop() {
+    // Make bash shutdown cleanly by killing a potentially running program and then telling bash to
+    // exit, which will make it terminate its thread.
+    bash_kill_last();
+    bash_add_input("exit 0");
+
+    // Then close all handles
+    unsafe {
+        read_lines_quit.store(true, Ordering::Relaxed);
+        pts_handles.as_mut().map(|h| {
+            let _ = close(h.prg_stdin);
+            let _ = close(h.stdin_s);
+            let _ = close(h.stdin_b);
+            let _ = close(h.stdout_m);
+            let _ = close(h.stdout_s);
+            let _ = close(h.stderr_m);
+            let _ = close(h.stderr_s);
+        });
+        pts_handles = None;
+    }
 }

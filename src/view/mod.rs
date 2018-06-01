@@ -545,7 +545,7 @@ impl Gui {
                             buf[count as usize] = 0;
 
                             // Handle movement and delete. They are all keysyms
-                            let mut handled = true;
+                            let mut cmd = PresenterCommand::Redraw;
                             {
                                 let mod_state = modifier_state_from_event(info.state);
                                 if status == XLookupKeySym || status == XLookupBoth {
@@ -578,32 +578,35 @@ impl Gui {
                                                     maybe_letter
                                                 };
 
-                                                let _ = self.presenter.event_control_key(
+                                                cmd = self.presenter.event_control_key(
                                                     &mod_state,
                                                     letter as u8,
                                                 );
-                                                // Control keys will not be added to input.
-                                                handled = true;
                                             } else {
-                                                handled = false;
+                                                cmd = PresenterCommand::Unknown;
                                             }
                                         }
                                     }
                                 } else {
-                                    handled = false;
+                                    cmd = PresenterCommand::Unknown;
                                 }
                             };
-                            if handled {
-                                self.mark_redraw();
-                            }
-                            if !handled && (status == XLookupChars || status == XLookupBoth) {
-                                // Insert text
-                                match unsafe { CStr::from_ptr(&buf[0]).to_str() } {
-                                    Ok(s) => self.presenter.event_text(s),
-                                    _ => {}
+                            match cmd {
+                                PresenterCommand::Unknown => {
+                                    if status == XLookupChars || status == XLookupBoth {
+                                        // Insert text
+                                        match unsafe { CStr::from_ptr(&buf[0]).to_str() } {
+                                            Ok(s) => self.presenter.event_text(s),
+                                            _ => {}
+                                        }
+                                        self.cursor_now(true);
+                                        self.mark_redraw();
+                                    }
                                 }
-                                self.cursor_now(true);
-                                self.mark_redraw();
+                                PresenterCommand::Redraw => {
+                                    self.mark_redraw();
+                                }
+                                PresenterCommand::Exit => return,
                             }
                         }
                         ButtonPress => {

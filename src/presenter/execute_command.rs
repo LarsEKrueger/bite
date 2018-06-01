@@ -20,7 +20,7 @@
 
 use super::*;
 use std::str::from_utf8_unchecked;
-use model::bash::bite_kill_last;
+use model::bash::bash_kill_last;
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -136,28 +136,28 @@ impl SubPresenter for ExecuteCommandPresenter {
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
-    ) -> (Box<SubPresenter>, bool) {
+    ) -> (Box<SubPresenter>, PresenterCommand) {
         match mod_state.as_tuple() {
             (false, true, false) => {
                 // Control-only
                 match letter {
                     b'c' => {
-                        bite_kill_last();
-                        return (self, true);
+                        bash_kill_last();
+                        return (self, PresenterCommand::Redraw);
                     }
 
                     b'd' => {
                         // TODO: Exit bite if input line is empty.
                         let letter = [0x04; 1];
                         ::model::bash::programm_add_input(unsafe { from_utf8_unchecked(&letter) });
-                        return (self, true);
+                        return (self, PresenterCommand::Redraw);
                     }
                     _ => {}
                 }
             }
             _ => {}
         }
-        (self, false)
+        (self, PresenterCommand::Unknown)
     }
 
     fn event_update_line(self: Box<Self>) -> Box<SubPresenter> {
