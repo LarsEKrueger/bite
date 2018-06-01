@@ -134,19 +134,26 @@ impl SubPresenter for ExecuteCommandPresenter {
 
     fn event_control_key(
         self: Box<Self>,
-        _mod_state: &ModifierState,
+        mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, bool) {
-        match letter {
-            b'c' => {
-                bite_kill_last();
-            }
+        match mod_state.as_tuple() {
+            (false, true, false) => {
+                // Control-only
+                match letter {
+                    b'c' => {
+                        bite_kill_last();
+                        return (self, true);
+                    }
 
-            b'd' => {
-                // TODO: Exit bite if input line is empty.
-                let letter = [0x04; 1];
-                ::model::bash::programm_add_input(unsafe { from_utf8_unchecked(&letter) });
-                return (self, true);
+                    b'd' => {
+                        // TODO: Exit bite if input line is empty.
+                        let letter = [0x04; 1];
+                        ::model::bash::programm_add_input(unsafe { from_utf8_unchecked(&letter) });
+                        return (self, true);
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }
