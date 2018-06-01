@@ -113,7 +113,7 @@ non-GUI program.
 * [X] 0.4.5 get stdout and stdin from bash and foreground programs
 * [X] 0.4.6 send Ctrl-C/D to running program
 * [X] 0.4.7 Ctrl-D in compose mode quits
-* [ ] 0.5 use original bash source for foreground operations
+* [X] 0.5 use original bash source for foreground operations
 * [ ] 0.6 use bash history
 * [ ] 0.7 Foreground TUIs
     * [ ] Handle colors in output, error, and prompt
