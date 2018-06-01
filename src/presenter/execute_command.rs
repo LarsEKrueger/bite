@@ -19,6 +19,8 @@
 //! Sub presenter for executing programs.
 
 use super::*;
+use std::str::from_utf8_unchecked;
+use model::bash::bite_kill_last;
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -133,8 +135,21 @@ impl SubPresenter for ExecuteCommandPresenter {
     fn event_control_key(
         self: Box<Self>,
         _mod_state: &ModifierState,
-        _letter: u8,
+        letter: u8,
     ) -> (Box<SubPresenter>, bool) {
+        match letter {
+            b'c' => {
+                bite_kill_last();
+            }
+
+            b'd' => {
+                // TODO: Exit bite if input line is empty.
+                let letter = [0x04; 1];
+                ::model::bash::programm_add_input(unsafe { from_utf8_unchecked(&letter) });
+                return (self, true);
+            }
+            _ => {}
+        }
         (self, false)
     }
 

@@ -32,10 +32,11 @@ use std::fs::File;
 use std::ffi::CStr;
 use std::io::Write;
 
-use nix::pty::*;
-use nix::unistd::{dup, dup2, read, write};
+use nix::pty::{SessionId, posix_openpt, grantpt, unlockpt, ptsname};
+use nix::unistd::{dup, dup2, read, write, Pid};
 use nix::fcntl::{OFlag, open};
 use nix::sys::stat::Mode;
+use nix::sys::signal::{kill, Signal};
 
 use libc::{c_char, c_int, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 
@@ -142,7 +143,7 @@ struct BashHandles {
     bite_stdout: Arc<Mutex<File>>,
 
     /// Characters written to this file will be sent to stderr of bite.
-    bite_stderr: Arc<Mutex<File>>,
+    _bite_stderr: Arc<Mutex<File>>,
 }
 
 /// Create a single pts master/slave pair.
@@ -263,6 +264,19 @@ pub fn programm_add_input(line: &str) {
     };
 }
 
+/// Kill the last program we created.
+///
+/// This should always be the foreground program. Also, race conditions do not really matter here.
+pub fn bite_kill_last() {
+    #[link(name = "Bash")]
+    extern "C" {
+        static last_made_pid: SessionId;
+    }
+    unsafe {
+        let _ = kill(Pid::from_raw(last_made_pid), Signal::SIGQUIT);
+    }
+}
+
 /// Data to be sent to the receiver of the program's output.
 pub enum BashOutput {
     /// A line was read from stdout.
@@ -360,7 +374,7 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
         bash_handles = Some(BashHandles {
             prg_stdin: pts_handles.stdin_m,
             bite_stdout: stdout_b,
-            bite_stderr: Arc::new(Mutex::new(File::from_raw_fd(pts_handles.stderr_b))),
+            _bite_stderr: Arc::new(Mutex::new(File::from_raw_fd(pts_handles.stderr_b))),
         })
     };
 

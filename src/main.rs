@@ -95,4 +95,7 @@ pub fn main() {
 
     gui.main_loop();
     gui.finish();
+
+    // TODO: make bash shutdown cleanly
+
 }

@@ -578,10 +578,12 @@ impl Gui {
                                                     maybe_letter
                                                 };
 
-                                                handled = self.presenter.event_control_key(
+                                                let _ = self.presenter.event_control_key(
                                                     &mod_state,
                                                     letter as u8,
                                                 );
+                                                // Control keys will not be added to input.
+                                                handled = true;
                                             } else {
                                                 handled = false;
                                             }

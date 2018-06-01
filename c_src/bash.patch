@@ -134,6 +134,28 @@ index c7b62bc0..559f3895 100644
  .build:	$(SOURCES) config.h Makefile version.h $(VERSPROG)
  	@echo
  	@echo "	  ***********************************************************"
+diff --git a/jobs.c b/jobs.c
+index fc966036..f5ff534c 100644
+--- a/jobs.c
++++ b/jobs.c
+@@ -2016,7 +2016,7 @@ make_child (command, async_p)
+       else			/* Without job control... */
+ 	{
+ 	  if (pipeline_pgrp == 0)
+-	    pipeline_pgrp = shell_pgrp;
++	    pipeline_pgrp = mypid;
+ 
+ 	  /* If these signals are set to SIG_DFL, we encounter the curious
+ 	     situation of an interactive ^Z to a running process *working*
+@@ -2069,7 +2069,7 @@ make_child (command, async_p)
+       else
+ 	{
+ 	  if (pipeline_pgrp == 0)
+-	    pipeline_pgrp = shell_pgrp;
++	    pipeline_pgrp = pid;
+ 	}
+ 
+       /* Place all processes into the jobs array regardless of the
 diff --git a/shell.c b/shell.c
 index 45b77f9e..5a152f90 100644
 --- a/shell.c

@@ -111,7 +111,8 @@ non-GUI program.
 * [X] 0.4.3 send bite input to foreground programs
 * [X] 0.4.4 get prompt from bash via channel
 * [X] 0.4.5 get stdout and stdin from bash and foreground programs
-* [ ] 0.4.6 send Ctrl-C to running program
+* [X] 0.4.6 send Ctrl-C/D to running program
+* [ ] 0.4.7 Ctrl-D in compose mode quits
 * [ ] 0.5 use original bash source for foreground operations
 * [ ] 0.6 use bash history
 * [ ] 0.7 Foreground TUIs
@@ -133,6 +134,8 @@ non-GUI program.
 * [ ] Scroll follows output during program execution
 * [ ] End history search mode on cursor left / right. Keep the selected line for edit.
 * [ ] Merge history during save
+* [ ] Shutdown bash cleanly
+* [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate return code of a completed program in the GUI
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
 * [ ] History search: Decorate menu
@@ -140,6 +143,7 @@ non-GUI program.
 * [ ] Make the command line arguments of a program fold out
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
 * [X] Put proper bug reporting email address in error.rs
+* [ ] Do not create interactions for empty lines
 
 # Ideas
 * Integrate mosh functionality
