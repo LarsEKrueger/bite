@@ -115,6 +115,9 @@ non-GUI program.
 * [X] 0.4.7 Ctrl-D in compose mode quits
 * [X] 0.5 use original bash source for foreground operations
 * [ ] 0.6 use bash history
+    * [ ] activate history presenter again, read history from bash
+    * [ ] End history search mode on cursor left / right. Keep the selected line for edit.
+    * [ ] History search: Decorate menu
 * [ ] 0.7 Foreground TUIs
     * [ ] Handle colors in output, error, and prompt
 * [ ] 0.9 Tabs for background programs
@@ -131,14 +134,12 @@ non-GUI program.
 * [ ] 2.1 shell program editor with preview
 
 # TODOs
-* [ ] Scroll follows output during program execution
-* [ ] End history search mode on cursor left / right. Keep the selected line for edit.
-* [ ] Merge history during save
-* [ ] Shutdown bash cleanly
-* [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate return code of a completed program in the GUI
+* [ ] Scroll follows output during program execution
+* [ ] Merge history during save
+* [X] Shutdown bash cleanly
+* [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
-* [ ] History search: Decorate menu
 * [X] Show the full command line of a program
 * [ ] Make the command line arguments of a program fold out
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
