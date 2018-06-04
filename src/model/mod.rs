@@ -29,3 +29,4 @@ pub mod response;
 pub mod session;
 pub mod types;
 pub mod error;
+pub mod history;

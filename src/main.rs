@@ -57,7 +57,7 @@ pub mod model;
 pub mod presenter;
 pub mod view;
 
-use model::bash::{bash_kill_last, bash_add_input};
+use model::bash::bash_add_input;
 
 /// Main function that starts the program.
 pub fn main() {

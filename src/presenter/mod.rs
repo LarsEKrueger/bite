@@ -22,13 +22,12 @@
 //! composition or history browsing.
 
 use std::fmt::{Display, Formatter};
-//use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Receiver;
 
 mod runeline;
 mod compose_command;
 mod execute_command;
-// mod history;
+mod history;
 pub mod display_line;
 
 use model::session::*;
@@ -36,11 +35,9 @@ use model::iterators::*;
 use model::interaction::*;
 use model::error::*;
 use model::bash::BashOutput;
-//use model::types::*;
 
 use self::compose_command::*;
 use self::execute_command::*;
-//use self::history::*;
 use self::display_line::*;
 
 /// GUI agnostic representation of the modifier keys

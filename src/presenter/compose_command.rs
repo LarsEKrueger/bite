@@ -19,6 +19,8 @@
 //! Sub presenter for composing commands.
 
 use super::*;
+use super::history::*;
+use model::history::*;
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -101,22 +103,22 @@ impl SubPresenter for ComposeCommandPresenter {
     /// If Ctrl-R is pressed, go to history browse mode with search for contained strings.
     /// If Ctrl-D is pressed, quit bite.
     fn event_control_key(
-        self: Box<Self>,
+        mut self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), letter) {
             ((false, true, false), b'd') => (self, PresenterCommand::Exit),
-            // ((false, true, false), b'r') => {
-            //     // Control-R -> Start interactive history search
-            //     let prefix = String::from(self.commons.current_line.text_before_cursor());
-            //     self.commons.current_line.clear();
-            //     self.commons.current_line.insert_str(&prefix);
-            //     (
-            //         HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
-            //         true,
-            //     )
-            // }
+            ((false, true, false), b'r') => {
+                // Control-R -> Start interactive history search
+                let prefix = String::from(self.commons.current_line.text_before_cursor());
+                self.commons.current_line.clear();
+                self.commons.current_line.insert_str(&prefix);
+                (
+                    HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
+                    PresenterCommand::Redraw,
+                )
+            }
             _ => (self, PresenterCommand::Unknown),
         }
     }
@@ -125,16 +127,14 @@ impl SubPresenter for ComposeCommandPresenter {
     ///
     /// Go to history browse mode without search.
     fn event_cursor_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        //HistoryPresenter::new(self.commons, HistorySearchMode::Browse, true)
-        self
+        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, true)
     }
 
     /// Handle pressing cursor down.
     ///
     /// Go to history browse mode without search.
     fn event_cursor_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        // HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false)
-        self
+        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false)
     }
 
     /// Handle pressing page up.
@@ -142,28 +142,27 @@ impl SubPresenter for ComposeCommandPresenter {
     /// Scroll page-wise on Shift-PageUp.
     ///
     /// Go to history browse mode with prefix search if no modifiers were pressed.
-    fn event_page_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        // match mod_state.as_tuple() {
-        //     (true, false, false) => {
-        //         // Shift only -> Scroll
-        //         let middle = self.commons.window_height / 2;
-        //         if self.commons.last_line_shown > middle {
-        //             self.commons.last_line_shown -= middle;
-        //         } else {
-        //             self.commons.last_line_shown = 0;
-        //         }
-        //         self
-        //     }
-        //     (false, false, false) => {
-        //         // Nothing -> Prefix search
-        //         let prefix = String::from(self.commons.current_line.text_before_cursor());
-        //         self.commons.current_line.clear();
-        //         self.commons.current_line.insert_str(&prefix);
-        //         HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true)
-        //     }
-        //     _ => self,
-        // }
-        self
+    fn event_page_up(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
+        match mod_state.as_tuple() {
+            (true, false, false) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                if self.commons.last_line_shown > middle {
+                    self.commons.last_line_shown -= middle;
+                } else {
+                    self.commons.last_line_shown = 0;
+                }
+                self
+            }
+            (false, false, false) => {
+                // Nothing -> Prefix search
+                let prefix = String::from(self.commons.current_line.text_before_cursor());
+                self.commons.current_line.clear();
+                self.commons.current_line.insert_str(&prefix);
+                HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true)
+            }
+            _ => self,
+        }
     }
 
     /// Handle pressing page down.
@@ -171,25 +170,24 @@ impl SubPresenter for ComposeCommandPresenter {
     /// Scroll page-wise on Shift-PageDown.
     ///
     /// Go to history browse mode with prefix search if no modifiers were pressed.
-    fn event_page_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        // match mod_state.as_tuple() {
-        //     (true, false, false) => {
-        //         // Shift only -> Scroll
-        //         let middle = self.commons.window_height / 2;
-        //         let n = self.line_iter().count();
-        //         self.commons.last_line_shown =
-        //             ::std::cmp::min(n, self.commons.last_line_shown + middle);
-        //         self
-        //     }
-        //     (false, false, false) => {
-        //         // Nothing -> Prefix search
-        //         let prefix = String::from(self.commons.current_line.text_before_cursor());
-        //         self.commons.current_line.clear();
-        //         self.commons.current_line.insert_str(&prefix);
-        //         HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false)
-        //     }
-        //     _ => self,
-        // }
-        self
+    fn event_page_down(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
+        match mod_state.as_tuple() {
+            (true, false, false) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                let n = self.line_iter().count();
+                self.commons.last_line_shown =
+                    ::std::cmp::min(n, self.commons.last_line_shown + middle);
+                self
+            }
+            (false, false, false) => {
+                // Nothing -> Prefix search
+                let prefix = String::from(self.commons.current_line.text_before_cursor());
+                self.commons.current_line.clear();
+                self.commons.current_line.insert_str(&prefix);
+                HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false)
+            }
+            _ => self,
+        }
     }
 }
