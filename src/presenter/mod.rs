@@ -89,6 +89,12 @@ trait SubPresenter {
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a>;
 
+    /// Handle the event when the cursor left key is pressed.
+    fn event_cursor_left(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
+
+    /// Handle the event when the cursor right key is pressed.
+    fn event_cursor_right(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
+
     /// Handle the event when the return key is pressed.
     fn event_return(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
 
@@ -344,13 +350,13 @@ impl Presenter {
     }
 
     /// Handle the event that the cursor left key was pressed.
-    pub fn event_cursor_left(&mut self, _mod_state: ModifierState) {
-        self.cm().current_line.move_left();
+    pub fn event_cursor_left(&mut self, mod_state: &ModifierState) {
+        self.dispatch(|sp| sp.event_cursor_left(mod_state));
     }
 
     /// Handle the event that the cursor right key was pressed.
-    pub fn event_cursor_right(&mut self, _mod_state: ModifierState) {
-        self.cm().current_line.move_right();
+    pub fn event_cursor_right(&mut self, mod_state: &ModifierState) {
+        self.dispatch(|sp| sp.event_cursor_right(mod_state));
     }
 
     /// Handle the event that the delete key was pressed.

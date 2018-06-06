@@ -116,10 +116,14 @@ non-GUI program.
 * [X] 0.5 use original bash source for foreground operations
 * [ ] 0.6 use bash history
     * [X] activate history presenter again, read history from bash
-    * [ ] End history search mode on cursor left / right. Keep the selected line for edit.
+    * [X] End history search mode on cursor left / right. Keep the selected line for edit.
+    * [ ] End history search mode on Shift-Return. Keep the selected line for edit
+    * [ ] Handle End/Home.
     * [ ] History search: Decorate menu
 * [ ] 0.7 Foreground TUIs
     * [ ] Handle colors in output, error, and prompt
+    * [ ] Switch to TUI mode and back
+    * [ ] Handle keys in TUI mode
 * [ ] 0.9 Tabs for background programs
 * [ ] 0.10 Tabs for TUIs (automatic backgrounding)
 * [ ] 0.11 Draw GUI using Xft

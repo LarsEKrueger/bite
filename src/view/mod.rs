@@ -550,8 +550,8 @@ impl Gui {
                                 let mod_state = modifier_state_from_event(info.state);
                                 if status == XLookupKeySym || status == XLookupBoth {
                                     match keysym as u32 {
-                                        XK_Left => self.presenter.event_cursor_left(mod_state),
-                                        XK_Right => self.presenter.event_cursor_right(mod_state),
+                                        XK_Left => self.presenter.event_cursor_left(&mod_state),
+                                        XK_Right => self.presenter.event_cursor_right(&mod_state),
                                         XK_Delete => self.presenter.event_delete_right(mod_state),
                                         XK_BackSpace => self.presenter.event_backspace(mod_state),
                                         XK_Return => self.presenter.event_return(&mod_state),

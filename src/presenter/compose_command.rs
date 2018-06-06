@@ -123,6 +123,18 @@ impl SubPresenter for ComposeCommandPresenter {
         }
     }
 
+    /// Handle the event when the cursor left key is pressed.
+    fn event_cursor_left(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        self.commons_mut().current_line.move_left();
+        self
+    }
+
+    /// Handle the event when the cursor right key is pressed.
+    fn event_cursor_right(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        self.commons_mut().current_line.move_right();
+        self
+    }
+
     /// Handle pressing cursor up.
     ///
     /// Go to history browse mode without search.

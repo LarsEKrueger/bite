@@ -192,6 +192,26 @@ impl SubPresenter for HistoryPresenter {
         (self, NeedRedraw::No)
     }
 
+    /// Handle the event when the cursor left key is pressed.
+    fn event_cursor_left(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        if self.search.item_ind < self.search.matching_items.len() {
+            let hist_ind = self.search.matching_items[self.search.item_ind];
+            let item = history::get_line_as_str(hist_ind).to_string();
+            self.commons.current_line.replace(item, false);
+        }
+        ComposeCommandPresenter::new(self.commons)
+    }
+
+    /// Handle the event when the cursor right key is pressed.
+    fn event_cursor_right(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
+        if self.search.item_ind < self.search.matching_items.len() {
+            let hist_ind = self.search.matching_items[self.search.item_ind];
+            let item = history::get_line_as_str(hist_ind).to_string();
+            self.commons.current_line.replace(item, false);
+        }
+        ComposeCommandPresenter::new(self.commons)
+    }
+
     fn event_cursor_up(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
         self.search.prev1();
         self.show_selection();
