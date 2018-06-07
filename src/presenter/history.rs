@@ -68,6 +68,18 @@ impl HistoryPresenter {
             NeedRedraw::Yes
         }
     }
+
+    /// Set the input line from the current selection
+    fn replace_current_line(&mut self) -> bool {
+        if self.search.item_ind < self.search.matching_items.len() {
+            let hist_ind = self.search.matching_items[self.search.item_ind];
+            let item = history::get_line_as_str(hist_ind).to_string();
+            self.commons.current_line.replace(item, true);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl SubPresenter for HistoryPresenter {
@@ -109,23 +121,26 @@ impl SubPresenter for HistoryPresenter {
     }
 
     /// Handle pressing the return key.
-    ///
-    /// Extract the selected line from history, switch state to the normal presenter and make it
-    /// handle the line as if it was entered.
     fn event_return(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
-        let propagate = if self.search.item_ind < self.search.matching_items.len() {
-            let hist_ind = self.search.matching_items[self.search.item_ind];
-            let item = history::get_line_as_str(hist_ind).to_string();
-            self.commons.current_line.replace(item, false);
-            true
-        } else {
-            false
-        };
-        let next = ComposeCommandPresenter::new(self.commons);
-        if propagate {
-            next.event_return(mod_state)
-        } else {
-            next
+        match mod_state.as_tuple() {
+            // Plain return: Extract the selected line from history, switch state to the normal
+            // presenter and make it handle the line as if it was entered.
+            (false, false, false) => {
+                let propagate = self.replace_current_line();
+                let next = ComposeCommandPresenter::new(self.commons);
+                if propagate {
+                    next.event_return(mod_state)
+                } else {
+                    next
+                }
+            }
+
+            // Shift-return: Copy the selected line to the input field
+            (true, false, false) => {
+                self.replace_current_line();
+                ComposeCommandPresenter::new(self.commons)
+            }
+            _ => self,
         }
     }
 
@@ -194,21 +209,13 @@ impl SubPresenter for HistoryPresenter {
 
     /// Handle the event when the cursor left key is pressed.
     fn event_cursor_left(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        if self.search.item_ind < self.search.matching_items.len() {
-            let hist_ind = self.search.matching_items[self.search.item_ind];
-            let item = history::get_line_as_str(hist_ind).to_string();
-            self.commons.current_line.replace(item, false);
-        }
+        self.replace_current_line();
         ComposeCommandPresenter::new(self.commons)
     }
 
     /// Handle the event when the cursor right key is pressed.
     fn event_cursor_right(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        if self.search.item_ind < self.search.matching_items.len() {
-            let hist_ind = self.search.matching_items[self.search.item_ind];
-            let item = history::get_line_as_str(hist_ind).to_string();
-            self.commons.current_line.replace(item, false);
-        }
+        self.replace_current_line();
         ComposeCommandPresenter::new(self.commons)
     }
 
