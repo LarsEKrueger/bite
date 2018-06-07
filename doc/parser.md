@@ -61,3 +61,7 @@ https://github.com/J-F-Liu/pom
 
 Use nom and reparse on incomplete input.
 
+# Revision
+
+As we currently use the bash internal parser, the nom parser is retired. This
+might change if parts of bash are rewritten in Rust.
