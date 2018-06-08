@@ -47,6 +47,20 @@ pub struct ModifierState {
     pub meta_pressed: bool,
 }
 
+/// GUI agnostic representation of special keys, e.g. function, cursor
+pub enum SpecialKey {
+    Escape,
+    Enter,
+    Left,
+    Right,
+    Up,
+    Down,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+}
+
 /// Represent a boolean with the semantics 'does the GUI need to be redrawn'.
 #[derive(PartialEq, Eq)]
 pub enum NeedRedraw {
@@ -89,29 +103,15 @@ trait SubPresenter {
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a>;
 
-    /// Handle the event when the cursor left key is pressed.
-    fn event_cursor_left(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
+    /// Handle the event when a modifier and a special key is pressed.
+    fn event_special_key(
+        self: Box<Self>,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> (Box<SubPresenter>, PresenterCommand);
 
-    /// Handle the event when the cursor right key is pressed.
-    fn event_cursor_right(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
-
-    /// Handle the event when the return key is pressed.
-    fn event_return(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
-
-    /// Handle the event when the cursor up key is pressed.
-    fn event_cursor_up(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
-
-    /// Handle the event when the cursor down key is pressed.
-    fn event_cursor_down(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
-
-    /// Handle the event when the page up key is pressed.
-    fn event_page_up(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
-
-    /// Handle the event when the page down key is pressed.
-    fn event_page_down(self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter>;
-
-    /// Handle the event when a modifier and a letter is pressed.
-    fn event_control_key(
+    /// Handle the event when a modifier and a letter/number is pressed.
+    fn event_normal_key(
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
@@ -349,14 +349,12 @@ impl Presenter {
         NeedRedraw::No
     }
 
-    /// Handle the event that the cursor left key was pressed.
-    pub fn event_cursor_left(&mut self, mod_state: &ModifierState) {
-        self.dispatch(|sp| sp.event_cursor_left(mod_state));
-    }
-
-    /// Handle the event that the cursor right key was pressed.
-    pub fn event_cursor_right(&mut self, mod_state: &ModifierState) {
-        self.dispatch(|sp| sp.event_cursor_right(mod_state));
+    pub fn event_special_key(
+        &mut self,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> PresenterCommand {
+        self.dispatch_res(|sp| sp.event_special_key(mod_state, key))
     }
 
     /// Handle the event that the delete key was pressed.
@@ -372,19 +370,14 @@ impl Presenter {
     }
 
     /// Dispatch the event that Modifier+Letter was pressed.
-    pub fn event_control_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
-        self.dispatch_res(|sp| sp.event_control_key(mod_state, letter))
+    pub fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
+        self.dispatch_res(|sp| sp.event_normal_key(mod_state, letter))
     }
 
     /// Handle the event that some text was entered.
     pub fn event_text(&mut self, s: &str) {
         self.cm().current_line.insert_str(s);
         self.event_update_line();
-    }
-
-    /// Dispatch the event that the return key was pressed.
-    pub fn event_return(&mut self, mod_state: &ModifierState) {
-        self.dispatch(|sp| sp.event_return(mod_state));
     }
 
     /// Handle the event that a mouse button was pressed.
@@ -417,26 +410,6 @@ impl Presenter {
             }
         }
         NeedRedraw::No
-    }
-
-    /// Dispatch the event that the cursor up key was pressed.
-    pub fn event_cursor_up(&mut self, mod_state: &ModifierState) {
-        self.dispatch(|sp| sp.event_cursor_up(mod_state));
-    }
-
-    /// Dispatch the event that the cursor down key was pressed.
-    pub fn event_cursor_down(&mut self, mod_state: &ModifierState) {
-        self.dispatch(|sp| sp.event_cursor_down(mod_state));
-    }
-
-    /// Dispatch the event that the page up key was pressed.
-    pub fn event_page_up(&mut self, mod_state: &ModifierState) {
-        self.dispatch(|sp| sp.event_page_up(mod_state));
-    }
-
-    /// Dispatch the event that the page down key was pressed.
-    pub fn event_page_down(&mut self, mod_state: &ModifierState) {
-        self.dispatch(|sp| sp.event_page_down(mod_state));
     }
 
     /// Yield an iterator that provides the currently visible lines for display.

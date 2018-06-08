@@ -120,27 +120,59 @@ impl SubPresenter for HistoryPresenter {
         )
     }
 
-    /// Handle pressing the return key.
-    fn event_return(mut self: Box<Self>, mod_state: &ModifierState) -> Box<SubPresenter> {
-        match mod_state.as_tuple() {
-            // Plain return: Extract the selected line from history, switch state to the normal
-            // presenter and make it handle the line as if it was entered.
-            (false, false, false) => {
+    fn event_special_key(
+        mut self: Box<Self>,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> (Box<SubPresenter>, PresenterCommand) {
+        match (mod_state.as_tuple(), key) {
+
+            ((false, false, false), SpecialKey::Enter) => {
                 let propagate = self.replace_current_line();
                 let next = ComposeCommandPresenter::new(self.commons);
                 if propagate {
-                    next.event_return(mod_state)
+                    next.event_special_key(mod_state, &SpecialKey::Enter)
                 } else {
-                    next
+                    (next, PresenterCommand::Redraw)
                 }
             }
 
-            // Shift-return: Copy the selected line to the input field
-            (true, false, false) => {
+            ((false, false, false), SpecialKey::Left) |
+            ((false, false, false), SpecialKey::Right) |
+            ((true, false, false), SpecialKey::Enter) => {
                 self.replace_current_line();
-                ComposeCommandPresenter::new(self.commons)
+                (
+                    ComposeCommandPresenter::new(self.commons),
+                    PresenterCommand::Redraw,
+                )
             }
-            _ => self,
+
+            ((false, false, false), SpecialKey::Up) => {
+                self.search.prev1();
+                self.show_selection();
+                (self, PresenterCommand::Redraw)
+            }
+            ((false, false, false), SpecialKey::Down) => {
+                self.search.next1();
+                self.show_selection();
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::PageUp) => {
+                let n = self.commons.window_height;
+                self.search.prev(n);
+                self.show_selection();
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::PageDown) => {
+                let n = self.commons.window_height;
+                self.search.next(n);
+                self.show_selection();
+                (self, PresenterCommand::Redraw)
+            }
+
+            _ => (self, PresenterCommand::Unknown),
         }
     }
 
@@ -188,12 +220,11 @@ impl SubPresenter for HistoryPresenter {
         self
     }
 
-    fn event_control_key(
+    fn event_normal_key(
         self: Box<Self>,
         _mod_state: &ModifierState,
         _letter: u8,
     ) -> (Box<SubPresenter>, PresenterCommand) {
-
         (self, PresenterCommand::Unknown)
     }
 
@@ -205,43 +236,5 @@ impl SubPresenter for HistoryPresenter {
     ) -> (Box<SubPresenter>, NeedRedraw) {
 
         (self, NeedRedraw::No)
-    }
-
-    /// Handle the event when the cursor left key is pressed.
-    fn event_cursor_left(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self.replace_current_line();
-        ComposeCommandPresenter::new(self.commons)
-    }
-
-    /// Handle the event when the cursor right key is pressed.
-    fn event_cursor_right(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self.replace_current_line();
-        ComposeCommandPresenter::new(self.commons)
-    }
-
-    fn event_cursor_up(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self.search.prev1();
-        self.show_selection();
-        self
-    }
-
-    fn event_cursor_down(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self.search.next1();
-        self.show_selection();
-        self
-    }
-
-    fn event_page_up(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        let n = self.commons.window_height;
-        self.search.prev(n);
-        self.show_selection();
-        self
-    }
-
-    fn event_page_down(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        let n = self.commons.window_height;
-        self.search.next(n);
-        self.show_selection();
-        self
     }
 }

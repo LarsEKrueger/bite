@@ -107,44 +107,57 @@ impl SubPresenter for ExecuteCommandPresenter {
         )
     }
 
-    fn event_return(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        let line = self.commons.current_line.clear();
-        // TODO: disable write-back in bash and mark this line as input
-        // self.current_interaction.add_output(line.clone());
-        ::model::bash::programm_add_input(line.as_str());
-        ::model::bash::programm_add_input("\n");
-        self
+    /// Handle the event when a modifier and a special key is pressed.
+    fn event_special_key(
+        mut self: Box<Self>,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> (Box<SubPresenter>, PresenterCommand) {
+        match (mod_state.as_tuple(), key) {
+            ((false, false, false), SpecialKey::Enter) => {
+                let line = self.commons.current_line.clear();
+                // TODO: disable write-back in bash and mark this line as input
+                // self.current_interaction.add_output(line.clone());
+                ::model::bash::programm_add_input(line.as_str());
+                ::model::bash::programm_add_input("\n");
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::Left) => {
+                self.commons_mut().current_line.move_left();
+                (self, PresenterCommand::Redraw)
+            }
+            ((false, false, false), SpecialKey::Right) => {
+                self.commons_mut().current_line.move_right();
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((true, false, false), SpecialKey::PageUp) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                if self.commons.last_line_shown > middle {
+                    self.commons.last_line_shown -= middle;
+                } else {
+                    self.commons.last_line_shown = 0;
+                }
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((true, false, false), SpecialKey::PageDown) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                let n = self.line_iter().count();
+                self.commons.last_line_shown =
+                    ::std::cmp::min(n, self.commons.last_line_shown + middle);
+                (self, PresenterCommand::Redraw)
+            }
+
+            _ => (self, PresenterCommand::Unknown),
+        }
+
     }
 
-    /// Handle the event when the cursor left key is pressed.
-    fn event_cursor_left(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self.commons_mut().current_line.move_left();
-        self
-    }
-
-    /// Handle the event when the cursor right key is pressed.
-    fn event_cursor_right(mut self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self.commons_mut().current_line.move_right();
-        self
-    }
-
-    fn event_cursor_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self
-    }
-
-    fn event_cursor_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self
-    }
-
-    fn event_page_up(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self
-    }
-
-    fn event_page_down(self: Box<Self>, _mod_state: &ModifierState) -> Box<SubPresenter> {
-        self
-    }
-
-    fn event_control_key(
+    fn event_normal_key(
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,

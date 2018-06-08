@@ -22,12 +22,13 @@
 
 use x11::xlib::*;
 use x11::keysym::*;
-use std::os::raw::{c_char, c_int, c_long};
+use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::time::{Duration, SystemTime};
 use std::ffi::CStr;
 use std::cmp;
 use std::ptr::{null, null_mut};
 use std::sync::mpsc::Receiver;
+use std::collections::HashMap;
 
 use tools::polling;
 use presenter::*;
@@ -127,6 +128,23 @@ pub fn modifier_state_from_event(info_state: u32) -> ModifierState {
         control_pressed: 0 != (info_state & ControlMask),
         meta_pressed: 0 != (info_state & Mod1Mask),
     }
+}
+
+lazy_static! {
+    static ref KEYSYM2KEY : HashMap<KeySym,SpecialKey> = {
+        let mut m = HashMap::new();
+        m.insert( XK_Escape as KeySym,    SpecialKey::Escape);
+        m.insert( XK_Return as KeySym,    SpecialKey::Enter);
+        m.insert( XK_Left as KeySym,      SpecialKey::Left);
+        m.insert( XK_Right as KeySym,     SpecialKey::Right);
+        m.insert( XK_Up as KeySym,        SpecialKey::Up);
+        m.insert( XK_Down as KeySym,      SpecialKey::Down);
+        m.insert( XK_Home as KeySym,      SpecialKey::Home);
+        m.insert( XK_End as KeySym,       SpecialKey::End);
+        m.insert( XK_Page_Up as KeySym,   SpecialKey::PageUp);
+        m.insert( XK_Page_Down as KeySym, SpecialKey::PageDown);
+        m
+    };
 }
 
 impl Gui {
@@ -528,7 +546,7 @@ impl Gui {
                         }
                         KeyPress => {
                             let mut info = unsafe { event.key };
-                            let mut keysym = 0;
+                            let mut keysym: c_ulong = 0;
                             let mut buf: [c_char; 20] = unsafe { ::std::mem::uninitialized() };
                             let mut status = 0;
                             let count = unsafe {
@@ -545,52 +563,43 @@ impl Gui {
                             buf[count as usize] = 0;
 
                             // Handle movement and delete. They are all keysyms
-                            let mut cmd = PresenterCommand::Redraw;
-                            {
-                                let mod_state = modifier_state_from_event(info.state);
-                                if status == XLookupKeySym || status == XLookupBoth {
-                                    match keysym as u32 {
-                                        XK_Left => self.presenter.event_cursor_left(&mod_state),
-                                        XK_Right => self.presenter.event_cursor_right(&mod_state),
-                                        XK_Delete => self.presenter.event_delete_right(mod_state),
-                                        XK_BackSpace => self.presenter.event_backspace(mod_state),
-                                        XK_Return => self.presenter.event_return(&mod_state),
-                                        XK_Up => self.presenter.event_cursor_up(&mod_state),
-                                        XK_Down => self.presenter.event_cursor_down(&mod_state),
-                                        XK_Page_Up => self.presenter.event_page_up(&mod_state),
-                                        XK_Page_Down => self.presenter.event_page_down(&mod_state),
-                                        maybe_letter => {
-                                            if (('a' as u32 <= maybe_letter &&
-                                                     maybe_letter <= 'z' as u32) ||
-                                                    ('A' as u32 <= maybe_letter &&
-                                                         maybe_letter <= 'Z' as u32)) &&
-                                                mod_state.not_only_shift()
+                            let mut cmd = PresenterCommand::Unknown;
+                            let mod_state = modifier_state_from_event(info.state);
+                            if status == XLookupKeySym || status == XLookupBoth {
+                                match KEYSYM2KEY.get(&keysym) {
+                                    Some(key) => {
+                                        cmd = self.presenter.event_special_key(&mod_state, key);
+                                    }
+                                    None => {
+                                        let maybe_letter = keysym;
+                                        if (('a' as c_ulong <= maybe_letter &&
+                                                 maybe_letter <= 'z' as c_ulong) ||
+                                                ('A' as c_ulong <= maybe_letter &&
+                                                     maybe_letter <= 'Z' as c_ulong)) &&
+                                            mod_state.not_only_shift()
+                                        {
+                                            // A letter and not only shift was pressed. Might
+                                            // be a control key we're interested in.
+
+                                            // Normalize to lower case
+                                            let letter = if 'A' as c_ulong <= maybe_letter &&
+                                                maybe_letter <= 'Z' as c_ulong
                                             {
-                                                // A letter and not only shift was pressed. Might
-                                                // be a control key we're interested in.
-
-                                                // Normalize to lower case
-                                                let letter = if 'A' as u32 <= maybe_letter &&
-                                                    maybe_letter <= 'Z' as u32
-                                                {
-                                                    maybe_letter + 32
-                                                } else {
-                                                    maybe_letter
-                                                };
-
-                                                cmd = self.presenter.event_control_key(
-                                                    &mod_state,
-                                                    letter as u8,
-                                                );
+                                                maybe_letter + 32
                                             } else {
-                                                cmd = PresenterCommand::Unknown;
-                                            }
+                                                maybe_letter
+                                            };
+
+                                            cmd = self.presenter.event_normal_key(
+                                                &mod_state,
+                                                letter as u8,
+                                            );
                                         }
                                     }
-                                } else {
-                                    cmd = PresenterCommand::Unknown;
                                 }
-                            };
+                            }
+                            // XK_Delete => self.presenter.event_delete_right(mod_state),
+                            // XK_BackSpace => self.presenter.event_backspace(mod_state),
                             match cmd {
                                 PresenterCommand::Unknown => {
                                     if status == XLookupChars || status == XLookupBoth {
