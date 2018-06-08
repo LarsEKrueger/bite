@@ -1,3 +1,4 @@
 [submodule "c_src/bash"]
 	path = c_src/bash
 	url = https://git.savannah.gnu.org/git/bash.git
+	ignore = dirty
