@@ -132,7 +132,7 @@ struct PtsHandles {
     /// Stdout PTS slave (bash side)
     stderr_s: RawFd,
     /// Stderr backup. This will print to the terminal that started us.
-    bite_stderr: Arc<Mutex<File>>,
+    _bite_stderr: Arc<Mutex<File>>,
 }
 
 /// Create a single pts master/slave pair.
@@ -227,7 +227,7 @@ fn create_terminals() -> Result<PtsHandles, String> {
             bite_stdout: Arc::new(Mutex::new(::std::fs::File::from_raw_fd(save_stdout))),
             stderr_m,
             stderr_s,
-            bite_stderr: Arc::new(Mutex::new(::std::fs::File::from_raw_fd(save_stderr))),
+            _bite_stderr: Arc::new(Mutex::new(::std::fs::File::from_raw_fd(save_stderr))),
         })
     }
 }
