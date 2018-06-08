@@ -151,7 +151,6 @@ fn try_build() -> Option<PathBuf> {
     }
 
     println!("cargo:rustc-link-search=native={}", build.display());
-    println!("cargo:rustc-link-lib=Bash");
     println!("cargo:rustc-link-lib=curses");
     println!("cargo:rustc-link-lib=dl");
     Some(build)
