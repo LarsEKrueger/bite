@@ -152,6 +152,16 @@ impl SubPresenter for ExecuteCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
+            ((false, false, false), SpecialKey::Home) => {
+                self.commons.current_line.move_start();
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::End) => {
+                self.commons.current_line.move_end();
+                (self, PresenterCommand::Redraw)
+            }
+
             _ => (self, PresenterCommand::Unknown),
         }
 

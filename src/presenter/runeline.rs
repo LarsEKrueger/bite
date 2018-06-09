@@ -90,6 +90,18 @@ impl Runeline {
         }
     }
 
+    /// Move the cursor to the start
+    pub fn move_start(&mut self) {
+        self.cursor.char_index = 0;
+        self.cursor.byte_index = 0;
+    }
+
+    /// Move cursor to the end
+    pub fn move_end(&mut self) {
+        self.cursor.byte_index = self.line.len();
+        self.cursor.char_index = self.line.chars().count();
+    }
+
     /// Move the cursor one code point to the right.
     pub fn move_right(&mut self) {
         if self.cursor.byte_index < self.line.len() {
@@ -233,6 +245,15 @@ mod tests {
         assert_eq!(rl.cursor.char_index, 5);
         rl.move_right();
         // Past the string
+        assert_eq!(rl.cursor.byte_index, 7);
+        assert_eq!(rl.cursor.char_index, 5);
+
+        // To the start
+        rl.move_start();
+        assert_eq!(rl.cursor.byte_index, 0);
+        assert_eq!(rl.cursor.char_index, 0);
+        // To the end
+        rl.move_end();
         assert_eq!(rl.cursor.byte_index, 7);
         assert_eq!(rl.cursor.char_index, 5);
     }

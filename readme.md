@@ -118,7 +118,7 @@ non-GUI program.
     * [X] activate history presenter again, read history from bash
     * [X] End history search mode on cursor left / right. Keep the selected line for edit.
     * [X] End history search mode on Shift-Return. Keep the selected line for edit
-    * [ ] Handle End/Home.
+    * [X] Handle End/Home.
     * [ ] History search: Decorate menu
 * [ ] 0.7 Foreground TUIs
     * [ ] Handle colors in output, error, and prompt

@@ -134,7 +134,7 @@ impl HistorySearchCursor {
             if self.item_ind > n {
                 self.item_ind -= n;
             } else {
-                self.item_ind = 0;
+                self.first();
             }
         }
     }
@@ -144,11 +144,21 @@ impl HistorySearchCursor {
         if self.item_ind + n < self.matching_items.len() {
             self.item_ind += n;
         } else {
-            self.item_ind = if self.matching_items.len() > 0 {
-                self.matching_items.len() - 1
-            } else {
-                0
-            };
+            self.last();
         }
+    }
+
+    /// Go to the first item
+    pub fn first(&mut self) {
+        self.item_ind = 0;
+    }
+
+    /// Go to the last item
+    pub fn last(&mut self) {
+        self.item_ind = if self.matching_items.len() > 0 {
+            self.matching_items.len() - 1
+        } else {
+            0
+        };
     }
 }

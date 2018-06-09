@@ -172,6 +172,16 @@ impl SubPresenter for HistoryPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
+            ((false, false, false), SpecialKey::Home) => {
+                self.search.first();
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::End) => {
+                self.search.last();
+                (self, PresenterCommand::Redraw)
+            }
+
             _ => (self, PresenterCommand::Unknown),
         }
     }
