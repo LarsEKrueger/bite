@@ -20,7 +20,7 @@
 
 use super::*;
 use std::str::from_utf8_unchecked;
-use model::bash::{bash_kill_last, is_bash_waiting, bite_write_output};
+use model::bash::{bash_kill_last, is_bash_waiting};
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -216,11 +216,20 @@ impl SubPresenter for ExecuteCommandPresenter {
         x: usize,
         y: usize,
     ) -> (Box<SubPresenter>, NeedRedraw) {
-        let redraw = if check_response_clicked(&mut *self, button, x, y) {
-            NeedRedraw::Yes
-        } else {
-            NeedRedraw::No
-        };
-        (self, redraw)
+        match (clicked_line_type(&mut *self, y), button) {
+            (Some(LineType::Command(_, pos, _)), 1) => {
+                if x < COMMAND_PREFIX_LEN {
+                    match pos {
+                        CommandPosition::CurrentInteraction => Some(&mut self.current_interaction),
+                        p => self.commons_mut().session.find_interaction_from_command(p),
+                    }.map(|i| i.cycle_visibility());
+                    return (self, NeedRedraw::Yes);
+                }
+            }
+            _ => {
+                // Unhandled combination, ignore
+            }
+        }
+        return (self, NeedRedraw::No);
     }
 }

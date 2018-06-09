@@ -165,6 +165,17 @@ impl Interaction {
             self.show_errors();
         }
     }
+
+    /// Cycle through the visibility flags
+    pub fn cycle_visibility(&mut self) {
+        let (ov, ev) = match (self.output.visible, self.errors.visible) {
+            (true, false) => (false, true),
+            (false, true) => (false, false),
+            _ => (true, false),
+        };
+        self.output.visible = ov;
+        self.errors.visible = ev;
+    }
 }
 
 impl CommandPosition {

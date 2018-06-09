@@ -422,6 +422,13 @@ impl Presenter {
     }
 }
 
+/// Get the line type of the line clicked.
+fn clicked_line_type<T: SubPresenter>(pres: &mut T, y: usize) -> Option<LineType> {
+    // Find the item that was clicked
+    let click_line_index = pres.commons().start_line() + y;
+    pres.line_iter().nth(click_line_index).map(|i| i.is_a)
+}
+
 /// Check if the response selector has been clicked and update the visibility flags
 /// accordingly.
 ///
@@ -432,25 +439,15 @@ fn check_response_clicked<T: SubPresenter>(
     x: usize,
     y: usize,
 ) -> bool {
-    // Find the item that was clicked
-    let click_line_index = pres.commons().start_line() + y;
-    let is_a = pres.line_iter().nth(click_line_index).map(|i| i.is_a);
+    let is_a = clicked_line_type(pres, y);
     match (is_a, button) {
         (Some(LineType::Command(_, pos, _)), 1) => {
             if x < COMMAND_PREFIX_LEN {
                 // Click on a command
-                {
-                    let inter = pres.commons_mut().session.find_interaction_from_command(
-                        pos,
-                    );
-                    let (ov, ev) = match (inter.output.visible, inter.errors.visible) {
-                        (true, false) => (false, true),
-                        (false, true) => (false, false),
-                        _ => (true, false),
-                    };
-                    inter.output.visible = ov;
-                    inter.errors.visible = ev;
-                }
+                pres.commons_mut()
+                    .session
+                    .find_interaction_from_command(pos)
+                    .map(|i| i.cycle_visibility());
                 return true;
             }
         }

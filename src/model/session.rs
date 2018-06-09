@@ -59,21 +59,15 @@ impl Session {
     pub fn find_interaction_from_command<'a>(
         &'a mut self,
         pos: CommandPosition,
-    ) -> &'a mut Interaction {
+    ) -> Option<&'a mut Interaction> {
         match pos {
             CommandPosition::Archived(conv_index, inter_index) => {
-                &mut self.archived[conv_index].interactions[inter_index]
+                Some(&mut self.archived[conv_index].interactions[inter_index])
             }
             CommandPosition::CurrentConversation(inter_index) => {
-                &mut self.current_conversation.interactions[inter_index]
+                Some(&mut self.current_conversation.interactions[inter_index])
             }
-            CommandPosition::CurrentInteraction => {
-                //           if let Some((_, _, ref mut inter)) = self.current_interaction {
-                //               inter
-                //           } else {
-                panic!("find_interaction_from_command: Expected current interaction")
-            }
-            //       }
+            CommandPosition::CurrentInteraction => None,
         }
     }
 
