@@ -149,6 +149,7 @@ non-GUI program.
 * [X] Show the full command line of a program
 * [ ] Make the command line arguments of a program fold out
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
+* [ ] Use impl Trait for iterators
 * [X] Put proper bug reporting email address in error.rs
 * [ ] Do not create interactions for empty lines
 
