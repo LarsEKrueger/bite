@@ -52,12 +52,38 @@ extern crate nix;
 #[macro_use]
 extern crate pretty_assertions;
 
+use std::panic::PanicInfo;
+
 pub mod tools;
 pub mod model;
 pub mod presenter;
 pub mod view;
 
-use model::bash::bash_add_input;
+use model::bash::{bash_add_input, bite_write_output};
+
+fn panic_hook(info: &PanicInfo) {
+    let msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
+        (Some(msg), Some(loc)) => {
+            format!(
+                "bite panicked at {}:{}:{} with '{}'\n",
+                loc.file(),
+                loc.line(),
+                loc.column(),
+                msg
+            )
+        }
+        (None, Some(loc)) => {
+            format!(
+                "bite panicked at {}:{}:{}\n",
+                loc.file(),
+                loc.line(),
+                loc.column()
+            )
+        }
+        _ => format!("bite panicked: {:?}\n", info),
+    };
+    bite_write_output(msg.as_str());
+}
 
 /// Main function that starts the program.
 pub fn main() {
@@ -92,6 +118,8 @@ pub fn main() {
     //       spawned = Some(execute::spawn_command(&params.single_program));
     //   }
 
+    std::panic::set_hook(Box::new(&panic_hook));
+
     reader_barrier.wait();
     bash_barrier.wait();
 
@@ -103,4 +131,6 @@ pub fn main() {
     // bash_kill_last();
     bash_add_input("exit 0");
     model::bash::stop();
+
+    let _ = std::panic::take_hook();
 }
