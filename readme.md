@@ -119,7 +119,8 @@ non-GUI program.
     * [X] End history search mode on cursor left / right. Keep the selected line for edit.
     * [X] End history search mode on Shift-Return. Keep the selected line for edit
     * [X] Handle End/Home.
-    * [ ] History search: Decorate menu
+    * [X] Bug: Backspace/Delete
+    * [ ] Bug: errors of built-in commands
 * [ ] 0.7 Foreground TUIs
     * [ ] Handle colors in output, error, and prompt
     * [ ] Switch to TUI mode and back
