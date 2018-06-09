@@ -121,6 +121,7 @@ non-GUI program.
     * [X] Handle End/Home.
     * [X] Bug: Backspace/Delete
     * [X] Bug: errors of built-in commands
+    * [ ] Bug: Click out/error selector during execution
 * [ ] 0.7 Foreground TUIs
     * [ ] Handle colors in output, error, and prompt
     * [ ] Switch to TUI mode and back
