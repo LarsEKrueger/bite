@@ -120,7 +120,7 @@ non-GUI program.
     * [X] End history search mode on Shift-Return. Keep the selected line for edit
     * [X] Handle End/Home.
     * [X] Bug: Backspace/Delete
-    * [ ] Bug: errors of built-in commands
+    * [X] Bug: errors of built-in commands
 * [ ] 0.7 Foreground TUIs
     * [ ] Handle colors in output, error, and prompt
     * [ ] Switch to TUI mode and back

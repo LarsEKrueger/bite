@@ -36,6 +36,8 @@ use std::io::Write;
 use nix::pty::{SessionId, posix_openpt, grantpt, unlockpt, ptsname};
 use nix::unistd::{dup, dup2, read, write, Pid, close};
 use nix::fcntl::{OFlag, open};
+use nix::sys::select::{FdSet, select};
+use nix::sys::time::{TimeVal, TimeValLike};
 use nix::sys::stat::Mode;
 use nix::sys::signal::{kill, Signal};
 
@@ -49,6 +51,17 @@ static ref bite_input_buffer: Mutex<String> = Mutex::new(String::new());
 /// Condition variable to wait on if bite_input_buffer is empty
 lazy_static!{
 static ref bite_input_added: Condvar = Condvar::new();
+}
+
+/// Marker that bash is waiting for input
+static bash_is_waiting: AtomicBool = ATOMIC_BOOL_INIT;
+
+/// Check if bash is waiting for input
+pub fn is_bash_waiting() -> bool {
+    unsafe {
+        bash_is_waiting.load(Ordering::SeqCst) && bash_out_blocked.load(Ordering::SeqCst) &&
+            bash_err_blocked.load(Ordering::SeqCst)
+    }
 }
 
 /// Bite side interface to send text to bash.
@@ -89,10 +102,12 @@ pub extern "C" fn bite_getch() -> c_int {
             }
         };
     }
+    bash_is_waiting.store(true, Ordering::SeqCst);
     // Handle spurious wakeups
     while line.len() == 0 {
         line = bite_input_added.wait(line).unwrap();
     }
+    bash_is_waiting.store(false, Ordering::SeqCst);
     line.remove(0) as c_int
 }
 
@@ -302,14 +317,29 @@ fn read_line(fd: RawFd) -> Option<String> {
 
 static mut read_lines_quit: AtomicBool = ATOMIC_BOOL_INIT;
 
+static mut bash_out_blocked: AtomicBool = ATOMIC_BOOL_INIT;
+static mut bash_err_blocked: AtomicBool = ATOMIC_BOOL_INIT;
+
 /// Read from a RawFd until fails and send to the channel with the constructor
 fn read_lines(
     fd: RawFd,
     sender: Sender<BashOutput>,
+    fd_blocked: &mut AtomicBool,
     construct: &Fn(String) -> BashOutput,
     _error: Arc<Mutex<File>>,
 ) {
+    // Is it time to quit the threat?
     while !unsafe { read_lines_quit.load(Ordering::Relaxed) } {
+        // If there is input, read it. If not
+        let mut rdfs = FdSet::new();
+        rdfs.insert(fd);
+        let mut timeout = TimeVal::milliseconds(1);
+        let data_available = match select(None, Some(&mut rdfs), None, None, Some(&mut timeout)) {
+            Ok(0) | Err(_) => false,
+            Ok(_) => true,
+        };
+
+        fd_blocked.store(!data_available, Ordering::SeqCst);
         if let Some(line) = read_line(fd) {
             // let _ = error.lock().map(|mut error| {
             //     write!(error, "read_line: '{}'\n", line);
@@ -344,7 +374,15 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
     let out_reader_barrier = reader_barrier.clone();
     spawn(move || {
         out_reader_barrier.wait();
-        read_lines(stdout_m, stdout_sender, &BashOutput::FromOutput, stdout_bo)
+        unsafe {
+            read_lines(
+                stdout_m,
+                stdout_sender,
+                &mut bash_out_blocked,
+                &BashOutput::FromOutput,
+                stdout_bo,
+            )
+        }
     });
 
     let stdout_be = handles.bite_stdout.clone();
@@ -352,7 +390,15 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
     let err_reader_barrier = reader_barrier.clone();
     spawn(move || {
         err_reader_barrier.wait();
-        read_lines(stderr_m, stderr_sender, &BashOutput::FromError, stdout_be)
+        unsafe {
+            read_lines(
+                stderr_m,
+                stderr_sender,
+                &mut bash_err_blocked,
+                &BashOutput::FromError,
+                stdout_be,
+            )
+        }
     });
 
     unsafe { bash_sender = Some(Mutex::new(sender)) };

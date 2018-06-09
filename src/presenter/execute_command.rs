@@ -20,7 +20,7 @@
 
 use super::*;
 use std::str::from_utf8_unchecked;
-use model::bash::bash_kill_last;
+use model::bash::{bash_kill_last, is_bash_waiting, bite_write_output};
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -75,7 +75,8 @@ impl SubPresenter for ExecuteCommandPresenter {
                 }
             }
         }
-        if !needs_marking {
+
+        if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
                 self.current_interaction.prepare_archiving();
