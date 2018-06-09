@@ -59,6 +59,8 @@ pub enum SpecialKey {
     End,
     PageUp,
     PageDown,
+    Delete,
+    Backspace,
 }
 
 /// Represent a boolean with the semantics 'does the GUI need to be redrawn'.

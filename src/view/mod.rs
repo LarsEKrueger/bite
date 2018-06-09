@@ -143,6 +143,8 @@ lazy_static! {
         m.insert( XK_End as KeySym,       SpecialKey::End);
         m.insert( XK_Page_Up as KeySym,   SpecialKey::PageUp);
         m.insert( XK_Page_Down as KeySym, SpecialKey::PageDown);
+        m.insert( XK_Delete as KeySym,    SpecialKey::Delete);
+        m.insert( XK_BackSpace as KeySym, SpecialKey::Backspace);
         m
     };
 }

@@ -182,6 +182,16 @@ impl SubPresenter for ComposeCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
+            ((false, false, false), SpecialKey::Delete) => {
+                self.commons.current_line.delete_right();
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::Backspace) => {
+                self.commons.current_line.delete_left();
+                (self, PresenterCommand::Redraw)
+            }
+
             _ => (self, PresenterCommand::Unknown),
         }
     }
