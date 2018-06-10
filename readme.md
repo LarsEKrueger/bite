@@ -69,50 +69,19 @@ In a similar fashion, BiTE will offer a way for non-GUI programs to specify a
 GUI, which is then rendered by BiTE and the changes will be forwared to the
 non-GUI program.
 
+# Developer Information
+
+* Basic design: [design.md](doc/design.md)
+* Parser library: [parser.md](doc/parser.md)
+* Architecture: [architecture.md](doc/architecture.md)
+
 # Roadmap / Release Planning
 
 * [X] 0.0.0 Basic GUI application. Get xcb working
-* [X] 0.0.1 Basic design drawn. See [design.md](doc/design.md)
-* [X] 0.0.2 Define data structures: Session, Command, Output, Configuration
-* [X] 0.0.3 Basic terminal output works, no escape codes
-* [X] 0.0.4 Simple line editor for commands and command input
-* [X] 0.0.5 Run foreground program and capture output
-* [X] 0.0.6 Basic Shell script interpreter. See [parser.md](doc/parser.md)
-* [X] 0.0.7 Decouple GUI update and reading command output
-* [X] 0.0.8 Autoscroll
-* [X] 0.0.9 hide output/error
-* [X] 0.0.10 Basic prompt string interpreter (no execute)
-* [X] 0.0.11 response-hiding heuristics
-* [X] 0.0.12 clean up architecture. See [architecture.md](doc/architecture.md)
 * [X] 0.1 error handling
-* [X] 0.1.1 import/load/save history using lmdb
-* [X] 0.1.2 add commands to history, browse history (cursor up/down)
-* [X] 0.1.3 search history by prefix (page up/down)
-* [X] 0.1.4 interactive search history (ctrl-r / ctrl-s)
-* [X] 0.1.5 clean up histfile interface, use a simple binary serialization
-* [X] 0.1.6 clean up architecture
-* [X] 0.1.7 document API
 * [X] 0.2 Commands from history (up/down,page up/down,search)
-* [X] 0.2.1 port variables infrastructure (map struct, different value types)
-* [X] 0.2.2 read permanent variables from env at start
-* [X] 0.2.3 set environment for commands
-* [X] 0.2.4 parse and set permanent variables (no export)
-* [X] 0.2.5 parse and set permanent variables (with export)
-* [X] 0.2.6 parse and set temporary variables
-* [X] 0.2.7 variable expansion
 * [X] 0.3 environment variables (read, set, pass to command)
-* [X] 0.3.1 sequence of commands (no backgrounding)
-* [X] 0.3.2 not operator in command sequences
-* [X] 0.3.3 indicate return code in display
-* [X] 0.3.4 pipelines (no redirection)
 * [X] 0.4 pipelines
-* [X] 0.4.1 link to bash as a library
-* [X] 0.4.2 send bite input to bash
-* [X] 0.4.3 send bite input to foreground programs
-* [X] 0.4.4 get prompt from bash via channel
-* [X] 0.4.5 get stdout and stdin from bash and foreground programs
-* [X] 0.4.6 send Ctrl-C/D to running program
-* [X] 0.4.7 Ctrl-D in compose mode quits
 * [X] 0.5 use original bash source for foreground operations
 * [X] 0.6 use bash history
     * [X] activate history presenter again, read history from bash
