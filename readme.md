@@ -95,6 +95,7 @@ non-GUI program.
     * [ ] Handle colors in output, error, and prompt
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode
+* [ ] 0.8 Completion
 * [ ] 0.9 Tabs for background programs
 * [ ] 0.10 Tabs for TUIs (automatic backgrounding)
 * [ ] 0.11 Draw GUI using Xft
