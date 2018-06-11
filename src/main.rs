@@ -52,6 +52,9 @@ extern crate nix;
 #[macro_use]
 extern crate pretty_assertions;
 
+#[macro_use]
+extern crate bitflags;
+
 use std::panic::PanicInfo;
 
 pub mod tools;
