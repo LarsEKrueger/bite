@@ -122,6 +122,7 @@ non-GUI program.
 * [ ] Use impl Trait for iterators
 * [X] Put proper bug reporting email address in error.rs
 * [ ] Do not create interactions for empty lines
+* [ ] Syntax highlighting in input line
 
 # Ideas
 * Integrate mosh functionality
