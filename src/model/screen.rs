@@ -20,9 +20,13 @@
 //!
 //! This stores a matrix of cells, which are colored characters.
 
+use std::cmp;
+
 /// A cell is a character and its colors and attributes.
 ///
 /// TODO: Pack data more tightly
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub struct Cell {
     /// The unicode character to show
     code_point: char,
@@ -35,6 +39,17 @@ pub struct Cell {
 
     /// Background color, index into a 256-entry color table
     background_color: u8,
+}
+
+impl Cell {
+    pub fn new(foreground_color: u8, background_color: u8) -> Self {
+        Self {
+            code_point: ' ',
+            attributes: Attributes::empty(),
+            foreground_color,
+            background_color,
+        }
+    }
 }
 
 /// Attributes as bitflags
@@ -80,6 +95,7 @@ bitflags! {
 /// The cursor can be outside the allocated screen. If a visible character is inserted there, the
 /// screen is reallocated. Coordinate system origin is top-left with x increasing to the right and
 /// y down.
+#[allow(dead_code)]
 struct Screen {
     /// The cells of the screen, stored in a row-major ordering.
     cells: Vec<Cell>,
@@ -106,7 +122,7 @@ struct Screen {
     background_color: u8,
 }
 
-
+#[allow(dead_code)]
 impl Screen {
     /// Create a new, empty screen
     pub fn new() -> Self {
@@ -128,7 +144,7 @@ impl Screen {
         let idx = self.cursor_index();
         self.cells[idx] = Cell {
             code_point: c,
-            attributes: self.attributes,
+            attributes: self.attributes | Attributes::CHARDRAWN,
             foreground_color: self.foreground_color,
             background_color: self.background_color,
         };
@@ -137,12 +153,42 @@ impl Screen {
 
     /// Ensure that there is room for the character at the current position.
     fn make_room(&mut self) {
+        if self.x < 0 || self.x >= self.width || self.y < 0 || self.y >= self.height {
+            // Compute the new size and allocate
+            let add_left = -cmp::min(self.x, 0);
+            let add_right = cmp::max(self.x, self.width - 1) - self.width + 1;
+            let add_top = -cmp::min(self.y, 0);
+            let add_bottom = cmp::max(self.y, self.height - 1) - self.height + 1;
 
+            let new_w = self.width + add_left + add_right;
+            let new_h = self.height + add_top + add_bottom;
 
-        // TODO
+            let mut new_matrix = Vec::new();
+            new_matrix.resize(
+                (new_w * new_h) as usize,
+                Cell::new(self.foreground_color, self.background_color),
+            );
+
+            // Move the old content into the new matrix
+            for y in 0..self.height {
+                let new_start = (new_w * (y + add_top) + add_left) as usize;
+                let new_end = new_start + self.width as usize;
+                let old_start = (self.width * y) as usize;
+                let old_end = old_start + self.width as usize;
+                new_matrix[new_start..new_end].copy_from_slice(&self.cells[old_start..old_end]);
+            }
+            self.cells = new_matrix;
+
+            // Fix cursor position and size
+            self.width = new_w;
+            self.height = new_h;
+            self.x += add_left;
+            self.y += add_top;
+        }
     }
 
     /// Compute the index of the cursor position into the cell array
+    #[allow(dead_code)]
     fn cursor_index(&self) -> usize {
         debug_assert!(0 <= self.x);
         debug_assert!(self.x < self.width);
@@ -151,22 +197,130 @@ impl Screen {
 
         (self.x + self.y * self.width) as usize
     }
+
+    /// Move the cursor to the left edge
+    #[allow(dead_code)]
+    pub fn move_left_edge(&mut self) {
+        self.x = 0;
+    }
+
+    /// Move cursor to the right edge. Moves it past the last possible character.
+    #[allow(dead_code)]
+    pub fn move_right_edge(&mut self) {
+        self.x = self.width;
+    }
+
+    /// Move cursor to the top edge
+    #[allow(dead_code)]
+    pub fn move_top_edge(&mut self) {
+        self.y = 0;
+    }
+
+    /// Move cursor to bottom edge. Moves it past the last possible character.
+    #[allow(dead_code)]
+    pub fn move_bottom_edge(&mut self) {
+        self.y = self.height;
+    }
+
+    /// Move one cell to the right
+    #[allow(dead_code)]
+    pub fn move_right(&mut self) {
+        self.x += 1;
+    }
+
+    /// Move one cell to the left
+    #[allow(dead_code)]
+    pub fn move_left(&mut self) {
+        self.x -= 1;
+    }
+
+    /// Move one line down
+    #[allow(dead_code)]
+    pub fn move_down(&mut self) {
+        self.y += 1;
+    }
+
+    /// Move one line up
+    #[allow(dead_code)]
+    pub fn move_up(&mut self) {
+        self.y -= 1;
+    }
 }
 
 
 #[cfg(test)]
 mod test {
-
     use super::*;
-    fn test_make_room() {
 
-        // Allocate a default screen
-        {
-            let mut s = Screen::new();
-            s.make_room();
-            assert!(s.width == 1);
-            assert!(s.height == 1);
-        }
+    #[test]
+    fn start_screen() {
 
+        let mut s = Screen::new();
+        s.make_room();
+        assert!(s.width == 1);
+        assert!(s.height == 1);
+        assert!(s.cells.len() == 1);
+    }
+
+    #[test]
+    fn place_letter() {
+        let mut s = Screen::new();
+        s.place_char('H');
+        assert!(s.width == 1);
+        assert!(s.height == 1);
+        assert!(s.cells.len() == 1);
+        assert!(s.cells[0].code_point == 'H');
+    }
+
+    #[test]
+    fn grow_left() {
+        let mut s = Screen::new();
+        s.make_room();
+        s.x = -3;
+        s.make_room();
+        assert!(s.width == 4);
+        assert!(s.height == 1);
+        assert!(s.cells.len() == 4);
+        assert!(s.x == 0);
+        assert!(s.y == 0);
+    }
+
+    #[test]
+    fn grow_right() {
+        let mut s = Screen::new();
+        s.make_room();
+        s.x = 3;
+        s.make_room();
+        assert!(s.width == 4);
+        assert!(s.height == 1);
+        assert!(s.cells.len() == 4);
+        assert!(s.x == 3);
+        assert!(s.y == 0);
+    }
+
+    #[test]
+    fn grow_up() {
+        let mut s = Screen::new();
+        s.make_room();
+        s.y = -3;
+        s.make_room();
+        assert!(s.width == 1);
+        assert!(s.height == 4);
+        assert!(s.cells.len() == 4);
+        assert!(s.x == 0);
+        assert!(s.y == 0);
+    }
+
+    #[test]
+    fn grow_down() {
+        let mut s = Screen::new();
+        s.make_room();
+        s.y = 3;
+        s.make_room();
+        assert!(s.width == 1);
+        assert!(s.height == 4);
+        assert!(s.cells.len() == 4);
+        assert!(s.x == 0);
+        assert!(s.y == 3);
     }
 }
