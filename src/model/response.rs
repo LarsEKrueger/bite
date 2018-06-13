@@ -21,15 +21,15 @@
 //! Consists of the lines are read from either stdout or stderr.
 
 use super::iterators::*;
-use super::line::*;
+use super::screen::*;
 
 /// The full output of a program
 #[derive(Debug, PartialEq)]
 pub struct Response {
     /// Is it to be shown in the GUI?
     pub visible: bool,
-    /// Lines to be shown.
-    pub lines: Vec<Line>,
+    /// Lines to be shown. Each line in a normal response is just a sequence of cells.
+    pub lines: Vec<Vec<Cell>>,
 }
 
 impl Response {
@@ -42,24 +42,26 @@ impl Response {
     }
 
     /// Add a line to the response.
-    pub fn add_line(&mut self, line: String) {
-        self.lines.push(Line::new(line));
+    pub fn add_matrix(&mut self, matrix: Matrix) {
+        for i in 0..matrix.rows() {
+            self.lines.push(matrix.compacted_row(i));
+        }
     }
 
     /// Iterate over the lines
-    pub fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(self.lines.iter().map(|l| {
-            LineItem::new(&l.text, LineType::Output, None)
-        }))
+    pub fn line_iter<'a>(&'a self) -> impl Iterator<Item = LineItem<'a>> {
+        self.lines.iter().map(|l| {
+            LineItem::new(&l[..], LineType::Output, None)
+        })
     }
 
     /// Return a correctly typed iterator without any data in it.
-    pub fn empty_line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+    pub fn empty_line_iter<'a>(&'a self) -> impl Iterator<Item = LineItem<'a>> {
         let mut iter = self.lines.iter().map(|l| {
-            LineItem::new(&l.text, LineType::Output, None)
+            LineItem::new(&l[..], LineType::Output, None)
         });
         iter.nth(self.lines.len());
-        Box::new(iter)
+        iter
     }
 }
 
@@ -70,20 +72,29 @@ mod tests {
     #[test]
     fn line_iter() {
         let mut resp = Response::new(true);
-        resp.add_line(String::from("line 1"));
-        resp.add_line(String::from("line 2"));
-        resp.add_line(String::from(""));
-        resp.add_line(String::from("line 4"));
+
+        let mut s = Screen::new();
+        s.place_str("line 1");
+        s.new_line();
+        s.place_str("line 2");
+        s.new_line();
+        s.new_line();
+        s.place_str("line 4");
+
+        resp.add_matrix(s.freeze());
 
         let mut li = resp.line_iter();
+
+        let l0 = li.next();
+        assert!(l0.is_some());
+        let Some(l0) = l0;
+        assert_eq!(l0.is_a, LineType::Output);
+        assert_eq!(l0.cursor_col, None);
         assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "line 1",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
+            String::from(l0.text.iter().map(|c| c.code_point)).as_str(),
+            "line 1"
         );
+
         assert_eq!(
             li.next(),
             Some(LineItem {

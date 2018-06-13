@@ -19,8 +19,8 @@
 //! Sub presenter for composing commands.
 
 use super::*;
-use super::history::*;
-use model::history::*;
+// use super::history::*;
+//use model::history::*;
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -57,13 +57,17 @@ impl SubPresenter for ComposeCommandPresenter {
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(self.commons.session.line_iter().chain(::std::iter::once(
+        Box::new(
+            self.commons.session.line_iter(), /* 
+                 .chain(::std::iter::once(
             LineItem::new(
                 self.commons.current_line.text(),
                 LineType::Input,
                 Some(self.commons.current_line_pos()),
             ),
-        )))
+        ))
+        */
+        )
     }
 
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
@@ -111,25 +115,24 @@ impl SubPresenter for ComposeCommandPresenter {
                 self.commons_mut().current_line.move_right();
                 (self, PresenterCommand::Redraw)
             }
-            ((false, false, false), SpecialKey::Up) => (
-                // Go to history browse mode without search.
-                HistoryPresenter::new(
-                    self.commons,
-                    HistorySearchMode::Browse,
-                    true,
-                ),
-                PresenterCommand::Redraw,
-            ),
-            ((false, false, false), SpecialKey::Down) => (
-                // Go to history browse mode without search.
-                HistoryPresenter::new(
-                    self.commons,
-                    HistorySearchMode::Browse,
-                    false,
-                ),
-                PresenterCommand::Redraw,
-            ),
-
+            // ((false, false, false), SpecialKey::Up) => (
+            //     // Go to history browse mode without search.
+            //     HistoryPresenter::new(
+            //         self.commons,
+            //         HistorySearchMode::Browse,
+            //         true,
+            //     ),
+            //     PresenterCommand::Redraw,
+            // ),
+            // ((false, false, false), SpecialKey::Down) => (
+            //     // Go to history browse mode without search.
+            //     HistoryPresenter::new(
+            //         self.commons,
+            //         HistorySearchMode::Browse,
+            //         false,
+            //     ),
+            //     PresenterCommand::Redraw,
+            // ),
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
@@ -141,17 +144,16 @@ impl SubPresenter for ComposeCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
-            ((false, false, false), SpecialKey::PageUp) => {
-                // Nothing -> Prefix search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
-                (
-                    HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true),
-                    PresenterCommand::Redraw,
-                )
-            }
-
+            //((false, false, false), SpecialKey::PageUp) => {
+            //    // Nothing -> Prefix search
+            //    let prefix = String::from(self.commons.current_line.text_before_cursor());
+            //    self.commons.current_line.clear();
+            //    self.commons.current_line.insert_str(&prefix);
+            //    (
+            //        HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true),
+            //        PresenterCommand::Redraw,
+            //    )
+            //}
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
@@ -161,17 +163,16 @@ impl SubPresenter for ComposeCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
-            ((false, false, false), SpecialKey::PageDown) => {
-                // Nothing -> Prefix search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
-                (
-                    HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false),
-                    PresenterCommand::Redraw,
-                )
-            }
-
+            //((false, false, false), SpecialKey::PageDown) => {
+            //    // Nothing -> Prefix search
+            //    let prefix = String::from(self.commons.current_line.text_before_cursor());
+            //    self.commons.current_line.clear();
+            //    self.commons.current_line.insert_str(&prefix);
+            //    (
+            //        HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false),
+            //        PresenterCommand::Redraw,
+            //    )
+            //}
             ((false, false, false), SpecialKey::Home) => {
                 self.commons.current_line.move_start();
                 (self, PresenterCommand::Redraw)
@@ -207,16 +208,16 @@ impl SubPresenter for ComposeCommandPresenter {
     ) -> (Box<SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), letter) {
             ((false, true, false), b'd') => (self, PresenterCommand::Exit),
-            ((false, true, false), b'r') => {
-                // Control-R -> Start interactive history search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
-                (
-                    HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
-                    PresenterCommand::Redraw,
-                )
-            }
+            //((false, true, false), b'r') => {
+            //    // Control-R -> Start interactive history search
+            //    let prefix = String::from(self.commons.current_line.text_before_cursor());
+            //    self.commons.current_line.clear();
+            //    self.commons.current_line.insert_str(&prefix);
+            //    (
+            //        HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
+            //        PresenterCommand::Redraw,
+            //    )
+            //}
             _ => (self, PresenterCommand::Unknown),
         }
     }

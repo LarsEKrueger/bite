@@ -18,7 +18,7 @@
 
 //! A conversation is a number of commands run with the same prompt string.
 
-use std::iter;
+//use std::iter;
 
 use super::iterators::*;
 use super::interaction::*;

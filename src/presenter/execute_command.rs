@@ -106,17 +106,17 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(
-            self.commons.session.line_iter().chain(
-                self.current_interaction
-                    .line_iter(CommandPosition::CurrentInteraction)
+        Box::new(self.commons.session.line_iter().chain(
+            self.current_interaction.line_iter(
+                CommandPosition::CurrentInteraction,
+            ), /*
                     .chain(::std::iter::once(LineItem::new(
                         self.commons.current_line.text(),
                         LineType::Input,
                         Some(self.commons.current_line_pos()),
                     ))),
-            ),
-        )
+                    */
+        ))
     }
 
     /// Handle the event when a modifier and a special key is pressed.

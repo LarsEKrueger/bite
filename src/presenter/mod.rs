@@ -27,8 +27,8 @@ use std::sync::mpsc::Receiver;
 mod runeline;
 mod compose_command;
 mod execute_command;
-mod history;
-pub mod display_line;
+// mod history;
+//pub mod display_line;
 
 use model::session::*;
 use model::iterators::*;
@@ -39,7 +39,7 @@ use model::bash::BashOutput;
 
 use self::compose_command::*;
 use self::execute_command::*;
-use self::display_line::*;
+//use self::display_line::*;
 
 /// GUI agnostic representation of the modifier keys
 pub struct ModifierState {
@@ -417,12 +417,12 @@ impl Presenter {
         NeedRedraw::No
     }
 
-    /// Yield an iterator that provides the currently visible lines for display.
-    pub fn display_line_iter<'a>(&'a self) -> Box<Iterator<Item = DisplayLine> + 'a> {
-        let iter = self.d().line_iter();
-        let start_line = self.c().start_line();
-        Box::new(iter.skip(start_line).map(DisplayLine::from))
-    }
+    // Yield an iterator that provides the currently visible lines for display.
+    //   pub fn display_line_iter<'a>(&'a self) -> Box<Iterator<Item = DisplayLine> + 'a> {
+    //       let iter = self.d().line_iter();
+    //       let start_line = self.c().start_line();
+    //       Box::new(iter.skip(start_line).map(DisplayLine::from))
+    //   }
 }
 
 /// Get the line type of the line clicked.

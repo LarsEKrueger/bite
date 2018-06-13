@@ -68,7 +68,7 @@ impl DisplayLine {
     pub fn from(line: LineItem) -> DisplayLine {
         // Depending on the type, choose the offset and draw the decoration
         let mut dl = DisplayLine::new(line.cursor_col);
-        let (deco_col, deco_text) = match line.is_a {
+        let (deco_col, deco_text) = match line.is_a {*g:ale_rust_cargo_check_all_targets
             LineType::Output => (Color::Background, "  "),
             LineType::Prompt => (Color::Background, ""),
             LineType::Command(ref ov, _, es) => {

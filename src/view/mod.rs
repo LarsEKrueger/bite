@@ -32,7 +32,7 @@ use std::collections::HashMap;
 
 use tools::polling;
 use presenter::*;
-use presenter::display_line::*;
+//use presenter::display_line::*;
 use model::bash::BashOutput;
 
 /// Initial width of the window in pixels
@@ -101,12 +101,10 @@ pub struct Gui {
 
     /// Color table.
     ///
-    /// Entries are (foreground, background).
+    /// Entries are used for foreground and background.
     ///
     /// TODO: Check if that should be better different GCs.
-    ///
-    /// Ensure that the order matches presenter::Color.
-    colors: [(u32, u32); Color::MaxColor as usize],
+    colors: [u32; 256],
 }
 
 /// Default font to draw the output
@@ -276,12 +274,16 @@ impl Gui {
             let font_height = (*font_extents).max_logical_extent.height;
             let font_width = (*font_extents).max_logical_extent.width;
 
-            let colors = [
-                (0x000000, 0xffffff), // Background
-                (0x000000, 0xffffff), // Normal
-                (0xffffff, 0xFF1313), // StatusError
-                (0x000000, 0x5DDC5D), // StatusOk
-            ];
+            let mut colors: [u32; 256] = ::std::mem::uninitialized();
+
+            colors[0] = 0x000000; // Black.
+            colors[1] = 0xff00ff; // Red.
+            colors[2] = 0x00ff00; // Green.
+            colors[3] = 0xffff00; // Yellow.
+            colors[4] = 0x0000ff; // Blue.
+            colors[5] = 0xff00ff; // Magenta.
+            colors[6] = 0x00ffff; // Cyan.
+            colors[7] = 0xffffff; // White.
 
             let gui = Gui {
                 display,

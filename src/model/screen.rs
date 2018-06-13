@@ -23,7 +23,7 @@
 use std::cmp;
 
 /// Colors are pairs of foreground/background indices into the same palette.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub struct Colors {
     /// Foreground color, index into a 256-entry color table
@@ -43,7 +43,7 @@ impl PartialEq for Colors {
 /// A cell is a character and its colors and attributes.
 ///
 /// TODO: Pack data more tightly
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub struct Cell {
     /// The unicode character to show
@@ -150,6 +150,39 @@ impl Matrix {
             height: 0,
         }
     }
+
+    pub fn rows(&self) -> isize {
+        self.height
+    }
+
+    pub fn columns(&self) -> isize {
+        self.width
+    }
+
+    fn cell_index(&self, x: isize, y: isize) -> usize {
+        debug_assert!(0 <= x);
+        debug_assert!(x < self.width);
+        debug_assert!(0 <= y);
+        debug_assert!(y < self.height);
+
+        (x + y * self.width) as usize
+    }
+
+    pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
+        let row_start = self.cell_index(row, 0);
+        let mut row_end = self.cell_index(row, self.width - 1);
+        while row_end > row_start {
+            if self.cells[row_end].attributes.contains(
+                Attributes::CHARDRAWN,
+            )
+            {
+                break;
+            }
+            row_end -= 1;
+        }
+
+        self.cells[row_start..row_end].to_vec()
+    }
 }
 
 impl PartialEq for Matrix {
@@ -220,6 +253,12 @@ impl Screen {
         self.x += 1;
     }
 
+    pub fn place_str(&mut self, s: &str) {
+        for c in s.chars() {
+            self.place_char(c);
+        }
+    }
+
     /// Ensure that there is room for the character at the current position.
     fn make_room(&mut self) {
         if self.x < 0 || self.x >= self.width() || self.y < 0 || self.y >= self.height() {
@@ -259,12 +298,7 @@ impl Screen {
     /// Compute the index of the cursor position into the cell array
     #[allow(dead_code)]
     fn cursor_index(&self) -> usize {
-        debug_assert!(0 <= self.x);
-        debug_assert!(self.x < self.width());
-        debug_assert!(0 <= self.y);
-        debug_assert!(self.y < self.height());
-
-        (self.x + self.y * self.width()) as usize
+        self.matrix.cell_index(self.x, self.y)
     }
 
     /// Move the cursor to the left edge
@@ -315,6 +349,11 @@ impl Screen {
         self.y -= 1;
     }
 
+    pub fn new_line(&mut self) {
+        self.move_left_edge();
+        self.move_down();
+    }
+
     /// Check if the frozen representation of the screen looks different that the given matrix
     pub fn looks_different(&self, other: &Matrix) -> bool {
         self.matrix != *other
@@ -347,19 +386,19 @@ mod test {
 
         let mut s = Screen::new();
         s.make_room();
-        assert!(s.width() == 1);
-        assert!(s.height() == 1);
-        assert!(s.matrix.cells.len() == 1);
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 1);
     }
 
     #[test]
     fn place_letter() {
         let mut s = Screen::new();
         s.place_char('H');
-        assert!(s.width() == 1);
-        assert!(s.height() == 1);
-        assert!(s.matrix.cells.len() == 1);
-        assert!(s.matrix.cells[0].code_point == 'H');
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 1);
+        assert_eq!(s.matrix.cells[0].code_point, 'H');
     }
 
     #[test]
@@ -368,11 +407,11 @@ mod test {
         s.make_room();
         s.x = -3;
         s.make_room();
-        assert!(s.width() == 4);
-        assert!(s.height() == 1);
-        assert!(s.matrix.cells.len() == 4);
-        assert!(s.x == 0);
-        assert!(s.y == 0);
+        assert_eq!(s.width(), 4);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 0);
     }
 
     #[test]
@@ -381,11 +420,11 @@ mod test {
         s.make_room();
         s.x = 3;
         s.make_room();
-        assert!(s.width() == 4);
-        assert!(s.height() == 1);
-        assert!(s.matrix.cells.len() == 4);
-        assert!(s.x == 3);
-        assert!(s.y == 0);
+        assert_eq!(s.width(), 4);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 3);
+        assert_eq!(s.y, 0);
     }
 
     #[test]
@@ -394,11 +433,11 @@ mod test {
         s.make_room();
         s.y = -3;
         s.make_room();
-        assert!(s.width() == 1);
-        assert!(s.height() == 4);
-        assert!(s.matrix.cells.len() == 4);
-        assert!(s.x == 0);
-        assert!(s.y == 0);
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 4);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 0);
     }
 
     #[test]
@@ -407,11 +446,39 @@ mod test {
         s.make_room();
         s.y = 3;
         s.make_room();
-        assert!(s.width() == 1);
-        assert!(s.height() == 4);
-        assert!(s.matrix.cells.len() == 4);
-        assert!(s.x == 0);
-        assert!(s.y == 3);
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 4);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 3);
+    }
+
+
+    #[test]
+    fn compacted_row() {
+
+        // Matrix contains:
+        // hello
+        //       world
+        //
+
+        let mut s = Screen::new();
+        s.place_str("hello");
+        s.move_down();
+        s.place_str("world");
+        s.move_down();
+        s.make_room();
+
+        assert_eq!(s.height(), 3);
+
+        let l0 = s.matrix.compacted_row(0);
+        assert_eq!(l0.len(), 5);
+
+        let l1 = s.matrix.compacted_row(1);
+        assert_eq!(l1.len(), 10);
+
+        let l2 = s.matrix.compacted_row(2);
+        assert_eq!(l2.len(), 0);
     }
 
     // TODO: Test for protected
