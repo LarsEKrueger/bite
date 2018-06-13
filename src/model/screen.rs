@@ -22,6 +22,17 @@
 
 use std::cmp;
 
+/// Colors are pairs of foreground/background indices into the same palette.
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
+pub struct Colors {
+    /// Foreground color, index into a 256-entry color table
+    foreground_color: u8,
+
+    /// Background color, index into a 256-entry color table
+    background_color: u8,
+}
+
 /// A cell is a character and its colors and attributes.
 ///
 /// TODO: Pack data more tightly
@@ -34,20 +45,16 @@ pub struct Cell {
     /// Attributes as a bit field
     attributes: Attributes,
 
-    /// Foreground color, index into a 256-entry color table
-    foreground_color: u8,
-
-    /// Background color, index into a 256-entry color table
-    background_color: u8,
+    /// Colors of this cell
+    colors: Colors,
 }
 
 impl Cell {
-    pub fn new(foreground_color: u8, background_color: u8) -> Self {
+    pub fn new(colors: Colors) -> Self {
         Self {
             code_point: ' ',
             attributes: Attributes::empty(),
-            foreground_color,
-            background_color,
+            colors,
         }
     }
 }
@@ -115,11 +122,8 @@ struct Screen {
     /// Attributes for next character
     attributes: Attributes,
 
-    /// Foreground color for next character
-    foreground_color: u8,
-
-    /// Background color for next character
-    background_color: u8,
+    /// Colors for next character
+    colors: Colors,
 }
 
 #[allow(dead_code)]
@@ -133,8 +137,10 @@ impl Screen {
             x: 0,
             y: 0,
             attributes: Attributes::empty(),
-            foreground_color: 1,
-            background_color: 0,
+            colors: Colors {
+                foreground_color: 1,
+                background_color: 0,
+            },
         }
     }
 
@@ -145,8 +151,7 @@ impl Screen {
         self.cells[idx] = Cell {
             code_point: c,
             attributes: self.attributes | Attributes::CHARDRAWN,
-            foreground_color: self.foreground_color,
-            background_color: self.background_color,
+            colors: self.colors,
         };
         self.x += 1;
     }
@@ -164,10 +169,7 @@ impl Screen {
             let new_h = self.height + add_top + add_bottom;
 
             let mut new_matrix = Vec::new();
-            new_matrix.resize(
-                (new_w * new_h) as usize,
-                Cell::new(self.foreground_color, self.background_color),
-            );
+            new_matrix.resize((new_w * new_h) as usize, Cell::new(self.colors));
 
             // Move the old content into the new matrix
             for y in 0..self.height {
