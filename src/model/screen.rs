@@ -33,6 +33,13 @@ pub struct Colors {
     background_color: u8,
 }
 
+impl PartialEq for Colors {
+    fn eq(&self, other: &Colors) -> bool {
+        self.foreground_color == other.foreground_color &&
+            self.background_color == other.background_color
+    }
+}
+
 /// A cell is a character and its colors and attributes.
 ///
 /// TODO: Pack data more tightly
@@ -56,6 +63,30 @@ impl Cell {
             attributes: Attributes::empty(),
             colors,
         }
+    }
+}
+
+impl PartialEq for Cell {
+    fn eq(&self, other: &Cell) -> bool {
+        if self.code_point != other.code_point {
+            return false;
+        }
+        if self.attributes != other.attributes {
+            return false;
+        }
+
+        // Colors only matter if they have been set
+        if self.attributes.contains(Attributes::FG_COLOR) {
+            if self.colors.foreground_color != other.colors.foreground_color {
+                return false;
+            }
+        }
+        if self.attributes.contains(Attributes::BG_COLOR) {
+            if self.colors.background_color != other.colors.background_color {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -97,13 +128,10 @@ bitflags! {
     }
 }
 
-/// A screen is rectangular area of cells and the position of the cursor.
+/// A matrix is a rectangular area of cells.
 ///
-/// The cursor can be outside the allocated screen. If a visible character is inserted there, the
-/// screen is reallocated. Coordinate system origin is top-left with x increasing to the right and
-/// y down.
-#[allow(dead_code)]
-struct Screen {
+/// A matrix is meant to be stored, but not modified.
+pub struct Matrix {
     /// The cells of the screen, stored in a row-major ordering.
     cells: Vec<Cell>,
 
@@ -112,6 +140,34 @@ struct Screen {
 
     /// Height of screen fragment in cells. This refers to the allocated size.
     height: isize,
+}
+
+impl Matrix {
+    pub fn new() -> Self {
+        Self {
+            cells: Vec::new(),
+            width: 0,
+            height: 0,
+        }
+    }
+}
+
+impl PartialEq for Matrix {
+    /// Visual equality. If it looks the same, it's the same.
+    fn eq(&self, other: &Matrix) -> bool {
+        self.width == other.width && self.height == other.height && self.cells == other.cells
+    }
+}
+
+/// A screen is rectangular area of cells and the position of the cursor.
+///
+/// The cursor can be outside the allocated screen. If a visible character is inserted there, the
+/// screen is reallocated. Coordinate system origin is top-left with x increasing to the right and
+/// y down.
+#[allow(dead_code)]
+pub struct Screen {
+    /// A matrix of cells
+    matrix: Matrix,
 
     /// Horizontal cursor position. Might be negative.
     x: isize,
@@ -131,9 +187,7 @@ impl Screen {
     /// Create a new, empty screen
     pub fn new() -> Self {
         Self {
-            cells: Vec::new(),
-            width: 0,
-            height: 0,
+            matrix: Matrix::new(),
             x: 0,
             y: 0,
             attributes: Attributes::empty(),
@@ -144,11 +198,21 @@ impl Screen {
         }
     }
 
+    /// Get width of matrix
+    pub fn width(&self) -> isize {
+        self.matrix.width
+    }
+
+    /// Get height of matrix
+    pub fn height(&self) -> isize {
+        self.matrix.height
+    }
+
     /// Place a character at the current position and advance the cursor
     pub fn place_char(&mut self, c: char) {
         self.make_room();
         let idx = self.cursor_index();
-        self.cells[idx] = Cell {
+        self.matrix.cells[idx] = Cell {
             code_point: c,
             attributes: self.attributes | Attributes::CHARDRAWN,
             colors: self.colors,
@@ -158,32 +222,35 @@ impl Screen {
 
     /// Ensure that there is room for the character at the current position.
     fn make_room(&mut self) {
-        if self.x < 0 || self.x >= self.width || self.y < 0 || self.y >= self.height {
+        if self.x < 0 || self.x >= self.width() || self.y < 0 || self.y >= self.height() {
             // Compute the new size and allocate
             let add_left = -cmp::min(self.x, 0);
-            let add_right = cmp::max(self.x, self.width - 1) - self.width + 1;
+            let add_right = cmp::max(self.x, self.width() - 1) - self.width() + 1;
             let add_top = -cmp::min(self.y, 0);
-            let add_bottom = cmp::max(self.y, self.height - 1) - self.height + 1;
+            let add_bottom = cmp::max(self.y, self.height() - 1) - self.height() + 1;
 
-            let new_w = self.width + add_left + add_right;
-            let new_h = self.height + add_top + add_bottom;
+            let new_w = self.width() + add_left + add_right;
+            let new_h = self.height() + add_top + add_bottom;
 
             let mut new_matrix = Vec::new();
             new_matrix.resize((new_w * new_h) as usize, Cell::new(self.colors));
 
             // Move the old content into the new matrix
-            for y in 0..self.height {
+            for y in 0..self.height() {
                 let new_start = (new_w * (y + add_top) + add_left) as usize;
-                let new_end = new_start + self.width as usize;
-                let old_start = (self.width * y) as usize;
-                let old_end = old_start + self.width as usize;
-                new_matrix[new_start..new_end].copy_from_slice(&self.cells[old_start..old_end]);
+                let new_end = new_start + self.width() as usize;
+                let old_start = (self.width() * y) as usize;
+                let old_end = old_start + self.width() as usize;
+                new_matrix[new_start..new_end].copy_from_slice(
+                    &self.matrix.cells
+                        [old_start..old_end],
+                );
             }
-            self.cells = new_matrix;
+            self.matrix.cells = new_matrix;
 
             // Fix cursor position and size
-            self.width = new_w;
-            self.height = new_h;
+            self.matrix.width = new_w;
+            self.matrix.height = new_h;
             self.x += add_left;
             self.y += add_top;
         }
@@ -193,11 +260,11 @@ impl Screen {
     #[allow(dead_code)]
     fn cursor_index(&self) -> usize {
         debug_assert!(0 <= self.x);
-        debug_assert!(self.x < self.width);
+        debug_assert!(self.x < self.width());
         debug_assert!(0 <= self.y);
-        debug_assert!(self.y < self.height);
+        debug_assert!(self.y < self.height());
 
-        (self.x + self.y * self.width) as usize
+        (self.x + self.y * self.width()) as usize
     }
 
     /// Move the cursor to the left edge
@@ -209,7 +276,7 @@ impl Screen {
     /// Move cursor to the right edge. Moves it past the last possible character.
     #[allow(dead_code)]
     pub fn move_right_edge(&mut self) {
-        self.x = self.width;
+        self.x = self.width();
     }
 
     /// Move cursor to the top edge
@@ -221,7 +288,7 @@ impl Screen {
     /// Move cursor to bottom edge. Moves it past the last possible character.
     #[allow(dead_code)]
     pub fn move_bottom_edge(&mut self) {
-        self.y = self.height;
+        self.y = self.height();
     }
 
     /// Move one cell to the right
@@ -247,6 +314,27 @@ impl Screen {
     pub fn move_up(&mut self) {
         self.y -= 1;
     }
+
+    /// Check if the frozen representation of the screen looks different that the given matrix
+    pub fn looks_different(&self, other: &Matrix) -> bool {
+        self.matrix != *other
+    }
+
+    /// Convert the screen to a Matrix that cannot be changed anymore
+    pub fn freeze(self) -> Matrix {
+        self.matrix
+    }
+
+    /// Interpret the parameter as a string of command codes and characters
+    pub fn interpret_str(&mut self, bytes: &[u8]) {
+        // TODO: Implement state machine
+    }
+}
+
+impl PartialEq for Screen {
+    fn eq(&self, other: &Screen) -> bool {
+        self.matrix == other.matrix
+    }
 }
 
 
@@ -259,19 +347,19 @@ mod test {
 
         let mut s = Screen::new();
         s.make_room();
-        assert!(s.width == 1);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 1);
+        assert!(s.width() == 1);
+        assert!(s.height() == 1);
+        assert!(s.matrix.cells.len() == 1);
     }
 
     #[test]
     fn place_letter() {
         let mut s = Screen::new();
         s.place_char('H');
-        assert!(s.width == 1);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 1);
-        assert!(s.cells[0].code_point == 'H');
+        assert!(s.width() == 1);
+        assert!(s.height() == 1);
+        assert!(s.matrix.cells.len() == 1);
+        assert!(s.matrix.cells[0].code_point == 'H');
     }
 
     #[test]
@@ -280,9 +368,9 @@ mod test {
         s.make_room();
         s.x = -3;
         s.make_room();
-        assert!(s.width == 4);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 4);
+        assert!(s.width() == 4);
+        assert!(s.height() == 1);
+        assert!(s.matrix.cells.len() == 4);
         assert!(s.x == 0);
         assert!(s.y == 0);
     }
@@ -293,9 +381,9 @@ mod test {
         s.make_room();
         s.x = 3;
         s.make_room();
-        assert!(s.width == 4);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 4);
+        assert!(s.width() == 4);
+        assert!(s.height() == 1);
+        assert!(s.matrix.cells.len() == 4);
         assert!(s.x == 3);
         assert!(s.y == 0);
     }
@@ -306,9 +394,9 @@ mod test {
         s.make_room();
         s.y = -3;
         s.make_room();
-        assert!(s.width == 1);
-        assert!(s.height == 4);
-        assert!(s.cells.len() == 4);
+        assert!(s.width() == 1);
+        assert!(s.height() == 4);
+        assert!(s.matrix.cells.len() == 4);
         assert!(s.x == 0);
         assert!(s.y == 0);
     }
@@ -319,10 +407,12 @@ mod test {
         s.make_room();
         s.y = 3;
         s.make_room();
-        assert!(s.width == 1);
-        assert!(s.height == 4);
-        assert!(s.cells.len() == 4);
+        assert!(s.width() == 1);
+        assert!(s.height() == 4);
+        assert!(s.matrix.cells.len() == 4);
         assert!(s.x == 0);
         assert!(s.y == 3);
     }
+
+    // TODO: Test for protected
 }

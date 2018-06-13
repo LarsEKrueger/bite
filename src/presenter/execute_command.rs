@@ -85,8 +85,19 @@ impl SubPresenter for ExecuteCommandPresenter {
                     Interaction::new(String::from("")),
                 );
                 self.commons.session.archive_interaction(ci);
-                if self.commons.session.current_conversation.prompt != prompt {
-                    self.commons.session.new_conversation(prompt);
+                let mut prompt_screen = Screen::new();
+                prompt_screen.interpret_str(prompt.as_bytes());
+
+                if prompt_screen.looks_different(
+                    &self.commons
+                        .session
+                        .current_conversation
+                        .prompt,
+                )
+                {
+                    self.commons.session.new_conversation(
+                        prompt_screen.freeze(),
+                    );
                 }
                 return (ComposeCommandPresenter::new(self.commons), needs_marking);
             }

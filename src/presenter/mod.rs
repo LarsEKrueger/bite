@@ -34,6 +34,7 @@ use model::session::*;
 use model::iterators::*;
 use model::interaction::*;
 use model::error::*;
+use model::screen::*;
 use model::bash::BashOutput;
 
 use self::compose_command::*;
@@ -204,8 +205,10 @@ impl PresenterCommons {
     /// This will be passed from sub-presenter to sub-presenter on state changes.
     pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
+        let mut prompt = Screen::new();
+        prompt.interpret_str("System".as_bytes());
         Ok(PresenterCommons {
-            session: Session::new("System".to_string()),
+            session: Session::new(prompt.freeze()),
             window_width: 0,
             window_height: 0,
             button_down: None,

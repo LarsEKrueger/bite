@@ -21,6 +21,7 @@
 use super::conversation::*;
 use super::interaction::*;
 use super::iterators::*;
+use super::screen::*;
 
 /// A number of closed conversations and the current one
 pub struct Session {
@@ -32,7 +33,7 @@ pub struct Session {
 
 impl Session {
     /// Create a new session with its own interpreter.
-    pub fn new(prompt: String) -> Self {
+    pub fn new(prompt: Matrix) -> Self {
         Session {
             archived: vec![],
             current_conversation: Conversation::new(prompt),
@@ -40,7 +41,7 @@ impl Session {
     }
 
     /// Open a new conversation and archive the current one.
-    pub fn new_conversation(&mut self, prompt: String) {
+    pub fn new_conversation(&mut self, prompt: Matrix) {
         use std::mem;
         let cur = mem::replace(&mut self.current_conversation, Conversation::new(prompt));
         self.archived.push(cur);
@@ -91,16 +92,18 @@ impl Session {
 mod tests {
     use super::*;
 
-    fn new_test_session(prompt: String) -> Session {
+    fn new_test_session(prompt: &str) -> Session {
+        let mut prompt_screen = Screen::new();
+        prompt_screen.interpret_str(prompt.as_bytes());
         Session {
             archived: vec![],
-            current_conversation: Conversation::new(prompt),
+            current_conversation: Conversation::new(prompt_screen.freeze()),
         }
     }
 
     #[test]
     fn line_iter() {
-        let mut session = new_test_session(String::from("prompt 1"));
+        let mut session = new_test_session("prompt 1");
 
         let mut inter_1_1 = Interaction::new(String::from("command 1.1"));
         inter_1_1.add_output(String::from("output 1.1.1"));
@@ -111,7 +114,11 @@ mod tests {
         inter_1_2.add_output(String::from("output 1.2.2"));
         session.archive_interaction(inter_1_2);
 
-        session.new_conversation(String::from("prompt 2"));
+        {
+            let mut prompt_screen = Screen::new();
+            prompt_screen.interpret_str("prompt 2".as_bytes());
+            session.new_conversation(prompt_screen.freeze());
+        }
 
         let mut inter_2_1 = Interaction::new(String::from("command 2.1"));
         inter_2_1.add_output("output 2.1.1".to_string());
