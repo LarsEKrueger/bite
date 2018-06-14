@@ -106,10 +106,11 @@ outlined below. It will ensure that your bug can be reproduced and addressed.
 * Add the SHA1 of the version you checked out or downloaded.
     * If you downloaded the ZIP, run
       > unzip -v bite-master.zip
-      and report the string of numbers and letters in the second line (just above the file table).
 
+      and report the string of numbers and letters in the second line (just above the file table).
     * If you cloned the repository, run
       > git rev-parse HEAD
+
       and report it's output.
 
 # Planned Features, Step 1
