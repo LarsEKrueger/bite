@@ -96,10 +96,21 @@ outlined below. It will ensure that your bug can be reproduced and addressed.
 * Create a new issue.
 * Describe the difference between expected and experienced behaviour.
 * Add any error or warning messages that the compilation process generated.
+* If you encounter a build error, add the output of the following commands:
+  > cargo clean
+  > cargo build -vv
 * Add your rust version (*rustc --version*).
 * Add your cargo version (*cargo --version*).
 * Add you gcc version (*gcc --version*).
 * Add your linux version (*uname -a*). You can censor the hostname and the date of build if you like.
+* Add the SHA1 of the version you checked out or downloaded.
+    * If you downloaded the ZIP, run
+      > unzip -v bite-master.zip
+      and report the string of numbers and letters in the second line (just above the file table).
+
+    * If you cloned the repository, run
+      > git rev-parse HEAD
+      and report it's output.
 
 # Planned Features, Step 1
 
