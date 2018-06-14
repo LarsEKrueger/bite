@@ -31,6 +31,76 @@ Currently, terminal emulators are deficient in two areas:
 BiTE remedies all these shortcomings by uniting the shell and terminal emulator
 part of the stack that run a command line program.
 
+# How to build this program
+
+Please understand this software is in a very early stage. Many features are
+simply not developed. The architecture and the API of all modules are subject
+to (sometimes drastic) changes from version to version.
+
+You are welcome to try it out. This section will give you an overview on how to
+download and build BiTE.
+
+## Prerequisites
+
+* Linux (tested on an 64 bit Intel CPU)
+* Rust 1.26
+* Cargo 1.26
+* gcc (tested on gcc-6.4)
+* Internet connection
+
+Other systems might work too (both bash and rust support quite a number of
+systems), but have not yet been tested.
+
+Building on **Microsoft Windows** will not work.
+
+## Download this repository
+
+If you read this readme on github, you should see a *clone or download* button.
+Click it and follow the instructions. Alternatively, you can copy the follow
+command into your terminal:
+
+>       git clone https://github.com/LarsEKrueger/bite.git
+
+For the following steps, it is assumed that you did that.
+
+## Build bite
+
+BiTE's build step consists of three sub-steps:
+* Download bash
+* Build bash
+* Build bite
+
+The following command performs all the steps:
+
+>       cd bite
+>       cargo build
+
+It should produce a binary at
+
+>       ./target/debug/bite
+
+which can be started.
+
+If you want to install the release binary somewhere else, do this:
+
+>       cargo install --root $HOME/somewhere/else
+
+## Reporting bugs
+
+I'd be grateful for any reported bug. Please navigate to [BiTE's issue
+tracker](https://github.com/LarsEKrueger/bite/issues) and follow the procedure
+outlined below. It will ensure that your bug can be reproduced and addressed.
+
+* Is there a similar bug already reported? If so, add any missing specifics of
+  your system / situation to the discussion.
+* Create a new issue.
+* Describe the difference between expected and experienced behaviour.
+* Add any error or warning messages that the compilation process generated.
+* Add your rust version (*rustc --version*).
+* Add your cargo version (*cargo --version*).
+* Add you gcc version (*gcc --version*).
+* Add your linux version (*uname -a*). You can censor the hostname and the date of build if you like.
+
 # Planned Features, Step 1
 
 BiTE always shows the most appropriate view for each type of user actions.
