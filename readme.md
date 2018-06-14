@@ -59,7 +59,9 @@ If you read this readme on github, you should see a *clone or download* button.
 Click it and follow the instructions. Alternatively, you can copy the follow
 command into your terminal:
 
->       git clone https://github.com/LarsEKrueger/bite.git
+```sh
+git clone https://github.com/LarsEKrueger/bite.git
+```
 
 For the following steps, it is assumed that you did that.
 
@@ -71,19 +73,18 @@ BiTE's build step consists of three sub-steps:
 * Build bite
 
 The following command performs all the steps:
+```sh
+cd bite
+cargo build
+```
 
->       cd bite
->       cargo build
-
-It should produce a binary at
-
->       ./target/debug/bite
-
-which can be started.
+It should produce a binary at `./target/debug/bite` which can be started.
 
 If you want to install the release binary somewhere else, do this:
 
->       cargo install --root $HOME/somewhere/else
+```sh
+cargo install --root $HOME/somewhere/else
+```
 
 ## Reporting bugs
 
@@ -97,19 +98,25 @@ outlined below. It will ensure that your bug can be reproduced and addressed.
 * Describe the difference between expected and experienced behaviour.
 * Add any error or warning messages that the compilation process generated.
 * If you encounter a build error, add the output of the following commands:
-  > cargo clean
-  > cargo build -vv
+  ```sh
+  cargo clean
+  cargo build -vv
+  ```
 * Add your rust version (*rustc --version*).
 * Add your cargo version (*cargo --version*).
 * Add you gcc version (*gcc --version*).
 * Add your linux version (*uname -a*). You can censor the hostname and the date of build if you like.
 * Add the SHA1 of the version you checked out or downloaded.
     * If you downloaded the ZIP, run
-      > unzip -v bite-master.zip
+      ```sh
+      unzip -v bite-master.zip
+      ```
 
       and report the string of numbers and letters in the second line (just above the file table).
     * If you cloned the repository, run
-      > git rev-parse HEAD
+      ```sh
+      git rev-parse HEAD
+      ```
 
       and report it's output.
 
