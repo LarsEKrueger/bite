@@ -37,6 +37,18 @@ Please understand this software is in a very early stage. Many features are
 simply not developed. The architecture and the API of all modules are subject
 to (sometimes drastic) changes from version to version.
 
+One example of this are the various messages that show up during startup (e.g.
+`bite: cannot set terminal process group ...`). These messages are the result
+of an as-of-yet incomplete integration of bash. They will go away with the next
+releases.
+
+One built-in command that is definitely missing right now, is `complete`. This
+is deactivated along with whole completion mechanism. It should be available
+with 0.8 release.
+
+Also, `bind` is also missing as the key-mapping mechanism in bite is not yet
+implemented.
+
 You are welcome to try it out. This section will give you an overview on how to
 download and build BiTE.
 
