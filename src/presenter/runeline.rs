@@ -60,6 +60,7 @@ impl Runeline {
     }
 
     /// Retrieve the input as a slice.
+    #[allow(dead_code)]
     pub fn text(&self) -> &str {
         &self.line
     }

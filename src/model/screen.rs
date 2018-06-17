@@ -20,23 +20,25 @@
 //!
 //! This stores a matrix of cells, which are colored characters.
 
+
 use std::cmp;
+
+use super::emulator::Emulator;
 
 /// Colors are pairs of foreground/background indices into the same palette.
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub struct Colors {
     /// Foreground color, index into a 256-entry color table
-    foreground_color: u8,
+    foreground: u8,
 
     /// Background color, index into a 256-entry color table
-    background_color: u8,
+    background: u8,
 }
 
 impl PartialEq for Colors {
     fn eq(&self, other: &Colors) -> bool {
-        self.foreground_color == other.foreground_color &&
-            self.background_color == other.background_color
+        self.foreground == other.foreground && self.background == other.background
     }
 }
 
@@ -64,6 +66,26 @@ impl Cell {
             colors,
         }
     }
+
+    pub fn foreground_color(&self) -> Option<u8> {
+        if self.attributes.contains(Attributes::FG_COLOR) {
+            Some(self.colors.foreground)
+        } else {
+            None
+        }
+    }
+
+    pub fn background_color(&self) -> Option<u8> {
+        if self.attributes.contains(Attributes::BG_COLOR) {
+            Some(self.colors.background)
+        } else {
+            None
+        }
+    }
+
+    pub fn encode_utf8<'a>(&self, buf: &'a mut [u8]) -> &'a mut str {
+        self.code_point.encode_utf8(buf)
+    }
 }
 
 impl PartialEq for Cell {
@@ -76,15 +98,11 @@ impl PartialEq for Cell {
         }
 
         // Colors only matter if they have been set
-        if self.attributes.contains(Attributes::FG_COLOR) {
-            if self.colors.foreground_color != other.colors.foreground_color {
-                return false;
-            }
+        if self.foreground_color() != other.foreground_color() {
+            return false;
         }
-        if self.attributes.contains(Attributes::BG_COLOR) {
-            if self.colors.background_color != other.colors.background_color {
-                return false;
-            }
+        if self.background_color() != other.background_color() {
+            return false;
         }
         true
     }
@@ -213,6 +231,9 @@ pub struct Screen {
 
     /// Colors for next character
     colors: Colors,
+
+    /// State for the state machine to interpret the byte stream as a terminal.
+    emulator: Emulator,
 }
 
 #[allow(dead_code)]
@@ -225,10 +246,23 @@ impl Screen {
             y: 0,
             attributes: Attributes::empty(),
             colors: Colors {
-                foreground_color: 1,
-                background_color: 0,
+                foreground: 1,
+                background: 0,
             },
+            emulator: Emulator::new(),
         }
+    }
+
+    /// Direct conversion to one-line vector of cells
+    pub fn one_line_cell_vec(line: &[u8]) -> Vec<Cell> {
+        Self::one_line_matrix(line).compacted_row(0)
+    }
+
+    /// Direct conversion to one-line matrix
+    pub fn one_line_matrix(bytes: &[u8]) -> Matrix {
+        let mut s = Screen::new();
+        s.add_bytes(bytes);
+        s.freeze()
     }
 
     /// Get width of matrix
@@ -365,8 +399,21 @@ impl Screen {
     }
 
     /// Interpret the parameter as a string of command codes and characters
-    pub fn interpret_str(&mut self, bytes: &[u8]) {
-        // TODO: Implement state machine
+    pub fn add_bytes(&mut self, bytes: &[u8]) {
+        for c in bytes {
+            self.add_byte(*c);
+        }
+    }
+
+    /// Process a single byte in the state machine.
+    ///
+    /// TODO: Indicate certain events in the return code.
+    pub fn add_byte(&mut self, _byte: u8) {
+
+        // TODO: Build unicode characters from utf8
+        // TODO: Handle end-of-line
+
+
     }
 }
 
@@ -376,8 +423,7 @@ impl PartialEq for Screen {
     }
 }
 
-
-#[cfg(test)]
+#[cfg(testx)]
 mod test {
     use super::*;
 

@@ -32,7 +32,7 @@ pub struct ExecuteCommandPresenter {
     current_interaction: Interaction,
 
     /// Prompt to set. If None, we didn't receive one yet
-    next_prompt: Option<String>,
+    next_prompt: Option<Vec<u8>>,
 }
 
 #[allow(dead_code)]
@@ -62,10 +62,10 @@ impl SubPresenter for ExecuteCommandPresenter {
             needs_marking = true;
             match line {
                 BashOutput::FromOutput(line) => {
-                    self.current_interaction.add_output(line);
+                    self.current_interaction.add_output(&line);
                 }
                 BashOutput::FromError(line) => {
-                    self.current_interaction.add_error(line);
+                    self.current_interaction.add_error(&line);
                 }
                 BashOutput::Terminated(exit_code) => {
                     self.current_interaction.set_exit_status(exit_code);
@@ -86,7 +86,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 );
                 self.commons.session.archive_interaction(ci);
                 let mut prompt_screen = Screen::new();
-                prompt_screen.interpret_str(prompt.as_bytes());
+                prompt_screen.add_bytes(&prompt);
 
                 if prompt_screen.looks_different(
                     &self.commons

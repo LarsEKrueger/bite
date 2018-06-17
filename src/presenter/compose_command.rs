@@ -202,7 +202,7 @@ impl SubPresenter for ComposeCommandPresenter {
     /// If Ctrl-R is pressed, go to history browse mode with search for contained strings.
     /// If Ctrl-D is pressed, quit bite.
     fn event_normal_key(
-        mut self: Box<Self>,
+        self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, PresenterCommand) {

@@ -94,9 +94,8 @@ pub extern "C" fn bite_getch() -> c_int {
             prompt_again();
             // Send via channel
             if let Some(ref mut sender) = bash_sender {
-                let prompt = CStr::from_ptr(current_decoded_prompt)
-                    .to_string_lossy()
-                    .to_string();
+                let prompt = CStr::from_ptr(current_decoded_prompt).to_bytes();
+                let prompt = Vec::from(prompt);
                 let _ = sender.lock().unwrap().send(BashOutput::Prompt(prompt));
 
             }
@@ -154,14 +153,16 @@ struct PtsHandles {
 ///
 /// Returns: (master, slave)
 fn create_terminal() -> Result<(RawFd, RawFd), String> {
-    let ptsm = posix_openpt(OFlag::O_RDWR | OFlag::O_EXCL).map_err(
-        as_description,
-    )?;
+    let ptsm = posix_openpt(OFlag::O_RDWR | OFlag::O_EXCL | OFlag::O_NONBLOCK)
+        .map_err(as_description)?;
     grantpt(&ptsm).map_err(as_description)?;
     unlockpt(&ptsm).map_err(as_description)?;
     let sname = unsafe { ptsname(&ptsm).map_err(as_description) }?;
-    let sfd = open(Path::new(&sname), OFlag::O_RDWR, Mode::empty())
-        .map_err(as_description)?;
+    let sfd = open(
+        Path::new(&sname),
+        OFlag::O_RDWR | OFlag::O_NONBLOCK,
+        Mode::empty(),
+    ).map_err(as_description)?;
 
     Ok((ptsm.into_raw_fd(), sfd))
 }
@@ -288,31 +289,16 @@ pub fn bash_kill_last() {
 /// Data to be sent to the receiver of the program's output.
 pub enum BashOutput {
     /// A line was read from stdout.
-    FromOutput(String),
+    FromOutput(Vec<u8>),
 
     /// A line was read from stderr.
-    FromError(String),
+    FromError(Vec<u8>),
 
     /// The program terminated.
     Terminated(ExitStatus),
 
     /// Bash wanted to issue a prompt.
-    Prompt(String),
-}
-
-/// Read a line from a pipe and report if it worked.
-fn read_line(fd: RawFd) -> Option<String> {
-    // Convert complete line as lossy UTF-8
-    let mut one = [b' '; 1];
-    let mut line = vec![];
-    while let Ok(1) = read(fd, &mut one) {
-        match one[0] {
-            b'\r' => {}
-            b'\n' => return Some(String::from(String::from_utf8_lossy(&line[..]))),
-            c => line.push(c),
-        }
-    }
-    None
+    Prompt(Vec<u8>),
 }
 
 static mut read_lines_quit: AtomicBool = ATOMIC_BOOL_INIT;
@@ -321,16 +307,16 @@ static mut bash_out_blocked: AtomicBool = ATOMIC_BOOL_INIT;
 static mut bash_err_blocked: AtomicBool = ATOMIC_BOOL_INIT;
 
 /// Read from a RawFd until fails and send to the channel with the constructor
-fn read_lines(
+fn read_data(
     fd: RawFd,
     sender: Sender<BashOutput>,
     fd_blocked: &mut AtomicBool,
-    construct: &Fn(String) -> BashOutput,
+    construct: &Fn(Vec<u8>) -> BashOutput,
     _error: Arc<Mutex<File>>,
 ) {
     // Is it time to quit the threat?
     while !unsafe { read_lines_quit.load(Ordering::Relaxed) } {
-        // If there is input, read it. If not
+        // If there is input, read it.
         let mut rdfs = FdSet::new();
         rdfs.insert(fd);
         let mut timeout = TimeVal::milliseconds(1);
@@ -340,11 +326,10 @@ fn read_lines(
         };
 
         fd_blocked.store(!data_available, Ordering::SeqCst);
-        if let Some(line) = read_line(fd) {
-            // let _ = error.lock().map(|mut error| {
-            //     write!(error, "read_line: '{}'\n", line);
-            // });
-            let _ = sender.send(construct(line));
+        let mut buffer = [0; 4096];
+        if let Ok(len) = read(fd, &mut buffer) {
+            let v = Vec::from(&buffer[0..len]);
+            let _ = sender.send(construct(v));
         } else {
             return;
         }
@@ -375,7 +360,7 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
     spawn(move || {
         out_reader_barrier.wait();
         unsafe {
-            read_lines(
+            read_data(
                 stdout_m,
                 stdout_sender,
                 &mut bash_out_blocked,
@@ -391,7 +376,7 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
     spawn(move || {
         err_reader_barrier.wait();
         unsafe {
-            read_lines(
+            read_data(
                 stderr_m,
                 stderr_sender,
                 &mut bash_err_blocked,

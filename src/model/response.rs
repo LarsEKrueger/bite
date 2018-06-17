@@ -23,13 +23,19 @@
 use super::iterators::*;
 use super::screen::*;
 
+use std::mem;
+
 /// The full output of a program
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Response {
     /// Is it to be shown in the GUI?
     pub visible: bool,
+
     /// Lines to be shown. Each line in a normal response is just a sequence of cells.
     pub lines: Vec<Vec<Cell>>,
+
+    /// A screen is used to break the input into lines.
+    screen: Screen,
 }
 
 impl Response {
@@ -38,6 +44,7 @@ impl Response {
         Response {
             visible,
             lines: vec![],
+            screen: Screen::new(),
         }
     }
 
@@ -46,6 +53,18 @@ impl Response {
         for i in 0..matrix.rows() {
             self.lines.push(matrix.compacted_row(i));
         }
+    }
+
+    /// Add data to the screen by interpreting it.
+    ///
+    /// This will turn the underlying data into lines when one is available.
+    pub fn add_data(&mut self, data: &[u8]) {
+        // TODO: Convert screen to lines on the fly.
+        for c in data {
+            self.screen.add_byte(*c);
+        }
+        let s = mem::replace(&mut self.screen, Screen::new());
+        self.add_matrix(s.freeze());
     }
 
     /// Iterate over the lines
@@ -65,7 +84,7 @@ impl Response {
     }
 }
 
-#[cfg(test)]
+#[cfg(testx)]
 mod tests {
     use super::*;
 

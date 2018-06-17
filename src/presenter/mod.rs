@@ -28,7 +28,7 @@ mod runeline;
 mod compose_command;
 mod execute_command;
 // mod history;
-//pub mod display_line;
+pub mod display_line;
 
 use model::session::*;
 use model::iterators::*;
@@ -39,7 +39,7 @@ use model::bash::BashOutput;
 
 use self::compose_command::*;
 use self::execute_command::*;
-//use self::display_line::*;
+use self::display_line::*;
 
 /// GUI agnostic representation of the modifier keys
 pub struct ModifierState {
@@ -206,7 +206,7 @@ impl PresenterCommons {
     pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
         let mut prompt = Screen::new();
-        prompt.interpret_str("System".as_bytes());
+        prompt.add_bytes(b"System");
         Ok(PresenterCommons {
             session: Session::new(prompt.freeze()),
             window_width: 0,
@@ -229,6 +229,7 @@ impl PresenterCommons {
     }
 
     /// Return the index of the character where the cursor is in the current input line.
+    #[allow(dead_code)]
     fn current_line_pos(&self) -> usize {
         self.current_line.char_index()
     }
@@ -417,12 +418,12 @@ impl Presenter {
         NeedRedraw::No
     }
 
-    // Yield an iterator that provides the currently visible lines for display.
-    //   pub fn display_line_iter<'a>(&'a self) -> Box<Iterator<Item = DisplayLine> + 'a> {
-    //       let iter = self.d().line_iter();
-    //       let start_line = self.c().start_line();
-    //       Box::new(iter.skip(start_line).map(DisplayLine::from))
-    //   }
+    /// Yield an iterator that provides the currently visible lines for display.
+    pub fn display_line_iter<'a>(&'a self) -> impl Iterator<Item = DisplayLine<'a>> {
+        let iter = self.d().line_iter();
+        let start_line = self.c().start_line();
+        iter.skip(start_line).map(DisplayLine::from)
+    }
 }
 
 /// Get the line type of the line clicked.

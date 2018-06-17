@@ -70,17 +70,15 @@ impl Conversation {
     }
 }
 
-#[cfg(test)]
+#[cfg(testx)]
 mod tests {
     use super::*;
     #[test]
     fn line_iter() {
-        let mut prompt = Screen::new();
-        prompt.interpret_str("prompt".as_bytes());
-        let mut conv = Conversation::new(prompt.freeze());
+        let mut conv = Conversation::new(Screen::one_line_matrix("prompt"));
         let mut inter_1_1 = Interaction::new(String::from("command 1.1"));
-        inter_1_1.add_output(String::from("output 1.1.1"));
-        inter_1_1.add_output(String::from("output 1.1.2"));
+        inter_1_1.add_output(b"output 1.1.1\r\n");
+        inter_1_1.add_output(b"output 1.1.2\r\n");
         conv.add_interaction(inter_1_1);
         let mut inter_1_2 = Interaction::new(String::from("command 1.2"));
         inter_1_2.add_error(String::from("error 1.2.1"));

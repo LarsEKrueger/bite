@@ -49,7 +49,7 @@ pub enum CommandPosition {
 ///
 /// This is just a visual representation of a command and not connected to a running process in any
 /// way.
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Interaction {
     command: String,
     pub output: Response,
@@ -75,35 +75,14 @@ impl Interaction {
         self.exit_status = Some(exit_status);
     }
 
-    /// Add a line as read from stdout.
-    pub fn add_output(&mut self, line: String) {
-        // self.output.add_line(line);
+    // /// Add a block as read from stdout.
+    pub fn add_output(&mut self, line: &[u8]) {
+        self.output.add_data(line);
     }
 
-    /// Add a line as if read from stderr.
-    pub fn add_error(&mut self, line: String) {
-        // self.errors.add_line(line);
-    }
-
-    /// Add a number of stdout lines at once.
-    pub fn add_output_vec(&mut self, mut lines: Vec<String>) {
-        for l in lines.drain(..) {
-            self.add_output(l);
-        }
-    }
-
-    /// Add a number of stderr lines at once.
-    pub fn add_errors_vec(&mut self, mut lines: Vec<String>) {
-        for l in lines.drain(..) {
-            self.add_error(l);
-        }
-    }
-
-    /// Add a number of stderr lines at once.
-    pub fn add_errors_lines(&mut self, lines: String) {
-        for l in lines.lines() {
-            self.add_error(String::from(l));
-        }
+    /// Add a block as if read from stderr.
+    pub fn add_error(&mut self, line: &[u8]) {
+        self.errors.add_data(line);
     }
 
     /// Get the visible response, if any.
@@ -118,7 +97,7 @@ impl Interaction {
     }
 
     /// Get the iterator over the items in this interaction.
-    pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> impl Iterator<Item = LineItem<'a>> {
+    pub fn line_iter<'a>(&'a self, _pos: CommandPosition) -> impl Iterator<Item = LineItem<'a>> {
         // In order to satisfy the type, we need to return a chain of iterators. Thus, if neither
         // response is visible, we take the output iterator and skip to the end.
         // let resp_lines = match self.visible_response() {
@@ -192,7 +171,7 @@ impl CommandPosition {
     }
 }
 
-#[cfg(test)]
+#[cfg(testx)]
 mod tests {
     use super::*;
 
