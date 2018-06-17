@@ -23,7 +23,7 @@
 
 use std::cmp;
 
-use super::emulator::Emulator;
+use super::emulator::{Emulator, Action};
 
 /// Colors are pairs of foreground/background indices into the same palette.
 #[derive(Clone, Copy, Debug)]
@@ -187,9 +187,9 @@ impl Matrix {
     }
 
     pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
-        let row_start = self.cell_index(row, 0);
-        let mut row_end = self.cell_index(row, self.width - 1);
-        while row_end > row_start {
+        let row_start = self.cell_index(0, row);
+        let mut row_end = self.cell_index(self.width - 1, row);
+        while row_end >= row_start {
             if self.cells[row_end].attributes.contains(
                 Attributes::CHARDRAWN,
             )
@@ -199,7 +199,7 @@ impl Matrix {
             row_end -= 1;
         }
 
-        self.cells[row_start..row_end].to_vec()
+        self.cells[row_start..(row_end + 1)].to_vec()
     }
 }
 
@@ -408,12 +408,16 @@ impl Screen {
     /// Process a single byte in the state machine.
     ///
     /// TODO: Indicate certain events in the return code.
-    pub fn add_byte(&mut self, _byte: u8) {
+    pub fn add_byte(&mut self, byte: u8) {
 
-        // TODO: Build unicode characters from utf8
-        // TODO: Handle end-of-line
-
-
+        match self.emulator.add_byte(byte) {
+            Action::More => {}
+            Action::Error => {}
+            Action::CrLf => {
+                // TODO: Handle line-feed
+            }
+            Action::Char(c) => self.place_char(c),
+        }
     }
 }
 
@@ -423,7 +427,7 @@ impl PartialEq for Screen {
     }
 }
 
-#[cfg(testx)]
+#[cfg(test)]
 mod test {
     use super::*;
 
@@ -519,9 +523,13 @@ mod test {
 
         let l0 = s.matrix.compacted_row(0);
         assert_eq!(l0.len(), 5);
+        let c0: Vec<char> = l0.iter().map(|c| c.code_point).collect();
+        assert_eq!(c0, ['h', 'e', 'l', 'l', 'o']);
 
         let l1 = s.matrix.compacted_row(1);
         assert_eq!(l1.len(), 10);
+        let c1: Vec<char> = l1.iter().map(|c| c.code_point).collect();
+        assert_eq!(c1, [' ', ' ', ' ', ' ', ' ', 'w', 'o', 'r', 'l', 'd']);
 
         let l2 = s.matrix.compacted_row(2);
         assert_eq!(l2.len(), 0);
