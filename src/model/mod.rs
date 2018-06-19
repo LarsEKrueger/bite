@@ -30,4 +30,4 @@ pub mod types;
 pub mod error;
 pub mod history;
 pub mod screen;
-pub mod emulator;
+pub mod control_sequence;

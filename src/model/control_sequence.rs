@@ -1,5 +1,5 @@
 /*
-    BiTE - Bash-integrated Terminal Emulator
+    BiTE - Bash-integrated Terminal Parser
     Copyright (C) 2018  Lars Krüger
 
     This program is free software: you can redistribute it and/or modify
@@ -16,13 +16,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//! Terminal emulator state machine
+//! Terminal Control Sequences Parser
 
 use std::char;
 use std::fmt;
 
-/// State machine memory
-pub struct Emulator {
+/// Parser for control sequences
+pub struct Parser {
     /// Incomplete code point being built
     code_point: u32,
 
@@ -129,7 +129,7 @@ fn utf8_is_cont_byte(byte: u8) -> bool {
 
 // RUST CODE END
 
-impl Emulator {
+impl Parser {
     pub fn new() -> Self {
         Self {
             code_point: 0,
@@ -289,14 +289,14 @@ mod test {
     use super::*;
 
     fn emu(bytes: &[u8]) -> Vec<Action> {
-        let mut e = Emulator::new();
+        let mut e = Parser::new();
         let actions = bytes.iter().map(|b| e.add_byte(*b)).collect();
         assert_eq!(e.state, State::Ready);
         actions
     }
 
     fn emu2(blocks: &[&[u8]]) -> Vec<Action> {
-        let mut e = Emulator::new();
+        let mut e = Parser::new();
         let actions = blocks.iter().fold(Vec::new(), |mut v, bytes| {
             v.append(&mut bytes.iter().map(|b| e.add_byte(*b)).collect());
             v

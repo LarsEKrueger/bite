@@ -23,7 +23,7 @@
 
 use std::cmp;
 
-use super::emulator::{Emulator, Action};
+use super::control_sequence::{Parser, Action};
 
 /// Colors are pairs of foreground/background indices into the same palette.
 #[derive(Clone, Copy, Debug)]
@@ -233,7 +233,7 @@ pub struct Screen {
     colors: Colors,
 
     /// State for the state machine to interpret the byte stream as a terminal.
-    emulator: Emulator,
+    parser: Parser,
 }
 
 #[allow(dead_code)]
@@ -249,7 +249,7 @@ impl Screen {
                 foreground: 1,
                 background: 0,
             },
-            emulator: Emulator::new(),
+            parser: Parser::new(),
         }
     }
 
@@ -410,7 +410,7 @@ impl Screen {
     /// TODO: Indicate certain events in the return code.
     pub fn add_byte(&mut self, byte: u8) {
 
-        match self.emulator.add_byte(byte) {
+        match self.parser.add_byte(byte) {
             Action::More => {}
             Action::Error => {}
             Action::CrLf => {
