@@ -45,8 +45,11 @@ pub enum Action {
     /// An error occurred, state was reset
     Error,
 
-    /// A CRLF has been seen
-    CrLf,
+    /// A carriage-return has been seen
+    Cr,
+
+    /// A line-feed has been seen
+    Lf,
 
     /// A UTF8 character has been completed
     Char(char),
@@ -278,7 +281,8 @@ impl fmt::Debug for Action {
         match self {
             Action::More => write!(f, "More"),
             Action::Error => write!(f, "Error"),
-            Action::CrLf => write!(f, "CrLf"),
+            Action::Cr => write!(f, "Cr"),
+            Action::Lf => write!(f, "Lf"),
             Action::Char(c) => write!(f, "Char({})", *c as u32),
         }
     }

@@ -413,9 +413,8 @@ impl Screen {
         match self.parser.add_byte(byte) {
             Action::More => {}
             Action::Error => {}
-            Action::CrLf => {
-                // TODO: Handle line-feed
-            }
+            Action::Cr => self.move_left_edge(),
+            Action::Lf => self.move_down(),
             Action::Char(c) => self.place_char(c),
         }
     }
