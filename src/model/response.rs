@@ -84,9 +84,22 @@ impl Response {
     }
 }
 
-#[cfg(testx)]
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    fn l2s(item: &LineItem) -> String {
+        item.text.iter().map(|c| c.code_point()).collect()
+    }
+
+    fn check(item: Option<LineItem>, gt_is_a: LineType, gt_col: Option<usize>, gt_txt: &str) {
+        assert!(item.is_some());
+        if let Some(item) = item {
+            assert_eq!(item.is_a, gt_is_a);
+            assert_eq!(item.cursor_col, gt_col);
+            assert_eq!(l2s(&item).as_str(), gt_txt);
+        }
+    }
 
     #[test]
     fn line_iter() {
@@ -104,50 +117,25 @@ mod tests {
 
         let mut li = resp.line_iter();
 
-        let l0 = li.next();
-        assert!(l0.is_some());
-        let Some(l0) = l0;
-        assert_eq!(l0.is_a, LineType::Output);
-        assert_eq!(l0.cursor_col, None);
-        assert_eq!(
-            String::from(l0.text.iter().map(|c| c.code_point)).as_str(),
-            "line 1"
-        );
-
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "line 2",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
-        );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
-        );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "line 4",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
-        );
+        check(li.next(), LineType::Output, None, "line 1");
+        check(li.next(), LineType::Output, None, "line 2");
+        check(li.next(), LineType::Output, None, "");
+        check(li.next(), LineType::Output, None, "line 4");
         assert_eq!(li.next(), None);
     }
 
     #[test]
     fn empty_line_iter() {
         let mut resp = Response::new(true);
-        resp.add_line(String::from("line 1"));
-        resp.add_line(String::from("line 2"));
-        resp.add_line(String::from(""));
-        resp.add_line(String::from("line 4"));
+        let mut s = Screen::new();
+        s.place_str("line 1");
+        s.new_line();
+        s.place_str("line 2");
+        s.new_line();
+        s.new_line();
+        s.place_str("line 4");
+
+        resp.add_matrix(s.freeze());
 
         let mut li = resp.empty_line_iter();
         assert_eq!(li.next(), None);

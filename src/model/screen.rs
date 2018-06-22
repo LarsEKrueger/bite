@@ -86,6 +86,10 @@ impl Cell {
     pub fn encode_utf8<'a>(&self, buf: &'a mut [u8]) -> &'a mut str {
         self.code_point.encode_utf8(buf)
     }
+
+    pub fn code_point(&self) -> char {
+        self.code_point
+    }
 }
 
 impl PartialEq for Cell {
