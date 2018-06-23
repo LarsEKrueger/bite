@@ -7,7 +7,7 @@ of backwards and downwards compatibility, no shell uses the full
 capabilities of a graphical interface.
 
 There are some shells, e.g. fish, that try to improve upon the state of the
-art, but still limit themselves to same simple text interface as the original
+art, but still limit themselves to the same simple text interface as the original
 shells. There are also advanced terminal emulators, but those seem to focus on
 taking over tasks of window managers, e.g. providing tiling windows.
 
