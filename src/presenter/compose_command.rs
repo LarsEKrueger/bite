@@ -58,10 +58,14 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         Box::new(self.commons.session.line_iter().chain(::std::iter::once(
-            LineItem::new(
-                self.commons.current_line.text(),
+            LineItem::new_owned(
+                Screen::one_line_cell_vec(
+                    self.commons.current_line.text().as_bytes(),
+                ),
                 LineType::Input,
-                Some(self.commons.current_line_pos()),
+                Some(
+                    self.commons.current_line_pos(),
+                ),
             ),
         )))
     }
@@ -99,7 +103,10 @@ impl SubPresenter for ComposeCommandPresenter {
                 ::model::bash::bash_add_input(line.as_str());
                 ::model::bash::bash_add_input("\n");
                 (
-                    ExecuteCommandPresenter::new(self.commons, line),
+                    ExecuteCommandPresenter::new(
+                        self.commons,
+                        Screen::one_line_cell_vec(line.as_bytes()),
+                    ),
                     PresenterCommand::Redraw,
                 )
             }
@@ -129,7 +136,6 @@ impl SubPresenter for ComposeCommandPresenter {
                 ),
                 PresenterCommand::Redraw,
             ),
-
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
@@ -151,7 +157,6 @@ impl SubPresenter for ComposeCommandPresenter {
                     PresenterCommand::Redraw,
                 )
             }
-
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
@@ -171,7 +176,6 @@ impl SubPresenter for ComposeCommandPresenter {
                     PresenterCommand::Redraw,
                 )
             }
-
             ((false, false, false), SpecialKey::Home) => {
                 self.commons.current_line.move_start();
                 (self, PresenterCommand::Redraw)

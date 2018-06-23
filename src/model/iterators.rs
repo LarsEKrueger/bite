@@ -19,8 +19,10 @@
 //! Various iterators and their items as used in the model.
 
 use super::interaction::*;
+use super::screen::*;
 
 use std::process::ExitStatus;
+use std::borrow::Cow;
 
 /// Type of a line for internal processing.
 #[derive(Debug, PartialEq)]
@@ -31,12 +33,11 @@ pub enum LineType {
     Command(OutputVisibility, CommandPosition, Option<ExitStatus>),
     /// Output from a program (error or normal).
     Output,
-
     /// The input line.
     Input,
+
     /// A menu item that has been selected and its position in the menu.
     SelectedMenuItem(usize),
-
     /// A non-selected menu item and its position in the menu.
     MenuItem(usize),
     /// Non-interactive lines in a menu
@@ -46,12 +47,11 @@ pub enum LineType {
 /// A line to be displayed.
 #[derive(Debug, PartialEq)]
 pub struct LineItem<'a> {
-    // TODO Color
     /// Type/Prefix
     pub is_a: LineType,
 
     /// Text to be displayed
-    pub text: &'a str,
+    pub text: Cow<'a, [Cell]>,
 
     /// Cursor position, if any
     pub cursor_col: Option<usize>,
@@ -72,9 +72,18 @@ pub struct CpConvIter {
 
 impl<'a> LineItem<'a> {
     /// Create a new line item.
-    pub fn new(l: &'a str, is_a: LineType, cursor_col: Option<usize>) -> Self {
+    pub fn new(l: &'a [Cell], is_a: LineType, cursor_col: Option<usize>) -> Self {
         Self {
-            text: l,
+            text: Cow::Borrowed(l),
+            is_a,
+            cursor_col,
+        }
+    }
+
+    /// Create a new line item that owns the text
+    pub fn new_owned(l: Vec<Cell>, is_a: LineType, cursor_col: Option<usize>) -> Self {
+        Self {
+            text: Cow::Owned(l),
             is_a,
             cursor_col,
         }

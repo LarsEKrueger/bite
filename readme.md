@@ -193,7 +193,10 @@ non-GUI program.
     * [X] Bug: errors of built-in commands
     * [X] Bug: Click out/error selector during execution
 * [ ] 0.7 Foreground TUIs
-    * [ ] Handle colors in output, error, and prompt
+    * [X] Handle colors in output, error, and prompt
+    * [ ] Check for minimal rust version in build.rs
+    * [ ] Visually group by prompt
+    * [ ] Allow multi-line prompts
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode
 * [ ] 0.8 Completion
@@ -224,6 +227,8 @@ non-GUI program.
 * [X] Put proper bug reporting email address in error.rs
 * [ ] Do not create interactions for empty lines
 * [ ] Syntax highlighting in input line
+* [ ] Multi-line input line
+* [ ] Multi-line prompts
 
 # Ideas
 * Integrate mosh functionality

@@ -34,6 +34,8 @@ use tools::polling;
 use presenter::*;
 use presenter::display_line::*;
 use model::bash::BashOutput;
+use model::bash;
+use model::screen::Cell;
 
 /// Initial width of the window in pixels
 const WIDTH: i32 = 400;
@@ -101,12 +103,10 @@ pub struct Gui {
 
     /// Color table.
     ///
-    /// Entries are (foreground, background).
+    /// Entries are used for foreground and background.
     ///
     /// TODO: Check if that should be better different GCs.
-    ///
-    /// Ensure that the order matches presenter::Color.
-    colors: [(u32, u32); Color::MaxColor as usize],
+    colors: [u32; 256],
 }
 
 /// Default font to draw the output
@@ -276,12 +276,16 @@ impl Gui {
             let font_height = (*font_extents).max_logical_extent.height;
             let font_width = (*font_extents).max_logical_extent.width;
 
-            let colors = [
-                (0x000000, 0xffffff), // Background
-                (0x000000, 0xffffff), // Normal
-                (0xffffff, 0xFF1313), // StatusError
-                (0x000000, 0x5DDC5D), // StatusOk
-            ];
+            let mut colors: [u32; 256] = ::std::mem::uninitialized();
+
+            colors[0] = 0x000000; // Black.
+            colors[1] = 0xff00ff; // Red.
+            colors[2] = 0x00ff00; // Green.
+            colors[3] = 0xffff00; // Yellow.
+            colors[4] = 0x0000ff; // Blue.
+            colors[5] = 0xff00ff; // Magenta.
+            colors[6] = 0x00ffff; // Cyan.
+            colors[7] = 0xffffff; // White.
 
             let gui = Gui {
                 display,
@@ -351,18 +355,31 @@ impl Gui {
     /// drawn here.
     pub fn draw_line(&self, row: i32, line: &DisplayLine) {
         let mut col = 0;
-        for cs in line.strips.iter() {
-            let ref color = self.colors[cs.color.clone() as usize];
-            self.draw_utf8(col as i32, row, &cs.text, color.0, color.1);
-            col += cs.text.chars().count();
+        for cell in line.prefix {
+            self.draw_cell(col as i32, row, cell);
+            col += 1;
+        }
+        for cell in line.line.iter() {
+            self.draw_cell(col as i32, row, cell);
+            col += 1;
         }
     }
 
-    /// Draw a line with the first character starting at the given character position
-    pub fn draw_utf8(&self, column: i32, row: i32, utf8: &str, fg_color: u32, bg_color: u32) {
+    /// Draw a single colored cell at the given character position
+    pub fn draw_cell(&self, column: i32, row: i32, cell: &Cell) {
         let x = self.font_width * column;
         let y = self.font_height * row;
-        let n = utf8.chars().count() as u32;
+
+        // TODO: Cache colors
+        // TODO: Configure default colors
+        let fg_color = cell.foreground_color().map_or(
+            0x000000,
+            |c| self.colors[c as usize],
+        );
+        let bg_color = cell.background_color().map_or(
+            0xffffff,
+            |c| self.colors[c as usize],
+        );
 
         unsafe {
             XSetForeground(self.display, self.gc, bg_color as u64);
@@ -372,11 +389,14 @@ impl Gui {
                 self.gc,
                 x,
                 y,
-                n * self.font_width as u32,
+                self.font_width as u32,
                 self.font_height as u32,
             );
 
             XSetForeground(self.display, self.gc, fg_color as u64);
+            let mut buf = [0; 4];
+            let s = cell.encode_utf8(&mut buf[..]);
+
             Xutf8DrawString(
                 self.display,
                 self.window,
@@ -384,8 +404,8 @@ impl Gui {
                 self.gc,
                 x,
                 y + self.font_ascent,
-                utf8.as_ptr() as *const i8,
-                utf8.len() as i32,
+                s.as_ptr() as *const i8,
+                s.len() as i32,
             )
         };
     }
@@ -505,7 +525,7 @@ impl Gui {
     ///
     /// Waits for events and dispatches then to the presenter or to itself.
     pub fn main_loop(&mut self) {
-        loop {
+        while bash::read_lines_running() {
             self.gate.wait();
 
             if NeedRedraw::Yes == self.presenter.poll_interaction() {

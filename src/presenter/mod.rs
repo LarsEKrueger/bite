@@ -34,6 +34,7 @@ use model::session::*;
 use model::iterators::*;
 use model::interaction::*;
 use model::error::*;
+use model::screen::*;
 use model::bash::BashOutput;
 
 use self::compose_command::*;
@@ -204,8 +205,10 @@ impl PresenterCommons {
     /// This will be passed from sub-presenter to sub-presenter on state changes.
     pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
+        let mut prompt = Screen::new();
+        prompt.add_bytes(b"System");
         Ok(PresenterCommons {
-            session: Session::new("System".to_string()),
+            session: Session::new(prompt.freeze().compacted_row(0)),
             window_width: 0,
             window_height: 0,
             button_down: None,
@@ -226,6 +229,7 @@ impl PresenterCommons {
     }
 
     /// Return the index of the character where the cursor is in the current input line.
+    #[allow(dead_code)]
     fn current_line_pos(&self) -> usize {
         self.current_line.char_index()
     }
@@ -236,7 +240,7 @@ impl Presenter {
     pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         Ok(Presenter(Some(ExecuteCommandPresenter::new(
             Box::new(PresenterCommons::new(receiver)?),
-            String::from("Startup"),
+            Screen::one_line_cell_vec(b"Startup"),
         ))))
     }
 
@@ -415,10 +419,10 @@ impl Presenter {
     }
 
     /// Yield an iterator that provides the currently visible lines for display.
-    pub fn display_line_iter<'a>(&'a self) -> Box<Iterator<Item = DisplayLine> + 'a> {
+    pub fn display_line_iter<'a>(&'a self) -> impl Iterator<Item = DisplayLine<'a>> {
         let iter = self.d().line_iter();
         let start_line = self.c().start_line();
-        Box::new(iter.skip(start_line).map(DisplayLine::from))
+        iter.skip(start_line).into_iter().map(DisplayLine::from)
     }
 }
 

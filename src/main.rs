@@ -64,6 +64,8 @@ pub mod view;
 
 use model::bash::{bash_add_input, bite_write_output};
 
+extern crate backtrace;
+
 fn panic_hook(info: &PanicInfo) {
     let msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
         (Some(msg), Some(loc)) => {
@@ -85,6 +87,12 @@ fn panic_hook(info: &PanicInfo) {
         }
         _ => format!("bite panicked: {:?}\n", info),
     };
+    bite_write_output(msg.as_str());
+
+    let bt = backtrace::Backtrace::new();
+    use std::fmt::Write;
+    let mut msg = String::new();
+    let _ = write!(msg, "{:?}", bt);
     bite_write_output(msg.as_str());
 }
 

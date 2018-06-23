@@ -20,23 +20,32 @@
 //!
 //! This stores a matrix of cells, which are colored characters.
 
+
 use std::cmp;
 
+use super::control_sequence::{Parser, Action};
+
 /// Colors are pairs of foreground/background indices into the same palette.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub struct Colors {
     /// Foreground color, index into a 256-entry color table
-    foreground_color: u8,
+    foreground: u8,
 
     /// Background color, index into a 256-entry color table
-    background_color: u8,
+    background: u8,
+}
+
+impl PartialEq for Colors {
+    fn eq(&self, other: &Colors) -> bool {
+        self.foreground == other.foreground && self.background == other.background
+    }
 }
 
 /// A cell is a character and its colors and attributes.
 ///
 /// TODO: Pack data more tightly
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub struct Cell {
     /// The unicode character to show
@@ -57,29 +66,75 @@ impl Cell {
             colors,
         }
     }
+
+    pub fn foreground_color(&self) -> Option<u8> {
+        if self.attributes.contains(Attributes::FG_COLOR) {
+            Some(self.colors.foreground)
+        } else {
+            None
+        }
+    }
+
+    pub fn background_color(&self) -> Option<u8> {
+        if self.attributes.contains(Attributes::BG_COLOR) {
+            Some(self.colors.background)
+        } else {
+            None
+        }
+    }
+
+    pub fn encode_utf8<'a>(&self, buf: &'a mut [u8]) -> &'a mut str {
+        self.code_point.encode_utf8(buf)
+    }
+
+    pub fn code_point(&self) -> char {
+        self.code_point
+    }
+}
+
+impl PartialEq for Cell {
+    fn eq(&self, other: &Cell) -> bool {
+        if self.code_point != other.code_point {
+            return false;
+        }
+        if self.attributes != other.attributes {
+            return false;
+        }
+
+        // Colors only matter if they have been set
+        if self.foreground_color() != other.foreground_color() {
+            return false;
+        }
+        if self.background_color() != other.background_color() {
+            return false;
+        }
+        true
+    }
 }
 
 /// Attributes as bitflags
 bitflags! {
     struct Attributes: u16 {
-        const INVERSE       = 0b000000000001;
-        const UNDERLINE     = 0b000000000010;
-        const BOLD          = 0b000000000100;
-        const BLINK         = 0b000000001000;
+        const INVERSE       = 0b0000000000001;
+        const UNDERLINE     = 0b0000000000010;
+        const BOLD          = 0b0000000000100;
+        const BLINK         = 0b0000000001000;
         /// true if background set
-        const BG_COLOR      = 0b00010000;
+        const BG_COLOR      = 0b0000000010000;
         /// true if foreground set
-        const FG_COLOR      = 0b000000100000;
+        const FG_COLOR      = 0b0000000100000;
         /// a character that cannot be erased
-        const PROTECTED     = 0b000001000000;
+        const PROTECTED     = 0b0000001000000;
         /// a character has been drawn here on the screen.  Used to distinguish blanks from empty
         /// parts of the screen when selecting
-        const CHARDRAWN     = 0b000010000000;
+        const CHARDRAWN     = 0b0000010000000;
 
-        const ATR_FAINT     = 0b000100000000;
-        const ATR_ITALIC    = 0b001000000000;
-        const ATR_STRIKEOUT = 0b010000000000;
-        const ATR_DBL_UNDER = 0b100000000000;
+
+        const ATR_FAINT     = 0b0000100000000;
+        const ATR_ITALIC    = 0b0001000000000;
+        const ATR_STRIKEOUT = 0b0010000000000;
+        const ATR_DBL_UNDER = 0b0100000000000;
+        const INVISIBLE     = 0b1000000000000;
 
         const SGR_MASK2     = Self::ATR_FAINT.bits | Self::ATR_ITALIC.bits |
                               Self::ATR_STRIKEOUT.bits | Self::ATR_DBL_UNDER.bits;
@@ -90,10 +145,80 @@ bitflags! {
 
         /// mask: user-visible attributes
         const ATTRIBUTES    = Self::SGR_MASK.bits | Self::SGR_MASK2.bits | Self::BG_COLOR.bits |
-                              Self::FG_COLOR.bits | Self::PROTECTED.bits;
+                              Self::FG_COLOR.bits | Self::PROTECTED.bits | Self::INVISIBLE.bits;
 
         /// The toplevel-call to drawXtermText() should have text-attributes guarded:
         const DRAWX_MASK    = Self::ATTRIBUTES.bits | Self::CHARDRAWN.bits;
+    }
+}
+
+/// A matrix is a rectangular area of cells.
+///
+/// A matrix is meant to be stored, but not modified.
+pub struct Matrix {
+    /// The cells of the screen, stored in a row-major ordering.
+    cells: Vec<Cell>,
+
+    /// Width of screen fragment in cells. This refers to the allocated size.
+    width: isize,
+
+    /// Height of screen fragment in cells. This refers to the allocated size.
+    height: isize,
+}
+
+impl Matrix {
+    pub fn new() -> Self {
+        Self {
+            cells: Vec::new(),
+            width: 0,
+            height: 0,
+        }
+    }
+
+    pub fn rows(&self) -> isize {
+        self.height
+    }
+
+    pub fn columns(&self) -> isize {
+        self.width
+    }
+
+    fn cell_index(&self, x: isize, y: isize) -> isize {
+        debug_assert!(0 <= x);
+        debug_assert!(x < self.width);
+        debug_assert!(0 <= y);
+        debug_assert!(y < self.height);
+
+        (x + y * self.width)
+    }
+
+    pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
+        let row_start = self.cell_index(0, row);
+        let mut row_end = self.cell_index(self.width - 1, row);
+        while row_end >= row_start {
+            if self.cells[row_end as usize].attributes.contains(
+                Attributes::CHARDRAWN,
+            )
+            {
+                break;
+            }
+            row_end -= 1;
+        }
+
+        // If we have seen an empty row, row_end < row_start. If this happens in the first row, we
+        // would underflow when casting to usize for slicing, thus we update now and then cast.
+        row_end += 1;
+        let row_start = row_start as usize;
+        let row_end = row_end as usize;
+
+        self.cells[row_start..row_end].to_vec()
+    }
+}
+
+impl PartialEq for Matrix {
+    /// Visual equality. If it looks the same, it's the same.
+    fn eq(&self, other: &Matrix) -> bool {
+        self.width == other.width && self.height == other.height && self.cells == other.cells
     }
 }
 
@@ -103,15 +228,9 @@ bitflags! {
 /// screen is reallocated. Coordinate system origin is top-left with x increasing to the right and
 /// y down.
 #[allow(dead_code)]
-struct Screen {
-    /// The cells of the screen, stored in a row-major ordering.
-    cells: Vec<Cell>,
-
-    /// Width of screen fragment in cells. This refers to the allocated size.
-    width: isize,
-
-    /// Height of screen fragment in cells. This refers to the allocated size.
-    height: isize,
+pub struct Screen {
+    /// A matrix of cells
+    matrix: Matrix,
 
     /// Horizontal cursor position. Might be negative.
     x: isize,
@@ -124,6 +243,9 @@ struct Screen {
 
     /// Colors for next character
     colors: Colors,
+
+    /// State for the state machine to interpret the byte stream as a terminal.
+    parser: Parser,
 }
 
 #[allow(dead_code)]
@@ -131,24 +253,46 @@ impl Screen {
     /// Create a new, empty screen
     pub fn new() -> Self {
         Self {
-            cells: Vec::new(),
-            width: 0,
-            height: 0,
+            matrix: Matrix::new(),
             x: 0,
             y: 0,
             attributes: Attributes::empty(),
             colors: Colors {
-                foreground_color: 1,
-                background_color: 0,
+                foreground: 1,
+                background: 0,
             },
+            parser: Parser::new(),
         }
+    }
+
+    /// Direct conversion to one-line vector of cells
+    pub fn one_line_cell_vec(line: &[u8]) -> Vec<Cell> {
+        Self::one_line_matrix(line).compacted_row(0)
+    }
+
+    /// Direct conversion to one-line matrix
+    pub fn one_line_matrix(bytes: &[u8]) -> Matrix {
+        let mut s = Screen::new();
+        s.add_bytes(bytes);
+        s.make_room();
+        s.freeze()
+    }
+
+    /// Get width of matrix
+    pub fn width(&self) -> isize {
+        self.matrix.width
+    }
+
+    /// Get height of matrix
+    pub fn height(&self) -> isize {
+        self.matrix.height
     }
 
     /// Place a character at the current position and advance the cursor
     pub fn place_char(&mut self, c: char) {
         self.make_room();
         let idx = self.cursor_index();
-        self.cells[idx] = Cell {
+        self.matrix.cells[idx] = Cell {
             code_point: c,
             attributes: self.attributes | Attributes::CHARDRAWN,
             colors: self.colors,
@@ -156,34 +300,43 @@ impl Screen {
         self.x += 1;
     }
 
+    pub fn place_str(&mut self, s: &str) {
+        for c in s.chars() {
+            self.place_char(c);
+        }
+    }
+
     /// Ensure that there is room for the character at the current position.
     fn make_room(&mut self) {
-        if self.x < 0 || self.x >= self.width || self.y < 0 || self.y >= self.height {
+        if self.x < 0 || self.x >= self.width() || self.y < 0 || self.y >= self.height() {
             // Compute the new size and allocate
             let add_left = -cmp::min(self.x, 0);
-            let add_right = cmp::max(self.x, self.width - 1) - self.width + 1;
+            let add_right = cmp::max(self.x, self.width() - 1) - self.width() + 1;
             let add_top = -cmp::min(self.y, 0);
-            let add_bottom = cmp::max(self.y, self.height - 1) - self.height + 1;
+            let add_bottom = cmp::max(self.y, self.height() - 1) - self.height() + 1;
 
-            let new_w = self.width + add_left + add_right;
-            let new_h = self.height + add_top + add_bottom;
+            let new_w = self.width() + add_left + add_right;
+            let new_h = self.height() + add_top + add_bottom;
 
             let mut new_matrix = Vec::new();
             new_matrix.resize((new_w * new_h) as usize, Cell::new(self.colors));
 
             // Move the old content into the new matrix
-            for y in 0..self.height {
+            for y in 0..self.height() {
                 let new_start = (new_w * (y + add_top) + add_left) as usize;
-                let new_end = new_start + self.width as usize;
-                let old_start = (self.width * y) as usize;
-                let old_end = old_start + self.width as usize;
-                new_matrix[new_start..new_end].copy_from_slice(&self.cells[old_start..old_end]);
+                let new_end = new_start + self.width() as usize;
+                let old_start = (self.width() * y) as usize;
+                let old_end = old_start + self.width() as usize;
+                new_matrix[new_start..new_end].copy_from_slice(
+                    &self.matrix.cells
+                        [old_start..old_end],
+                );
             }
-            self.cells = new_matrix;
+            self.matrix.cells = new_matrix;
 
             // Fix cursor position and size
-            self.width = new_w;
-            self.height = new_h;
+            self.matrix.width = new_w;
+            self.matrix.height = new_h;
             self.x += add_left;
             self.y += add_top;
         }
@@ -192,12 +345,7 @@ impl Screen {
     /// Compute the index of the cursor position into the cell array
     #[allow(dead_code)]
     fn cursor_index(&self) -> usize {
-        debug_assert!(0 <= self.x);
-        debug_assert!(self.x < self.width);
-        debug_assert!(0 <= self.y);
-        debug_assert!(self.y < self.height);
-
-        (self.x + self.y * self.width) as usize
+        self.matrix.cell_index(self.x, self.y) as usize
     }
 
     /// Move the cursor to the left edge
@@ -209,7 +357,7 @@ impl Screen {
     /// Move cursor to the right edge. Moves it past the last possible character.
     #[allow(dead_code)]
     pub fn move_right_edge(&mut self) {
-        self.x = self.width;
+        self.x = self.width();
     }
 
     /// Move cursor to the top edge
@@ -221,7 +369,7 @@ impl Screen {
     /// Move cursor to bottom edge. Moves it past the last possible character.
     #[allow(dead_code)]
     pub fn move_bottom_edge(&mut self) {
-        self.y = self.height;
+        self.y = self.height();
     }
 
     /// Move one cell to the right
@@ -247,8 +395,86 @@ impl Screen {
     pub fn move_up(&mut self) {
         self.y -= 1;
     }
+
+    pub fn new_line(&mut self) {
+        self.move_left_edge();
+        self.move_down();
+    }
+
+    /// Check if the frozen representation of the screen looks different that the given matrix
+    pub fn looks_different(&self, other: &Matrix) -> bool {
+        self.matrix != *other
+    }
+
+    /// Convert the screen to a Matrix that cannot be changed anymore
+    pub fn freeze(self) -> Matrix {
+        self.matrix
+    }
+
+    /// Interpret the parameter as a string of command codes and characters
+    pub fn add_bytes(&mut self, bytes: &[u8]) {
+        for c in bytes {
+            self.add_byte(*c);
+        }
+    }
+
+    /// Process a single byte in the state machine.
+    ///
+    /// TODO: Indicate certain events in the return code.
+    pub fn add_byte(&mut self, byte: u8) {
+        match self.parser.add_byte(byte) {
+            Action::More => {}
+            Action::Error => {}
+            Action::Cr => self.move_left_edge(),
+            Action::Lf => self.move_down(),
+            Action::Char(c) => self.place_char(c),
+            Action::Sgr => {
+                for op in self.parser.parameters() {
+                    match op {
+                        0 => self.attributes = Attributes::empty(),
+                        1 => self.attributes.insert(Attributes::BOLD),
+                        2 => self.attributes.insert(Attributes::ATR_FAINT),
+                        3 => self.attributes.insert(Attributes::ATR_ITALIC),
+                        4 => self.attributes.insert(Attributes::UNDERLINE),
+                        5 => self.attributes.insert(Attributes::BLINK),
+                        7 => self.attributes.insert(Attributes::INVERSE),
+                        8 => self.attributes.insert(Attributes::INVISIBLE),
+                        9 => self.attributes.insert(Attributes::ATR_STRIKEOUT),
+                        21 => self.attributes.insert(Attributes::ATR_DBL_UNDER),
+                        22 => {
+                            self.attributes.remove(Attributes::BOLD);
+                            self.attributes.remove(Attributes::ATR_FAINT);
+                        }
+                        23 => self.attributes.remove(Attributes::ATR_ITALIC),
+                        24 => self.attributes.remove(Attributes::UNDERLINE),
+                        25 => self.attributes.remove(Attributes::BLINK),
+                        27 => self.attributes.remove(Attributes::INVERSE),
+                        28 => self.attributes.remove(Attributes::INVISIBLE),
+                        29 => self.attributes.remove(Attributes::ATR_STRIKEOUT),
+                        30...37 => {
+                            self.attributes.insert(Attributes::FG_COLOR);
+                            self.colors.foreground = (op - 30) as u8;
+                        }
+                        39 => self.attributes.remove(Attributes::FG_COLOR),
+                        40...47 => {
+                            self.attributes.insert(Attributes::BG_COLOR);
+                            self.colors.background = (op - 40) as u8;
+                        }
+                        49 => self.attributes.remove(Attributes::BG_COLOR),
+
+                        _ => {}
+                    };
+                }
+            }
+        }
+    }
 }
 
+impl PartialEq for Screen {
+    fn eq(&self, other: &Screen) -> bool {
+        self.matrix == other.matrix
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -259,19 +485,19 @@ mod test {
 
         let mut s = Screen::new();
         s.make_room();
-        assert!(s.width == 1);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 1);
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 1);
     }
 
     #[test]
     fn place_letter() {
         let mut s = Screen::new();
         s.place_char('H');
-        assert!(s.width == 1);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 1);
-        assert!(s.cells[0].code_point == 'H');
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 1);
+        assert_eq!(s.matrix.cells[0].code_point, 'H');
     }
 
     #[test]
@@ -280,11 +506,11 @@ mod test {
         s.make_room();
         s.x = -3;
         s.make_room();
-        assert!(s.width == 4);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 4);
-        assert!(s.x == 0);
-        assert!(s.y == 0);
+        assert_eq!(s.width(), 4);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 0);
     }
 
     #[test]
@@ -293,11 +519,11 @@ mod test {
         s.make_room();
         s.x = 3;
         s.make_room();
-        assert!(s.width == 4);
-        assert!(s.height == 1);
-        assert!(s.cells.len() == 4);
-        assert!(s.x == 3);
-        assert!(s.y == 0);
+        assert_eq!(s.width(), 4);
+        assert_eq!(s.height(), 1);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 3);
+        assert_eq!(s.y, 0);
     }
 
     #[test]
@@ -306,11 +532,11 @@ mod test {
         s.make_room();
         s.y = -3;
         s.make_room();
-        assert!(s.width == 1);
-        assert!(s.height == 4);
-        assert!(s.cells.len() == 4);
-        assert!(s.x == 0);
-        assert!(s.y == 0);
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 4);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 0);
     }
 
     #[test]
@@ -319,10 +545,67 @@ mod test {
         s.make_room();
         s.y = 3;
         s.make_room();
-        assert!(s.width == 1);
-        assert!(s.height == 4);
-        assert!(s.cells.len() == 4);
-        assert!(s.x == 0);
-        assert!(s.y == 3);
+        assert_eq!(s.width(), 1);
+        assert_eq!(s.height(), 4);
+        assert_eq!(s.matrix.cells.len(), 4);
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 3);
     }
+
+    #[test]
+    fn compacted_row() {
+
+        // Matrix contains:
+        // hello
+        //       world
+        //
+
+        let mut s = Screen::new();
+        s.place_str("hello");
+        s.move_down();
+        s.place_str("world");
+        s.move_down();
+        s.make_room();
+
+        assert_eq!(s.height(), 3);
+
+        let l0 = s.matrix.compacted_row(0);
+        assert_eq!(l0.len(), 5);
+        let c0: Vec<char> = l0.iter().map(|c| c.code_point).collect();
+        assert_eq!(c0, ['h', 'e', 'l', 'l', 'o']);
+
+        let l1 = s.matrix.compacted_row(1);
+        assert_eq!(l1.len(), 10);
+        let c1: Vec<char> = l1.iter().map(|c| c.code_point).collect();
+        assert_eq!(c1, [' ', ' ', ' ', ' ', ' ', 'w', 'o', 'r', 'l', 'd']);
+
+        let l2 = s.matrix.compacted_row(2);
+        assert_eq!(l2.len(), 0);
+    }
+
+    #[test]
+    fn newline() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\r\nworld\r\n");
+
+        assert_eq!(s.height(), 2);
+
+        let l0 = s.matrix.compacted_row(0);
+        assert_eq!(l0.len(), 5);
+        let c0: Vec<char> = l0.iter().map(|c| c.code_point).collect();
+        assert_eq!(c0, ['h', 'e', 'l', 'l', 'o']);
+
+        let l1 = s.matrix.compacted_row(1);
+        assert_eq!(l1.len(), 5);
+        let c1: Vec<char> = l1.iter().map(|c| c.code_point).collect();
+        assert_eq!(c1, ['w', 'o', 'r', 'l', 'd']);
+    }
+
+    #[test]
+    fn empty_cell_vec() {
+        let v = Screen::one_line_cell_vec(b"");
+        assert_eq!(v.len(), 0);
+    }
+
+    // TODO: Test for protected
 }

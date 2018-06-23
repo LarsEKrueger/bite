@@ -6,6 +6,6 @@ LINES=$(tput lines)
 inotifywait -m -e close_write $(find src -type d) c_src | while read line; do
   if echo $line | grep '\.rs$'; then
      clear
-     cargo test |& head -n $LINES
+     (cargo build ; cargo test ) |& head -n $LINES
   fi
 done
