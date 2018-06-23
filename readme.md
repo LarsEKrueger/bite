@@ -92,7 +92,7 @@ non-GUI program.
     * [X] Bug: errors of built-in commands
     * [X] Bug: Click out/error selector during execution
 * [ ] 0.7 Foreground TUIs
-    * [ ] Handle colors in output, error, and prompt
+    * [X] Handle colors in output, error, and prompt
     * [ ] Check for minimal rust version in build.rs
     * [ ] Visually group by prompt
     * [ ] Allow multi-line prompts
