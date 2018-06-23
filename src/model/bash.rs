@@ -306,6 +306,10 @@ static mut read_lines_quit: AtomicBool = ATOMIC_BOOL_INIT;
 static mut bash_out_blocked: AtomicBool = ATOMIC_BOOL_INIT;
 static mut bash_err_blocked: AtomicBool = ATOMIC_BOOL_INIT;
 
+pub fn read_lines_running() -> bool {
+    !unsafe { read_lines_quit.load(Ordering::Relaxed) }
+}
+
 /// Read from a RawFd until fails and send to the channel with the constructor
 fn read_data(
     fd: RawFd,
@@ -315,7 +319,7 @@ fn read_data(
     _error: Arc<Mutex<File>>,
 ) {
     // Is it time to quit the threat?
-    while !unsafe { read_lines_quit.load(Ordering::Relaxed) } {
+    while read_lines_running() {
         // If there is input, read it.
         let mut rdfs = FdSet::new();
         rdfs.insert(fd);
@@ -326,12 +330,26 @@ fn read_data(
         };
 
         fd_blocked.store(!data_available, Ordering::SeqCst);
-        let mut buffer = [0; 4096];
-        if let Ok(len) = read(fd, &mut buffer) {
-            let v = Vec::from(&buffer[0..len]);
-            let _ = sender.send(construct(v));
-        } else {
-            return;
+        if data_available {
+            let mut buffer = [0; 4096];
+            if let Ok(len) = read(fd, &mut buffer) {
+                let v = Vec::from(&buffer[0..len]);
+                let _ = sender.send(construct(v));
+            } else {
+                use std::fmt::Write;
+                let mut s = String::new();
+                let _ = write!(
+                    s,
+                    "Read failed from handle {} (data_available={:?})\nExiting thread.\n",
+                    fd,
+                    data_available
+                );
+                bite_write_output(s.as_str());
+                // There was some serious error reading from bash, so drop everything and leave.
+                unsafe {
+                    read_lines_quit.store(true, Ordering::Relaxed);
+                }
+            }
         }
     }
 }
