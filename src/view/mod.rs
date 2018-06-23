@@ -34,7 +34,6 @@ use tools::polling;
 use presenter::*;
 use presenter::display_line::*;
 use model::bash::BashOutput;
-use model::bash;
 use model::screen::Cell;
 
 /// Initial width of the window in pixels
@@ -525,7 +524,7 @@ impl Gui {
     ///
     /// Waits for events and dispatches then to the presenter or to itself.
     pub fn main_loop(&mut self) {
-        while bash::read_lines_running() {
+        loop {
             self.gate.wait();
 
             if NeedRedraw::Yes == self.presenter.poll_interaction() {

@@ -181,20 +181,20 @@ impl Matrix {
         self.width
     }
 
-    fn cell_index(&self, x: isize, y: isize) -> usize {
+    fn cell_index(&self, x: isize, y: isize) -> isize {
         debug_assert!(0 <= x);
         debug_assert!(x < self.width);
         debug_assert!(0 <= y);
         debug_assert!(y < self.height);
 
-        (x + y * self.width) as usize
+        (x + y * self.width)
     }
 
     pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
         let row_start = self.cell_index(0, row);
         let mut row_end = self.cell_index(self.width - 1, row);
         while row_end >= row_start {
-            if self.cells[row_end].attributes.contains(
+            if self.cells[row_end as usize].attributes.contains(
                 Attributes::CHARDRAWN,
             )
             {
@@ -203,7 +203,13 @@ impl Matrix {
             row_end -= 1;
         }
 
-        self.cells[row_start..(row_end + 1)].to_vec()
+        // If we have seen an empty row, row_end < row_start. If this happens in the first row, we
+        // would underflow when casting to usize for slicing, thus we update now and then cast.
+        row_end += 1;
+        let row_start = row_start as usize;
+        let row_end = row_end as usize;
+
+        self.cells[row_start..row_end].to_vec()
     }
 }
 
@@ -266,6 +272,7 @@ impl Screen {
     pub fn one_line_matrix(bytes: &[u8]) -> Matrix {
         let mut s = Screen::new();
         s.add_bytes(bytes);
+        s.make_room();
         s.freeze()
     }
 
@@ -336,7 +343,7 @@ impl Screen {
     /// Compute the index of the cursor position into the cell array
     #[allow(dead_code)]
     fn cursor_index(&self) -> usize {
-        self.matrix.cell_index(self.x, self.y)
+        self.matrix.cell_index(self.x, self.y) as usize
     }
 
     /// Move the cursor to the left edge
@@ -413,7 +420,6 @@ impl Screen {
     ///
     /// TODO: Indicate certain events in the return code.
     pub fn add_byte(&mut self, byte: u8) {
-
         match self.parser.add_byte(byte) {
             Action::More => {}
             Action::Error => {}
@@ -506,7 +512,6 @@ mod test {
         assert_eq!(s.y, 3);
     }
 
-
     #[test]
     fn compacted_row() {
 
@@ -536,6 +541,30 @@ mod test {
 
         let l2 = s.matrix.compacted_row(2);
         assert_eq!(l2.len(), 0);
+    }
+
+    #[test]
+    fn newline() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\r\nworld\r\n");
+
+        assert_eq!(s.height(), 2);
+
+        let l0 = s.matrix.compacted_row(0);
+        assert_eq!(l0.len(), 5);
+        let c0: Vec<char> = l0.iter().map(|c| c.code_point).collect();
+        assert_eq!(c0, ['h', 'e', 'l', 'l', 'o']);
+
+        let l1 = s.matrix.compacted_row(1);
+        assert_eq!(l1.len(), 5);
+        let c1: Vec<char> = l1.iter().map(|c| c.code_point).collect();
+        assert_eq!(c1, ['w', 'o', 'r', 'l', 'd']);
+    }
+
+    #[test]
+    fn empty_cell_vec() {
+        let v = Screen::one_line_cell_vec(b"");
+        assert_eq!(v.len(), 0);
     }
 
     // TODO: Test for protected
