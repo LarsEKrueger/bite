@@ -20,6 +20,9 @@
 
 use std::char;
 use std::fmt;
+use std::mem;
+use std::cmp;
+use std::iter;
 
 /// Parser for control sequences
 pub struct Parser {
@@ -34,7 +37,21 @@ pub struct Parser {
 
     /// First byte of an utf8 string
     first_byte: u8,
+
+    /// Index of last parameter or None if none has been set yet.
+    last_parameter_index: Option<u8>,
+
+    /// Parameters
+    parameter: [Parameter; PARAMETERS],
 }
+
+/// Maximal number of parameters
+const PARAMETERS: usize = 30;
+
+/// Parameter of a control sequence.
+///
+/// Prepared for sub-parameters.
+type Parameter = u32;
 
 /// Actions to be taken after processing a byte
 #[derive(PartialEq)]
@@ -53,10 +70,15 @@ pub enum Action {
 
     /// A UTF8 character has been completed
     Char(char),
+
+    /// An SGR sequence has been found.
+    ///
+    /// Process the parameters outside and then reset the state
+    Sgr,
 }
 
 /// States of the machine
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 #[repr(u8)]
 enum State {
     /// Ready for the next byte
@@ -70,6 +92,12 @@ enum State {
 
     /// Waiting for UTF8 byte3
     Byte3,
+
+    /// Escape seen, waiting for sequence selector
+    Escape,
+
+    /// Control Sequence Introducer seen, waiting for parameters or command
+    Csi,
 }
 
 
@@ -139,6 +167,8 @@ impl Parser {
             state: State::Ready,
             code_bytes: 0,
             first_byte: 0,
+            last_parameter_index: None,
+            parameter: unsafe { mem::uninitialized() },
         }
     }
 
@@ -148,6 +178,84 @@ impl Parser {
         debug_assert!(byte < TAG_CONT_U8);
 
         match byte {
+            27 => {
+                self.state = State::Escape;
+                Action::More
+            }
+
+            b'[' => {
+                match self.state {
+                    State::Escape => {
+                        self.state = State::Csi;
+                        self.last_parameter_index = None;
+                        Action::More
+                    }
+                    _ => Action::char_from_u32(byte as u32),
+                }
+            }
+
+            b'0'...b'9' => {
+                match self.state {
+                    State::Csi => {
+                        if let None = self.last_parameter_index {
+                            self.last_parameter_index = Some(0);
+                            self.parameter[0] = 0;
+                        }
+                        if let Some(last) = self.last_parameter_index {
+                            let last = last as usize;
+                            self.parameter[last] =
+                                cmp::min(65535, 10 * self.parameter[last] + ((byte - b'0') as u32));
+                        }
+                        Action::More
+                    }
+
+                    _ => {
+                        self.reset();
+                        Action::char_from_u32(byte as u32)
+                    }
+                }
+            }
+
+            b';' => {
+                match self.state {
+                    State::Csi => {
+                        match self.last_parameter_index {
+                            None => {
+                                self.last_parameter_index = Some(0);
+                                self.parameter[0] = 0;
+                            }
+                            Some(i) => {
+                                let next = i + 1;
+                                if (next as usize) < PARAMETERS {
+                                    self.last_parameter_index = Some(next);
+                                    self.parameter[next as usize] = 0;
+                                }
+                            }
+                        }
+                        Action::More
+                    }
+                    _ => {
+                        self.reset();
+                        Action::char_from_u32(byte as u32)
+                    }
+                }
+            }
+
+            b'm' => {
+                match self.state {
+                    // SGR: Set the colors / attributes
+                    State::Csi => {
+                        self.reset();
+                        Action::Sgr
+                    }
+                    _ => {
+                        self.reset();
+                        Action::char_from_u32(byte as u32)
+                    }
+
+                }
+            }
+
             b'\r' => Action::Cr,
             b'\n' => Action::Lf,
             byte => Action::char_from_u32(byte as u32),
@@ -262,16 +370,41 @@ impl Parser {
                 }
 
             }
+
+            State::Escape => {
+                if byte < TAG_CONT_U8 {
+                    return self.single_byte(byte);
+                }
+                // Fall through to fail
+            }
+
+            State::Csi => {
+                if byte < TAG_CONT_U8 {
+                    return self.single_byte(byte);
+                }
+                // Fall through to fail
+            }
         }
         self.reset();
         Action::Error
     }
 
     /// Reset to ready state
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.state = State::Ready;
         self.code_point = 0;
         self.code_bytes = 0;
+    }
+
+    /// Return an iterator on the parameters
+    pub fn parameters<'a>(&'a self) -> Box<Iterator<Item = Parameter> + 'a> {
+        match self.last_parameter_index {
+            None => Box::new(iter::empty()),
+            Some(last) => {
+                let count = last + 1;
+                Box::new((0..count).map(move |i| self.parameter[i as usize]))
+            }
+        }
     }
 }
 
@@ -288,6 +421,7 @@ impl fmt::Debug for Action {
             Action::Error => write!(f, "Error"),
             Action::Cr => write!(f, "Cr"),
             Action::Lf => write!(f, "Lf"),
+            Action::Sgr => write!(f, "Sgr"),
             Action::Char(c) => write!(f, "Char({})", *c as u32),
         }
     }
@@ -297,6 +431,7 @@ impl fmt::Debug for Action {
 mod test {
     use super::*;
 
+    /// Helper function to map a string to the vector of actions that were returned after each byte
     fn emu(bytes: &[u8]) -> Vec<Action> {
         let mut e = Parser::new();
         let actions = bytes.iter().map(|b| e.add_byte(*b)).collect();
@@ -304,6 +439,8 @@ mod test {
         actions
     }
 
+    /// Helper function to map a vector of strings to the vector of actions that were returned
+    /// after each byte
     fn emu2(blocks: &[&[u8]]) -> Vec<Action> {
         let mut e = Parser::new();
         let actions = blocks.iter().fold(Vec::new(), |mut v, bytes| {
@@ -312,6 +449,20 @@ mod test {
         });
         assert_eq!(e.state, State::Ready);
         actions
+    }
+
+    /// Helper function to map a string to the vector of actions and states that were returned
+    /// after each byte
+    fn emus(bytes: &[u8]) -> Vec<(Action, State)> {
+        let mut e = Parser::new();
+        let mut res = Vec::new();
+        for b in bytes {
+            let a = e.add_byte(*b);
+            let s = e.state;
+            res.push((a, s));
+        }
+        assert_eq!(e.state, State::Ready);
+        res
     }
 
     fn c(ch: char) -> Action {
@@ -456,4 +607,54 @@ mod test {
         );
     }
     // RUST CODE END
+
+    #[test]
+    fn sgr() {
+        assert_eq!(
+            emus(b"a\x1b[32;12;0md"),
+            [
+                (c('a'), State::Ready),
+                (m(), State::Escape),
+                (m(), State::Csi),
+                (m(), State::Csi),
+                (m(), State::Csi),
+                (m(), State::Csi),
+                (m(), State::Csi),
+                (m(), State::Csi),
+                (m(), State::Csi),
+                (m(), State::Csi),
+                (Action::Sgr, State::Ready),
+                (c('d'), State::Ready),
+            ]
+        );
+
+        // Non-SGR sequence (no escape)
+        assert_eq!(emu(b"a[32m"), [c('a'), c('['), c('3'), c('2'), c('m')]);
+
+        // Check parameter reset
+        {
+            let mut e = Parser::new();
+            {
+                let actions: Vec<Action> = b"\x1b[32;12m".iter().map(|b| e.add_byte(*b)).collect();
+                assert_eq!(e.state, State::Ready);
+                assert_eq!(actions, [m(), m(), m(), m(), m(), m(), m(), Action::Sgr]);
+                assert_eq!(e.last_parameter_index, Some(1));
+                assert_eq!(e.parameter[0], 32);
+                assert_eq!(e.parameter[1], 12);
+
+                let ps: Vec<Parameter> = e.parameters().collect();
+                assert_eq!(ps, [32, 12]);
+            }
+            {
+                let actions: Vec<Action> = b"\x1b[45m".iter().map(|b| e.add_byte(*b)).collect();
+                assert_eq!(e.state, State::Ready);
+                assert_eq!(actions, [m(), m(), m(), m(), Action::Sgr]);
+                assert_eq!(e.last_parameter_index, Some(0));
+                assert_eq!(e.parameter[0], 45);
+
+                let ps: Vec<Parameter> = e.parameters().collect();
+                assert_eq!(ps, [45]);
+            }
+        }
+    }
 }
