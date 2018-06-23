@@ -115,24 +115,26 @@ impl PartialEq for Cell {
 /// Attributes as bitflags
 bitflags! {
     struct Attributes: u16 {
-        const INVERSE       = 0b000000000001;
-        const UNDERLINE     = 0b000000000010;
-        const BOLD          = 0b000000000100;
-        const BLINK         = 0b000000001000;
+        const INVERSE       = 0b0000000000001;
+        const UNDERLINE     = 0b0000000000010;
+        const BOLD          = 0b0000000000100;
+        const BLINK         = 0b0000000001000;
         /// true if background set
-        const BG_COLOR      = 0b00010000;
+        const BG_COLOR      = 0b0000000010000;
         /// true if foreground set
-        const FG_COLOR      = 0b000000100000;
+        const FG_COLOR      = 0b0000000100000;
         /// a character that cannot be erased
-        const PROTECTED     = 0b000001000000;
+        const PROTECTED     = 0b0000001000000;
         /// a character has been drawn here on the screen.  Used to distinguish blanks from empty
         /// parts of the screen when selecting
-        const CHARDRAWN     = 0b000010000000;
+        const CHARDRAWN     = 0b0000010000000;
 
-        const ATR_FAINT     = 0b000100000000;
-        const ATR_ITALIC    = 0b001000000000;
-        const ATR_STRIKEOUT = 0b010000000000;
-        const ATR_DBL_UNDER = 0b100000000000;
+
+        const ATR_FAINT     = 0b0000100000000;
+        const ATR_ITALIC    = 0b0001000000000;
+        const ATR_STRIKEOUT = 0b0010000000000;
+        const ATR_DBL_UNDER = 0b0100000000000;
+        const INVISIBLE     = 0b1000000000000;
 
         const SGR_MASK2     = Self::ATR_FAINT.bits | Self::ATR_ITALIC.bits |
                               Self::ATR_STRIKEOUT.bits | Self::ATR_DBL_UNDER.bits;
@@ -143,7 +145,7 @@ bitflags! {
 
         /// mask: user-visible attributes
         const ATTRIBUTES    = Self::SGR_MASK.bits | Self::SGR_MASK2.bits | Self::BG_COLOR.bits |
-                              Self::FG_COLOR.bits | Self::PROTECTED.bits;
+                              Self::FG_COLOR.bits | Self::PROTECTED.bits | Self::INVISIBLE.bits;
 
         /// The toplevel-call to drawXtermText() should have text-attributes guarded:
         const DRAWX_MASK    = Self::ATTRIBUTES.bits | Self::CHARDRAWN.bits;
@@ -426,6 +428,44 @@ impl Screen {
             Action::Cr => self.move_left_edge(),
             Action::Lf => self.move_down(),
             Action::Char(c) => self.place_char(c),
+            Action::Sgr => {
+                for op in self.parser.parameters() {
+                    match op {
+                        0 => self.attributes = Attributes::empty(),
+                        1 => self.attributes.insert(Attributes::BOLD),
+                        2 => self.attributes.insert(Attributes::ATR_FAINT),
+                        3 => self.attributes.insert(Attributes::ATR_ITALIC),
+                        4 => self.attributes.insert(Attributes::UNDERLINE),
+                        5 => self.attributes.insert(Attributes::BLINK),
+                        7 => self.attributes.insert(Attributes::INVERSE),
+                        8 => self.attributes.insert(Attributes::INVISIBLE),
+                        9 => self.attributes.insert(Attributes::ATR_STRIKEOUT),
+                        21 => self.attributes.insert(Attributes::ATR_DBL_UNDER),
+                        22 => {
+                            self.attributes.remove(Attributes::BOLD);
+                            self.attributes.remove(Attributes::ATR_FAINT);
+                        }
+                        23 => self.attributes.remove(Attributes::ATR_ITALIC),
+                        24 => self.attributes.remove(Attributes::UNDERLINE),
+                        25 => self.attributes.remove(Attributes::BLINK),
+                        27 => self.attributes.remove(Attributes::INVERSE),
+                        28 => self.attributes.remove(Attributes::INVISIBLE),
+                        29 => self.attributes.remove(Attributes::ATR_STRIKEOUT),
+                        30...37 => {
+                            self.attributes.insert(Attributes::FG_COLOR);
+                            self.colors.foreground = (op - 30) as u8;
+                        }
+                        39 => self.attributes.remove(Attributes::FG_COLOR),
+                        40...47 => {
+                            self.attributes.insert(Attributes::BG_COLOR);
+                            self.colors.background = (op - 40) as u8;
+                        }
+                        49 => self.attributes.remove(Attributes::BG_COLOR),
+
+                        _ => {}
+                    };
+                }
+            }
         }
     }
 }
