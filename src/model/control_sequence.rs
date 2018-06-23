@@ -145,8 +145,13 @@ impl Parser {
     /// Process a single-byte character and check for potential escape sequences.
     fn single_byte(&mut self, byte: u8) -> Action {
         // TODO: handle escape sequences
+        debug_assert!(byte < TAG_CONT_U8);
 
-        Action::char_from_u32(byte as u32)
+        match byte {
+            b'\r' => Action::Cr,
+            b'\n' => Action::Lf,
+            byte => Action::char_from_u32(byte as u32),
+        }
     }
 
     /// Process a single byte from the input stream, convert from utf8 to chars on the fly.
