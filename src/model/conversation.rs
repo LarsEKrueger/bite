@@ -18,23 +18,23 @@
 
 //! A conversation is a number of commands run with the same prompt string.
 
-//use std::iter;
+use std::iter;
 
 use super::iterators::*;
 use super::interaction::*;
-use super::screen::*;
+use super::screen::Cell;
 
 /// A number of commands that are executed with the same prompt string.
 pub struct Conversation {
     /// List of programs and their outputs for this prompt.
     pub interactions: Vec<Interaction>,
     /// The prompt for this conversation.
-    pub prompt: Matrix,
+    pub prompt: Vec<Cell>,
 }
 
 impl Conversation {
     /// Creates a new conversation without any interactions.
-    pub fn new(prompt: Matrix) -> Conversation {
+    pub fn new(prompt: Vec<Cell>) -> Conversation {
         Conversation {
             prompt,
             interactions: vec![],
@@ -49,16 +49,14 @@ impl Conversation {
     /// Return an iterator for this conversation.
     ///
     /// The provided CommandPosition is that of the conversation.
-    pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(
-            self.interactions
-                .iter()
-                .zip(pos.conv_iter())
-                .flat_map(|(inter, index)| inter.line_iter(index))
-               //.chain(iter::once(
-               //    LineItem::new(&self.prompt, LineType::Prompt, None),
-               //)),
-        )
+    pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> impl Iterator<Item = LineItem<'a>> {
+        self.interactions
+            .iter()
+            .zip(pos.conv_iter())
+            .flat_map(|(inter, index)| inter.line_iter(index))
+            .chain(iter::once(
+                LineItem::new(&self.prompt, LineType::Prompt, None),
+            ))
     }
 
     /// Hide the output of all interactions.
@@ -70,88 +68,52 @@ impl Conversation {
     }
 }
 
-#[cfg(testx)]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::response::tests::check;
+    use super::super::screen::Screen;
+
     #[test]
     fn line_iter() {
-        let mut conv = Conversation::new(Screen::one_line_matrix("prompt"));
-        let mut inter_1_1 = Interaction::new(String::from("command 1.1"));
+        let mut conv = Conversation::new(Screen::one_line_cell_vec(b"prompt"));
+        let mut inter_1_1 = Interaction::new(Screen::one_line_cell_vec(b"command 1.1"));
         inter_1_1.add_output(b"output 1.1.1\r\n");
         inter_1_1.add_output(b"output 1.1.2\r\n");
         conv.add_interaction(inter_1_1);
-        let mut inter_1_2 = Interaction::new(String::from("command 1.2"));
-        inter_1_2.add_error(String::from("error 1.2.1"));
-        inter_1_2.add_error(String::from("error 1.2.2"));
+        let mut inter_1_2 = Interaction::new(Screen::one_line_cell_vec(b"command 1.2"));
+        inter_1_2.add_error(b"error 1.2.1\r\n");
+        inter_1_2.add_error(b"error 1.2.2\r\n");
         inter_1_2.output.visible = false;
         inter_1_2.errors.visible = true;
         conv.add_interaction(inter_1_2);
 
         let mut li = conv.line_iter(CommandPosition::Archived(0, 0));
-        assert_eq!(
+        check(
             li.next(),
-            Some(LineItem {
-                text: "command 1.1",
-                is_a: LineType::Command(
-                    OutputVisibility::Output,
-                    CommandPosition::Archived(0, 0),
-                    None,
-                ),
-                cursor_col: None,
-            })
+            LineType::Command(
+                OutputVisibility::Output,
+                CommandPosition::Archived(0, 0),
+                None,
+            ),
+            None,
+            "command 1.1",
         );
-        assert_eq!(
+        check(li.next(), LineType::Output, None, "output 1.1.1");
+        check(li.next(), LineType::Output, None, "output 1.1.2");
+        check(
             li.next(),
-            Some(LineItem {
-                text: "output 1.1.1",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
+            LineType::Command(
+                OutputVisibility::Error,
+                CommandPosition::Archived(0, 1),
+                None,
+            ),
+            None,
+            "command 1.2",
         );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "output 1.1.2",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
-        );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "command 1.2",
-                is_a: LineType::Command(
-                    OutputVisibility::Error,
-                    CommandPosition::Archived(0, 1),
-                    None,
-                ),
-                cursor_col: None,
-            })
-        );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "error 1.2.1",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
-        );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "error 1.2.2",
-                is_a: LineType::Output,
-                cursor_col: None,
-            })
-        );
-        assert_eq!(
-            li.next(),
-            Some(LineItem {
-                text: "prompt",
-                is_a: LineType::Prompt,
-                cursor_col: None,
-            })
-        );
+        check(li.next(), LineType::Output, None, "error 1.2.1");
+        check(li.next(), LineType::Output, None, "error 1.2.2");
+        check(li.next(), LineType::Prompt, None, "prompt");
         assert_eq!(li.next(), None);
     }
 

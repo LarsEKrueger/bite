@@ -32,12 +32,12 @@ pub struct ExecuteCommandPresenter {
     current_interaction: Interaction,
 
     /// Prompt to set. If None, we didn't receive one yet
-    next_prompt: Option<Vec<u8>>,
+    next_prompt: Option<Vec<Cell>>,
 }
 
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
-    pub fn new(commons: Box<PresenterCommons>, prompt: String) -> Box<Self> {
+    pub fn new(commons: Box<PresenterCommons>, prompt: Vec<Cell>) -> Box<Self> {
         let presenter = ExecuteCommandPresenter {
             commons,
             current_interaction: Interaction::new(prompt),
@@ -71,7 +71,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     self.current_interaction.set_exit_status(exit_code);
                 }
                 BashOutput::Prompt(prompt) => {
-                    self.next_prompt = Some(prompt);
+                    self.next_prompt = Some(Screen::one_line_cell_vec(&prompt));
                 }
             }
         }
@@ -82,22 +82,12 @@ impl SubPresenter for ExecuteCommandPresenter {
                 self.current_interaction.prepare_archiving();
                 let ci = ::std::mem::replace(
                     &mut self.current_interaction,
-                    Interaction::new(String::from("")),
+                    Interaction::new(Vec::new()),
                 );
                 self.commons.session.archive_interaction(ci);
-                let mut prompt_screen = Screen::new();
-                prompt_screen.add_bytes(&prompt);
 
-                if prompt_screen.looks_different(
-                    &self.commons
-                        .session
-                        .current_conversation
-                        .prompt,
-                )
-                {
-                    self.commons.session.new_conversation(
-                        prompt_screen.freeze(),
-                    );
+                if prompt != self.commons.session.current_conversation.prompt {
+                    self.commons.session.new_conversation(prompt);
                 }
                 return (ComposeCommandPresenter::new(self.commons), needs_marking);
             }
@@ -106,17 +96,22 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(self.commons.session.line_iter().chain(
-            self.current_interaction.line_iter(
-                CommandPosition::CurrentInteraction,
-            ), /*
-                    .chain(::std::iter::once(LineItem::new(
-                        self.commons.current_line.text(),
-                        LineType::Input,
-                        Some(self.commons.current_line_pos()),
-                    ))),
-                    */
-        ))
+        Box::new(
+            self.commons
+                .session
+                .line_iter()
+                .chain(self.current_interaction.line_iter(
+                    CommandPosition::CurrentInteraction,
+                ))
+                .chain(::std::iter::once(LineItem::new_owned(
+                    Screen::one_line_cell_vec(
+                        self.commons.current_line.text().as_bytes(),
+                    ),
+                    LineType::Input,
+                    Some(self.commons.current_line_pos()),
+                ))),
+        )
+
     }
 
     /// Handle the event when a modifier and a special key is pressed.
@@ -204,7 +199,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     }
 
                     b'd' => {
-                        // TODO: Exit bite if input line is empty.
+                        // ODO: Exit bite only if input line is empty.
                         let letter = [0x04; 1];
                         ::model::bash::programm_add_input(unsafe { from_utf8_unchecked(&letter) });
                         return (self, PresenterCommand::Redraw);

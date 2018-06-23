@@ -27,7 +27,7 @@ use std::sync::mpsc::Receiver;
 mod runeline;
 mod compose_command;
 mod execute_command;
-// mod history;
+mod history;
 pub mod display_line;
 
 use model::session::*;
@@ -208,7 +208,7 @@ impl PresenterCommons {
         let mut prompt = Screen::new();
         prompt.add_bytes(b"System");
         Ok(PresenterCommons {
-            session: Session::new(prompt.freeze()),
+            session: Session::new(prompt.freeze().compacted_row(0)),
             window_width: 0,
             window_height: 0,
             button_down: None,
@@ -240,7 +240,7 @@ impl Presenter {
     pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         Ok(Presenter(Some(ExecuteCommandPresenter::new(
             Box::new(PresenterCommons::new(receiver)?),
-            String::from("Startup"),
+            Screen::one_line_cell_vec(b"Startup"),
         ))))
     }
 
@@ -422,7 +422,7 @@ impl Presenter {
     pub fn display_line_iter<'a>(&'a self) -> impl Iterator<Item = DisplayLine<'a>> {
         let iter = self.d().line_iter();
         let start_line = self.c().start_line();
-        iter.skip(start_line).map(DisplayLine::from)
+        iter.skip(start_line).into_iter().map(DisplayLine::from)
     }
 }
 

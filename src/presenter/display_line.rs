@@ -22,13 +22,14 @@
 //! Each line consists of segments that have the same color.
 
 use super::*;
+use std::borrow::Cow;
 
 /// Item for the output iterator to be shown by the GUI.
 ///
 /// Each line can have its own cursor, but the GUI might render them to blink synchronously.
 pub struct DisplayLine<'a> {
     pub prefix: &'a [Cell],
-    pub line: &'a [Cell],
+    pub line: Cow<'a, [Cell]>,
     pub cursor_col: Option<usize>,
 }
 
@@ -55,7 +56,7 @@ lazy_static!{
 
 impl<'a> DisplayLine<'a> {
     /// Create an empty line.
-    pub fn new(prefix: &'a [Cell], line: &'a [Cell], cursor_col: Option<usize>) -> Self {
+    pub fn new(prefix: &'a [Cell], line: Cow<'a, [Cell]>, cursor_col: Option<usize>) -> Self {
         Self {
             prefix,
             line,
@@ -68,10 +69,10 @@ impl<'a> DisplayLine<'a> {
     /// Decorate the line according to its type and update the cursor position.
     pub fn from(line: LineItem) -> DisplayLine {
         // Depending on the type, choose the offset and draw the decoration
-        let deco :&Vec<Cell> = match line.is_a {
+        let deco: &Vec<Cell> = match line.is_a {
             LineType::Output => &*OUTPUT_PREFIX,
             LineType::Prompt => &*PROMPT_PREFIX,
-            LineType::Command(ref ov, _, es) => 
+            LineType::Command(ref ov, _, es) => {
                 match (ov, es.map(|es| es.success())) {
                     (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
                     (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
@@ -84,6 +85,7 @@ impl<'a> DisplayLine<'a> {
                     (OutputVisibility::None, Some(false)) => &*NONE_FAIL_PREFIX,
                     (OutputVisibility::Output, Some(false)) => &*OUTPUT_FAIL_PREFIX,
                     (OutputVisibility::Error, Some(false)) => &*ERROR_FAIL_PREFIX,
+                }
             }
 
             LineType::Input => &*INPUT_PREFIX,

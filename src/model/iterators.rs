@@ -22,6 +22,7 @@ use super::interaction::*;
 use super::screen::*;
 
 use std::process::ExitStatus;
+use std::borrow::Cow;
 
 /// Type of a line for internal processing.
 #[derive(Debug, PartialEq)]
@@ -50,7 +51,7 @@ pub struct LineItem<'a> {
     pub is_a: LineType,
 
     /// Text to be displayed
-    pub text: &'a [Cell],
+    pub text: Cow<'a, [Cell]>,
 
     /// Cursor position, if any
     pub cursor_col: Option<usize>,
@@ -73,7 +74,16 @@ impl<'a> LineItem<'a> {
     /// Create a new line item.
     pub fn new(l: &'a [Cell], is_a: LineType, cursor_col: Option<usize>) -> Self {
         Self {
-            text: l,
+            text: Cow::Borrowed(l),
+            is_a,
+            cursor_col,
+        }
+    }
+
+    /// Create a new line item that owns the text
+    pub fn new_owned(l: Vec<Cell>, is_a: LineType, cursor_col: Option<usize>) -> Self {
+        Self {
+            text: Cow::Owned(l),
             is_a,
             cursor_col,
         }

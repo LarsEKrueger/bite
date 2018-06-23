@@ -20,11 +20,12 @@
 //!
 //! This command might be still running.
 
-//use std::iter;
+use std::iter;
 use std::process::ExitStatus;
 
 use super::iterators::*;
 use super::response::*;
+use super::screen::Cell;
 
 /// Which output is visible.
 ///
@@ -51,7 +52,7 @@ pub enum CommandPosition {
 /// way.
 #[derive(PartialEq)]
 pub struct Interaction {
-    command: String,
+    command: Vec<Cell>,
     pub output: Response,
     pub errors: Response,
     exit_status: Option<ExitStatus>,
@@ -60,8 +61,8 @@ pub struct Interaction {
 impl Interaction {
     /// Create a new command without any output yet.
     ///
-    /// Does not start a program.
-    pub fn new(command: String) -> Interaction {
+    /// The command is a vector of cells as to support syntax coloring later.
+    pub fn new(command: Vec<Cell>) -> Interaction {
         Interaction {
             command,
             exit_status: None,
@@ -76,13 +77,13 @@ impl Interaction {
     }
 
     // /// Add a block as read from stdout.
-    pub fn add_output(&mut self, line: &[u8]) {
-        self.output.add_data(line);
+    pub fn add_output(&mut self, data: &[u8]) {
+        self.output.add_data(data);
     }
 
     /// Add a block as if read from stderr.
-    pub fn add_error(&mut self, line: &[u8]) {
-        self.errors.add_data(line);
+    pub fn add_error(&mut self, data: &[u8]) {
+        self.errors.add_data(data);
     }
 
     /// Get the visible response, if any.
@@ -97,26 +98,25 @@ impl Interaction {
     }
 
     /// Get the iterator over the items in this interaction.
-    pub fn line_iter<'a>(&'a self, _pos: CommandPosition) -> impl Iterator<Item = LineItem<'a>> {
-        // In order to satisfy the type, we need to return a chain of iterators. Thus, if neither
-        // response is visible, we take the output iterator and skip to the end.
-        // let resp_lines = match self.visible_response() {
-        //     Some(ref r) => r.line_iter(),
-        //     None => self.output.empty_line_iter(),
-        // };
-        // let ov = match (self.output.visible, self.errors.visible) {
-        //     (true, _) => OutputVisibility::Output,
-        //     (false, true) => OutputVisibility::Error,
-        //     _ => OutputVisibility::None,
-        // };
-        // Box::new(
-        //     iter::once(LineItem::new(
-        //         &self.command,
-        //         LineType::Command(ov, pos, self.exit_status),
-        //         None,
-        //     )).chain(resp_lines),
-        // )
-        self.output.empty_line_iter()
+    pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> impl Iterator<Item = LineItem<'a>> {
+        // We always have the command, regardless if there is any output to show.
+        let resp_lines = self.visible_response()
+            .map(|r| r.line_iter())
+            .into_iter()
+            .flat_map(|i| i);
+
+        let ov = match (self.output.visible, self.errors.visible) {
+            (true, _) => OutputVisibility::Output,
+            (false, true) => OutputVisibility::Error,
+            _ => OutputVisibility::None,
+        };
+
+        iter::once(LineItem::new(
+            &self.command,
+            LineType::Command(ov, pos, self.exit_status),
+            None,
+        )).chain(resp_lines)
+
     }
 
     /// Check if there are any errror lines.
@@ -171,43 +171,32 @@ impl CommandPosition {
     }
 }
 
-#[cfg(testx)]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::response::tests::check;
+    use super::super::screen::Screen;
 
     #[test]
-    fn line_iter() {
-        let mut inter = Interaction::new(String::from("command"));
-        inter.add_output(String::from("out 1"));
-        inter.add_output(String::from("out 2"));
-        inter.add_output(String::from("out 3"));
-        inter.add_error(String::from("err 1"));
-        inter.add_error(String::from("err 2"));
+    fn basic_iter() {
+        let mut inter = Interaction::new(Screen::one_line_cell_vec(b"command"));
+        inter.add_output(b"out 1\r\nout 2\r\nout3\r\n");
+        inter.add_error(b"err 1\r\nerr 2\r\n");
 
-        /*
         // Test the iterator for visible output
         {
             let mut li = inter.line_iter(CommandPosition::CurrentConversation(0));
-            assert_eq!(
+            check(
                 li.next(),
-                Some(LineItem {
-                    text: "command",
-                    is_a: LineType::Command(
-                        OutputVisibility::Output,
-                        CommandPosition::CurrentConversation(0),
-                        None,
-                    ),
-                    cursor_col: None,
-                })
+                LineType::Command(
+                    OutputVisibility::Output,
+                    CommandPosition::CurrentConversation(0),
+                    None,
+                ),
+                None,
+                "command",
             );
-            assert_eq!(
-                li.next(),
-                Some(LineItem {
-                    text: "out 1",
-                    is_a: LineType::Output,
-                    cursor_col: None,
-                })
-            );
+            check(li.next(), LineType::Output, None, "out 1");
             assert_eq!(li.count(), 2);
         }
 
@@ -216,26 +205,17 @@ mod tests {
             inter.output.visible = false;
             inter.errors.visible = true;
             let mut li = inter.line_iter(CommandPosition::Archived(1, 0));
-            assert_eq!(
+            check(
                 li.next(),
-                Some(LineItem {
-                    text: "command",
-                    is_a: LineType::Command(
-                        OutputVisibility::Error,
-                        CommandPosition::Archived(1, 0),
-                        None,
-                    ),
-                    cursor_col: None,
-                })
+                LineType::Command(
+                    OutputVisibility::Error,
+                    CommandPosition::Archived(1, 0),
+                    None,
+                ),
+                None,
+                "command",
             );
-            assert_eq!(
-                li.next(),
-                Some(LineItem {
-                    text: "err 1",
-                    is_a: LineType::Output,
-                    cursor_col: None,
-                })
-            );
+            check(li.next(), LineType::Output, None, "err 1");
             assert_eq!(li.count(), 1);
         }
 
@@ -244,20 +224,17 @@ mod tests {
             inter.output.visible = false;
             inter.errors.visible = false;
             let mut li = inter.line_iter(CommandPosition::CurrentInteraction);
-            assert_eq!(
+            check(
                 li.next(),
-                Some(LineItem {
-                    text: "command",
-                    is_a: LineType::Command(
-                        OutputVisibility::None,
-                        CommandPosition::CurrentInteraction,
-                        None,
-                    ),
-                    cursor_col: None,
-                })
+                LineType::Command(
+                    OutputVisibility::None,
+                    CommandPosition::CurrentInteraction,
+                    None,
+                ),
+                None,
+                "command",
             );
             assert_eq!(li.next(), None);
         }
-    */
     }
 }

@@ -63,6 +63,7 @@ impl Response {
         for c in data {
             self.screen.add_byte(*c);
         }
+        // TODO: Handle incomplete last lines
         let s = mem::replace(&mut self.screen, Screen::new());
         self.add_matrix(s.freeze());
     }
@@ -76,23 +77,22 @@ impl Response {
 
     /// Return a correctly typed iterator without any data in it.
     pub fn empty_line_iter<'a>(&'a self) -> impl Iterator<Item = LineItem<'a>> {
-        let mut iter = self.lines.iter().map(|l| {
-            LineItem::new(&l[..], LineType::Output, None)
-        });
+        let mut iter = self.line_iter();
         iter.nth(self.lines.len());
         iter
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     fn l2s(item: &LineItem) -> String {
         item.text.iter().map(|c| c.code_point()).collect()
     }
 
-    fn check(item: Option<LineItem>, gt_is_a: LineType, gt_col: Option<usize>, gt_txt: &str) {
+    /// Export this so other module can check their iterators
+    pub fn check(item: Option<LineItem>, gt_is_a: LineType, gt_col: Option<usize>, gt_txt: &str) {
         assert!(item.is_some());
         if let Some(item) = item {
             assert_eq!(item.is_a, gt_is_a);

@@ -102,8 +102,8 @@ impl SubPresenter for HistoryPresenter {
                 .iter()
                 .zip(0..)
                 .map(move |(hist_ind, match_ind)| {
-                    LineItem::new(
-                        history::get_line_as_str(*hist_ind),
+                    LineItem::new_owned(
+                        Screen::one_line_cell_vec(history::get_line_as_str(*hist_ind).as_bytes()),
                         if match_ind == self.search.item_ind {
                             LineType::SelectedMenuItem(*hist_ind as usize)
                         } else {
@@ -112,8 +112,10 @@ impl SubPresenter for HistoryPresenter {
                         None,
                     )
                 })
-                .chain(::std::iter::once(LineItem::new(
-                    self.commons.current_line.text(),
+                .chain(::std::iter::once(LineItem::new_owned(
+                    Screen::one_line_cell_vec(
+                        self.commons.current_line.text().as_bytes(),
+                    ),
                     LineType::Input,
                     Some(self.commons.current_line_pos()),
                 ))),
