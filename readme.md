@@ -198,6 +198,7 @@ non-GUI program.
     * [X] Fix prompt to look like plain bash
     * [ ] Visually group by prompt
     * [ ] Allow multi-line prompts
+    * [ ] Allow multi-line input
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode
 * [ ] 0.8 Completion
