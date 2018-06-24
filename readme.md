@@ -195,7 +195,7 @@ non-GUI program.
 * [ ] 0.7 Foreground TUIs
     * [X] Handle colors in output, error, and prompt
     * [X] Check for minimal rust version in build.rs
-    * [ ] Fix prompt to look like plain bash
+    * [X] Fix prompt to look like plain bash
     * [ ] Visually group by prompt
     * [ ] Allow multi-line prompts
     * [ ] Switch to TUI mode and back

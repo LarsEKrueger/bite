@@ -157,7 +157,7 @@ index fc966036..f5ff534c 100644
  
        /* Place all processes into the jobs array regardless of the
 diff --git a/shell.c b/shell.c
-index 45b77f9e..5a152f90 100644
+index 45b77f9e..51820371 100644
 --- a/shell.c
 +++ b/shell.c
 @@ -353,18 +353,23 @@ _cygwin32_check_tmp ()
@@ -231,7 +231,7 @@ index 45b77f9e..5a152f90 100644
    /*
     * Some systems have the bad habit of starting login shells with lots of open
     * file descriptors.  For instance, most systems that have picked up the
-@@ -752,7 +760,14 @@ main (argc, argv, env)
+@@ -752,7 +760,15 @@ main (argc, argv, env)
         option shall be assumed." */
      read_from_stdin = 1;
  
@@ -240,15 +240,16 @@ index 45b77f9e..5a152f90 100644
 +    extern int bite_getch();
 +    extern int bite_ungetch(int);
 +    INPUT_STREAM location;
++    location.file = stdin;
 +    init_yy_io (bite_getch,
-+        bite_ungetch, st_string, "bite stdin", location);
++        bite_ungetch, st_stdin, "bite stdin", location);
 +    read_from_stdin = 1;
 +  }
  
    /* Bind remaining args to $1 ... $n */
    arg_index = bind_args (argv, arg_index, argc, 1);
 diff --git a/y.tab.c b/y.tab.c
-index e9a57fcc..82dc6e83 100644
+index e9a57fcc..a17b5b16 100644
 --- a/y.tab.c
 +++ b/y.tab.c
 @@ -254,11 +254,11 @@ static void print_offending_line __P((void));
@@ -283,7 +284,7 @@ index e9a57fcc..82dc6e83 100644
  prompt_again ()
  {
    char *temp_prompt;
-@@ -7702,7 +7702,7 @@ set_current_prompt_level (x)
+@@ -7702,11 +7702,11 @@ set_current_prompt_level (x)
    current_prompt_string = *prompt_string_pointer;
  }
        
@@ -291,4 +292,10 @@ index e9a57fcc..82dc6e83 100644
 +void
  print_prompt ()
  {
-   fprintf (stderr, "%s", current_decoded_prompt);
+-  fprintf (stderr, "%s", current_decoded_prompt);
+-  fflush (stderr);
++  extern void bite_print_prompt();
++  bite_print_prompt();
+ }
+ 
+ /* Return a string which will be printed as a prompt.  The string

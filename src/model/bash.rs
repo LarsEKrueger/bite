@@ -81,26 +81,32 @@ pub fn bash_add_input(text: &str) {
 static mut bash_sender: Option<Mutex<Sender<BashOutput>>> = None;
 
 #[no_mangle]
+pub extern "C" fn bite_print_prompt() {
+    #[link(name = "Bash")]
+    extern "C" {
+        static current_decoded_prompt: *const c_char;
+    }
+    unsafe {
+        // Send via channel
+        if let Some(ref mut sender) = bash_sender {
+            let prompt = CStr::from_ptr(current_decoded_prompt);
+
+            // Remove "\[" and "\]"
+            let prompt = prompt.to_string_lossy().to_owned();
+            let prompt = prompt.replace("\\[", "").replace("\\]", "");
+
+            bite_write_output(format!("bite prompt: {}\n", prompt).as_str());
+            let prompt = Vec::from(prompt.as_bytes());
+            let _ = sender.lock().unwrap().send(BashOutput::Prompt(prompt));
+
+        }
+    };
+}
+
+
+#[no_mangle]
 pub extern "C" fn bite_getch() -> c_int {
     let mut line = bite_input_buffer.lock().unwrap();
-    // Print prompt once
-    if line.len() == 0 {
-        #[link(name = "Bash")]
-        extern "C" {
-            fn prompt_again();
-            static current_decoded_prompt: *const c_char;
-        }
-        unsafe {
-            prompt_again();
-            // Send via channel
-            if let Some(ref mut sender) = bash_sender {
-                let prompt = CStr::from_ptr(current_decoded_prompt).to_bytes();
-                let prompt = Vec::from(prompt);
-                let _ = sender.lock().unwrap().send(BashOutput::Prompt(prompt));
-
-            }
-        };
-    }
     bash_is_waiting.store(true, Ordering::SeqCst);
     // Handle spurious wakeups
     while line.len() == 0 {
@@ -323,7 +329,7 @@ fn read_data(
         // If there is input, read it.
         let mut rdfs = FdSet::new();
         rdfs.insert(fd);
-        let mut timeout = TimeVal::milliseconds(1);
+        let mut timeout = TimeVal::milliseconds(20);
         let data_available = match select(None, Some(&mut rdfs), None, None, Some(&mut timeout)) {
             Ok(0) | Err(_) => false,
             Ok(_) => true,
