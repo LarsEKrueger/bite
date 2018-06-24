@@ -194,7 +194,8 @@ non-GUI program.
     * [X] Bug: Click out/error selector during execution
 * [ ] 0.7 Foreground TUIs
     * [X] Handle colors in output, error, and prompt
-    * [ ] Check for minimal rust version in build.rs
+    * [X] Check for minimal rust version in build.rs
+    * [ ] Fix prompt to look like plain bash
     * [ ] Visually group by prompt
     * [ ] Allow multi-line prompts
     * [ ] Switch to TUI mode and back
@@ -242,3 +243,4 @@ non-GUI program.
 * fontset creation from https://www.debian.org/doc/manuals/intro-i18n/ch-examples.en.html
 * user id checking from https://github.com/rust-lang/rust/blob/1.23.0/src/libstd/sys/unix/os.rs
 * color palette: http://paletton.com/#uid=7000J0ktCwUitFfnGzUxBqFBlle
+* rustc version check: https://stackoverflow.com/questions/32821998/specify-the-version-of-rustc-required-for-a-cargo-project

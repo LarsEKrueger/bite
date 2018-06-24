@@ -21,15 +21,33 @@
 //! This is based on https://github.com/gpg-rs/libgcrypt
 
 extern crate gcc;
+extern crate rustc_version;
 
+use std::io;
+use std::io::Write;
 use std::env;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{self, Child, Command, Stdio};
 use std::str;
+use rustc_version::{version, Version};
 
 fn main() {
+    // Check the rust version first
+    if let Ok(ver) = version() {
+        if ver < Version::new(1, 26, 0) {
+            let _ = writeln!(
+                &mut io::stderr(),
+                "bite requires rustc >= 1.26.0 to compile."
+            );
+            process::exit(1);
+        }
+    } else {
+        let _ = writeln!(&mut io::stderr(), "Can't get rustc verion.");
+        process::exit(1);
+    }
+
     // Internal C code
     gcc::Build::new().file("c_src/myCreateIC.c").compile(
         "mystuff",
