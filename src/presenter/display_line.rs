@@ -38,12 +38,12 @@ lazy_static!{
     static ref PROMPT_PREFIX: Vec<Cell> = Vec::new();
 
     // TODO: Colors
-    static ref NONE_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " » ".as_bytes());
-    static ref OUTPUT_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "O» ".as_bytes());
-    static ref ERROR_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "E» ".as_bytes());
-    static ref NONE_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " » ".as_bytes());
-    static ref OUTPUT_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "O» ".as_bytes());
-    static ref ERROR_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "E» ".as_bytes());
+    static ref NONE_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42m » ".as_bytes());
+    static ref OUTPUT_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42mO» ".as_bytes());
+    static ref ERROR_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42mE» ".as_bytes());
+    static ref NONE_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41m » ".as_bytes());
+    static ref OUTPUT_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41mO» ".as_bytes());
+    static ref ERROR_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41mE» ".as_bytes());
     static ref NONE_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " » ".as_bytes());
     static ref OUTPUT_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "O» ".as_bytes());
     static ref ERROR_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "E» ".as_bytes());

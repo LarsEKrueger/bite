@@ -95,14 +95,23 @@ pub extern "C" fn bite_print_prompt() {
             let prompt = prompt.to_string_lossy().to_owned();
             let prompt = prompt.replace("\\[", "").replace("\\]", "");
 
-            bite_write_output(format!("bite prompt: {}\n", prompt).as_str());
             let prompt = Vec::from(prompt.as_bytes());
             let _ = sender.lock().unwrap().send(BashOutput::Prompt(prompt));
-
         }
     };
 }
 
+#[no_mangle]
+pub extern "C" fn bite_set_exit_status(exit_status: c_int) {
+    unsafe {
+        if let Some(ref mut sender) = bash_sender {
+            use std::os::unix::process::ExitStatusExt;
+            let _ = sender.lock().unwrap().send(BashOutput::Terminated(
+                ExitStatusExt::from_raw(exit_status),
+            ));
+        }
+    }
+}
 
 #[no_mangle]
 pub extern "C" fn bite_getch() -> c_int {

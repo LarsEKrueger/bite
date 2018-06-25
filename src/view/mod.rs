@@ -279,7 +279,7 @@ impl Gui {
             let mut colors: [u32; 256] = ::std::mem::uninitialized();
 
             colors[0] = 0x000000; // Black.
-            colors[1] = 0xff00ff; // Red.
+            colors[1] = 0xff0000; // Red.
             colors[2] = 0x00ff00; // Green.
             colors[3] = 0xffff00; // Yellow.
             colors[4] = 0x0000ff; // Blue.

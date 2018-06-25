@@ -134,6 +134,20 @@ index c7b62bc0..559f3895 100644
  .build:	$(SOURCES) config.h Makefile version.h $(VERSPROG)
  	@echo
  	@echo "	  ***********************************************************"
+diff --git a/eval.c b/eval.c
+index db863e72..e212c0ad 100644
+--- a/eval.c
++++ b/eval.c
+@@ -179,6 +179,9 @@ reader_loop ()
+ 
+ 	      execute_command (current_command);
+ 
++              extern void bite_set_exit_status(int);
++              bite_set_exit_status( last_command_exit_value);
++
+ 	    exec_done:
+ 	      QUIT;
+ 
 diff --git a/jobs.c b/jobs.c
 index fc966036..f5ff534c 100644
 --- a/jobs.c
