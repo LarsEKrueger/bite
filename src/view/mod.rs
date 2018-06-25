@@ -43,6 +43,8 @@ const WIDTH: i32 = 400;
 /// Initial height of the window in pixels
 const HEIGHT: i32 = 200;
 
+const NUM_PROMPT_COLORS: usize = 20;
+
 /// Handles all interaction with the X11 system.
 ///
 /// This struct represents the view component of the model-view-presenter pattern. It sends events
@@ -107,6 +109,9 @@ pub struct Gui {
     ///
     /// TODO: Check if that should be better different GCs.
     colors: [u32; 256],
+
+    /// Prompt colors
+    prompt_colors: [u32; NUM_PROMPT_COLORS],
 }
 
 /// Default font to draw the output
@@ -287,6 +292,29 @@ impl Gui {
             colors[6] = 0x00ffff; // Cyan.
             colors[7] = 0xffffff; // White.
 
+            let prompt_colors: [u32; NUM_PROMPT_COLORS] = [
+                0xFF1313,
+                0xFF6C6C,
+                0xFF4242,
+                0xD40000,
+                0xA90000,
+                0xFF9C13,
+                0xFFC16C,
+                0xFFB042,
+                0xD47B00,
+                0xA96200,
+                0x1766A7,
+                0x5992C2,
+                0x3779B0,
+                0x094F89,
+                0x063E6D,
+                0x0FCD0F,
+                0x5DDC5D,
+                0x37D237,
+                0x00AA00,
+                0x008700,
+            ];
+
             let gui = Gui {
                 display,
                 window,
@@ -314,6 +342,7 @@ impl Gui {
                 gate: polling::Gate::new(::std::time::Duration::from_millis(10)),
 
                 colors,
+                prompt_colors,
             };
             Ok(gui)
         }
