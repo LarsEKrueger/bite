@@ -102,6 +102,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 .line_iter()
                 .chain(self.current_interaction.line_iter(
                     CommandPosition::CurrentInteraction,
+                    0,
                 ))
                 .chain(::std::iter::once(LineItem::new_owned(
                     Screen::one_line_cell_vec(
@@ -109,6 +110,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     ),
                     LineType::Input,
                     Some(self.commons.current_line_pos()),
+                    0,
                 ))),
         )
 

@@ -19,6 +19,8 @@
 //! A conversation is a number of commands run with the same prompt string.
 
 use std::iter;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use super::iterators::*;
 use super::interaction::*;
@@ -30,14 +32,22 @@ pub struct Conversation {
     pub interactions: Vec<Interaction>,
     /// The prompt for this conversation.
     pub prompt: Vec<Cell>,
+
+    /// Hash value of the prompt for displaying a color
+    prompt_hash: u64,
 }
 
 impl Conversation {
     /// Creates a new conversation without any interactions.
     pub fn new(prompt: Vec<Cell>) -> Conversation {
+        let mut h = DefaultHasher::new();
+        prompt.iter().for_each(|c| c.code_point().hash(&mut h));
+        let prompt_hash = h.finish();
+
         Conversation {
             prompt,
             interactions: vec![],
+            prompt_hash,
         }
     }
 
@@ -50,13 +60,17 @@ impl Conversation {
     ///
     /// The provided CommandPosition is that of the conversation.
     pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> impl Iterator<Item = LineItem<'a>> {
+        let prompt_hash = self.prompt_hash;
         self.interactions
             .iter()
             .zip(pos.conv_iter())
-            .flat_map(|(inter, index)| inter.line_iter(index))
-            .chain(iter::once(
-                LineItem::new(&self.prompt, LineType::Prompt, None),
-            ))
+            .flat_map(move |(inter, index)| inter.line_iter(index, prompt_hash))
+            .chain(iter::once(LineItem::new(
+                &self.prompt,
+                LineType::Prompt,
+                None,
+                self.prompt_hash,
+            )))
     }
 
     /// Hide the output of all interactions.
@@ -65,6 +79,11 @@ impl Conversation {
         for i in self.interactions.iter_mut() {
             i.hide_output();
         }
+    }
+
+    /// Return the hash value of the prompt
+    pub fn prompt_hash(&self) -> u64 {
+        self.prompt_hash
     }
 }
 

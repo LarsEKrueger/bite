@@ -98,10 +98,14 @@ impl Interaction {
     }
 
     /// Get the iterator over the items in this interaction.
-    pub fn line_iter<'a>(&'a self, pos: CommandPosition) -> impl Iterator<Item = LineItem<'a>> {
+    pub fn line_iter<'a>(
+        &'a self,
+        pos: CommandPosition,
+        prompt_hash: u64,
+    ) -> impl Iterator<Item = LineItem<'a>> {
         // We always have the command, regardless if there is any output to show.
         let resp_lines = self.visible_response()
-            .map(|r| r.line_iter())
+            .map(|r| r.line_iter(prompt_hash))
             .into_iter()
             .flat_map(|i| i);
 
@@ -115,6 +119,7 @@ impl Interaction {
             &self.command,
             LineType::Command(ov, pos, self.exit_status),
             None,
+            prompt_hash,
         )).chain(resp_lines)
 
     }
@@ -185,7 +190,7 @@ mod tests {
 
         // Test the iterator for visible output
         {
-            let mut li = inter.line_iter(CommandPosition::CurrentConversation(0));
+            let mut li = inter.line_iter(CommandPosition::CurrentConversation(0), 0);
             check(
                 li.next(),
                 LineType::Command(
@@ -204,7 +209,7 @@ mod tests {
         {
             inter.output.visible = false;
             inter.errors.visible = true;
-            let mut li = inter.line_iter(CommandPosition::Archived(1, 0));
+            let mut li = inter.line_iter(CommandPosition::Archived(1, 0), 0);
             check(
                 li.next(),
                 LineType::Command(
@@ -223,7 +228,7 @@ mod tests {
         {
             inter.output.visible = false;
             inter.errors.visible = false;
-            let mut li = inter.line_iter(CommandPosition::CurrentInteraction);
+            let mut li = inter.line_iter(CommandPosition::CurrentInteraction, 0);
             check(
                 li.next(),
                 LineType::Command(

@@ -69,15 +69,15 @@ impl Response {
     }
 
     /// Iterate over the lines
-    pub fn line_iter<'a>(&'a self) -> impl Iterator<Item = LineItem<'a>> {
-        self.lines.iter().map(|l| {
-            LineItem::new(&l[..], LineType::Output, None)
+    pub fn line_iter<'a>(&'a self, prompt_hash: u64) -> impl Iterator<Item = LineItem<'a>> {
+        self.lines.iter().map(move |l| {
+            LineItem::new(&l[..], LineType::Output, None, prompt_hash)
         })
     }
 
     /// Return a correctly typed iterator without any data in it.
-    pub fn empty_line_iter<'a>(&'a self) -> impl Iterator<Item = LineItem<'a>> {
-        let mut iter = self.line_iter();
+    pub fn empty_line_iter<'a>(&'a self, prompt_hash: u64) -> impl Iterator<Item = LineItem<'a>> {
+        let mut iter = self.line_iter(prompt_hash);
         iter.nth(self.lines.len());
         iter
     }
@@ -115,7 +115,7 @@ pub mod tests {
 
         resp.add_matrix(s.freeze());
 
-        let mut li = resp.line_iter();
+        let mut li = resp.line_iter(0);
 
         check(li.next(), LineType::Output, None, "line 1");
         check(li.next(), LineType::Output, None, "line 2");
@@ -137,7 +137,7 @@ pub mod tests {
 
         resp.add_matrix(s.freeze());
 
-        let mut li = resp.empty_line_iter();
+        let mut li = resp.empty_line_iter(0);
         assert_eq!(li.next(), None);
     }
 }

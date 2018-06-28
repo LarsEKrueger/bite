@@ -55,6 +55,9 @@ pub struct LineItem<'a> {
 
     /// Cursor position, if any
     pub cursor_col: Option<usize>,
+
+    /// Hash value of the prompt for coloring
+    pub prompt_hash: u64,
 }
 
 /// Iterator to generate CommandPosition elements over the archived elements of a session.
@@ -72,20 +75,27 @@ pub struct CpConvIter {
 
 impl<'a> LineItem<'a> {
     /// Create a new line item.
-    pub fn new(l: &'a [Cell], is_a: LineType, cursor_col: Option<usize>) -> Self {
+    pub fn new(l: &'a [Cell], is_a: LineType, cursor_col: Option<usize>, prompt_hash: u64) -> Self {
         Self {
             text: Cow::Borrowed(l),
             is_a,
             cursor_col,
+            prompt_hash,
         }
     }
 
     /// Create a new line item that owns the text
-    pub fn new_owned(l: Vec<Cell>, is_a: LineType, cursor_col: Option<usize>) -> Self {
+    pub fn new_owned(
+        l: Vec<Cell>,
+        is_a: LineType,
+        cursor_col: Option<usize>,
+        prompt_hash: u64,
+    ) -> Self {
         Self {
             text: Cow::Owned(l),
             is_a,
             cursor_col,
+            prompt_hash,
         }
     }
 }

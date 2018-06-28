@@ -45,6 +45,8 @@ const HEIGHT: i32 = 200;
 
 const NUM_PROMPT_COLORS: usize = 20;
 
+const LEFT_OFFS: i32 = 12;
+
 /// Handles all interaction with the X11 system.
 ///
 /// This struct represents the view component of the model-view-presenter pattern. It sends events
@@ -383,6 +385,27 @@ impl Gui {
     /// Although DisplayLine contains a cursor position in this row, the cursor itself will not be
     /// drawn here.
     pub fn draw_line(&self, row: i32, line: &DisplayLine) {
+        // Draw the prompt color strip
+        if line.prompt_hash_width > 0 {
+            unsafe {
+                let y = self.font_height * row;
+                XSetForeground(
+                    self.display,
+                    self.gc,
+                    self.prompt_colors[(line.prompt_hash % (NUM_PROMPT_COLORS as u64)) as usize] as u64,
+                );
+                XFillRectangle(
+                    self.display,
+                    self.window,
+                    self.gc,
+                    0,
+                    y,
+                    (LEFT_OFFS as u32) + (line.prompt_hash_width * self.font_width as u32),
+                    self.font_height as u32,
+                );
+            }
+        }
+
         let mut col = 0;
         for cell in line.prefix {
             self.draw_cell(col as i32, row, cell);
@@ -396,7 +419,7 @@ impl Gui {
 
     /// Draw a single colored cell at the given character position
     pub fn draw_cell(&self, column: i32, row: i32, cell: &Cell) {
-        let x = self.font_width * column;
+        let x = self.font_width * column + LEFT_OFFS;
         let y = self.font_height * row;
 
         // TODO: Cache colors
@@ -455,7 +478,7 @@ impl Gui {
 
             if let Some(cursor_col) = line.cursor_col {
                 // Draw a cursor if requested
-                let x = self.font_width * (cursor_col as i32);
+                let x = self.font_width * (cursor_col as i32) + LEFT_OFFS;
                 let y = self.font_height * row;
 
                 if self.cursor_on && self.have_focus {
@@ -681,7 +704,8 @@ impl Gui {
                                             self.presenter.event_button_down(
                                                 mod_state,
                                                 info.button as usize,
-                                                (info.x / self.font_width) as usize,
+                                                ((info.x - LEFT_OFFS) / self.font_width) as
+                                                    usize,
                                                 (info.y / self.font_height) as usize,
                                             )
                                         {

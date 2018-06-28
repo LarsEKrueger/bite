@@ -66,6 +66,7 @@ impl SubPresenter for ComposeCommandPresenter {
                 Some(
                     self.commons.current_line_pos(),
                 ),
+                0,
             ),
         )))
     }

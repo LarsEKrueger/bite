@@ -110,6 +110,7 @@ impl SubPresenter for HistoryPresenter {
                             LineType::MenuItem(*hist_ind as usize)
                         },
                         None,
+                        0,
                     )
                 })
                 .chain(::std::iter::once(LineItem::new_owned(
@@ -118,6 +119,7 @@ impl SubPresenter for HistoryPresenter {
                     ),
                     LineType::Input,
                     Some(self.commons.current_line_pos()),
+                    0,
                 ))),
         )
     }
