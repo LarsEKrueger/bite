@@ -134,7 +134,11 @@ outlined below. It will ensure that your bug can be reproduced and addressed.
 
 # Planned Features, Step 1
 
-BiTE always shows the most appropriate view for each type of user actions.
+BiTE always shows the most appropriate view for each type of user actions. One
+example is the visual grouping of commands, their outputs and the prompt under
+which they were issued. This clue lets you notice quicker which operations took
+place in the same folder, assuming the prompt contains the current working
+directory. This feature is called *prompt color seam*.
 
 For composing commands, it allows quickly alternating between the list of last
 commands and the outputs of those.
