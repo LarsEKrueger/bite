@@ -32,7 +32,7 @@ pub struct DisplayLine<'a> {
     pub line: Cow<'a, [Cell]>,
     pub cursor_col: Option<usize>,
     pub prompt_hash: u64,
-    pub prompt_hash_width: u32,
+    pub is_a: LineType,
 }
 
 lazy_static!{
@@ -63,14 +63,14 @@ impl<'a> DisplayLine<'a> {
         line: Cow<'a, [Cell]>,
         cursor_col: Option<usize>,
         prompt_hash: u64,
-        prompt_hash_width: u32,
+        is_a: LineType,
     ) -> Self {
         Self {
             prefix,
             line,
             cursor_col,
             prompt_hash,
-            prompt_hash_width,
+            is_a,
         }
     }
 
@@ -79,11 +79,10 @@ impl<'a> DisplayLine<'a> {
     /// Decorate the line according to its type and update the cursor position.
     pub fn from(line: LineItem) -> DisplayLine {
         // Depending on the type, choose the offset and draw the decoration
-        let (deco, w) = match line.is_a {
-            LineType::Output => (&*OUTPUT_PREFIX, 1),
-            LineType::Prompt => (&*PROMPT_PREFIX, (3 + line.text.len()) as u32),
-            LineType::Command(ref ov, _, es) => {
-                (
+        let deco = match line.is_a {
+            LineType::Output => &*OUTPUT_PREFIX,
+            LineType::Prompt => &*PROMPT_PREFIX,
+            LineType::Command(ref ov, _, es) =>
                     match (ov, es.map(|es| es.success())) {
                         (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
                         (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
@@ -96,17 +95,14 @@ impl<'a> DisplayLine<'a> {
                         (OutputVisibility::None, Some(false)) => &*NONE_FAIL_PREFIX,
                         (OutputVisibility::Output, Some(false)) => &*OUTPUT_FAIL_PREFIX,
                         (OutputVisibility::Error, Some(false)) => &*ERROR_FAIL_PREFIX,
-                    },
-                    (3 + line.text.len()) as u32,
-                )
             }
 
-            LineType::Input => (&*INPUT_PREFIX, 0),
-            LineType::MenuDecoration => (&*MENU_DECO_PREFIX, 0),
-            LineType::SelectedMenuItem(_) => (&*MENU_SELECT_PREFIX, 0),
-            LineType::MenuItem(_) => (&*MENU_ITEM_PREFIX, 0),
+            LineType::Input => &*INPUT_PREFIX,
+            LineType::MenuDecoration => &*MENU_DECO_PREFIX,
+            LineType::SelectedMenuItem(_) => &*MENU_SELECT_PREFIX,
+            LineType::MenuItem(_) => &*MENU_ITEM_PREFIX,
         };
         // TODO: Fix cursor_col to account for prefix
-        DisplayLine::new(deco, line.text, line.cursor_col, line.prompt_hash, w)
+        DisplayLine::new(deco, line.text, line.cursor_col, line.prompt_hash, line.is_a)
     }
 }

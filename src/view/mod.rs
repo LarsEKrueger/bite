@@ -36,6 +36,7 @@ use presenter::display_line::*;
 use model::bash::BashOutput;
 use model::bash;
 use model::screen::Cell;
+use model::iterators::LineType;
 
 /// Initial width of the window in pixels
 const WIDTH: i32 = 400;
@@ -43,9 +44,17 @@ const WIDTH: i32 = 400;
 /// Initial height of the window in pixels
 const HEIGHT: i32 = 200;
 
+/// How many colors to use for different prompts
 const NUM_PROMPT_COLORS: usize = 20;
 
-const LEFT_OFFS: i32 = 12;
+/// Number of pixels to reserve for prompt seam
+const LEFT_OFFS: i32 = 8;
+
+/// Number of pixels between text and next line
+const LINE_PADDING: i32 = 1;
+
+/// Width in pixel of colored seam to draw the prompt color for an output line.
+const OUTPUT_SEAM_WIDTH: u32 = 3;
 
 /// Handles all interaction with the X11 system.
 ///
@@ -80,6 +89,10 @@ pub struct Gui {
     font_width: i32,
     /// Total height of the font in pixel
     font_height: i32,
+
+    /// Total height of a line in pixel
+    line_height: i32,
+
     /// Current width of the window in pixels
     window_width: i32,
     /// Current height of the window in pixels
@@ -330,6 +343,8 @@ impl Gui {
                 font_ascent: asc as i32,
                 font_height: font_height as i32,
                 font_width: font_width as i32,
+
+                line_height: font_height as i32 + 2 * LINE_PADDING,
                 window_width: WIDTH,
                 window_height: HEIGHT,
 
@@ -386,9 +401,24 @@ impl Gui {
     /// drawn here.
     pub fn draw_line(&self, row: i32, line: &DisplayLine) {
         // Draw the prompt color strip
-        if line.prompt_hash_width > 0 {
+        let w = match line.is_a {
+            LineType::Output => Some(OUTPUT_SEAM_WIDTH),
+            LineType::Prompt |
+            LineType::Command(_, _, _) => Some(
+                (2 * LINE_PADDING + 2 * LEFT_OFFS +
+                     self.font_width *
+                         ((line.prefix.len() + line.line.len()) as
+                              i32)) as u32,
+            ),
+            LineType::Input => None,
+            LineType::MenuDecoration => None,
+            LineType::SelectedMenuItem(_) => None,
+            LineType::MenuItem(_) => None,
+        };
+
+        if let Some(w) = w {
             unsafe {
-                let y = self.font_height * row;
+                let y = self.line_height * row;
                 XSetForeground(
                     self.display,
                     self.gc,
@@ -400,8 +430,8 @@ impl Gui {
                     self.gc,
                     0,
                     y,
-                    (LEFT_OFFS as u32) + (line.prompt_hash_width * self.font_width as u32),
-                    self.font_height as u32,
+                    w,
+                    self.line_height as u32,
                 );
             }
         }
@@ -420,7 +450,7 @@ impl Gui {
     /// Draw a single colored cell at the given character position
     pub fn draw_cell(&self, column: i32, row: i32, cell: &Cell) {
         let x = self.font_width * column + LEFT_OFFS;
-        let y = self.font_height * row;
+        let y = self.line_height * row;
 
         // TODO: Cache colors
         // TODO: Configure default colors
@@ -440,7 +470,7 @@ impl Gui {
                 self.window,
                 self.gc,
                 x,
-                y,
+                y + LINE_PADDING,
                 self.font_width as u32,
                 self.font_height as u32,
             );
@@ -455,7 +485,7 @@ impl Gui {
                 self.font_set,
                 self.gc,
                 x,
-                y + self.font_ascent,
+                y + self.font_ascent + LINE_PADDING,
                 s.as_ptr() as *const i8,
                 s.len() as i32,
             )
@@ -479,7 +509,7 @@ impl Gui {
             if let Some(cursor_col) = line.cursor_col {
                 // Draw a cursor if requested
                 let x = self.font_width * (cursor_col as i32) + LEFT_OFFS;
-                let y = self.font_height * row;
+                let y = self.line_height * row + LINE_PADDING;
 
                 if self.cursor_on && self.have_focus {
                     unsafe {
@@ -490,7 +520,7 @@ impl Gui {
                             x,
                             y,
                             self.font_width as u32,
-                            self.font_height as u32,
+                            self.line_height as u32,
                         );
                     }
                 } else {
@@ -502,7 +532,7 @@ impl Gui {
                             x,
                             y,
                             self.font_width as u32,
-                            self.font_height as u32,
+                            self.line_height as u32,
                         );
                     }
                 }
@@ -517,7 +547,7 @@ impl Gui {
 
     /// Compute the number of lines in the window, rounded down.
     pub fn lines_per_window(&self) -> usize {
-        (self.window_height / self.font_height) as usize
+        (self.window_height / self.line_height) as usize
     }
 
     /// Redraw right now and remember it.
@@ -601,7 +631,7 @@ impl Gui {
                             self.window_height = info.height;
                             self.presenter.event_window_resize(
                                 (self.window_width / self.font_width) as usize,
-                                (self.window_height / self.font_height) as usize,
+                                (self.window_height / self.line_height) as usize,
                             );
                         }
                         Expose => {
@@ -706,7 +736,7 @@ impl Gui {
                                                 info.button as usize,
                                                 ((info.x - LEFT_OFFS) / self.font_width) as
                                                     usize,
-                                                (info.y / self.font_height) as usize,
+                                                (info.y / self.line_height) as usize,
                                             )
                                         {
                                             self.mark_redraw();
@@ -742,8 +772,9 @@ impl Gui {
                                             self.presenter.event_button_up(
                                                 mod_state,
                                                 info.button as usize,
-                                                (info.x / self.font_width) as usize,
-                                                (info.y / self.font_height) as usize,
+                                                ((info.x - LEFT_OFFS) / self.font_width) as
+                                                    usize,
+                                                (info.y / self.line_height) as usize,
                                             )
                                         {
                                             self.mark_redraw();
