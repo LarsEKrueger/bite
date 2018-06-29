@@ -38,12 +38,19 @@ pub struct ExecuteCommandPresenter {
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
     pub fn new(commons: Box<PresenterCommons>, prompt: Vec<Cell>) -> Box<Self> {
-        let presenter = ExecuteCommandPresenter {
+        let mut presenter = ExecuteCommandPresenter {
             commons,
             current_interaction: Interaction::new(prompt),
             next_prompt: None,
         };
+        presenter.to_last_line();
         Box::new(presenter)
+    }
+
+    /// Ensure that the last line is visible, even if the number of lines was changed.
+    fn to_last_line(&mut self) {
+        let len = self.line_iter().count();
+        self.commons.last_line_shown = len;
     }
 }
 
