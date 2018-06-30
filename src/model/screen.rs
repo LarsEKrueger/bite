@@ -22,11 +22,12 @@
 
 
 use std::cmp;
+use std::hash::{Hash, Hasher};
 
 use super::control_sequence::{Parser, Action};
 
 /// Colors are pairs of foreground/background indices into the same palette.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 #[allow(dead_code)]
 pub struct Colors {
     /// Foreground color, index into a 256-entry color table
@@ -45,7 +46,7 @@ impl PartialEq for Colors {
 /// A cell is a character and its colors and attributes.
 ///
 /// TODO: Pack data more tightly
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 #[allow(dead_code)]
 pub struct Cell {
     /// The unicode character to show
@@ -222,6 +223,11 @@ impl PartialEq for Matrix {
     }
 }
 
+impl Hash for Matrix {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.line_iter().for_each(|r| Hash::hash_slice(r, state));
+    }
+}
 /// A screen is rectangular area of cells and the position of the cursor.
 ///
 /// The cursor can be outside the allocated screen. If a visible character is inserted there, the
