@@ -32,7 +32,7 @@ pub struct ExecuteCommandPresenter {
     current_interaction: Interaction,
 
     /// Prompt to set. If None, we didn't receive one yet
-    next_prompt: Option<Vec<Cell>>,
+    next_prompt: Option<Matrix>,
 }
 
 #[allow(dead_code)]
@@ -78,7 +78,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     self.current_interaction.set_exit_status(exit_code);
                 }
                 BashOutput::Prompt(prompt) => {
-                    self.next_prompt = Some(Screen::one_line_cell_vec(&prompt));
+                    self.next_prompt = Some(Screen::one_line_matrix(&prompt));
                 }
             }
         }

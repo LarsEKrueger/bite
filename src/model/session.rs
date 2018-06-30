@@ -21,7 +21,7 @@
 use super::conversation::*;
 use super::interaction::*;
 use super::iterators::*;
-use super::screen::Cell;
+use super::screen::Matrix;
 
 /// A number of closed conversations and the current one
 pub struct Session {
@@ -33,7 +33,7 @@ pub struct Session {
 
 impl Session {
     /// Create a new session with its own interpreter.
-    pub fn new(prompt: Vec<Cell>) -> Self {
+    pub fn new(prompt: Matrix) -> Self {
         Session {
             archived: vec![],
             current_conversation: Conversation::new(prompt),
@@ -41,7 +41,7 @@ impl Session {
     }
 
     /// Open a new conversation and archive the current one.
-    pub fn new_conversation(&mut self, prompt: Vec<Cell>) {
+    pub fn new_conversation(&mut self, prompt: Matrix) {
         use std::mem;
         let cur = mem::replace(&mut self.current_conversation, Conversation::new(prompt));
         self.archived.push(cur);
@@ -94,7 +94,7 @@ mod tests {
     fn new_test_session(prompt: &[u8]) -> Session {
         Session {
             archived: vec![],
-            current_conversation: Conversation::new(Screen::one_line_cell_vec(prompt)),
+            current_conversation: Conversation::new(Screen::one_line_matrix(prompt)),
         }
     }
 
@@ -111,7 +111,7 @@ mod tests {
         inter_1_2.add_output(b"output 1.2.2\r\n");
         session.archive_interaction(inter_1_2);
 
-        session.new_conversation(Screen::one_line_cell_vec(b"prompt 2"));
+        session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
         let mut inter_2_1 = Interaction::new(Screen::one_line_cell_vec(b"command 2.1"));
         inter_2_1.add_output(b"output 2.1.1\r\n");
         inter_2_1.add_output(b"output 2.1.2\r\n");

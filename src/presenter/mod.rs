@@ -208,7 +208,7 @@ impl PresenterCommons {
         let mut prompt = Screen::new();
         prompt.add_bytes(b"System");
         Ok(PresenterCommons {
-            session: Session::new(prompt.freeze().compacted_row(0)),
+            session: Session::new(prompt.freeze()),
             window_width: 0,
             window_height: 0,
             button_down: None,

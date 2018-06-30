@@ -201,7 +201,7 @@ non-GUI program.
     * [X] Check for minimal rust version in build.rs
     * [X] Fix prompt to look like plain bash
     * [X] Visually group by prompt
-    * [ ] Allow multi-line prompts
+    * [X] Allow multi-line prompts
     * [ ] Allow multi-line input
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode
@@ -233,8 +233,7 @@ non-GUI program.
 * [X] Put proper bug reporting email address in error.rs
 * [ ] Do not create interactions for empty lines
 * [ ] Syntax highlighting in input line
-* [ ] Multi-line input line
-* [ ] Multi-line prompts
+* [ ] Bug: $() does not work correctly
 
 # Ideas
 * Integrate mosh functionality
