@@ -65,8 +65,8 @@ pub enum Action {
     /// A carriage-return has been seen
     Cr,
 
-    /// A line-feed has been seen
-    Lf,
+    /// A new line character has been seen
+    NewLine,
 
     /// A UTF8 character has been completed
     Char(char),
@@ -257,7 +257,7 @@ impl Parser {
             }
 
             b'\r' => Action::Cr,
-            b'\n' => Action::Lf,
+            b'\n' => Action::NewLine,
             byte => Action::char_from_u32(byte as u32),
         }
     }
@@ -420,7 +420,7 @@ impl fmt::Debug for Action {
             Action::More => write!(f, "More"),
             Action::Error => write!(f, "Error"),
             Action::Cr => write!(f, "Cr"),
-            Action::Lf => write!(f, "Lf"),
+            Action::NewLine => write!(f, "NewLine"),
             Action::Sgr => write!(f, "Sgr"),
             Action::Char(c) => write!(f, "Char({})", *c as u32),
         }

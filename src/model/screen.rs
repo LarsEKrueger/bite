@@ -426,7 +426,10 @@ impl Screen {
             Action::More => {}
             Action::Error => {}
             Action::Cr => self.move_left_edge(),
-            Action::Lf => self.move_down(),
+            Action::NewLine => {
+                self.move_left_edge();
+                self.move_down();
+            }
             Action::Char(c) => self.place_char(c),
             Action::Sgr => {
                 for op in self.parser.parameters() {
