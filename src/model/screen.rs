@@ -193,7 +193,7 @@ impl Matrix {
         (x + y * self.width)
     }
 
-    pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
+    pub fn compacted_row_slice(&self, row: isize) -> &[Cell] {
         let row_start = self.cell_index(0, row);
         let mut row_end = self.cell_index(self.width - 1, row);
         while row_end >= row_start {
@@ -212,7 +212,15 @@ impl Matrix {
         let row_start = row_start as usize;
         let row_end = row_end as usize;
 
-        self.cells[row_start..row_end].to_vec()
+        &self.cells[row_start..row_end]
+    }
+
+    pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
+        self.compacted_row_slice(row).to_vec()
+    }
+
+    pub fn line_iter(&self) -> impl Iterator<Item = &[Cell]> {
+        (0..self.height).map(move |r| self.compacted_row_slice(r))
     }
 }
 
