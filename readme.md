@@ -220,20 +220,20 @@ non-GUI program.
 * [ ] 2.1 shell program editor with preview
 
 # TODOs
-* [ ] Indicate return code of a completed program in the GUI
-* [ ] Scroll follows output during program execution
+* [ ] Bug: $() does not work correctly
 * [ ] Merge history during save
-* [X] Shutdown bash cleanly
 * [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
-* [X] Show the full command line of a program
 * [ ] Make the command line arguments of a program fold out
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
-* [ ] Use impl Trait for iterators
-* [X] Put proper bug reporting email address in error.rs
 * [ ] Do not create interactions for empty lines
 * [ ] Syntax highlighting in input line
-* [ ] Bug: $() does not work correctly
+* [X] Indicate return code of a completed program in the GUI
+* [X] Scroll follows output during program execution
+* [X] Shutdown bash cleanly
+* [X] Show the full command line of a program
+* [X] Use impl Trait for iterators
+* [X] Put proper bug reporting email address in error.rs
 
 # Ideas
 * Integrate mosh functionality
