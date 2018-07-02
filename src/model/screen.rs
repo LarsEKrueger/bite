@@ -28,7 +28,6 @@ use super::control_sequence::{Parser, Action};
 
 /// Colors are pairs of foreground/background indices into the same palette.
 #[derive(Clone, Copy, Debug, Hash)]
-#[allow(dead_code)]
 pub struct Colors {
     /// Foreground color, index into a 256-entry color table
     foreground: u8,
@@ -47,7 +46,6 @@ impl PartialEq for Colors {
 ///
 /// TODO: Pack data more tightly
 #[derive(Clone, Copy, Debug, Hash)]
-#[allow(dead_code)]
 pub struct Cell {
     /// The unicode character to show
     code_point: char,
@@ -241,7 +239,6 @@ impl Hash for Matrix {
 /// The cursor can be outside the allocated screen. If a visible character is inserted there, the
 /// screen is reallocated. Coordinate system origin is top-left with x increasing to the right and
 /// y down.
-#[allow(dead_code)]
 pub struct Screen {
     /// A matrix of cells
     matrix: Matrix,
@@ -262,7 +259,6 @@ pub struct Screen {
     parser: Parser,
 }
 
-#[allow(dead_code)]
 impl Screen {
     /// Create a new, empty screen
     pub fn new() -> Self {
@@ -357,55 +353,46 @@ impl Screen {
     }
 
     /// Compute the index of the cursor position into the cell array
-    #[allow(dead_code)]
     fn cursor_index(&self) -> usize {
         self.matrix.cell_index(self.x, self.y) as usize
     }
 
     /// Move the cursor to the left edge
-    #[allow(dead_code)]
     pub fn move_left_edge(&mut self) {
         self.x = 0;
     }
 
     /// Move cursor to the right edge. Moves it past the last possible character.
-    #[allow(dead_code)]
     pub fn move_right_edge(&mut self) {
         self.x = self.width();
     }
 
     /// Move cursor to the top edge
-    #[allow(dead_code)]
     pub fn move_top_edge(&mut self) {
         self.y = 0;
     }
 
     /// Move cursor to bottom edge. Moves it past the last possible character.
-    #[allow(dead_code)]
     pub fn move_bottom_edge(&mut self) {
         self.y = self.height();
     }
 
     /// Move one cell to the right
-    #[allow(dead_code)]
     pub fn move_right(&mut self) {
         self.x += 1;
     }
 
     /// Move one cell to the left
-    #[allow(dead_code)]
     pub fn move_left(&mut self) {
         self.x -= 1;
     }
 
     /// Move one line down
-    #[allow(dead_code)]
     pub fn move_down(&mut self) {
         self.y += 1;
     }
 
     /// Move one line up
-    #[allow(dead_code)]
     pub fn move_up(&mut self) {
         self.y -= 1;
     }
@@ -414,6 +401,23 @@ impl Screen {
         self.move_left_edge();
         self.move_down();
     }
+
+    /// Insert a character at the current cursor position.
+    ///
+    /// Leaves an uninitialized character (space + CHARDRAWN = false) at the cursor and move the
+    /// rest of the line to the right.
+    pub fn insert_character(&mut self) {}
+
+    /// Delete the character under the cursor.
+    ///
+    /// Move the rest of the line to the left.
+    pub fn delete_character(&mut self) {}
+
+    /// Insert a row between the current one and the next.
+    pub fn insert_row(&mut self) {}
+
+    /// Delete the current row
+    pub fn delete_row(&mut self) {}
 
     /// Check if the frozen representation of the screen looks different that the given matrix
     pub fn looks_different(&self, other: &Matrix) -> bool {
@@ -496,6 +500,14 @@ impl PartialEq for Screen {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    fn check_compacted_row(s: &Screen, row: isize, gt: &str) {
+        let cr = s.matrix.compacted_row(row);
+        let gti = gt.chars();
+        assert_eq!(cr.len(), gti.clone().count());
+        let crc = cr.iter().map(|c| c.code_point);
+        assert!(crc.eq(gti));
+    }
 
     #[test]
     fn start_screen() {
@@ -591,10 +603,8 @@ mod test {
         let c0: Vec<char> = l0.iter().map(|c| c.code_point).collect();
         assert_eq!(c0, ['h', 'e', 'l', 'l', 'o']);
 
-        let l1 = s.matrix.compacted_row(1);
-        assert_eq!(l1.len(), 10);
-        let c1: Vec<char> = l1.iter().map(|c| c.code_point).collect();
-        assert_eq!(c1, [' ', ' ', ' ', ' ', ' ', 'w', 'o', 'r', 'l', 'd']);
+        check_compacted_row(&s, 0, "hello");
+        check_compacted_row(&s, 1, "     world");
 
         let l2 = s.matrix.compacted_row(2);
         assert_eq!(l2.len(), 0);
@@ -603,19 +613,11 @@ mod test {
     #[test]
     fn newline() {
         let mut s = Screen::new();
-        s.add_bytes(b"hello\r\nworld\r\n");
+        s.add_bytes(b"hello\nworld\n");
 
         assert_eq!(s.height(), 2);
-
-        let l0 = s.matrix.compacted_row(0);
-        assert_eq!(l0.len(), 5);
-        let c0: Vec<char> = l0.iter().map(|c| c.code_point).collect();
-        assert_eq!(c0, ['h', 'e', 'l', 'l', 'o']);
-
-        let l1 = s.matrix.compacted_row(1);
-        assert_eq!(l1.len(), 5);
-        let c1: Vec<char> = l1.iter().map(|c| c.code_point).collect();
-        assert_eq!(c1, ['w', 'o', 'r', 'l', 'd']);
+        check_compacted_row(&s, 0, "hello");
+        check_compacted_row(&s, 1, "world");
     }
 
     #[test]
@@ -623,6 +625,71 @@ mod test {
         let v = Screen::one_line_cell_vec(b"");
         assert_eq!(v.len(), 0);
     }
+
+    #[test]
+    fn delete_char() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        // Delete the e
+        s.x = 1;
+        s.y = 0;
+        s.delete_character();
+
+        assert_eq!(s.height(), 2);
+        check_compacted_row(&s, 0, "hllo");
+        check_compacted_row(&s, 1, "world");
+    }
+
+    #[test]
+    fn insert_char() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        // Insert before the e
+        s.x = 1;
+        s.y = 0;
+        s.insert_character();
+
+        assert_eq!(s.height(), 2);
+        check_compacted_row(&s, 0, "h ello");
+        check_compacted_row(&s, 1, "world");
+    }
+
+    #[test]
+    fn delete_row_0() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        assert_eq!(s.height(), 2);
+        s.delete_row();
+        assert_eq!(s.height(), 2);
+        check_compacted_row(&s, 0, "hello");
+        check_compacted_row(&s, 1, "world");
+
+        // Delete the first row
+        s.x = 1;
+        s.y = 0;
+        s.delete_row();
+
+        assert_eq!(s.height(), 1);
+        check_compacted_row(&s, 0, "world");
+    }
+
+    #[test]
+    fn delete_row_1() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        // Delete the first row
+        s.x = 1;
+        s.y = 1;
+        s.delete_row();
+
+        assert_eq!(s.height(), 1);
+        check_compacted_row(&s, 0, "hello");
+    }
+
 
     // TODO: Test for protected
 }
