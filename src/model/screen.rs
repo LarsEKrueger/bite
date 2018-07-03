@@ -457,7 +457,28 @@ impl Screen {
     pub fn insert_row(&mut self) {}
 
     /// Delete the current row
-    pub fn delete_row(&mut self) {}
+    pub fn delete_row(&mut self) {
+        self.make_room();
+
+        let w = self.width() as usize;
+
+        // Move the cells
+        let mut delete_y = self.y;
+        while delete_y + 1 < self.height() {
+            let current_row = self.matrix.cell_index(0, delete_y) as usize;
+            let next_row = self.matrix.cell_index(0, delete_y + 1) as usize;
+
+            let (top, bottom) = self.matrix.cells.split_at_mut(next_row);
+            top[current_row..(current_row + w)].copy_from_slice(&bottom[0..w]);
+
+            delete_y += 1;
+        }
+
+        self.matrix.height -= 1;
+        unsafe {
+            self.matrix.cells.set_len(self.matrix.height as usize * w);
+        }
+    }
 
     /// Check if the frozen representation of the screen looks different that the given matrix
     pub fn looks_different(&self, other: &Matrix) -> bool {
