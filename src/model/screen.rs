@@ -411,7 +411,18 @@ impl Screen {
     /// Delete the character under the cursor.
     ///
     /// Move the rest of the line to the left.
-    pub fn delete_character(&mut self) {}
+    pub fn delete_character(&mut self) {
+        self.make_room();
+
+        let mut current = self.matrix.cell_index(self.x, self.y) as usize;
+        let row_end = self.matrix.cell_index(self.width() - 1, self.y) as usize;
+
+        while current + 1 <= row_end {
+            self.matrix.cells[current] = self.matrix.cells[current + 1];
+            current += 1;
+        }
+        self.matrix.cells[current] = Cell::new(self.colors);
+    }
 
     /// Insert a row between the current one and the next.
     pub fn insert_row(&mut self) {}
