@@ -89,6 +89,10 @@ impl Cell {
     pub fn code_point(&self) -> char {
         self.code_point
     }
+
+    pub fn drawn(&self) -> bool {
+        self.attributes.contains(Attributes::CHARDRAWN)
+    }
 }
 
 impl PartialEq for Cell {
@@ -195,10 +199,7 @@ impl Matrix {
         let row_start = self.cell_index(0, row);
         let mut row_end = self.cell_index(self.width - 1, row);
         while row_end >= row_start {
-            if self.cells[row_end as usize].attributes.contains(
-                Attributes::CHARDRAWN,
-            )
-            {
+            if self.cells[row_end as usize].drawn() {
                 break;
             }
             row_end -= 1;
@@ -318,12 +319,21 @@ impl Screen {
 
     /// Ensure that there is room for the character at the current position.
     fn make_room(&mut self) {
-        if self.x < 0 || self.x >= self.width() || self.y < 0 || self.y >= self.height() {
+        let (x, y) = (self.x, self.y);
+        let (nx, ny) = self.make_room_for(x, y);
+        self.x = nx;
+        self.y = ny;
+    }
+
+    fn make_room_for(&mut self, x: isize, y: isize) -> (isize, isize) {
+        if x < 0 || x >= self.width() || y < 0 || y >= self.height() {
+
+
             // Compute the new size and allocate
-            let add_left = -cmp::min(self.x, 0);
-            let add_right = cmp::max(self.x, self.width() - 1) - self.width() + 1;
-            let add_top = -cmp::min(self.y, 0);
-            let add_bottom = cmp::max(self.y, self.height() - 1) - self.height() + 1;
+            let add_left = -cmp::min(x, 0);
+            let add_right = cmp::max(x, self.width() - 1) - self.width() + 1;
+            let add_top = -cmp::min(y, 0);
+            let add_bottom = cmp::max(y, self.height() - 1) - self.height() + 1;
 
             let new_w = self.width() + add_left + add_right;
             let new_h = self.height() + add_top + add_bottom;
@@ -347,8 +357,9 @@ impl Screen {
             // Fix cursor position and size
             self.matrix.width = new_w;
             self.matrix.height = new_h;
-            self.x += add_left;
-            self.y += add_top;
+            (x + add_left, y + add_top)
+        } else {
+            (x, y)
         }
     }
 
@@ -406,7 +417,25 @@ impl Screen {
     ///
     /// Leaves an uninitialized character (space + CHARDRAWN = false) at the cursor and move the
     /// rest of the line to the right.
-    pub fn insert_character(&mut self) {}
+    pub fn insert_character(&mut self) {
+        self.make_room();
+        let mut row_end = self.matrix.cell_index(self.width() - 1, self.y) as usize;
+
+        if self.matrix.cells[row_end].drawn() {
+            // Last cell in row is drawn, need to resize
+            let (x, y) = (self.width(), self.y);
+            self.make_room_for(x, y);
+            row_end = self.matrix.cell_index(self.width() - 1, self.y) as usize;
+        }
+
+        let current = self.matrix.cell_index(self.x, self.y) as usize;
+
+        while row_end > current {
+            row_end -= 1;
+            self.matrix.cells[row_end + 1] = self.matrix.cells[row_end];
+        }
+        self.matrix.cells[row_end] = Cell::new(self.colors);
+    }
 
     /// Delete the character under the cursor.
     ///
@@ -515,9 +544,14 @@ mod test {
     fn check_compacted_row(s: &Screen, row: isize, gt: &str) {
         let cr = s.matrix.compacted_row(row);
         let gti = gt.chars();
-        assert_eq!(cr.len(), gti.clone().count());
-        let crc = cr.iter().map(|c| c.code_point);
-        assert!(crc.eq(gti));
+        //assert_eq!(cr.len(), gti.clone().count());
+        let crc = cr.into_iter().map(|c| c.code_point);
+        assert!(
+            crc.clone().eq(gti.clone()),
+            "found: '{}'. expected: '{}'",
+            crc.collect::<String>(),
+            gti.collect::<String>()
+        );
     }
 
     #[test]
