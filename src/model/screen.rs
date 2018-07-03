@@ -480,6 +480,9 @@ impl Screen {
         }
     }
 
+    /// Move the remainder of the current row to the next line
+    pub fn break_line(&mut self) {}
+
     /// Check if the frozen representation of the screen looks different that the given matrix
     pub fn looks_different(&self, other: &Matrix) -> bool {
         self.matrix != *other
@@ -754,6 +757,41 @@ mod test {
 
         assert_eq!(s.height(), 1);
         check_compacted_row(&s, 0, "hello");
+    }
+
+    #[test]
+    fn insert_row() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        // Insert a row between the two
+        s.x = 1;
+        s.y = 0;
+        s.insert_row();
+
+        assert_eq!(s.height(), 3);
+        check_compacted_row(&s, 0, "hello");
+        check_compacted_row(&s, 1, "");
+        check_compacted_row(&s, 2, "world");
+    }
+
+    #[test]
+    fn break_line() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        // Break the first line between the l
+        s.x = 3;
+        s.y = 0;
+        s.break_line();
+
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 1);
+
+        assert_eq!(s.height(), 3);
+        check_compacted_row(&s, 0, "hel");
+        check_compacted_row(&s, 1, "lo");
+        check_compacted_row(&s, 2, "world");
     }
 
 
