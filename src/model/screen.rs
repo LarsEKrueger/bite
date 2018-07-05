@@ -454,7 +454,33 @@ impl Screen {
     }
 
     /// Insert a row between the current one and the next.
-    pub fn insert_row(&mut self) {}
+    pub fn insert_row(&mut self) {
+        self.make_room();
+        let w = self.width() as usize;
+
+        // Make room in the array
+        let old_len = self.matrix.cells.len();
+        self.matrix.cells.resize(
+            old_len + w,
+            Cell::new(self.colors),
+        );
+
+        // Move down the cells
+        let mut current = old_len;
+        let next_row = self.matrix.cell_index(0, self.y + 1) as usize;
+        while current >= next_row {
+            let (top, bottom) = self.matrix.cells.split_at_mut(current);
+            bottom[0..w].copy_from_slice(&top[(current - w)..current]);
+            current -= w;
+        }
+
+        // Fill the next line
+        for c in &mut self.matrix.cells[next_row..(next_row + w)] {
+            *c = Cell::new(self.colors);
+        }
+
+        self.matrix.height += 1;
+    }
 
     /// Delete the current row
     pub fn delete_row(&mut self) {
@@ -481,7 +507,23 @@ impl Screen {
     }
 
     /// Move the remainder of the current row to the next line
-    pub fn break_line(&mut self) {}
+    pub fn break_line(&mut self) {
+        self.insert_row();
+
+        let w = self.width() as usize;
+        let here = self.matrix.cell_index(self.x, self.y) as usize;
+        let n = w - self.x as usize;
+        let next_row = self.matrix.cell_index(0, self.y + 1) as usize;
+
+        for i in 0..n {
+            let old_cell = self.matrix.cells[here + i];
+            self.matrix.cells[next_row + i] = old_cell;
+            self.matrix.cells[here + i] = Cell::new(self.colors);
+        }
+
+        self.x = 0;
+        self.y += 1;
+    }
 
     /// Check if the frozen representation of the screen looks different that the given matrix
     pub fn looks_different(&self, other: &Matrix) -> bool {
