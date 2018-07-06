@@ -24,7 +24,6 @@
 use std::fmt::{Display, Formatter};
 use std::sync::mpsc::Receiver;
 
-mod textinput;
 mod compose_command;
 mod execute_command;
 mod history;
@@ -155,7 +154,7 @@ pub struct PresenterCommons {
     last_line_shown: usize,
 
     /// Currently edited input line
-    current_line: textinput::TextInput,
+    text_input: Screen,
 
     // List of all lines we have successfully parsed.
     // pub history: History,
@@ -212,7 +211,7 @@ impl PresenterCommons {
             window_width: 0,
             window_height: 0,
             button_down: None,
-            current_line: textinput::TextInput::new(),
+            text_input: Screen::new(),
             last_line_shown: 0,
             // history,
             receiver,
@@ -228,10 +227,16 @@ impl PresenterCommons {
         }
     }
 
-    /// Return the index of the character where the cursor is in the current input line.
-    #[allow(dead_code)]
-    fn current_line_pos(&self) -> usize {
-        self.current_line.char_index()
+    pub fn input_line_iter(&self) -> impl Iterator<Item = LineItem> {
+        self.text_input.line_iter().zip(0..).map(move |(cells,
+                                                        row)| {
+            let cursor_col = if row == self.text_input.cursor_y() {
+                Some(self.text_input.cursor_x() as usize)
+            } else {
+                None
+            };
+            LineItem::new(cells, LineType::Input, cursor_col, 0)
+        })
     }
 }
 
@@ -365,13 +370,13 @@ impl Presenter {
 
     /// Handle the event that the delete key was pressed.
     pub fn event_delete_right(&mut self, _mod_state: ModifierState) {
-        self.cm().current_line.delete_right();
+        self.cm().text_input.delete_character();
         self.event_update_line();
     }
 
     /// Handle the event that the backspace key was pressed.
     pub fn event_backspace(&mut self, _mod_state: ModifierState) {
-        self.cm().current_line.delete_left();
+        self.cm().text_input.delete_left();
         self.event_update_line();
     }
 
@@ -381,8 +386,16 @@ impl Presenter {
     }
 
     /// Handle the event that some text was entered.
+    ///
+    /// TODO: Handle escape sequences
     pub fn event_text(&mut self, s: &str) {
-        self.cm().current_line.insert_str(s);
+        {
+        let ref mut screen = self.cm().text_input;
+        for c in s.chars() {
+screen.insert_character();
+screen.place_char( c);
+        }
+        }
         self.event_update_line();
     }
 

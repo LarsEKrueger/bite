@@ -111,16 +111,8 @@ impl SubPresenter for ExecuteCommandPresenter {
                     CommandPosition::CurrentInteraction,
                     0,
                 ))
-                .chain(::std::iter::once(LineItem::new_owned(
-                    Screen::one_line_cell_vec(
-                        self.commons.current_line.text().as_bytes(),
-                    ),
-                    LineType::Input,
-                    Some(self.commons.current_line_pos()),
-                    0,
-                ))),
+                .chain(self.commons.input_line_iter()),
         )
-
     }
 
     /// Handle the event when a modifier and a special key is pressed.
@@ -131,20 +123,20 @@ impl SubPresenter for ExecuteCommandPresenter {
     ) -> (Box<SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
-                let line = self.commons.current_line.clear();
+                let line = self.commons.text_input.extract_text();
+                self.commons.text_input.reset();
                 // TODO: disable write-back in bash and mark this line as input
                 // self.current_interaction.add_output(line.clone());
                 ::model::bash::programm_add_input(line.as_str());
-                ::model::bash::programm_add_input("\n");
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::Left) => {
-                self.commons_mut().current_line.move_left();
+                self.commons_mut().text_input.move_left();
                 (self, PresenterCommand::Redraw)
             }
             ((false, false, false), SpecialKey::Right) => {
-                self.commons_mut().current_line.move_right();
+                self.commons_mut().text_input.move_right();
                 (self, PresenterCommand::Redraw)
             }
 
@@ -169,22 +161,22 @@ impl SubPresenter for ExecuteCommandPresenter {
             }
 
             ((false, false, false), SpecialKey::Home) => {
-                self.commons.current_line.move_start();
+                self.commons.text_input.move_left_edge();
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::End) => {
-                self.commons.current_line.move_end();
+                self.commons.text_input.move_right_edge();
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::Delete) => {
-                self.commons.current_line.delete_right();
+                self.commons.text_input.delete_character();
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::Backspace) => {
-                self.commons.current_line.delete_left();
+                self.commons.text_input.delete_left();
                 (self, PresenterCommand::Redraw)
             }
 

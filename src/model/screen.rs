@@ -221,6 +221,12 @@ impl Matrix {
     pub fn line_iter(&self) -> impl Iterator<Item = &[Cell]> {
         (0..self.height).map(move |r| self.compacted_row_slice(r))
     }
+
+    pub fn reset(&mut self) {
+        self.cells.clear();
+        self.width = 0;
+        self.height = 0;
+    }
 }
 
 impl PartialEq for Matrix {
@@ -260,6 +266,11 @@ pub struct Screen {
     parser: Parser,
 }
 
+const INITIAL_COLORS: Colors = Colors {
+    foreground: 1,
+    background: 0,
+};
+
 impl Screen {
     /// Create a new, empty screen
     pub fn new() -> Self {
@@ -268,10 +279,7 @@ impl Screen {
             x: 0,
             y: 0,
             attributes: Attributes::empty(),
-            colors: Colors {
-                foreground: 1,
-                background: 0,
-            },
+            colors: INITIAL_COLORS,
             parser: Parser::new(),
         }
     }
@@ -289,6 +297,16 @@ impl Screen {
         s.freeze()
     }
 
+    /// Reset the screen to initial values.
+    pub fn reset(&mut self) {
+        self.matrix.reset();
+        self.x = 0;
+        self.y = 0;
+        self.attributes = Attributes::empty();
+        self.colors = INITIAL_COLORS;
+        self.parser.reset();
+    }
+
     /// Get width of matrix
     pub fn width(&self) -> isize {
         self.matrix.width
@@ -297,6 +315,54 @@ impl Screen {
     /// Get height of matrix
     pub fn height(&self) -> isize {
         self.matrix.height
+    }
+
+    /// Cursor position, x coordinate
+    pub fn cursor_x(&self) -> isize {
+        self.x
+    }
+
+    /// Cursor position, y coordinate
+    pub fn cursor_y(&self) -> isize {
+        self.y
+    }
+
+    pub fn line_iter(&self) -> impl Iterator<Item = &[Cell]> {
+        self.matrix.line_iter()
+    }
+
+    /// Return the whole text on screen as a string with new lines.
+    pub fn extract_text(&self) -> String {
+        let mut text = String::new();
+        for l in self.line_iter() {
+            for c in l {
+                text.push(c.code_point);
+            }
+            text.push('\n');
+        }
+        text
+    }
+
+    pub fn text_before_cursor(&mut self) -> String {
+        self.make_room();
+
+        let mut text = String::new();
+        let mut current_index = self.matrix.cell_index(0, self.y) as usize;
+        let cursor_index = self.cursor_index() as usize;
+        while current_index < cursor_index {
+            text.push(self.matrix.cells[current_index].code_point);
+            current_index += 1;
+        }
+        text
+    }
+
+    pub fn replace(&mut self, s: &str, stay_there: bool) {
+        let x = self.x;
+        self.reset();
+        self.place_str(s);
+        if stay_there {
+            self.x = x;
+        }
     }
 
     /// Place a character at the current position and advance the cursor
@@ -327,8 +393,6 @@ impl Screen {
 
     fn make_room_for(&mut self, x: isize, y: isize) -> (isize, isize) {
         if x < 0 || x >= self.width() || y < 0 || y >= self.height() {
-
-
             // Compute the new size and allocate
             let add_left = -cmp::min(x, 0);
             let add_right = cmp::max(x, self.width() - 1) - self.width() + 1;
@@ -451,6 +515,14 @@ impl Screen {
             current += 1;
         }
         self.matrix.cells[current] = Cell::new(self.colors);
+    }
+
+    /// Delete the character left of the cursor
+    pub fn delete_left(&mut self) {
+        if self.x > 0 {
+            self.move_left();
+            self.delete_character();
+        }
     }
 
     /// Insert a row between the current one and the next.
@@ -836,6 +908,17 @@ mod test {
         check_compacted_row(&s, 2, "world");
     }
 
+    #[test]
+    fn text_before_cursor() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        // Get hell
+        s.x = 4;
+        s.y = 0;
+        let tbc = s.text_before_cursor();
+        assert_eq!(tbc.as_str(), "hell");
+    }
 
     // TODO: Test for protected
 }

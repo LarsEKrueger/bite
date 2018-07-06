@@ -57,18 +57,9 @@ impl SubPresenter for ComposeCommandPresenter {
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(self.commons.session.line_iter().chain(::std::iter::once(
-            LineItem::new_owned(
-                Screen::one_line_cell_vec(
-                    self.commons.current_line.text().as_bytes(),
-                ),
-                LineType::Input,
-                Some(
-                    self.commons.current_line_pos(),
-                ),
-                0,
-            ),
-        )))
+        Box::new(self.commons.session.line_iter().chain(
+            self.commons.input_line_iter(),
+        ))
     }
 
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
@@ -100,9 +91,9 @@ impl SubPresenter for ComposeCommandPresenter {
     ) -> (Box<SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
-                let line = self.commons.current_line.clear();
+                let line = self.commons.text_input.extract_text();
+                self.commons.text_input.reset();
                 ::model::bash::bash_add_input(line.as_str());
-                ::model::bash::bash_add_input("\n");
                 (
                     ExecuteCommandPresenter::new(
                         self.commons,
@@ -112,11 +103,11 @@ impl SubPresenter for ComposeCommandPresenter {
                 )
             }
             ((false, false, false), SpecialKey::Left) => {
-                self.commons_mut().current_line.move_left();
+                self.commons_mut().text_input.move_left();
                 (self, PresenterCommand::Redraw)
             }
             ((false, false, false), SpecialKey::Right) => {
-                self.commons_mut().current_line.move_right();
+                self.commons_mut().text_input.move_right();
                 (self, PresenterCommand::Redraw)
             }
             ((false, false, false), SpecialKey::Up) => (
@@ -150,9 +141,13 @@ impl SubPresenter for ComposeCommandPresenter {
 
             ((false, false, false), SpecialKey::PageUp) => {
                 // Nothing -> Prefix search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
+                let prefix = {
+                    let ref mut text_input = self.commons.text_input;
+                    let prefix = text_input.text_before_cursor();
+                    text_input.reset();
+                    text_input.place_str(&prefix);
+                    prefix
+                };
                 (
                     HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true),
                     PresenterCommand::Redraw,
@@ -169,31 +164,35 @@ impl SubPresenter for ComposeCommandPresenter {
 
             ((false, false, false), SpecialKey::PageDown) => {
                 // Nothing -> Prefix search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
+                let prefix = {
+                    let ref mut text_input = self.commons.text_input;
+                    let prefix = text_input.text_before_cursor();
+                    text_input.reset();
+                    text_input.place_str(&prefix);
+                    prefix
+                };
                 (
                     HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false),
                     PresenterCommand::Redraw,
                 )
             }
             ((false, false, false), SpecialKey::Home) => {
-                self.commons.current_line.move_start();
+                self.commons.text_input.move_left_edge();
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::End) => {
-                self.commons.current_line.move_end();
+                self.commons.text_input.move_right_edge();
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::Delete) => {
-                self.commons.current_line.delete_right();
+                self.commons.text_input.delete_character();
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::Backspace) => {
-                self.commons.current_line.delete_left();
+                self.commons.text_input.delete_left();
                 (self, PresenterCommand::Redraw)
             }
 
@@ -214,9 +213,13 @@ impl SubPresenter for ComposeCommandPresenter {
             ((false, true, false), b'd') => (self, PresenterCommand::Exit),
             ((false, true, false), b'r') => {
                 // Control-R -> Start interactive history search
-                let prefix = String::from(self.commons.current_line.text_before_cursor());
-                self.commons.current_line.clear();
-                self.commons.current_line.insert_str(&prefix);
+                let prefix = {
+                    let ref mut text_input = self.commons.text_input;
+                    let prefix = text_input.text_before_cursor();
+                    text_input.reset();
+                    text_input.place_str(&prefix);
+                    prefix
+                };
                 (
                     HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
                     PresenterCommand::Redraw,

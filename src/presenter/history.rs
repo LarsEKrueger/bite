@@ -70,11 +70,11 @@ impl HistoryPresenter {
     }
 
     /// Set the input line from the current selection
-    fn replace_current_line(&mut self) -> bool {
+    fn replace_text_input(&mut self) -> bool {
         if self.search.item_ind < self.search.matching_items.len() {
             let hist_ind = self.search.matching_items[self.search.item_ind];
             let item = history::get_line_as_str(hist_ind).to_string();
-            self.commons.current_line.replace(item, true);
+            self.commons.text_input.replace(&item, true);
             true
         } else {
             false
@@ -113,14 +113,7 @@ impl SubPresenter for HistoryPresenter {
                         0,
                     )
                 })
-                .chain(::std::iter::once(LineItem::new_owned(
-                    Screen::one_line_cell_vec(
-                        self.commons.current_line.text().as_bytes(),
-                    ),
-                    LineType::Input,
-                    Some(self.commons.current_line_pos()),
-                    0,
-                ))),
+                .chain(self.commons.input_line_iter()),
         )
     }
 
@@ -132,7 +125,7 @@ impl SubPresenter for HistoryPresenter {
         match (mod_state.as_tuple(), key) {
 
             ((false, false, false), SpecialKey::Enter) => {
-                let propagate = self.replace_current_line();
+                let propagate = self.replace_text_input();
                 let next = ComposeCommandPresenter::new(self.commons);
                 if propagate {
                     next.event_special_key(mod_state, &SpecialKey::Enter)
@@ -144,7 +137,7 @@ impl SubPresenter for HistoryPresenter {
             ((false, false, false), SpecialKey::Left) |
             ((false, false, false), SpecialKey::Right) |
             ((true, false, false), SpecialKey::Enter) => {
-                self.replace_current_line();
+                self.replace_text_input();
                 (
                     ComposeCommandPresenter::new(self.commons),
                     PresenterCommand::Redraw,
@@ -187,12 +180,12 @@ impl SubPresenter for HistoryPresenter {
             }
 
             ((false, false, false), SpecialKey::Delete) => {
-                self.commons.current_line.delete_right();
+                self.commons.text_input.delete_character();
                 (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::Backspace) => {
-                self.commons.current_line.delete_left();
+                self.commons.text_input.delete_left();
                 (self, PresenterCommand::Redraw)
             }
 
@@ -204,7 +197,7 @@ impl SubPresenter for HistoryPresenter {
     ///
     /// If we are searching, update the search string and try to scroll as little as possible.
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
-        let prefix = String::from(self.commons.current_line.text());
+        let prefix = String::from(self.commons.text_input.extract_text());
         let mut search = history::search(HistorySearchMode::Contained(prefix), false);
 
         // Find the index into matching_items that is closest to search.item_ind to move the
