@@ -27,7 +27,7 @@ struct Cursor {
 }
 
 /// Current string and cursor position.
-pub struct Runeline {
+pub struct TextInput {
     line: String,
     cursor: Cursor,
 }
@@ -42,7 +42,7 @@ impl Cursor {
     }
 }
 
-impl Runeline {
+impl TextInput {
     /// A new input line starts empty.
     pub fn new() -> Self {
         Self {
@@ -177,14 +177,14 @@ mod tests {
     #[test]
     fn append_empty() {
         {
-            let mut rl = Runeline::new();
+            let mut rl = TextInput::new();
             rl.insert_str("h");
             assert_eq!(rl.line.len(), 1);
             assert_eq!(rl.cursor.byte_index, 1);
             assert_eq!(rl.cursor.char_index, 1);
         }
         {
-            let mut rl = Runeline::new();
+            let mut rl = TextInput::new();
             rl.insert_str("ä");
             assert_eq!(rl.line.len(), 2);
             assert_eq!(rl.cursor.byte_index, 2);
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn move_around() {
-        let mut rl = Runeline::new();
+        let mut rl = TextInput::new();
         rl.insert_str("Hällö");
         assert_eq!(rl.line.len(), 7);
         // Past the string
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn delete_chars() {
-        let mut rl = Runeline::new();
+        let mut rl = TextInput::new();
         rl.insert_str("Hällö Wörld!");
 
         assert_eq!(rl.line.len(), 15);

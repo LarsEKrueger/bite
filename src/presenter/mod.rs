@@ -24,7 +24,7 @@
 use std::fmt::{Display, Formatter};
 use std::sync::mpsc::Receiver;
 
-mod runeline;
+mod textinput;
 mod compose_command;
 mod execute_command;
 mod history;
@@ -155,7 +155,7 @@ pub struct PresenterCommons {
     last_line_shown: usize,
 
     /// Currently edited input line
-    current_line: runeline::Runeline,
+    current_line: textinput::TextInput,
 
     // List of all lines we have successfully parsed.
     // pub history: History,
@@ -212,7 +212,7 @@ impl PresenterCommons {
             window_width: 0,
             window_height: 0,
             button_down: None,
-            current_line: runeline::Runeline::new(),
+            current_line: textinput::TextInput::new(),
             last_line_shown: 0,
             // history,
             receiver,
