@@ -96,7 +96,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 if prompt != self.commons.session.current_conversation.prompt {
                     self.commons.session.new_conversation(prompt);
                 }
-                return (ComposeCommandPresenter::new(self.commons), needs_marking);
+                return (ComposeCommandPresenter::new(self.commons), true);
             }
         }
         (self, needs_marking)
