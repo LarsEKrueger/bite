@@ -48,13 +48,22 @@ const HEIGHT: i32 = 200;
 const NUM_PROMPT_COLORS: usize = 20;
 
 /// Number of pixels to reserve for prompt seam
-const LEFT_OFFS: i32 = 8;
-
-/// Number of pixels between text and next line
-const LINE_PADDING: i32 = 1;
+const COLOR_SEAM_WIDTH: i32 = 20;
 
 /// Width in pixel of colored seam to draw the prompt color for an output line.
 const OUTPUT_SEAM_WIDTH: u32 = 3;
+
+/// Width in pixel of colored seam to draw the prompt color for a prompt line.
+const PROMPT_SEAM_WIDTH: u32 = 16;
+
+/// Width in pixel of colored seam to draw the prompt color for a command line.
+const COMMAND_SEAM_WIDTH: u32 = 8;
+
+/// Width in pixel of colored seam to draw the prompt color for an input line.
+const INPUT_SEAM_WIDTH: u32 = 6;
+
+/// Number of pixels between text and next line
+const LINE_PADDING: i32 = 1;
 
 /// Handles all interaction with the X11 system.
 ///
@@ -403,14 +412,9 @@ impl Gui {
         // Draw the prompt color strip
         let w = match line.is_a {
             LineType::Output => Some(OUTPUT_SEAM_WIDTH),
-            LineType::Prompt |
-            LineType::Command(_, _, _) => Some(
-                (2 * LINE_PADDING + 2 * LEFT_OFFS +
-                     self.font_width *
-                         ((line.prefix.len() + line.line.len()) as
-                              i32)) as u32,
-            ),
-            LineType::Input => None,
+            LineType::Prompt => Some(PROMPT_SEAM_WIDTH),
+            LineType::Command(_, _, _) => Some(COMMAND_SEAM_WIDTH),
+            LineType::Input => Some(INPUT_SEAM_WIDTH),
             LineType::MenuDecoration => None,
             LineType::SelectedMenuItem(_) => None,
             LineType::MenuItem(_) => None,
@@ -449,7 +453,7 @@ impl Gui {
 
     /// Draw a single colored cell at the given character position
     pub fn draw_cell(&self, column: i32, row: i32, cell: &Cell) {
-        let x = self.font_width * column + LEFT_OFFS;
+        let x = self.font_width * column + COLOR_SEAM_WIDTH;
         let y = self.line_height * row;
 
         // TODO: Cache colors
@@ -508,7 +512,7 @@ impl Gui {
 
             if let Some(cursor_col) = line.cursor_col {
                 // Draw a cursor if requested
-                let x = self.font_width * (cursor_col as i32) + LEFT_OFFS;
+                let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
                 let y = self.line_height * row + LINE_PADDING;
 
                 if self.cursor_on && self.have_focus {
@@ -734,7 +738,7 @@ impl Gui {
                                             self.presenter.event_button_down(
                                                 mod_state,
                                                 info.button as usize,
-                                                ((info.x - LEFT_OFFS) / self.font_width) as
+                                                ((info.x - COLOR_SEAM_WIDTH) / self.font_width) as
                                                     usize,
                                                 (info.y / self.line_height) as usize,
                                             )
@@ -772,7 +776,7 @@ impl Gui {
                                             self.presenter.event_button_up(
                                                 mod_state,
                                                 info.button as usize,
-                                                ((info.x - LEFT_OFFS) / self.font_width) as
+                                                ((info.x - COLOR_SEAM_WIDTH) / self.font_width) as
                                                     usize,
                                                 (info.y / self.line_height) as usize,
                                             )
