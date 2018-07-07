@@ -203,6 +203,7 @@ non-GUI program.
     * [X] Visually group by prompt
     * [X] Allow multi-line prompts
     * [ ] Allow multi-line input
+    * [ ] Draw progress bar style line (terminated with \r) correctly
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode
 * [ ] 0.8 Completion
