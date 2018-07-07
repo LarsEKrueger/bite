@@ -93,6 +93,7 @@ impl SubPresenter for ComposeCommandPresenter {
             ((false, false, false), SpecialKey::Enter) => {
                 let line = self.commons.text_input.extract_text();
                 self.commons.text_input.reset();
+                self.commons.text_input.make_room();
                 ::model::bash::bash_add_input(line.as_str());
                 (
                     ExecuteCommandPresenter::new(

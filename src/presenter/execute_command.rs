@@ -125,6 +125,7 @@ impl SubPresenter for ExecuteCommandPresenter {
             ((false, false, false), SpecialKey::Enter) => {
                 let line = self.commons.text_input.extract_text();
                 self.commons.text_input.reset();
+                self.commons.text_input.make_room();
                 // TODO: disable write-back in bash and mark this line as input
                 // self.current_interaction.add_output(line.clone());
                 ::model::bash::programm_add_input(line.as_str());

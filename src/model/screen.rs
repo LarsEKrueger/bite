@@ -384,7 +384,7 @@ impl Screen {
     }
 
     /// Ensure that there is room for the character at the current position.
-    fn make_room(&mut self) {
+    pub fn make_room(&mut self) {
         let (x, y) = (self.x, self.y);
         let (nx, ny) = self.make_room_for(x, y);
         self.x = nx;
