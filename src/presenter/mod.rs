@@ -206,12 +206,14 @@ impl PresenterCommons {
         // let history = History::new(bash.get_current_user_home_dir());
         let mut prompt = Screen::new();
         prompt.add_bytes(b"System");
+        let mut text_input = Screen::new();
+        text_input.make_room();
         Ok(PresenterCommons {
             session: Session::new(prompt.freeze()),
             window_width: 0,
             window_height: 0,
             button_down: None,
-            text_input: Screen::new(),
+            text_input,
             last_line_shown: 0,
             // history,
             receiver,
