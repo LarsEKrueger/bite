@@ -369,18 +369,6 @@ impl Presenter {
         self.dispatch_res(|sp| sp.event_special_key(mod_state, key))
     }
 
-    /// Handle the event that the delete key was pressed.
-    pub fn event_delete_right(&mut self, _mod_state: ModifierState) {
-        self.cm().text_input.delete_character();
-        self.event_update_line();
-    }
-
-    /// Handle the event that the backspace key was pressed.
-    pub fn event_backspace(&mut self, _mod_state: ModifierState) {
-        self.cm().text_input.delete_left();
-        self.event_update_line();
-    }
-
     /// Dispatch the event that Modifier+Letter was pressed.
     pub fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
         self.dispatch_res(|sp| sp.event_normal_key(mod_state, letter))

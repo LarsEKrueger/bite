@@ -707,8 +707,6 @@ impl Gui {
                                     }
                                 }
                             }
-                            // XK_Delete => self.presenter.event_delete_right(mod_state),
-                            // XK_BackSpace => self.presenter.event_backspace(mod_state),
                             match cmd {
                                 PresenterCommand::Unknown => {
                                     if status == XLookupChars || status == XLookupBoth {
