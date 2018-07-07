@@ -228,15 +228,16 @@ impl PresenterCommons {
     }
 
     pub fn input_line_iter(&self) -> impl Iterator<Item = LineItem> {
-        self.text_input.line_iter().zip(0..).map(move |(cells,
-                                                        row)| {
-            let cursor_col = if row == self.text_input.cursor_y() {
-                Some(self.text_input.cursor_x() as usize)
-            } else {
-                None
-            };
-            LineItem::new(cells, LineType::Input, cursor_col, 0)
-        })
+        self.text_input.line_iter().zip(0..).map(
+            move |(cells, row)| {
+                let cursor_col = if row == self.text_input.cursor_y() {
+                    Some(self.text_input.cursor_x() as usize)
+                } else {
+                    None
+                };
+                LineItem::new(cells, LineType::Input, cursor_col, 0)
+            },
+        )
     }
 }
 
@@ -390,11 +391,11 @@ impl Presenter {
     /// TODO: Handle escape sequences
     pub fn event_text(&mut self, s: &str) {
         {
-        let ref mut screen = self.cm().text_input;
-        for c in s.chars() {
-screen.insert_character();
-screen.place_char( c);
-        }
+            let ref mut screen = self.cm().text_input;
+            for c in s.chars() {
+                screen.insert_character();
+                screen.place_char(c);
+            }
         }
         self.event_update_line();
     }

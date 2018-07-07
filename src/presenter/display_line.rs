@@ -44,7 +44,8 @@ lazy_static!{
     static ref OUTPUT_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42mO» ".as_bytes());
     static ref ERROR_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42mE» ".as_bytes());
     static ref NONE_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41m » ".as_bytes());
-    static ref OUTPUT_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41mO» ".as_bytes());
+    static ref OUTPUT_FAIL_PREFIX : Vec<Cell> =
+        Screen::one_line_cell_vec( "\x1b[41mO» ".as_bytes());
     static ref ERROR_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41mE» ".as_bytes());
     static ref NONE_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " » ".as_bytes());
     static ref OUTPUT_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "O» ".as_bytes());
@@ -82,19 +83,20 @@ impl<'a> DisplayLine<'a> {
         let deco = match line.is_a {
             LineType::Output => &*OUTPUT_PREFIX,
             LineType::Prompt => &*PROMPT_PREFIX,
-            LineType::Command(ref ov, _, es) =>
-                    match (ov, es.map(|es| es.success())) {
-                        (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
-                        (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
-                        (OutputVisibility::Error, None) => &*ERROR_RUNNING_PREFIX,
+            LineType::Command(ref ov, _, es) => {
+                match (ov, es.map(|es| es.success())) {
+                    (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
+                    (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
+                    (OutputVisibility::Error, None) => &*ERROR_RUNNING_PREFIX,
 
-                        (OutputVisibility::None, Some(true)) => &*NONE_OK_PREFIX,
-                        (OutputVisibility::Output, Some(true)) => &*OUTPUT_OK_PREFIX,
-                        (OutputVisibility::Error, Some(true)) => &*ERROR_OK_PREFIX,
+                    (OutputVisibility::None, Some(true)) => &*NONE_OK_PREFIX,
+                    (OutputVisibility::Output, Some(true)) => &*OUTPUT_OK_PREFIX,
+                    (OutputVisibility::Error, Some(true)) => &*ERROR_OK_PREFIX,
 
-                        (OutputVisibility::None, Some(false)) => &*NONE_FAIL_PREFIX,
-                        (OutputVisibility::Output, Some(false)) => &*OUTPUT_FAIL_PREFIX,
-                        (OutputVisibility::Error, Some(false)) => &*ERROR_FAIL_PREFIX,
+                    (OutputVisibility::None, Some(false)) => &*NONE_FAIL_PREFIX,
+                    (OutputVisibility::Output, Some(false)) => &*OUTPUT_FAIL_PREFIX,
+                    (OutputVisibility::Error, Some(false)) => &*ERROR_FAIL_PREFIX,
+                }
             }
 
             LineType::Input => &*INPUT_PREFIX,
@@ -103,6 +105,12 @@ impl<'a> DisplayLine<'a> {
             LineType::MenuItem(_) => &*MENU_ITEM_PREFIX,
         };
         // TODO: Fix cursor_col to account for prefix
-        DisplayLine::new(deco, line.text, line.cursor_col, line.prompt_hash, line.is_a)
+        DisplayLine::new(
+            deco,
+            line.text,
+            line.cursor_col,
+            line.prompt_hash,
+            line.is_a,
+        )
     }
 }

@@ -423,10 +423,11 @@ impl Gui {
         if let Some(w) = w {
             unsafe {
                 let y = self.line_height * row;
+                let color_index = (line.prompt_hash % (NUM_PROMPT_COLORS as u64)) as usize;
                 XSetForeground(
                     self.display,
                     self.gc,
-                    self.prompt_colors[(line.prompt_hash % (NUM_PROMPT_COLORS as u64)) as usize] as u64,
+                    self.prompt_colors[color_index] as u64,
                 );
                 XFillRectangle(
                     self.display,
