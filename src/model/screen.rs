@@ -476,6 +476,14 @@ impl Screen {
         }
     }
 
+    /// Move to end of current line
+    pub fn move_end_of_line(&mut self) {
+        if 0 <= self.y && self.y < self.height() {
+            let line = self.matrix.compacted_row_slice(self.y);
+            self.x = line.len() as isize;
+        }
+    }
+
     pub fn new_line(&mut self) {
         self.move_left_edge();
         self.move_down(false);

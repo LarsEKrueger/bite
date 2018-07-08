@@ -216,7 +216,7 @@ impl SubPresenter for ComposeCommandPresenter {
             }
 
             ((false, false, false), SpecialKey::End) => {
-                self.commons.text_input.move_right_edge();
+                self.text_input().move_end_of_line();
                 (self, PresenterCommand::Redraw)
             }
 
