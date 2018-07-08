@@ -221,7 +221,11 @@ impl SubPresenter for ComposeCommandPresenter {
             }
 
             ((false, false, false), SpecialKey::Delete) => {
-                self.commons.text_input.delete_character();
+                if self.text_input().cursor_at_end_of_line() {
+                    self.text_input().join_next_line();
+                } else {
+                    self.commons.text_input.delete_character();
+                }
                 (self, PresenterCommand::Redraw)
             }
 

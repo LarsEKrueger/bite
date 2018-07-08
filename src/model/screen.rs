@@ -331,6 +331,21 @@ impl Screen {
         self.matrix.line_iter()
     }
 
+    /// Check if the cursor is at the end of the line
+    pub fn cursor_at_end_of_line(&self) -> bool {
+        if 0 <= self.y && self.y < self.height() {
+            let line = self.matrix.compacted_row_slice(self.y);
+            self.x == line.len() as isize
+        } else {
+            false
+        }
+    }
+
+    /// Check if the frozen representation of the screen looks different that the given matrix
+    pub fn looks_different(&self, other: &Matrix) -> bool {
+        self.matrix != *other
+    }
+
     /// Return the whole text on screen as a string with new lines.
     pub fn extract_text(&self) -> String {
         let mut text = String::new();
@@ -566,14 +581,14 @@ impl Screen {
         }
     }
 
-    /// Delete the current row
-    pub fn delete_row(&mut self) {
+    /// Delete the given row
+    pub fn delete_row_at(&mut self, y: isize) {
         self.make_room();
 
         let w = self.width() as usize;
 
         // Move the cells
-        let mut delete_y = self.y;
+        let mut delete_y = y;
         while delete_y + 1 < self.height() {
             let current_row = self.matrix.cell_index(0, delete_y) as usize;
             let next_row = self.matrix.cell_index(0, delete_y + 1) as usize;
@@ -588,6 +603,12 @@ impl Screen {
         unsafe {
             self.matrix.cells.set_len(self.matrix.height as usize * w);
         }
+    }
+
+    /// Delete the current row
+    pub fn delete_row(&mut self) {
+        let y = self.y;
+        self.delete_row_at(y);
     }
 
     /// Move the remainder of the current row to the next line
@@ -609,9 +630,25 @@ impl Screen {
         self.y += 1;
     }
 
-    /// Check if the frozen representation of the screen looks different that the given matrix
-    pub fn looks_different(&self, other: &Matrix) -> bool {
-        self.matrix != *other
+    /// Join the current line with next line
+    pub fn join_next_line(&mut self) {
+        if self.y + 1 < self.height() {
+            // This line and the next are inside the screen. Resize so that both fit into the
+            // matrix.
+            let current_line_len = self.matrix.compacted_row_slice(self.y).len();
+            let next_line_len = self.matrix.compacted_row_slice(self.y + 1).len();
+            let y = self.y;
+            self.make_room_for((current_line_len + next_line_len) as isize, y);
+
+            // Copy the data
+            let to_index = self.matrix.cell_index(current_line_len as isize, y) as usize;
+            let from_index = self.matrix.cell_index(0, y + 1) as usize;
+            for i in 0..next_line_len {
+                self.matrix.cells[i + to_index] = self.matrix.cells[i + from_index];
+            }
+
+            self.delete_row_at(y + 1);
+        }
     }
 
     /// Convert the screen to a Matrix that cannot be changed anymore
@@ -952,6 +989,19 @@ mod test {
         s.y = 0;
         let tbc = s.text_before_cursor();
         assert_eq!(tbc.as_str(), "hell");
+    }
+
+    #[test]
+    fn join_next_line() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello\nworld\n");
+
+        // Get hell
+        s.x = 5;
+        s.y = 0;
+        s.join_next_line();
+        assert_eq!(s.height(), 1);
+        check_compacted_row(&s, 0, "helloworld");
     }
 
     // TODO: Test for protected
