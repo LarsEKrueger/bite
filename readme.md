@@ -140,6 +140,14 @@ which they were issued. This clue lets you notice quicker which operations took
 place in the same folder, assuming the prompt contains the current working
 directory. This feature is called *prompt color seam*.
 
+In contrast to bash, bite provides a multi-line input field. Press Shift-Return
+to break the current line.  In multi-line mode, both Return and Shift-Return
+create more lines. This is to prevent you from accidently leaving multi-line
+mode.  Use the cursor keys to navigate inside the input field. History browsing
+is deactivated in multi-line mode.  In order to send the lines to bash, press
+Ctrl-Return. Press Delete at the end of a line to join it with the next line.
+Backspace at the beginning of a line with join it with previous one.
+
 For composing commands, it allows quickly alternating between the list of last
 commands and the outputs of those.
 
@@ -202,7 +210,8 @@ non-GUI program.
     * [X] Fix prompt to look like plain bash
     * [X] Visually group by prompt
     * [X] Allow multi-line prompts
-    * [ ] Allow multi-line input
+    * [X] Allow multi-line input
+    * [ ] Display multi-line commands correctly
     * [ ] Draw progress bar style line (terminated with \r) correctly
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode
