@@ -103,6 +103,11 @@ impl SubPresenter for ComposeCommandPresenter {
                     PresenterCommand::Redraw,
                 )
             }
+            ((true, false, false), SpecialKey::Enter) => {
+                // Shift-Enter -> Break the line and thereby start multi-line editing
+                self.commons_mut().text_input.break_line();
+                (self, PresenterCommand::Redraw)
+            }
             ((false, false, false), SpecialKey::Left) => {
                 self.commons_mut().text_input.move_left();
                 (self, PresenterCommand::Redraw)

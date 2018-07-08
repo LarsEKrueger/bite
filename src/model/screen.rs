@@ -537,6 +537,8 @@ impl Screen {
             Cell::new(self.colors),
         );
 
+        self.matrix.height += 1;
+
         // Move down the cells
         let mut current = old_len;
         let next_row = self.matrix.cell_index(0, self.y + 1) as usize;
@@ -550,8 +552,6 @@ impl Screen {
         for c in &mut self.matrix.cells[next_row..(next_row + w)] {
             *c = Cell::new(self.colors);
         }
-
-        self.matrix.height += 1;
     }
 
     /// Delete the current row
@@ -890,6 +890,17 @@ mod test {
     }
 
     #[test]
+    fn insert_row_one_line() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello");
+        s.insert_row();
+
+        assert_eq!(s.height(), 2);
+        check_compacted_row(&s, 0, "hello");
+        check_compacted_row(&s, 1, "");
+    }
+
+    #[test]
     fn break_line() {
         let mut s = Screen::new();
         s.add_bytes(b"hello\nworld\n");
@@ -906,6 +917,20 @@ mod test {
         check_compacted_row(&s, 0, "hel");
         check_compacted_row(&s, 1, "lo");
         check_compacted_row(&s, 2, "world");
+    }
+
+    #[test]
+    fn break_line_at_end() {
+        let mut s = Screen::new();
+        s.add_bytes(b"hello");
+        s.break_line();
+
+        assert_eq!(s.x, 0);
+        assert_eq!(s.y, 1);
+
+        assert_eq!(s.height(), 2);
+        check_compacted_row(&s, 0, "hello");
+        check_compacted_row(&s, 1, "");
     }
 
     #[test]
