@@ -230,7 +230,15 @@ impl SubPresenter for ComposeCommandPresenter {
             }
 
             ((false, false, false), SpecialKey::Backspace) => {
-                self.commons.text_input.delete_left();
+                if self.text_input().cursor_x() == 0 {
+                    if self.text_input().cursor_y() > 0 {
+                        self.text_input().move_up(false);
+                        self.text_input().move_end_of_line();
+                        self.text_input().join_next_line();
+                    }
+                } else {
+                    self.commons.text_input.delete_left();
+                }
                 (self, PresenterCommand::Redraw)
             }
 
