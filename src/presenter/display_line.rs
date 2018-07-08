@@ -36,7 +36,7 @@ pub struct DisplayLine<'a> {
 }
 
 lazy_static!{
-    static ref OUTPUT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( b"  ");
+    static ref OUTPUT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( b"   ");
     static ref PROMPT_PREFIX: Vec<Cell> = Vec::new();
 
     // TODO: Colors

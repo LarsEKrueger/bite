@@ -41,6 +41,25 @@ impl ComposeCommandPresenter {
         let cnt = self.line_iter().count();
         self.commons.last_line_shown = cnt;
     }
+
+    fn is_multi_line(&self) -> bool {
+        self.commons.text_input.height() > 1
+    }
+
+    fn text_input(&mut self) -> &mut Screen {
+        &mut self.commons.text_input
+    }
+
+    fn execute_input(mut self) -> (Box<SubPresenter>, PresenterCommand) {
+        let line = self.commons.text_input.extract_text();
+        self.commons.text_input.reset();
+        self.commons.text_input.make_room();
+        ::model::bash::bash_add_input(line.as_str());
+        (
+            ExecuteCommandPresenter::new(self.commons, Screen::one_line_cell_vec(line.as_bytes())),
+            PresenterCommand::Redraw,
+        )
+    }
 }
 
 impl SubPresenter for ComposeCommandPresenter {
@@ -91,22 +110,25 @@ impl SubPresenter for ComposeCommandPresenter {
     ) -> (Box<SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
-                let line = self.commons.text_input.extract_text();
-                self.commons.text_input.reset();
-                self.commons.text_input.make_room();
-                ::model::bash::bash_add_input(line.as_str());
-                (
-                    ExecuteCommandPresenter::new(
-                        self.commons,
-                        Screen::one_line_cell_vec(line.as_bytes()),
-                    ),
-                    PresenterCommand::Redraw,
-                )
+                if self.is_multi_line() {
+                    self.commons_mut().text_input.break_line();
+                    (self, PresenterCommand::Redraw)
+                } else {
+                    self.execute_input()
+                }
             }
             ((true, false, false), SpecialKey::Enter) => {
                 // Shift-Enter -> Break the line and thereby start multi-line editing
                 self.commons_mut().text_input.break_line();
                 (self, PresenterCommand::Redraw)
+            }
+            ((false, true, false), SpecialKey::Enter) => {
+                // Ctrl-Enter -> Start the command in multi-line mode
+                if self.is_multi_line() {
+                    self.execute_input()
+                } else {
+                    (self, PresenterCommand::Unknown)
+                }
             }
             ((false, false, false), SpecialKey::Left) => {
                 self.commons_mut().text_input.move_left();
@@ -116,24 +138,30 @@ impl SubPresenter for ComposeCommandPresenter {
                 self.commons_mut().text_input.move_right();
                 (self, PresenterCommand::Redraw)
             }
-            ((false, false, false), SpecialKey::Up) => (
-                // Go to history browse mode without search.
-                HistoryPresenter::new(
-                    self.commons,
-                    HistorySearchMode::Browse,
-                    true,
-                ),
-                PresenterCommand::Redraw,
-            ),
-            ((false, false, false), SpecialKey::Down) => (
-                // Go to history browse mode without search.
-                HistoryPresenter::new(
-                    self.commons,
-                    HistorySearchMode::Browse,
-                    false,
-                ),
-                PresenterCommand::Redraw,
-            ),
+            ((false, false, false), SpecialKey::Up) => {
+                if self.is_multi_line() {
+                    self.text_input().move_up(true);
+                    (self, PresenterCommand::Redraw)
+                } else {
+                    // Go to history browse mode without search.
+                    (
+                        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, true),
+                        PresenterCommand::Redraw,
+                    )
+                }
+            }
+            ((false, false, false), SpecialKey::Down) => {
+                if self.is_multi_line() {
+                    self.text_input().move_down(true);
+                    (self, PresenterCommand::Redraw)
+                } else {
+                    (
+                        // Go to history browse mode without search.
+                        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false),
+                        PresenterCommand::Redraw,
+                    )
+                }
+            }
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;

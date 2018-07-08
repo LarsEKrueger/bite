@@ -463,18 +463,22 @@ impl Screen {
     }
 
     /// Move one line down
-    pub fn move_down(&mut self) {
-        self.y += 1;
+    pub fn move_down(&mut self, stay_inside: bool) {
+        if !stay_inside || self.y + 1 < self.height() {
+            self.y += 1;
+        }
     }
 
     /// Move one line up
-    pub fn move_up(&mut self) {
-        self.y -= 1;
+    pub fn move_up(&mut self, stay_inside: bool) {
+        if !stay_inside || self.y > 0 {
+            self.y -= 1;
+        }
     }
 
     pub fn new_line(&mut self) {
         self.move_left_edge();
-        self.move_down();
+        self.move_down(false);
     }
 
     /// Insert a character at the current cursor position.
@@ -622,10 +626,7 @@ impl Screen {
             Action::More => {}
             Action::Error => {}
             Action::Cr => self.move_left_edge(),
-            Action::NewLine => {
-                self.move_left_edge();
-                self.move_down();
-            }
+            Action::NewLine => self.new_line(),
             Action::Char(c) => self.place_char(c),
             Action::Sgr => {
                 for op in self.parser.parameters() {
@@ -774,9 +775,9 @@ mod test {
 
         let mut s = Screen::new();
         s.place_str("hello");
-        s.move_down();
+        s.move_down(false);
         s.place_str("world");
-        s.move_down();
+        s.move_down(false);
         s.make_room();
 
         assert_eq!(s.height(), 3);
