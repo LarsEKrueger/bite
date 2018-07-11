@@ -248,7 +248,7 @@ impl Presenter {
     pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         Ok(Presenter(Some(ExecuteCommandPresenter::new(
             Box::new(PresenterCommons::new(receiver)?),
-            Screen::one_line_cell_vec(b"Startup"),
+            Screen::one_line_matrix(b"Startup"),
         ))))
     }
 

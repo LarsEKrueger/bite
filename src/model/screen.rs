@@ -358,6 +358,24 @@ impl Screen {
         text
     }
 
+    /// Return the whole text on screen as a string with new lines.
+    ///
+    /// The last line does not have a new line.
+    pub fn extract_text_without_last_nl(&self) -> String {
+        let mut text = String::new();
+        let mut place_nl = false;
+        for l in self.line_iter() {
+            if place_nl {
+                text.push('\n');
+            }
+            place_nl = true;
+            for c in l {
+                text.push(c.code_point);
+            }
+        }
+        text
+    }
+
     pub fn text_before_cursor(&mut self) -> String {
         self.make_room();
 

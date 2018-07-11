@@ -20,18 +20,17 @@
 //!
 //! This command might be still running.
 
-use std::iter;
 use std::process::ExitStatus;
 
 use super::iterators::*;
 use super::response::*;
-use super::screen::Cell;
+use super::screen::Matrix;
 
 /// Which output is visible.
 ///
 /// The GUI concept dictates that at most one output (stdout or stderr) is visible. The internal
 /// state allows both of them to be visible.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum OutputVisibility {
     None,
     Output,
@@ -52,7 +51,7 @@ pub enum CommandPosition {
 /// way.
 #[derive(PartialEq)]
 pub struct Interaction {
-    command: Vec<Cell>,
+    command: Matrix,
     pub output: Response,
     pub errors: Response,
     exit_status: Option<ExitStatus>,
@@ -62,7 +61,7 @@ impl Interaction {
     /// Create a new command without any output yet.
     ///
     /// The command is a vector of cells as to support syntax coloring later.
-    pub fn new(command: Vec<Cell>) -> Interaction {
+    pub fn new(command: Matrix) -> Interaction {
         Interaction {
             command,
             exit_status: None,
@@ -115,12 +114,12 @@ impl Interaction {
             _ => OutputVisibility::None,
         };
 
-        iter::once(LineItem::new(
-            &self.command,
-            LineType::Command(ov, pos, self.exit_status),
-            None,
-            prompt_hash,
-        )).chain(resp_lines)
+        let lt = LineType::Command(ov, pos, self.exit_status);
+
+        self.command
+            .line_iter()
+            .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
+            .chain(resp_lines)
 
     }
 
@@ -184,7 +183,7 @@ mod tests {
 
     #[test]
     fn basic_iter() {
-        let mut inter = Interaction::new(Screen::one_line_cell_vec(b"command"));
+        let mut inter = Interaction::new(Screen::one_line_matrix(b"command"));
         inter.add_output(b"out 1\r\nout 2\r\nout3\r\n");
         inter.add_error(b"err 1\r\nerr 2\r\n");
 

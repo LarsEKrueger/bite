@@ -37,7 +37,7 @@ pub struct ExecuteCommandPresenter {
 
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
-    pub fn new(commons: Box<PresenterCommons>, prompt: Vec<Cell>) -> Box<Self> {
+    pub fn new(commons: Box<PresenterCommons>, prompt: Matrix) -> Box<Self> {
         let mut presenter = ExecuteCommandPresenter {
             commons,
             current_interaction: Interaction::new(prompt),
@@ -89,7 +89,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 self.current_interaction.prepare_archiving();
                 let ci = ::std::mem::replace(
                     &mut self.current_interaction,
-                    Interaction::new(Vec::new()),
+                    Interaction::new(Matrix::new()),
                 );
                 self.commons.session.archive_interaction(ci);
 

@@ -102,21 +102,21 @@ mod tests {
     fn line_iter() {
         let mut session = new_test_session(b"prompt 1");
 
-        let mut inter_1_1 = Interaction::new(Screen::one_line_cell_vec(b"command 1.1"));
+        let mut inter_1_1 = Interaction::new(Screen::one_line_matrix(b"command 1.1"));
         inter_1_1.add_output(b"output 1.1.1\r\n");
         inter_1_1.add_output(b"output 1.1.2\r\n");
         session.archive_interaction(inter_1_1);
-        let mut inter_1_2 = Interaction::new(Screen::one_line_cell_vec(b"command 1.2"));
+        let mut inter_1_2 = Interaction::new(Screen::one_line_matrix(b"command 1.2"));
         inter_1_2.add_output(b"output 1.2.1\r\n");
         inter_1_2.add_output(b"output 1.2.2\r\n");
         session.archive_interaction(inter_1_2);
 
         session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
-        let mut inter_2_1 = Interaction::new(Screen::one_line_cell_vec(b"command 2.1"));
+        let mut inter_2_1 = Interaction::new(Screen::one_line_matrix(b"command 2.1"));
         inter_2_1.add_output(b"output 2.1.1\r\n");
         inter_2_1.add_output(b"output 2.1.2\r\n");
         session.archive_interaction(inter_2_1);
-        let mut inter_2_2 = Interaction::new(Screen::one_line_cell_vec(b"command 2.2"));
+        let mut inter_2_2 = Interaction::new(Screen::one_line_matrix(b"command 2.2"));
         inter_2_2.add_output(b"output 2.2.1\r\n");
         inter_2_2.add_output(b"output 2.2.2\r\n");
         session.archive_interaction(inter_2_2);

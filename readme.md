@@ -211,7 +211,7 @@ non-GUI program.
     * [X] Visually group by prompt
     * [X] Allow multi-line prompts
     * [X] Allow multi-line input
-    * [ ] Display multi-line commands correctly
+    * [X] Display multi-line commands correctly
     * [ ] Draw progress bar style line (terminated with \r) correctly
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode

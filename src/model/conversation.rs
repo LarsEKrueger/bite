@@ -92,11 +92,11 @@ mod tests {
     #[test]
     fn line_iter() {
         let mut conv = Conversation::new(Screen::one_line_matrix(b"prompt"));
-        let mut inter_1_1 = Interaction::new(Screen::one_line_cell_vec(b"command 1.1"));
+        let mut inter_1_1 = Interaction::new(Screen::one_line_matrix(b"command 1.1"));
         inter_1_1.add_output(b"output 1.1.1\r\n");
         inter_1_1.add_output(b"output 1.1.2\r\n");
         conv.add_interaction(inter_1_1);
-        let mut inter_1_2 = Interaction::new(Screen::one_line_cell_vec(b"command 1.2"));
+        let mut inter_1_2 = Interaction::new(Screen::one_line_matrix(b"command 1.2"));
         inter_1_2.add_error(b"error 1.2.1\r\n");
         inter_1_2.add_error(b"error 1.2.2\r\n");
         inter_1_2.output.visible = false;

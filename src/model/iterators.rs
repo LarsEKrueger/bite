@@ -25,7 +25,7 @@ use std::process::ExitStatus;
 use std::borrow::Cow;
 
 /// Type of a line for internal processing.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LineType {
     /// A command prompt.
     Prompt,

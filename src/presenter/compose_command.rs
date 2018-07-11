@@ -51,12 +51,14 @@ impl ComposeCommandPresenter {
     }
 
     fn execute_input(mut self) -> (Box<SubPresenter>, PresenterCommand) {
-        let line = self.commons.text_input.extract_text();
+        let line = self.commons.text_input.extract_text_without_last_nl();
         self.commons.text_input.reset();
         self.commons.text_input.make_room();
-        ::model::bash::bash_add_input(line.as_str());
+        let mut line_with_nl = line.clone();
+        line_with_nl.push('\n');
+        ::model::bash::bash_add_input(line_with_nl.as_str());
         (
-            ExecuteCommandPresenter::new(self.commons, Screen::one_line_cell_vec(line.as_bytes())),
+            ExecuteCommandPresenter::new(self.commons, Screen::one_line_matrix(line.as_bytes())),
             PresenterCommand::Redraw,
         )
     }
