@@ -133,7 +133,7 @@ impl ArchivedInteraction {
             .chain(resp_lines)
     }
 
-    /// Check if there are any errror lines.
+    /// Check if there are any error lines.
     pub fn has_errors(&self) -> bool {
         !self.errors.lines.is_empty()
     }
@@ -141,12 +141,6 @@ impl ArchivedInteraction {
     /// Make the error lines visible
     pub fn show_errors(&mut self) {
         self.errors.visible = true;
-        self.output.visible = false;
-    }
-
-    /// Hide all output.
-    pub fn hide_output(&mut self) {
-        self.errors.visible = false;
         self.output.visible = false;
     }
 
@@ -182,7 +176,11 @@ impl CurrentInteraction {
         }
     }
 
-    fn add_bytes_to_screen(screen: &mut Screen, response: &mut Response, bytes: &[u8]) {
+    /// Add a stream of bytes to the screen and possibly to the archive.
+    ///
+    /// Return true if there is progress bar activity going on.
+    fn add_bytes_to_screen(screen: &mut Screen, response: &mut Response, bytes: &[u8]) -> bool {
+        let mut res = false;
         for b in bytes {
             match screen.add_byte(*b) {
                 screen::Event::NewLine => {
@@ -192,10 +190,14 @@ impl CurrentInteraction {
                     }
                     screen.reset();
                 }
+                screen::Event::Cr => {
+                    res = true;
+                }
                 _ => {}
 
             };
         }
+        res
     }
 
 
@@ -203,8 +205,11 @@ impl CurrentInteraction {
         Self::add_bytes_to_screen(&mut self.output_screen, &mut self.archive.output, bytes);
     }
 
-    pub fn add_error(&mut self, bytes: &[u8]) {
-        Self::add_bytes_to_screen(&mut self.error_screen, &mut self.archive.errors, bytes);
+    /// Add a stream of bytes to the screen and possibly to the archive.
+    ///
+    /// Return true if there is progress bar activity going on.
+    pub fn add_error(&mut self, bytes: &[u8]) -> bool {
+        Self::add_bytes_to_screen(&mut self.error_screen, &mut self.archive.errors, bytes)
     }
 
     /// Get the iterator over the items in this interaction.
@@ -224,8 +229,13 @@ impl CurrentInteraction {
             .flat_map(|i| i);
 
         let screen_lines = resp.map(|(_, s)| {
-            s.line_iter().map(move |l| {
-                LineItem::new(&l[..], LineType::Output, None, prompt_hash)
+            s.line_iter().zip(0..).map(move |(line, nr)| {
+                let cursor_x = if s.cursor_y() == nr {
+                    Some(s.cursor_x() as usize)
+                } else {
+                    None
+                };
+                LineItem::new(&line[..], LineType::Output, cursor_x, prompt_hash)
             })
         }).into_iter()
             .flat_map(|i| i);
@@ -251,13 +261,34 @@ impl CurrentInteraction {
         self.archive.set_exit_status(exit_status);
     }
 
-    pub fn prepare_archiving(self) -> ArchivedInteraction {
-        // TODO: Add remaining lines in screens to archive
+    /// Update the archive with the last state of the screen and return it.
+    pub fn prepare_archiving(mut self) -> ArchivedInteraction {
+        for sr in [
+            (&mut self.output_screen, &mut self.archive.output),
+            (&mut self.error_screen, &mut self.archive.errors),
+        ].iter_mut()
+        {
+            let (ref mut screen, ref mut response) = sr;
+            for l in screen.line_iter() {
+                response.add_data(l.to_vec());
+            }
+            screen.reset();
+        }
         self.archive
     }
 
     pub fn get_archive(&mut self) -> &mut ArchivedInteraction {
         &mut self.archive
+    }
+
+    /// Check if there are any error lines.
+    pub fn has_errors(&self) -> bool {
+        self.archive.has_errors()
+    }
+
+    /// Make the error lines visible
+    pub fn show_errors(&mut self) {
+        self.archive.show_errors();
     }
 }
 

@@ -67,10 +67,11 @@ impl<'a> DisplayLine<'a> {
         prompt_hash: u64,
         is_a: LineType,
     ) -> Self {
+        let prefix_len = prefix.len();
         Self {
             prefix,
             line,
-            cursor_col,
+            cursor_col: cursor_col.map(|l| l + prefix_len),
             prompt_hash,
             is_a,
         }

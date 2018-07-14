@@ -212,7 +212,7 @@ non-GUI program.
     * [X] Allow multi-line prompts
     * [X] Allow multi-line input
     * [X] Display multi-line commands correctly
-    * [ ] Draw progress bar style line (terminated with \r) correctly
+    * [X] Draw progress bar style line (terminated with \r) correctly
     * [ ] Switch to TUI mode and back
     * [ ] Handle keys in TUI mode
 * [ ] 0.8 Completion

@@ -249,6 +249,9 @@ pub enum Event {
 
     /// Newline was seen.
     NewLine,
+
+    /// Carriage-return was seen.
+    Cr,
 }
 
 /// A screen is rectangular area of cells and the position of the cursor.
@@ -703,7 +706,7 @@ impl Screen {
             Action::Error => Event::Ignore,
             Action::Cr => {
                 self.move_left_edge();
-                Event::Ignore
+                Event::Cr
             }
             Action::NewLine => {
                 self.new_line();

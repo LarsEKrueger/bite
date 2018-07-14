@@ -73,7 +73,9 @@ impl SubPresenter for ExecuteCommandPresenter {
                     self.current_interaction.add_output(&line);
                 }
                 BashOutput::FromError(line) => {
-                    self.current_interaction.add_error(&line);
+                    if self.current_interaction.add_error(&line) {
+                        self.current_interaction.show_errors();
+                    }
                 }
                 BashOutput::Terminated(exit_code) => {
                     self.current_interaction.set_exit_status(exit_code);
