@@ -21,6 +21,7 @@
 //!
 //! Each line consists of segments that have the same color.
 
+use model::interaction::OutputVisibility;
 use super::*;
 use std::borrow::Cow;
 

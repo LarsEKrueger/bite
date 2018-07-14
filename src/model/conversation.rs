@@ -22,13 +22,13 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use super::iterators::*;
-use super::interaction::*;
+use super::interaction::{ArchivedInteraction, CommandPosition};
 use super::screen::Matrix;
 
 /// A number of commands that are executed with the same prompt string.
 pub struct Conversation {
     /// List of programs and their outputs for this prompt.
-    pub interactions: Vec<Interaction>,
+    pub interactions: Vec<ArchivedInteraction>,
     /// The prompt for this conversation.
     pub prompt: Matrix,
 
@@ -51,7 +51,7 @@ impl Conversation {
     }
 
     /// Add an interaction to the conversation.
-    pub fn add_interaction(&mut self, interaction: Interaction) {
+    pub fn add_interaction(&mut self, interaction: ArchivedInteraction) {
         self.interactions.push(interaction);
     }
 
@@ -87,18 +87,18 @@ impl Conversation {
 mod tests {
     use super::*;
     use super::super::response::tests::check;
+    use model::interaction::OutputVisibility;
+    use model::interaction::tests::{test_add_output, test_add_error};
     use super::super::screen::Screen;
 
     #[test]
     fn line_iter() {
         let mut conv = Conversation::new(Screen::one_line_matrix(b"prompt"));
-        let mut inter_1_1 = Interaction::new(Screen::one_line_matrix(b"command 1.1"));
-        inter_1_1.add_output(b"output 1.1.1\r\n");
-        inter_1_1.add_output(b"output 1.1.2\r\n");
+        let mut inter_1_1 = ArchivedInteraction::new(Screen::one_line_matrix(b"command 1.1"));
+        test_add_output(&mut inter_1_1, b"output 1.1.1\noutput 1.1.2\n");
         conv.add_interaction(inter_1_1);
-        let mut inter_1_2 = Interaction::new(Screen::one_line_matrix(b"command 1.2"));
-        inter_1_2.add_error(b"error 1.2.1\r\n");
-        inter_1_2.add_error(b"error 1.2.2\r\n");
+        let mut inter_1_2 = ArchivedInteraction::new(Screen::one_line_matrix(b"command 1.2"));
+        test_add_error(&mut inter_1_2, b"error 1.2.1\nerror 1.2.2\n");
         inter_1_2.output.visible = false;
         inter_1_2.errors.visible = true;
         conv.add_interaction(inter_1_2);

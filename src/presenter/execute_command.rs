@@ -19,6 +19,7 @@
 //! Sub presenter for executing programs.
 
 use super::*;
+use model::interaction::{CurrentInteraction, CommandPosition};
 use std::str::from_utf8_unchecked;
 use model::bash::{bash_kill_last, is_bash_waiting};
 
@@ -29,7 +30,7 @@ pub struct ExecuteCommandPresenter {
     commons: Box<PresenterCommons>,
 
     /// Current interaction
-    current_interaction: Interaction,
+    current_interaction: CurrentInteraction,
 
     /// Prompt to set. If None, we didn't receive one yet
     next_prompt: Option<Matrix>,
@@ -40,7 +41,7 @@ impl ExecuteCommandPresenter {
     pub fn new(commons: Box<PresenterCommons>, prompt: Matrix) -> Box<Self> {
         let mut presenter = ExecuteCommandPresenter {
             commons,
-            current_interaction: Interaction::new(prompt),
+            current_interaction: CurrentInteraction::new(prompt),
             next_prompt: None,
         };
         presenter.to_last_line();
@@ -86,12 +87,13 @@ impl SubPresenter for ExecuteCommandPresenter {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
-                self.current_interaction.prepare_archiving();
                 let ci = ::std::mem::replace(
                     &mut self.current_interaction,
-                    Interaction::new(Matrix::new()),
+                    CurrentInteraction::new(Matrix::new()),
                 );
-                self.commons.session.archive_interaction(ci);
+                self.commons.session.archive_interaction(
+                    ci.prepare_archiving(),
+                );
 
                 if prompt != self.commons.session.current_conversation.prompt {
                     self.commons.session.new_conversation(prompt);
@@ -228,7 +230,10 @@ impl SubPresenter for ExecuteCommandPresenter {
             (Some(LineType::Command(_, pos, _)), 1) => {
                 if x < COMMAND_PREFIX_LEN {
                     match pos {
-                        CommandPosition::CurrentInteraction => Some(&mut self.current_interaction),
+                        CommandPosition::CurrentInteraction => Some(
+                            self.current_interaction
+                                .get_archive(),
+                        ),
                         p => self.commons_mut().session.find_interaction_from_command(p),
                     }.map(|i| i.cycle_visibility());
                     return (self, NeedRedraw::Yes);

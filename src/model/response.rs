@@ -23,8 +23,6 @@
 use super::iterators::*;
 use super::screen::*;
 
-use std::mem;
-
 /// The full output of a program
 #[derive(PartialEq)]
 pub struct Response {
@@ -33,9 +31,6 @@ pub struct Response {
 
     /// Lines to be shown. Each line in a normal response is just a sequence of cells.
     pub lines: Vec<Vec<Cell>>,
-
-    /// A screen is used to break the input into lines.
-    screen: Screen,
 }
 
 impl Response {
@@ -44,28 +39,12 @@ impl Response {
         Response {
             visible,
             lines: vec![],
-            screen: Screen::new(),
         }
     }
 
-    /// Add a line to the response.
-    pub fn add_matrix(&mut self, matrix: Matrix) {
-        for i in 0..matrix.rows() {
-            self.lines.push(matrix.compacted_row(i));
-        }
-    }
-
-    /// Add data to the screen by interpreting it.
-    ///
-    /// This will turn the underlying data into lines when one is available.
-    pub fn add_data(&mut self, data: &[u8]) {
-        // TODO: Convert screen to lines on the fly.
-        for c in data {
-            self.screen.add_byte(*c);
-        }
-        // TODO: Handle incomplete last lines
-        let s = mem::replace(&mut self.screen, Screen::new());
-        self.add_matrix(s.freeze());
+    /// Add a line.
+    pub fn add_data(&mut self, data: Vec<Cell>) {
+        self.lines.push(data);
     }
 
     /// Iterate over the lines
@@ -113,7 +92,10 @@ pub mod tests {
         s.new_line();
         s.place_str("line 4");
 
-        resp.add_matrix(s.freeze());
+        let m = s.freeze();
+        for l in m.line_iter() {
+            resp.add_data(l.to_vec());
+        }
 
         let mut li = resp.line_iter(0);
 
@@ -135,7 +117,10 @@ pub mod tests {
         s.new_line();
         s.place_str("line 4");
 
-        resp.add_matrix(s.freeze());
+        let m = s.freeze();
+        for l in m.line_iter() {
+            resp.add_data(l.to_vec());
+        }
 
         let mut li = resp.empty_line_iter(0);
         assert_eq!(li.next(), None);

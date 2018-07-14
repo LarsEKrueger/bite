@@ -241,6 +241,16 @@ impl Hash for Matrix {
         self.line_iter().for_each(|r| Hash::hash_slice(r, state));
     }
 }
+
+/// Events that happen during adding bytes.
+pub enum Event {
+    /// Nothing to do.
+    Ignore,
+
+    /// Newline was seen.
+    NewLine,
+}
+
 /// A screen is rectangular area of cells and the position of the cursor.
 ///
 /// The cursor can be outside the allocated screen. If a visible character is inserted there, the
@@ -286,14 +296,17 @@ impl Screen {
 
     /// Direct conversion to one-line vector of cells
     pub fn one_line_cell_vec(line: &[u8]) -> Vec<Cell> {
-        Self::one_line_matrix(line).compacted_row(0)
+        if line.is_empty() {
+            Vec::new()
+        } else {
+            Self::one_line_matrix(line).compacted_row(0)
+        }
     }
 
     /// Direct conversion to one-line matrix
     pub fn one_line_matrix(bytes: &[u8]) -> Matrix {
         let mut s = Screen::new();
         s.add_bytes(bytes);
-        s.make_room();
         s.freeze()
     }
 
@@ -683,14 +696,23 @@ impl Screen {
 
     /// Process a single byte in the state machine.
     ///
-    /// TODO: Indicate certain events in the return code.
-    pub fn add_byte(&mut self, byte: u8) {
+    /// Indicate certain events in the return code.
+    pub fn add_byte(&mut self, byte: u8) -> Event {
         match self.parser.add_byte(byte) {
-            Action::More => {}
-            Action::Error => {}
-            Action::Cr => self.move_left_edge(),
-            Action::NewLine => self.new_line(),
-            Action::Char(c) => self.place_char(c),
+            Action::More => Event::Ignore,
+            Action::Error => Event::Ignore,
+            Action::Cr => {
+                self.move_left_edge();
+                Event::Ignore
+            }
+            Action::NewLine => {
+                self.new_line();
+                Event::NewLine
+            }
+            Action::Char(c) => {
+                self.place_char(c);
+                Event::Ignore
+            }
             Action::Sgr => {
                 for op in self.parser.parameters() {
                     match op {
@@ -728,6 +750,7 @@ impl Screen {
                         _ => {}
                     };
                 }
+                Event::Ignore
             }
         }
     }
@@ -758,7 +781,6 @@ mod test {
 
     #[test]
     fn start_screen() {
-
         let mut s = Screen::new();
         s.make_room();
         assert_eq!(s.width(), 1);
@@ -865,6 +887,8 @@ mod test {
         assert_eq!(s.height(), 2);
         check_compacted_row(&s, 0, "hello");
         check_compacted_row(&s, 1, "world");
+
+        assert_eq!(s.line_iter().count(), 2);
     }
 
     #[test]
@@ -1020,6 +1044,17 @@ mod test {
         s.join_next_line();
         assert_eq!(s.height(), 1);
         check_compacted_row(&s, 0, "helloworld");
+    }
+
+    #[test]
+    fn empty_screen_iter() {
+        let mut s = Screen::new();
+        assert_eq!(s.line_iter().count(), 0);
+
+        s.add_bytes(b"stuff\n");
+        assert_eq!(s.line_iter().count(), 1);
+        s.add_bytes(b"stuff\nstuff\n");
+        assert_eq!(s.line_iter().count(), 3);
     }
 
     // TODO: Test for protected

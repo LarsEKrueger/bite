@@ -31,7 +31,6 @@ pub mod display_line;
 
 use model::session::*;
 use model::iterators::*;
-use model::interaction::*;
 use model::error::*;
 use model::screen::*;
 use model::bash::BashOutput;

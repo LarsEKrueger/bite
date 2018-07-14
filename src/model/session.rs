@@ -48,7 +48,7 @@ impl Session {
     }
 
     /// Move the given interaction to the list of completed interactions.
-    pub fn archive_interaction(&mut self, interaction: Interaction) {
+    pub fn archive_interaction(&mut self, interaction: ArchivedInteraction) {
         self.current_conversation.add_interaction(interaction);
     }
 
@@ -60,7 +60,7 @@ impl Session {
     pub fn find_interaction_from_command<'a>(
         &'a mut self,
         pos: CommandPosition,
-    ) -> Option<&'a mut Interaction> {
+    ) -> Option<&'a mut ArchivedInteraction> {
         match pos {
             CommandPosition::Archived(conv_index, inter_index) => {
                 Some(&mut self.archived[conv_index].interactions[inter_index])
@@ -90,6 +90,7 @@ mod tests {
     use super::*;
     use super::super::response::tests::check;
     use super::super::screen::Screen;
+    use model::interaction::tests::test_add_output;
 
     fn new_test_session(prompt: &[u8]) -> Session {
         Session {
@@ -102,23 +103,19 @@ mod tests {
     fn line_iter() {
         let mut session = new_test_session(b"prompt 1");
 
-        let mut inter_1_1 = Interaction::new(Screen::one_line_matrix(b"command 1.1"));
-        inter_1_1.add_output(b"output 1.1.1\r\n");
-        inter_1_1.add_output(b"output 1.1.2\r\n");
+        let mut inter_1_1 = ArchivedInteraction::new(Screen::one_line_matrix(b"command 1.1"));
+        test_add_output(&mut inter_1_1, b"output 1.1.1\noutput 1.1.2\n");
         session.archive_interaction(inter_1_1);
-        let mut inter_1_2 = Interaction::new(Screen::one_line_matrix(b"command 1.2"));
-        inter_1_2.add_output(b"output 1.2.1\r\n");
-        inter_1_2.add_output(b"output 1.2.2\r\n");
+        let mut inter_1_2 = ArchivedInteraction::new(Screen::one_line_matrix(b"command 1.2"));
+        test_add_output(&mut inter_1_2, b"output 1.2.1\noutput 1.2.2\n");
         session.archive_interaction(inter_1_2);
 
         session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
-        let mut inter_2_1 = Interaction::new(Screen::one_line_matrix(b"command 2.1"));
-        inter_2_1.add_output(b"output 2.1.1\r\n");
-        inter_2_1.add_output(b"output 2.1.2\r\n");
+        let mut inter_2_1 = ArchivedInteraction::new(Screen::one_line_matrix(b"command 2.1"));
+        test_add_output(&mut inter_2_1, b"output 2.1.1\noutput 2.1.2\n");
         session.archive_interaction(inter_2_1);
-        let mut inter_2_2 = Interaction::new(Screen::one_line_matrix(b"command 2.2"));
-        inter_2_2.add_output(b"output 2.2.1\r\n");
-        inter_2_2.add_output(b"output 2.2.2\r\n");
+        let mut inter_2_2 = ArchivedInteraction::new(Screen::one_line_matrix(b"command 2.2"));
+        test_add_output(&mut inter_2_2, b"output 2.2.1\noutput 2.2.2\n");
         session.archive_interaction(inter_2_2);
 
         assert_eq!(session.archived.len(), 1);

@@ -24,7 +24,8 @@ use std::process::ExitStatus;
 
 use super::iterators::*;
 use super::response::*;
-use super::screen::Matrix;
+use super::screen::{Matrix, Screen, Cell};
+use model::screen;
 
 /// Which output is visible.
 ///
@@ -48,21 +49,31 @@ pub enum CommandPosition {
 /// A command and its output.
 ///
 /// This is just a visual representation of a command and not connected to a running process in any
-/// way.
+/// way. It also does only hold completed commands.
 #[derive(PartialEq)]
-pub struct Interaction {
+pub struct ArchivedInteraction {
     command: Matrix,
     pub output: Response,
     pub errors: Response,
     exit_status: Option<ExitStatus>,
 }
 
-impl Interaction {
+/// The data of a currently running command.
+pub struct CurrentInteraction {
+    /// The process output so far
+    archive: ArchivedInteraction,
+    /// What is currently printed to the terminal on stdout
+    output_screen: Screen,
+    /// What is currently printed to the terminal on stderr
+    error_screen: Screen,
+}
+
+impl ArchivedInteraction {
     /// Create a new command without any output yet.
     ///
     /// The command is a vector of cells as to support syntax coloring later.
-    pub fn new(command: Matrix) -> Interaction {
-        Interaction {
+    pub fn new(command: Matrix) -> Self {
+        Self {
             command,
             exit_status: None,
             output: Response::new(true),
@@ -75,18 +86,18 @@ impl Interaction {
         self.exit_status = Some(exit_status);
     }
 
-    // /// Add a block as read from stdout.
-    pub fn add_output(&mut self, data: &[u8]) {
+    /// Add a block as read from stdout.
+    pub fn add_output(&mut self, data: Vec<Cell>) {
         self.output.add_data(data);
     }
 
     /// Add a block as if read from stderr.
-    pub fn add_error(&mut self, data: &[u8]) {
+    pub fn add_error(&mut self, data: Vec<Cell>) {
         self.errors.add_data(data);
     }
 
     /// Get the visible response, if any.
-    pub fn visible_response(&self) -> Option<&Response> {
+    fn visible_response(&self) -> Option<&Response> {
         if self.output.visible {
             Some(&self.output)
         } else if self.errors.visible {
@@ -120,7 +131,6 @@ impl Interaction {
             .line_iter()
             .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
             .chain(resp_lines)
-
     }
 
     /// Check if there are any errror lines.
@@ -162,6 +172,95 @@ impl Interaction {
     }
 }
 
+
+impl CurrentInteraction {
+    pub fn new(command: Matrix) -> Self {
+        Self {
+            archive: ArchivedInteraction::new(command),
+            output_screen: Screen::new(),
+            error_screen: Screen::new(),
+        }
+    }
+
+    fn add_bytes_to_screen(screen: &mut Screen, response: &mut Response, bytes: &[u8]) {
+        for b in bytes {
+            match screen.add_byte(*b) {
+                screen::Event::NewLine => {
+                    // Add all the lines on screen to the response
+                    for l in screen.line_iter() {
+                        response.add_data(l.to_vec());
+                    }
+                    screen.reset();
+                }
+                _ => {}
+
+            };
+        }
+    }
+
+
+    pub fn add_output(&mut self, bytes: &[u8]) {
+        Self::add_bytes_to_screen(&mut self.output_screen, &mut self.archive.output, bytes);
+    }
+
+    pub fn add_error(&mut self, bytes: &[u8]) {
+        Self::add_bytes_to_screen(&mut self.error_screen, &mut self.archive.errors, bytes);
+    }
+
+    /// Get the iterator over the items in this interaction.
+    pub fn line_iter<'a>(
+        &'a self,
+        pos: CommandPosition,
+        prompt_hash: u64,
+    ) -> impl Iterator<Item = LineItem<'a>> {
+        let resp = match (self.archive.output.visible, self.archive.errors.visible) {
+            (true, _) => Some((&self.archive.output, &self.output_screen)),
+            (false, true) => Some((&self.archive.errors, &self.error_screen)),
+            _ => None,
+        };
+
+        let resp_lines = resp.map(|(r, _)| r.line_iter(prompt_hash))
+            .into_iter()
+            .flat_map(|i| i);
+
+        let screen_lines = resp.map(|(_, s)| {
+            s.line_iter().map(move |l| {
+                LineItem::new(&l[..], LineType::Output, None, prompt_hash)
+            })
+        }).into_iter()
+            .flat_map(|i| i);
+
+        let ov = match (self.archive.output.visible, self.archive.errors.visible) {
+            (true, _) => OutputVisibility::Output,
+            (false, true) => OutputVisibility::Error,
+            _ => OutputVisibility::None,
+        };
+
+        let lt = LineType::Command(ov, pos, self.archive.exit_status);
+
+        self.archive
+            .command
+            .line_iter()
+            .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
+            .chain(resp_lines)
+            .chain(screen_lines)
+    }
+
+    /// Set the exit status of the interaction.
+    pub fn set_exit_status(&mut self, exit_status: ExitStatus) {
+        self.archive.set_exit_status(exit_status);
+    }
+
+    pub fn prepare_archiving(self) -> ArchivedInteraction {
+        // TODO: Add remaining lines in screens to archive
+        self.archive
+    }
+
+    pub fn get_archive(&mut self) -> &mut ArchivedInteraction {
+        &mut self.archive
+    }
+}
+
 impl CommandPosition {
     /// Iterator to create CommandPosition elements over the whole vector of archived
     /// conversations.
@@ -176,16 +275,31 @@ impl CommandPosition {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use super::super::response::tests::check;
     use super::super::screen::Screen;
 
+    pub fn test_add_output(inter: &mut ArchivedInteraction, bytes: &[u8]) {
+        let m = Screen::one_line_matrix(bytes);
+        for l in m.line_iter() {
+            inter.add_output(l.to_vec());
+        }
+    }
+
+    pub fn test_add_error(inter: &mut ArchivedInteraction, bytes: &[u8]) {
+        let m = Screen::one_line_matrix(bytes);
+        for l in m.line_iter() {
+            inter.add_error(l.to_vec());
+        }
+    }
+
     #[test]
-    fn basic_iter() {
-        let mut inter = Interaction::new(Screen::one_line_matrix(b"command"));
-        inter.add_output(b"out 1\r\nout 2\r\nout3\r\n");
-        inter.add_error(b"err 1\r\nerr 2\r\n");
+    fn archived_line_iter() {
+        let mut inter = ArchivedInteraction::new(Screen::one_line_matrix(b"command"));
+
+        test_add_output(&mut inter, b"out 1\nout 2\nout3\n");
+        test_add_error(&mut inter, b"err 1\nerr 2\n");
 
         // Test the iterator for visible output
         {
@@ -240,5 +354,34 @@ mod tests {
             );
             assert_eq!(li.next(), None);
         }
+    }
+
+    #[test]
+    fn current_line_iter() {
+        let mut inter = CurrentInteraction::new(Screen::one_line_matrix(b"command"));
+
+        assert_eq!(
+            inter
+                .line_iter(CommandPosition::CurrentInteraction, 0)
+                .count(),
+            1
+        );
+        inter.add_output(b"out 1\n");
+
+        assert_eq!(
+            inter
+                .line_iter(CommandPosition::CurrentInteraction, 0)
+                .count(),
+            2
+        );
+
+        inter.add_output(b"out 2");
+
+        assert_eq!(
+            inter
+                .line_iter(CommandPosition::CurrentInteraction, 0)
+                .count(),
+            3
+        );
     }
 }
