@@ -214,6 +214,10 @@ non-GUI program.
     * [X] Display multi-line commands correctly
     * [X] Draw progress bar style line (terminated with \r) correctly
     * [ ] Switch to TUI mode and back
+        * [ ] Add xterm state machine without characters >= 128
+        * [ ] Add option to dump stdio/stderr stream to disk
+        * [ ] Add TUI detection
+        * [ ] Add TUI presenter
     * [ ] Handle keys in TUI mode
 * [ ] 0.8 Completion
 * [ ] 0.9 Tabs for background programs
@@ -238,6 +242,7 @@ non-GUI program.
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
 * [ ] Do not create interactions for empty lines
 * [ ] Syntax highlighting in input line
+* [ ] Implement C1 control codes
 * [X] Indicate return code of a completed program in the GUI
 * [X] Scroll follows output during program execution
 * [X] Shutdown bash cleanly

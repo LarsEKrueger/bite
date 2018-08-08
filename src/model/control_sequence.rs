@@ -21,16 +21,18 @@
 use std::char;
 use std::fmt;
 use std::mem;
-use std::cmp;
 use std::iter;
 
+use super::vt_parse_table::*;
+
 /// Parser for control sequences
+#[allow(dead_code)]
 pub struct Parser {
     /// Incomplete code point being built
     code_point: u32,
 
-    /// State of the state machine
-    state: State,
+    /// Number of bytes already processed
+    code_byte: u8,
 
     /// How many bytes are supposed to follow for code_point
     code_bytes: u8,
@@ -43,6 +45,16 @@ pub struct Parser {
 
     /// Parameters
     parameter: [Parameter; PARAMETERS],
+
+    parsestate: &'static CaseTable,
+    private_function: bool,
+    lastchar: i32,
+    nextstate: Case,
+
+    print_area: String,
+
+    string_mode: i32,
+    string_area: String,
 }
 
 /// Maximal number of parameters
@@ -77,29 +89,209 @@ pub enum Action {
     Sgr,
 }
 
-/// States of the machine
-#[derive(PartialEq, Debug, Clone, Copy)]
+/// State machine cases for control sequence parser.
+///
+/// Taken from: $XTermId: VTparse.def,v 1.49 2014/04/25 21:36:12 tom Exp $
+/// licensed as:
+/// Copyright 1996-2013,2014 by Thomas E. Dickey
+///
+///                         All Rights Reserved
+///
+/// Permission is hereby granted, free of charge, to any person obtaining a
+/// copy of this software and associated documentation files (the
+/// "Software"), to deal in the Software without restriction, including
+/// without limitation the rights to use, copy, modify, merge, publish,
+/// distribute, sublicense, and/or sell copies of the Software, and to
+/// permit persons to whom the Software is furnished to do so, subject to
+/// the following conditions:
+///
+/// The above copyright notice and this permission notice shall be included
+/// in all copies or substantial portions of the Software.
+///
+/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+/// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+/// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+/// IN NO EVENT SHALL THE ABOVE LISTED COPYRIGHT HOLDER(S) BE LIABLE FOR ANY
+/// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+/// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+/// SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+///
+/// Except as contained in this notice, the name(s) of the above copyright
+/// holders shall not be used in advertising or otherwise to promote the
+/// sale, use or other dealings in this Software without prior written
+/// authorization.
+#[allow(non_camel_case_types)]
+#[derive(PartialEq, Copy, Clone)]
 #[repr(u8)]
-enum State {
-    /// Ready for the next byte
-    Ready,
+pub enum Case {
+    Illegal = 0,
+    GROUND_STATE,
+    IGNORE,
+    BELL,
+    BS,
+    CR,
+    ESC,
+    VMOT,
+    TAB,
+    SI,
+    SO,
+    SCR_STATE,
+    SCS0_STATE,
+    SCS1_STATE,
+    SCS2_STATE,
+    SCS3_STATE,
+    ESC_IGNORE,
+    ESC_DIGIT,
+    ESC_SEMI,
+    DEC_STATE,
+    ICH,
+    CUU,
+    CUD,
+    CUF,
+    CUB,
+    CUP,
+    ED,
+    EL,
+    IL,
+    DL,
+    DCH,
+    DA1,
+    TRACK_MOUSE,
+    TBC,
+    SET,
+    RST,
+    SGR,
+    CPR,
+    DECSTBM,
+    DECREQTPARM,
+    DECSET,
+    DECRST,
+    DECALN,
+    GSETS,
+    DECSC,
+    DECRC,
+    DECKPAM,
+    DECKPNM,
+    IND,
+    NEL,
+    HTS,
+    RI,
+    SS2,
+    SS3,
+    CSI_STATE,
+    OSC,
+    RIS,
+    LS2,
+    LS3,
+    LS3R,
+    LS2R,
+    LS1R,
+    PRINT,
+    XTERM_SAVE,
+    XTERM_RESTORE,
+    XTERM_TITLE,
+    DECID,
+    HP_MEM_LOCK,
+    HP_MEM_UNLOCK,
+    HP_BUGGY_LL,
+    HPA,
+    VPA,
+    XTERM_WINOPS,
+    ECH,
+    CHT,
+    CPL,
+    CNL,
+    CBT,
+    SU,
+    SD,
+    S7C1T,
+    S8C1T,
+    ESC_SP_STATE,
+    ENQ,
+    DECSCL,
+    DECSCA,
+    DECSED,
+    DECSEL,
+    DCS,
+    PM,
+    SOS,
+    ST,
+    APC,
+    EPA,
+    SPA,
+    CSI_QUOTE_STATE,
+    DSR,
+    ANSI_LEVEL_1,
+    ANSI_LEVEL_2,
+    ANSI_LEVEL_3,
+    MC,
+    DEC2_STATE,
+    DA2,
+    DEC3_STATE,
+    DECRPTUI,
+    VT52_CUP,
+    REP,
+    CSI_EX_STATE,
+    DECSTR,
+    DECDHL,
+    DECSWL,
+    DECDWL,
+    DEC_MC,
+    ESC_PERCENT,
+    UTF8,
+    CSI_TICK_STATE,
+    DECELR,
+    DECRQLP,
+    DECEFR,
+    DECSLE,
+    CSI_IGNORE,
+    VT52_IGNORE,
+    VT52_FINISH,
+    CSI_DOLLAR_STATE,
+    DECCRA,
+    DECERA,
+    DECFRA,
+    DECSERA,
+    DECSACE,
+    DECCARA,
+    DECRARA,
+    CSI_STAR_STATE,
+    SET_MOD_FKEYS,
+    SET_MOD_FKEYS0,
+    HIDE_POINTER,
+    SCS1A_STATE,
+    SCS2A_STATE,
+    SCS3A_STATE,
+    CSI_SPACE_STATE,
+    DECSCUSR,
+    SM_TITLE,
+    RM_TITLE,
+    DECSMBV,
+    DECSWBV,
+    DECLL,
+    DECRQM,
+    RQM,
+    CSI_DEC_DOLLAR_STATE,
+    SL,
+    SR,
+    DECDC,
+    DECIC,
+    DECBI,
+    DECFI,
+    DECRQCRA,
+    HPR,
+    VPR,
+    ANSI_SC,
+    ANSI_RC,
+    ESC_COLON,
+    SCS_PERCENT,
+    GSETS_PERCENT,
+    GRAPHICS_ATTRIBUTES,
 
-    /// Waiting for UTF8 byte1
-    Byte1,
-
-    /// Waiting for UTF8 byte2
-    Byte2,
-
-    /// Waiting for UTF8 byte3
-    Byte3,
-
-    /// Escape seen, waiting for sequence selector
-    Escape,
-
-    /// Control Sequence Introducer seen, waiting for parameters or command
-    Csi,
+    NUM_CASES,
 }
 
+pub type CaseTable = [Case; TAG_CONT_U8 as usize];
 
 // Taken from core::str::mod.rs and std_unicode::lossy, see https://www.rust-lang.org/COPYRIGHT.
 // Applies to the following sections between the markers "RUST CODE BEGIN" and "RUST CODE END".
@@ -137,6 +329,9 @@ const CONT_MASK: u8 = 0b0011_1111;
 /// Value of the tag bits (tag mask is !CONT_MASK) of a continuation byte.
 const TAG_CONT_U8: u8 = 0b1000_0000;
 
+/// Highest byte value without TAG_CONT_U8
+const TAG_CONT_U8_1: u8 = TAG_CONT_U8 - 1;
+
 /// Returns the initial codepoint accumulator for the first byte.
 /// The first byte is special, only want bottom 5 bits for width 2, 4 bits
 /// for width 3, and 3 bits for width 4.
@@ -164,226 +359,141 @@ impl Parser {
     pub fn new() -> Self {
         Self {
             code_point: 0,
-            state: State::Ready,
+            code_byte: 0,
             code_bytes: 0,
             first_byte: 0,
             last_parameter_index: None,
             parameter: unsafe { mem::uninitialized() },
+
+            parsestate: &ansi_table,
+            private_function: false,
+            lastchar: -1,
+            nextstate: Case::Illegal,
+            print_area: String::new(),
+
+            string_mode: 0,
+            string_area: String::new(),
         }
     }
 
     /// Process a single-byte character and check for potential escape sequences.
     fn single_byte(&mut self, byte: u8) -> Action {
-        // TODO: handle escape sequences
         debug_assert!(byte < TAG_CONT_U8);
+        self.nextstate = self.parsestate[byte as usize];
 
-        match byte {
-            27 => {
-                self.state = State::Escape;
-                Action::More
-            }
-
-            b'[' => {
-                match self.state {
-                    State::Escape => {
-                        self.state = State::Csi;
-                        self.last_parameter_index = None;
-                        Action::More
-                    }
-                    _ => Action::char_from_u32(byte as u32),
-                }
-            }
-
-            b'0'...b'9' => {
-                match self.state {
-                    State::Csi => {
-                        if let None = self.last_parameter_index {
-                            self.last_parameter_index = Some(0);
-                            self.parameter[0] = 0;
-                        }
-                        if let Some(last) = self.last_parameter_index {
-                            let last = last as usize;
-                            self.parameter[last] =
-                                cmp::min(65535, 10 * self.parameter[last] + ((byte - b'0') as u32));
-                        }
-                        Action::More
-                    }
-
-                    _ => {
-                        self.reset();
-                        Action::char_from_u32(byte as u32)
-                    }
-                }
-            }
-
-            b';' => {
-                match self.state {
-                    State::Csi => {
-                        match self.last_parameter_index {
-                            None => {
-                                self.last_parameter_index = Some(0);
-                                self.parameter[0] = 0;
-                            }
-                            Some(i) => {
-                                let next = i + 1;
-                                if (next as usize) < PARAMETERS {
-                                    self.last_parameter_index = Some(next);
-                                    self.parameter[next as usize] = 0;
-                                }
-                            }
-                        }
-                        Action::More
-                    }
-                    _ => {
-                        self.reset();
-                        Action::char_from_u32(byte as u32)
-                    }
-                }
-            }
-
-            b'm' => {
-                match self.state {
-                    // SGR: Set the colors / attributes
-                    State::Csi => {
-                        self.reset();
-                        Action::Sgr
-                    }
-                    _ => {
-                        self.reset();
-                        Action::char_from_u32(byte as u32)
-                    }
-
-                }
-            }
-
-            b'\r' => Action::Cr,
-            b'\n' => Action::NewLine,
-            byte => Action::char_from_u32(byte as u32),
+        if self.nextstate == Case::PRINT {
+            return Action::char_from_u32(byte as u32);
         }
+
+        // Accumulate string for APC, DCS, PM, OSC, SOS controls
+        // This should always be 8-bit characters.
+        if self.parsestate as *const CaseTable == &sos_table as *const CaseTable {
+            self.string_area.push(unsafe {
+                char::from_u32_unchecked(byte as u32)
+            });
+        } else if self.parsestate as *const CaseTable != &esc_table as *const CaseTable {
+            /* if we were accumulating, we're not any more */
+            self.string_mode = 0;
+            self.string_area.clear();
+        }
+
+        // If the parameter list has subparameters (tokens separated by ":")
+        // reject any controls that do not accept subparameters.
+        if self.has_subparams() {
+            match self.nextstate {
+                Case::GROUND_STATE |
+                Case::CSI_IGNORE |
+                Case::ESC_DIGIT |
+                Case::ESC_SEMI |
+                Case::ESC_COLON => {
+                    // these states are required to parse parameter lists
+                }
+
+                Case::SGR => {
+                    // ...possible subparam usage
+                }
+
+                Case::CSI_DEC_DOLLAR_STATE |
+                Case::CSI_DOLLAR_STATE |
+                Case::CSI_EX_STATE |
+                Case::CSI_QUOTE_STATE |
+                Case::CSI_SPACE_STATE |
+                Case::CSI_STAR_STATE |
+                Case::CSI_TICK_STATE |
+                Case::DEC2_STATE |
+                Case::DEC3_STATE |
+                Case::DEC_STATE => {
+                    // use this branch when we do not yet have the final character
+                    // ...unexpected subparam usage
+                    self.last_parameter_index = None;
+                    self.nextstate = Case::CSI_IGNORE;
+                }
+
+                _ => {
+                    // use this branch for cases where we have the final character
+                    // in the table that processed the parameter list.
+                    // ... unexpected subparam usage
+                    self.reset();
+
+                    // We can safely call recursively because we go back to ground state.
+                    return self.single_byte(byte);
+                }
+            }
+        }
+
+        // TODO: Handle repaintWhenPaletteChanged
+
+        // Call the respective method
+        dispatch_case[self.nextstate as usize](self, byte)
+    }
+
+    fn has_subparams(&self) -> bool {
+        // TODO: Add handling of sub parameters
+        false
     }
 
     /// Process a single byte from the input stream, convert from utf8 to chars on the fly.
     ///
     /// This function is the byte-by-byte version of core::str::next_code_point.
     pub fn add_byte(&mut self, byte: u8) -> Action {
-        match self.state {
-            State::Ready => {
-                if byte < TAG_CONT_U8 {
-                    return self.single_byte(byte);
-                } else {
-                    self.first_byte = byte;
-                    self.code_bytes = self::utf8_char_width(byte);
-                    if 2 <= self.code_bytes && self.code_bytes <= 4 {
-                        self.code_point = self::utf8_first_byte(byte, self.code_bytes as u32);
-                        self.state = State::Byte1;
-                        return Action::More;
-                    }
+        match (self.code_byte, self.code_bytes, self.first_byte, byte) {
+            (0, _, _, 0...TAG_CONT_U8_1) => return self.single_byte(byte),
+            (0, _, _, _) => {
+                self.first_byte = byte;
+                self.code_bytes = self::utf8_char_width(byte);
+                if 2 <= self.code_bytes && self.code_bytes <= 4 {
+                    self.code_point = self::utf8_first_byte(byte, self.code_bytes as u32);
+                    self.code_byte += 1;
+                    return Action::More;
                 }
             }
 
-            State::Byte1 => {
-                match self.code_bytes {
-                    2 => {
-                        if utf8_is_cont_byte(byte) {
-                            let code_point = self::utf8_acc_cont_byte(self.code_point, byte);
-                            self.reset();
-                            return Action::char_from_u32(code_point);
-                        }
-                    }
-
-                    3 => {
-                        // RUST CODE BEGIN
-                        match (self.first_byte, byte) {
-                            (0xE0, 0xA0...0xBF) |
-                            (0xE1...0xEC, 0x80...0xBF) |
-                            (0xED, 0x80...0x9F) |
-                            (0xEE...0xEF, 0x80...0xBF) => {
-                                // RUST CODE END
-                                self.code_point = self::utf8_acc_cont_byte(self.code_point, byte);
-                                self.state = State::Byte2;
-                                return Action::More;
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    4 => {
-                        // RUST CODE BEGIN
-                        match (self.first_byte, byte) {
-                            (0xF0, 0x90...0xBF) |
-                            (0xF1...0xF3, 0x80...0xBF) |
-                            (0xF4, 0x80...0x8F) => {
-                                // RUST CODE END
-                                self.code_point = self::utf8_acc_cont_byte(self.code_point, byte);
-                                self.state = State::Byte2;
-                                return Action::More;
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    _ => {
-                        // We should never get here.
-                        panic!("Internal error: code_bytes={} ", self.code_bytes);
-                    }
-                };
-            }
-
-            State::Byte2 => {
-                match self.code_bytes {
-                    3 => {
-                        if utf8_is_cont_byte(byte) {
-                            let code_point = self::utf8_acc_cont_byte(self.code_point, byte);
-                            self.state = State::Ready;
-                            return Action::char_from_u32(code_point);
-                        }
-                    }
-
-                    4 => {
-                        if utf8_is_cont_byte(byte) {
-                            self.code_point = self::utf8_acc_cont_byte(self.code_point, byte);
-                            self.state = State::Byte3;
-                            return Action::More;
-                        }
-                    }
-
-                    _ => {
-                        // We should never get here.
-                        panic!("Internal error: code_bytes={} ", self.code_bytes);
-                    }
+            // RUST CODE BEGIN
+            (1, 3, 0xE0, 0xA0...0xBF) |
+            (1, 3, 0xE1...0xEC, 0x80...0xBF) |
+            (1, 3, 0xED, 0x80...0x9F) |
+            (1, 3, 0xEE...0xEF, 0x80...0xBF) |
+            (1, 4, 0xF0, 0x90...0xBF) |
+            (1, 4, 0xF1...0xF3, 0x80...0xBF) |
+            (1, 4, 0xF4, 0x80...0x8F) |
+            // RUST CODE END
+            (2, 4, _, _) => {
+                if utf8_is_cont_byte(byte) {
+                    self.code_point = self::utf8_acc_cont_byte(self.code_point, byte);
+                    self.code_byte += 1;
+                    return Action::More;
                 }
             }
 
-            State::Byte3 => {
-                match self.code_bytes {
-                    4 => {
-                        if utf8_is_cont_byte(byte) {
-                            let code_point = self::utf8_acc_cont_byte(self.code_point, byte);
-                            self.state = State::Ready;
-                            return Action::char_from_u32(code_point);
-                        }
-                    }
-                    _ => {
-                        // We should never get here.
-                        panic!("Internal error: code_bytes={} ", self.code_bytes);
-                    }
+            (1, 2, _, _) | (2, 3, _, _) | (3, 4, _, _) => {
+                if utf8_is_cont_byte(byte) {
+                    let code_point = self::utf8_acc_cont_byte(self.code_point, byte);
+                    self.code_byte = 0;
+                    return Action::char_from_u32(code_point);
                 }
-
             }
 
-            State::Escape => {
-                if byte < TAG_CONT_U8 {
-                    return self.single_byte(byte);
-                }
-                // Fall through to fail
-            }
-
-            State::Csi => {
-                if byte < TAG_CONT_U8 {
-                    return self.single_byte(byte);
-                }
-                // Fall through to fail
-            }
+            (_, _, _, _) => {}
         }
         self.reset();
         Action::Error
@@ -391,9 +501,10 @@ impl Parser {
 
     /// Reset to ready state
     pub fn reset(&mut self) {
-        self.state = State::Ready;
+        self.code_byte = 0;
         self.code_point = 0;
         self.code_bytes = 0;
+        self.parsestate = &ansi_table;
     }
 
     /// Return an iterator on the parameters
@@ -406,7 +517,673 @@ impl Parser {
             }
         }
     }
+
+    fn action_Illegal(&mut self, _byte: u8) -> Action {
+        panic!("This should not happen!");
+    }
+
+    fn action_GROUND_STATE(&mut self, _byte: u8) -> Action {
+        self.reset();
+        Action::More
+    }
+    fn action_IGNORE(&mut self, _byte: u8) -> Action {
+        // Ignore this state
+        Action::More
+    }
+    fn action_BELL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_BS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ESC(&mut self, _byte: u8) -> Action {
+        self.parsestate = &esc_table;
+        Action::More
+    }
+    fn action_VMOT(&mut self, byte: u8) -> Action {
+        match byte {
+            b'\n' => Action::NewLine,
+            _ => panic!("Unknown VMOT"),
+        }
+    }
+    fn action_TAB(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SI(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SO(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCR_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS0_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS1_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS2_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS3_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ESC_IGNORE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ESC_DIGIT(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ESC_SEMI(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DEC_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ICH(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CUU(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CUD(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CUF(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CUB(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CUP(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ED(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_EL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_IL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DCH(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DA1(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_TRACK_MOUSE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_TBC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SET(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_RST(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SGR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CPR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSTBM(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECREQTPARM(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSET(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECRST(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECALN(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_GSETS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECRC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECKPAM(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECKPNM(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_IND(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_NEL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_HTS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_RI(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SS2(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SS3(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_OSC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_RIS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_LS2(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_LS3(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_LS3R(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_LS2R(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_LS1R(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_PRINT(&mut self, _byte: u8) -> Action {
+        panic!("This should not happen: Printable characters have no action.");
+    }
+    fn action_XTERM_SAVE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_XTERM_RESTORE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_XTERM_TITLE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECID(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_HP_MEM_LOCK(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_HP_MEM_UNLOCK(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_HP_BUGGY_LL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_HPA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_VPA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_XTERM_WINOPS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ECH(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CHT(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CPL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CNL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CBT(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SU(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SD(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_S7C1T(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_S8C1T(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ESC_SP_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ENQ(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSCL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSCA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSED(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSEL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DCS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_PM(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SOS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ST(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_APC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_EPA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SPA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_QUOTE_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DSR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ANSI_LEVEL_1(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ANSI_LEVEL_2(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ANSI_LEVEL_3(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_MC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DEC2_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DA2(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DEC3_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECRPTUI(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_VT52_CUP(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_REP(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_EX_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSTR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECDHL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSWL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECDWL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DEC_MC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ESC_PERCENT(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_UTF8(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_TICK_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECELR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECRQLP(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECEFR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSLE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_IGNORE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_VT52_IGNORE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_VT52_FINISH(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_DOLLAR_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECCRA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECERA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECFRA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSERA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSACE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECCARA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECRARA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_STAR_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SET_MOD_FKEYS(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SET_MOD_FKEYS0(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_HIDE_POINTER(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS1A_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS2A_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS3A_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_SPACE_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSCUSR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SM_TITLE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_RM_TITLE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSMBV(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECSWBV(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECLL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECRQM(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_RQM(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_CSI_DEC_DOLLAR_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SL(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECDC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECIC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECBI(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECFI(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_DECRQCRA(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_HPR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_VPR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ANSI_SC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ANSI_RC(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_ESC_COLON(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_SCS_PERCENT(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_GSETS_PERCENT(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+    fn action_GRAPHICS_ATTRIBUTES(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
 }
+
+type CaseDispatch = fn(&mut Parser, byte: u8) -> Action;
+
+static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
+    [
+        Parser::action_Illegal,
+        Parser::action_GROUND_STATE,
+        Parser::action_IGNORE,
+        Parser::action_BELL,
+        Parser::action_BS,
+        Parser::action_CR,
+        Parser::action_ESC,
+        Parser::action_VMOT,
+        Parser::action_TAB,
+        Parser::action_SI,
+        Parser::action_SO,
+        Parser::action_SCR_STATE,
+        Parser::action_SCS0_STATE,
+        Parser::action_SCS1_STATE,
+        Parser::action_SCS2_STATE,
+        Parser::action_SCS3_STATE,
+        Parser::action_ESC_IGNORE,
+        Parser::action_ESC_DIGIT,
+        Parser::action_ESC_SEMI,
+        Parser::action_DEC_STATE,
+        Parser::action_ICH,
+        Parser::action_CUU,
+        Parser::action_CUD,
+        Parser::action_CUF,
+        Parser::action_CUB,
+        Parser::action_CUP,
+        Parser::action_ED,
+        Parser::action_EL,
+        Parser::action_IL,
+        Parser::action_DL,
+        Parser::action_DCH,
+        Parser::action_DA1,
+        Parser::action_TRACK_MOUSE,
+        Parser::action_TBC,
+        Parser::action_SET,
+        Parser::action_RST,
+        Parser::action_SGR,
+        Parser::action_CPR,
+        Parser::action_DECSTBM,
+        Parser::action_DECREQTPARM,
+        Parser::action_DECSET,
+        Parser::action_DECRST,
+        Parser::action_DECALN,
+        Parser::action_GSETS,
+        Parser::action_DECSC,
+        Parser::action_DECRC,
+        Parser::action_DECKPAM,
+        Parser::action_DECKPNM,
+        Parser::action_IND,
+        Parser::action_NEL,
+        Parser::action_HTS,
+        Parser::action_RI,
+        Parser::action_SS2,
+        Parser::action_SS3,
+        Parser::action_CSI_STATE,
+        Parser::action_OSC,
+        Parser::action_RIS,
+        Parser::action_LS2,
+        Parser::action_LS3,
+        Parser::action_LS3R,
+        Parser::action_LS2R,
+        Parser::action_LS1R,
+        Parser::action_PRINT,
+        Parser::action_XTERM_SAVE,
+        Parser::action_XTERM_RESTORE,
+        Parser::action_XTERM_TITLE,
+        Parser::action_DECID,
+        Parser::action_HP_MEM_LOCK,
+        Parser::action_HP_MEM_UNLOCK,
+        Parser::action_HP_BUGGY_LL,
+        Parser::action_HPA,
+        Parser::action_VPA,
+        Parser::action_XTERM_WINOPS,
+        Parser::action_ECH,
+        Parser::action_CHT,
+        Parser::action_CPL,
+        Parser::action_CNL,
+        Parser::action_CBT,
+        Parser::action_SU,
+        Parser::action_SD,
+        Parser::action_S7C1T,
+        Parser::action_S8C1T,
+        Parser::action_ESC_SP_STATE,
+        Parser::action_ENQ,
+        Parser::action_DECSCL,
+        Parser::action_DECSCA,
+        Parser::action_DECSED,
+        Parser::action_DECSEL,
+        Parser::action_DCS,
+        Parser::action_PM,
+        Parser::action_SOS,
+        Parser::action_ST,
+        Parser::action_APC,
+        Parser::action_EPA,
+        Parser::action_SPA,
+        Parser::action_CSI_QUOTE_STATE,
+        Parser::action_DSR,
+        Parser::action_ANSI_LEVEL_1,
+        Parser::action_ANSI_LEVEL_2,
+        Parser::action_ANSI_LEVEL_3,
+        Parser::action_MC,
+        Parser::action_DEC2_STATE,
+        Parser::action_DA2,
+        Parser::action_DEC3_STATE,
+        Parser::action_DECRPTUI,
+        Parser::action_VT52_CUP,
+        Parser::action_REP,
+        Parser::action_CSI_EX_STATE,
+        Parser::action_DECSTR,
+        Parser::action_DECDHL,
+        Parser::action_DECSWL,
+        Parser::action_DECDWL,
+        Parser::action_DEC_MC,
+        Parser::action_ESC_PERCENT,
+        Parser::action_UTF8,
+        Parser::action_CSI_TICK_STATE,
+        Parser::action_DECELR,
+        Parser::action_DECRQLP,
+        Parser::action_DECEFR,
+        Parser::action_DECSLE,
+        Parser::action_CSI_IGNORE,
+        Parser::action_VT52_IGNORE,
+        Parser::action_VT52_FINISH,
+        Parser::action_CSI_DOLLAR_STATE,
+        Parser::action_DECCRA,
+        Parser::action_DECERA,
+        Parser::action_DECFRA,
+        Parser::action_DECSERA,
+        Parser::action_DECSACE,
+        Parser::action_DECCARA,
+        Parser::action_DECRARA,
+        Parser::action_CSI_STAR_STATE,
+        Parser::action_SET_MOD_FKEYS,
+        Parser::action_SET_MOD_FKEYS0,
+        Parser::action_HIDE_POINTER,
+        Parser::action_SCS1A_STATE,
+        Parser::action_SCS2A_STATE,
+        Parser::action_SCS3A_STATE,
+        Parser::action_CSI_SPACE_STATE,
+        Parser::action_DECSCUSR,
+        Parser::action_SM_TITLE,
+        Parser::action_RM_TITLE,
+        Parser::action_DECSMBV,
+        Parser::action_DECSWBV,
+        Parser::action_DECLL,
+        Parser::action_DECRQM,
+        Parser::action_RQM,
+        Parser::action_CSI_DEC_DOLLAR_STATE,
+        Parser::action_SL,
+        Parser::action_SR,
+        Parser::action_DECDC,
+        Parser::action_DECIC,
+        Parser::action_DECBI,
+        Parser::action_DECFI,
+        Parser::action_DECRQCRA,
+        Parser::action_HPR,
+        Parser::action_VPR,
+        Parser::action_ANSI_SC,
+        Parser::action_ANSI_RC,
+        Parser::action_ESC_COLON,
+        Parser::action_SCS_PERCENT,
+        Parser::action_GSETS_PERCENT,
+        Parser::action_GRAPHICS_ATTRIBUTES,
+    ];
 
 impl Action {
     fn char_from_u32(byte: u32) -> Action {
@@ -435,7 +1212,7 @@ mod test {
     fn emu(bytes: &[u8]) -> Vec<Action> {
         let mut e = Parser::new();
         let actions = bytes.iter().map(|b| e.add_byte(*b)).collect();
-        assert_eq!(e.state, State::Ready);
+        assert_eq!(e.code_byte, 0);
         actions
     }
 
@@ -447,21 +1224,21 @@ mod test {
             v.append(&mut bytes.iter().map(|b| e.add_byte(*b)).collect());
             v
         });
-        assert_eq!(e.state, State::Ready);
+        assert_eq!(e.code_byte, 0);
         actions
     }
 
     /// Helper function to map a string to the vector of actions and states that were returned
     /// after each byte
-    fn emus(bytes: &[u8]) -> Vec<(Action, State)> {
+    fn emus(bytes: &[u8]) -> Vec<(Action, u8)> {
         let mut e = Parser::new();
         let mut res = Vec::new();
         for b in bytes {
             let a = e.add_byte(*b);
-            let s = e.state;
+            let s = e.code_byte;
             res.push((a, s));
         }
-        assert_eq!(e.state, State::Ready);
+        assert_eq!(e.code_byte, 0);
         res
     }
 
@@ -506,7 +1283,6 @@ mod test {
             ]
         );
     }
-
 
     // Tests adapted from std_unicode/tests/lossy.rs.
     // RUST CODE BEGIN
@@ -610,23 +1386,24 @@ mod test {
 
     #[test]
     fn sgr() {
-        assert_eq!(
-            emus(b"a\x1b[32;12;0md"),
-            [
-                (c('a'), State::Ready),
-                (m(), State::Escape),
-                (m(), State::Csi),
-                (m(), State::Csi),
-                (m(), State::Csi),
-                (m(), State::Csi),
-                (m(), State::Csi),
-                (m(), State::Csi),
-                (m(), State::Csi),
-                (m(), State::Csi),
-                (Action::Sgr, State::Ready),
-                (c('d'), State::Ready),
-            ]
-        );
+
+        //  assert_eq!(
+        //      emus(b"a\x1b[32;12;0md"),
+        //      [
+        //          (c('a'), State::Ready),
+        //          (m(), State::Escape),
+        //          (m(), State::Csi),
+        //          (m(), State::Csi),
+        //          (m(), State::Csi),
+        //          (m(), State::Csi),
+        //          (m(), State::Csi),
+        //          (m(), State::Csi),
+        //          (m(), State::Csi),
+        //          (m(), State::Csi),
+        //          (Action::Sgr, State::Ready),
+        //          (c('d'), State::Ready),
+        //      ]
+        //  );
 
         // Non-SGR sequence (no escape)
         assert_eq!(emu(b"a[32m"), [c('a'), c('['), c('3'), c('2'), c('m')]);
@@ -636,7 +1413,7 @@ mod test {
             let mut e = Parser::new();
             {
                 let actions: Vec<Action> = b"\x1b[32;12m".iter().map(|b| e.add_byte(*b)).collect();
-                assert_eq!(e.state, State::Ready);
+                assert_eq!(e.code_byte, 0);
                 assert_eq!(actions, [m(), m(), m(), m(), m(), m(), m(), Action::Sgr]);
                 assert_eq!(e.last_parameter_index, Some(1));
                 assert_eq!(e.parameter[0], 32);
@@ -647,7 +1424,7 @@ mod test {
             }
             {
                 let actions: Vec<Action> = b"\x1b[45m".iter().map(|b| e.add_byte(*b)).collect();
-                assert_eq!(e.state, State::Ready);
+                assert_eq!(e.code_byte, 0);
                 assert_eq!(actions, [m(), m(), m(), m(), Action::Sgr]);
                 assert_eq!(e.last_parameter_index, Some(0));
                 assert_eq!(e.parameter[0], 45);

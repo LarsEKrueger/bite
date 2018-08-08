@@ -31,3 +31,4 @@ pub mod error;
 pub mod history;
 pub mod screen;
 pub mod control_sequence;
+pub mod vt_parse_table;
