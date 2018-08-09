@@ -22,6 +22,7 @@ use std::char;
 use std::fmt;
 use std::mem;
 use std::iter;
+use std::cmp;
 
 use super::vt_parse_table::*;
 
@@ -452,6 +453,23 @@ impl Parser {
         false
     }
 
+    fn init_params(&mut self) {
+        self.last_parameter_index = None;
+    }
+
+    fn add_default_param(&mut self) {
+        match self.last_parameter_index {
+            None => {
+                self.last_parameter_index = Some(0);
+                self.parameter[0] = 0;
+            }
+            Some(ref mut n) => {
+                *n += 1;
+                self.parameter[*n as usize] = 0;
+            }
+        }
+    }
+
     /// Process a single byte from the input stream, convert from utf8 to chars on the fly.
     ///
     /// This function is the byte-by-byte version of core::str::next_code_point.
@@ -537,7 +555,7 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_CR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        Action::Cr
     }
     fn action_ESC(&mut self, _byte: u8) -> Action {
         self.parsestate = &esc_table;
@@ -576,11 +594,27 @@ impl Parser {
     fn action_ESC_IGNORE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_ESC_DIGIT(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+    fn action_ESC_DIGIT(&mut self, byte: u8) -> Action {
+        if let Some(last) = self.last_parameter_index {
+            let last = last as usize;
+            self.parameter[last] =
+                cmp::min(65535, 10 * self.parameter[last] + ((byte - b'0') as u32));
+        }
+        if self.parsestate as *const CaseTable == &csi_table as *const CaseTable {
+            self.parsestate = &csi2_table;
+        }
+        Action::More
     }
     fn action_ESC_SEMI(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        if let Some(last) = self.last_parameter_index {
+            if (last as usize) < PARAMETERS {
+                self.add_default_param();
+            }
+        }
+        if self.parsestate as *const CaseTable == &csi_table as *const CaseTable {
+            self.parsestate = &csi2_table;
+        }
+        Action::More
     }
     fn action_DEC_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -634,7 +668,7 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_SGR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        Action::Sgr
     }
     fn action_CPR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -688,7 +722,10 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_CSI_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.init_params();
+        self.add_default_param();
+        self.parsestate = &csi_table;
+        Action::More
     }
     fn action_OSC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1385,25 +1422,28 @@ mod test {
     // RUST CODE END
 
     #[test]
-    fn sgr() {
+    fn cr() {
+        assert_eq!(emu(b"he\rwo"), [c('h'), c('e'), Action::Cr, c('w'), c('o')]);
+    }
 
-        //  assert_eq!(
-        //      emus(b"a\x1b[32;12;0md"),
-        //      [
-        //          (c('a'), State::Ready),
-        //          (m(), State::Escape),
-        //          (m(), State::Csi),
-        //          (m(), State::Csi),
-        //          (m(), State::Csi),
-        //          (m(), State::Csi),
-        //          (m(), State::Csi),
-        //          (m(), State::Csi),
-        //          (m(), State::Csi),
-        //          (m(), State::Csi),
-        //          (Action::Sgr, State::Ready),
-        //          (c('d'), State::Ready),
-        //      ]
-        //  );
+    #[test]
+    fn sgr() {
+        assert_eq!(
+            emu(b"a\x1b[32;12;0m"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::Sgr,
+            ]
+        );
 
         // Non-SGR sequence (no escape)
         assert_eq!(emu(b"a[32m"), [c('a'), c('['), c('3'), c('2'), c('m')]);

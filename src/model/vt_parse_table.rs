@@ -236,8 +236,7 @@ pub static ansi_table: CaseTable = [
     Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static csi_table:CaseTable =		/* CSI */
+pub static csi_table:CaseTable =		/* CSI */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -401,8 +400,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static csi2_table : CaseTable =		/* CSI */
+pub static csi2_table : CaseTable =		/* CSI */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
