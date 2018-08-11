@@ -768,6 +768,7 @@ impl Screen {
                         _ => {}
                     };
                 }
+                self.parser.reset();
                 Event::Ignore
             }
             Action::DECREQTPARM => {
