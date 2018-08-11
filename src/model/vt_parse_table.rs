@@ -894,8 +894,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static csi_sp_table : CaseTable =		/* CSI ... SP */
+pub static csi_sp_table : CaseTable =		/* CSI ... SP */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -1224,8 +1223,7 @@ Case::DECDC,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static csi_dollar_table:CaseTable =	/* CSI ... $ */
+pub static csi_dollar_table:CaseTable =	/* CSI ... $ */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -2214,8 +2212,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static cigtable:CaseTable =		/* Case::CSI_IGNORE */
+pub static cigtable:CaseTable =		/* Case::CSI_IGNORE */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,

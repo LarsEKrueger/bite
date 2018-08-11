@@ -88,6 +88,19 @@ pub enum Action {
     ///
     /// Process the parameters outside and then reset the state
     Sgr,
+
+    DECREQTPARM,
+
+    SaveCursor,
+    RestoreCursor,
+
+    HorizontalMove(isize),
+
+    VerticalPos(isize),
+
+    DA1(usize),
+
+    WindowOps(u8, usize, usize),
 }
 
 /// State machine cases for control sequence parser.
@@ -536,6 +549,26 @@ impl Parser {
         }
     }
 
+    fn param_at_least_if_default(&self, param_index: u8, min_val: Parameter) -> Parameter {
+        match self.last_parameter_index {
+            None => min_val,
+            Some(last) => {
+                if param_index <= last {
+                    cmp::max(min_val, self.parameter[param_index as usize])
+                } else {
+                    min_val
+                }
+            }
+        }
+    }
+
+    fn param_zero_if_default(&self, param_index: u8) -> Parameter {
+        self.param_at_least_if_default(param_index, 0)
+    }
+    fn param_one_if_default(&self, param_index: u8) -> Parameter {
+        self.param_at_least_if_default(param_index, 1)
+    }
+
     fn action_Illegal(&mut self, _byte: u8) -> Action {
         panic!("This should not happen!");
     }
@@ -653,7 +686,9 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DA1(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        let val = self.param_zero_if_default(0);
+        self.reset();
+        Action::DA1(val as usize)
     }
     fn action_TRACK_MOUSE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -677,7 +712,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECREQTPARM(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DECREQTPARM
     }
     fn action_DECSET(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -776,10 +812,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_VPA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        let val = self.param_one_if_default(0) - 1;
+        self.reset();
+        Action::VerticalPos(val as isize)
     }
     fn action_XTERM_WINOPS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        let val = self.param_zero_if_default(0);
+        let val1 = self.param_zero_if_default(1);
+        let val2 = self.param_zero_if_default(2);
+        self.reset();
+        Action::WindowOps(cmp::max(val, 255) as u8, val1 as usize, val2 as usize)
     }
     fn action_ECH(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -923,7 +965,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_CSI_IGNORE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.parsestate = &cigtable;
+        Action::More
     }
     fn action_VT52_IGNORE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -932,7 +975,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_CSI_DOLLAR_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.parsestate = &csi_dollar_table;
+        Action::More
     }
     fn action_DECCRA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -977,7 +1021,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_CSI_SPACE_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.parsestate = &csi_sp_table;
+        Action::More
     }
     fn action_DECSCUSR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1028,16 +1073,20 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_HPR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        let col = self.param_one_if_default(0);
+        self.reset();
+        Action::HorizontalMove(col as isize)
     }
     fn action_VPR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_ANSI_SC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::SaveCursor
     }
     fn action_ANSI_RC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::RestoreCursor
     }
     fn action_ESC_COLON(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1237,6 +1286,14 @@ impl fmt::Debug for Action {
             Action::NewLine => write!(f, "NewLine"),
             Action::Sgr => write!(f, "Sgr"),
             Action::Char(c) => write!(f, "Char({})", *c as u32),
+            Action::DECREQTPARM => write!(f, "DECREQTPARM"),
+            Action::HorizontalMove(n) => write!(f, "HorizontalMove({})", n),
+            Action::VerticalPos(n) => write!(f, "VerticalPos({})", n),
+            Action::DA1(n) => write!(f, "DA1({})", n),
+            Action::SaveCursor => write!(f, "SaveCursor"),
+            Action::RestoreCursor => write!(f, "RestoreCursor"),
+            Action::WindowOps(n0, n1, n2) => write!(f, "WindowOps({},{},{})", n0, n1, n2),
+
         }
     }
 }
@@ -1424,6 +1481,14 @@ mod test {
     #[test]
     fn cr() {
         assert_eq!(emu(b"he\rwo"), [c('h'), c('e'), Action::Cr, c('w'), c('o')]);
+    }
+
+    #[test]
+    fn decreqtparm() {
+        assert_eq!(
+            emu(b"a\x1b[0x\n"),
+            [c('a'), m(), m(), m(), Action::DECREQTPARM, Action::NewLine]
+        );
     }
 
     #[test]

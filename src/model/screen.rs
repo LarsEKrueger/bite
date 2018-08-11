@@ -254,6 +254,15 @@ pub enum Event {
     Cr,
 }
 
+#[derive(Copy, Clone)]
+struct Cursor {
+    /// Horizontal cursor position. Might be negative.
+    x: isize,
+
+    /// Vertical cursor position. Might be negative.
+    y: isize,
+}
+
 /// A screen is rectangular area of cells and the position of the cursor.
 ///
 /// The cursor can be outside the allocated screen. If a visible character is inserted there, the
@@ -263,11 +272,11 @@ pub struct Screen {
     /// A matrix of cells
     matrix: Matrix,
 
-    /// Horizontal cursor position. Might be negative.
-    x: isize,
+    /// Cursor position
+    cursor: Cursor,
 
-    /// Vertical cursor position. Might be negative.
-    y: isize,
+    /// Saved cursor position
+    saved_cursor: Cursor,
 
     /// Attributes for next character
     attributes: Attributes,
@@ -284,13 +293,19 @@ const INITIAL_COLORS: Colors = Colors {
     background: 0,
 };
 
+impl Cursor {
+    fn new() -> Self {
+        Self { x: 0, y: 0 }
+    }
+}
+
 impl Screen {
     /// Create a new, empty screen
     pub fn new() -> Self {
         Self {
             matrix: Matrix::new(),
-            x: 0,
-            y: 0,
+            cursor: Cursor::new(),
+            saved_cursor: Cursor::new(),
             attributes: Attributes::empty(),
             colors: INITIAL_COLORS,
             parser: Parser::new(),
@@ -316,8 +331,7 @@ impl Screen {
     /// Reset the screen to initial values.
     pub fn reset(&mut self) {
         self.matrix.reset();
-        self.x = 0;
-        self.y = 0;
+        self.cursor = Cursor::new();
         self.attributes = Attributes::empty();
         self.colors = INITIAL_COLORS;
         self.parser.reset();
@@ -335,12 +349,12 @@ impl Screen {
 
     /// Cursor position, x coordinate
     pub fn cursor_x(&self) -> isize {
-        self.x
+        self.cursor.x
     }
 
     /// Cursor position, y coordinate
     pub fn cursor_y(&self) -> isize {
-        self.y
+        self.cursor.y
     }
 
     pub fn line_iter(&self) -> impl Iterator<Item = &[Cell]> {
@@ -349,9 +363,9 @@ impl Screen {
 
     /// Check if the cursor is at the end of the line
     pub fn cursor_at_end_of_line(&self) -> bool {
-        if 0 <= self.y && self.y < self.height() {
-            let line = self.matrix.compacted_row_slice(self.y);
-            self.x == line.len() as isize
+        if 0 <= self.cursor.y && self.cursor.y < self.height() {
+            let line = self.matrix.compacted_row_slice(self.cursor.y);
+            self.cursor.x == line.len() as isize
         } else {
             false
         }
@@ -396,7 +410,7 @@ impl Screen {
         self.make_room();
 
         let mut text = String::new();
-        let mut current_index = self.matrix.cell_index(0, self.y) as usize;
+        let mut current_index = self.matrix.cell_index(0, self.cursor.y) as usize;
         let cursor_index = self.cursor_index() as usize;
         while current_index < cursor_index {
             text.push(self.matrix.cells[current_index].code_point);
@@ -406,11 +420,11 @@ impl Screen {
     }
 
     pub fn replace(&mut self, s: &str, stay_there: bool) {
-        let x = self.x;
+        let x = self.cursor.x;
         self.reset();
         self.place_str(s);
         if stay_there {
-            self.x = x;
+            self.cursor.x = x;
         }
     }
 
@@ -423,7 +437,7 @@ impl Screen {
             attributes: self.attributes | Attributes::CHARDRAWN,
             colors: self.colors,
         };
-        self.x += 1;
+        self.cursor.x += 1;
     }
 
     pub fn place_str(&mut self, s: &str) {
@@ -434,10 +448,11 @@ impl Screen {
 
     /// Ensure that there is room for the character at the current position.
     pub fn make_room(&mut self) {
-        let (x, y) = (self.x, self.y);
+        // TODO: Also update the saved cursor position
+        let (x, y) = (self.cursor.x, self.cursor.y);
         let (nx, ny) = self.make_room_for(x, y);
-        self.x = nx;
-        self.y = ny;
+        self.cursor.x = nx;
+        self.cursor.y = ny;
     }
 
     fn make_room_for(&mut self, x: isize, y: isize) -> (isize, isize) {
@@ -478,58 +493,58 @@ impl Screen {
 
     /// Compute the index of the cursor position into the cell array
     fn cursor_index(&self) -> usize {
-        self.matrix.cell_index(self.x, self.y) as usize
+        self.matrix.cell_index(self.cursor.x, self.cursor.y) as usize
     }
 
     /// Move the cursor to the left edge
     pub fn move_left_edge(&mut self) {
-        self.x = 0;
+        self.cursor.x = 0;
     }
 
     /// Move cursor to the right edge. Moves it past the last possible character.
     pub fn move_right_edge(&mut self) {
-        self.x = self.width();
+        self.cursor.x = self.width();
     }
 
     /// Move cursor to the top edge
     pub fn move_top_edge(&mut self) {
-        self.y = 0;
+        self.cursor.y = 0;
     }
 
     /// Move cursor to bottom edge. Moves it past the last possible character.
     pub fn move_bottom_edge(&mut self) {
-        self.y = self.height();
+        self.cursor.y = self.height();
     }
 
     /// Move one cell to the right
     pub fn move_right(&mut self) {
-        self.x += 1;
+        self.cursor.x += 1;
     }
 
     /// Move one cell to the left
     pub fn move_left(&mut self) {
-        self.x -= 1;
+        self.cursor.x -= 1;
     }
 
     /// Move one line down
     pub fn move_down(&mut self, stay_inside: bool) {
-        if !stay_inside || self.y + 1 < self.height() {
-            self.y += 1;
+        if !stay_inside || self.cursor.y + 1 < self.height() {
+            self.cursor.y += 1;
         }
     }
 
     /// Move one line up
     pub fn move_up(&mut self, stay_inside: bool) {
-        if !stay_inside || self.y > 0 {
-            self.y -= 1;
+        if !stay_inside || self.cursor.y > 0 {
+            self.cursor.y -= 1;
         }
     }
 
     /// Move to end of current line
     pub fn move_end_of_line(&mut self) {
-        if 0 <= self.y && self.y < self.height() {
-            let line = self.matrix.compacted_row_slice(self.y);
-            self.x = line.len() as isize;
+        if 0 <= self.cursor.y && self.cursor.y < self.height() {
+            let line = self.matrix.compacted_row_slice(self.cursor.y);
+            self.cursor.x = line.len() as isize;
         }
     }
 
@@ -544,16 +559,16 @@ impl Screen {
     /// rest of the line to the right.
     pub fn insert_character(&mut self) {
         self.make_room();
-        let mut row_end = self.matrix.cell_index(self.width() - 1, self.y) as usize;
+        let mut row_end = self.matrix.cell_index(self.width() - 1, self.cursor.y) as usize;
 
         if self.matrix.cells[row_end].drawn() {
             // Last cell in row is drawn, need to resize
-            let (x, y) = (self.width(), self.y);
+            let (x, y) = (self.width(), self.cursor.y);
             self.make_room_for(x, y);
-            row_end = self.matrix.cell_index(self.width() - 1, self.y) as usize;
+            row_end = self.matrix.cell_index(self.width() - 1, self.cursor.y) as usize;
         }
 
-        let current = self.matrix.cell_index(self.x, self.y) as usize;
+        let current = self.matrix.cell_index(self.cursor.x, self.cursor.y) as usize;
 
         while row_end > current {
             row_end -= 1;
@@ -568,8 +583,8 @@ impl Screen {
     pub fn delete_character(&mut self) {
         self.make_room();
 
-        let mut current = self.matrix.cell_index(self.x, self.y) as usize;
-        let row_end = self.matrix.cell_index(self.width() - 1, self.y) as usize;
+        let mut current = self.matrix.cell_index(self.cursor.x, self.cursor.y) as usize;
+        let row_end = self.matrix.cell_index(self.width() - 1, self.cursor.y) as usize;
 
         while current + 1 <= row_end {
             self.matrix.cells[current] = self.matrix.cells[current + 1];
@@ -580,7 +595,7 @@ impl Screen {
 
     /// Delete the character left of the cursor
     pub fn delete_left(&mut self) {
-        if self.x > 0 {
+        if self.cursor.x > 0 {
             self.move_left();
             self.delete_character();
         }
@@ -602,7 +617,7 @@ impl Screen {
 
         // Move down the cells
         let mut current = old_len;
-        let next_row = self.matrix.cell_index(0, self.y + 1) as usize;
+        let next_row = self.matrix.cell_index(0, self.cursor.y + 1) as usize;
         while current >= next_row {
             let (top, bottom) = self.matrix.cells.split_at_mut(current);
             bottom[0..w].copy_from_slice(&top[(current - w)..current]);
@@ -641,7 +656,7 @@ impl Screen {
 
     /// Delete the current row
     pub fn delete_row(&mut self) {
-        let y = self.y;
+        let y = self.cursor.y;
         self.delete_row_at(y);
     }
 
@@ -650,9 +665,9 @@ impl Screen {
         self.insert_row();
 
         let w = self.width() as usize;
-        let here = self.matrix.cell_index(self.x, self.y) as usize;
-        let n = w - self.x as usize;
-        let next_row = self.matrix.cell_index(0, self.y + 1) as usize;
+        let here = self.matrix.cell_index(self.cursor.x, self.cursor.y) as usize;
+        let n = w - self.cursor.x as usize;
+        let next_row = self.matrix.cell_index(0, self.cursor.y + 1) as usize;
 
         for i in 0..n {
             let old_cell = self.matrix.cells[here + i];
@@ -660,18 +675,18 @@ impl Screen {
             self.matrix.cells[here + i] = Cell::new(self.colors);
         }
 
-        self.x = 0;
-        self.y += 1;
+        self.cursor.x = 0;
+        self.cursor.y += 1;
     }
 
     /// Join the current line with next line
     pub fn join_next_line(&mut self) {
-        if self.y + 1 < self.height() {
+        if self.cursor.y + 1 < self.height() {
             // This line and the next are inside the screen. Resize so that both fit into the
             // matrix.
-            let current_line_len = self.matrix.compacted_row_slice(self.y).len();
-            let next_line_len = self.matrix.compacted_row_slice(self.y + 1).len();
-            let y = self.y;
+            let current_line_len = self.matrix.compacted_row_slice(self.cursor.y).len();
+            let next_line_len = self.matrix.compacted_row_slice(self.cursor.y + 1).len();
+            let y = self.cursor.y;
             self.make_room_for((current_line_len + next_line_len) as isize, y);
 
             // Copy the data
@@ -755,6 +770,34 @@ impl Screen {
                 }
                 Event::Ignore
             }
+            Action::DECREQTPARM => {
+                // TODO: Send response
+                Event::Ignore
+            }
+            Action::HorizontalMove(n) => {
+                self.cursor.x += n as isize;
+                Event::Ignore
+            }
+            Action::DA1(_n) => {
+                // TODO: Send response
+                Event::Ignore
+            }
+            Action::VerticalPos(n) => {
+                self.cursor.y = n;
+                Event::Ignore
+            }
+            Action::SaveCursor => {
+                self.saved_cursor = self.cursor;
+                Event::Ignore
+            }
+            Action::RestoreCursor => {
+                self.cursor = self.saved_cursor;
+                Event::Ignore
+            }
+            Action::WindowOps(_op, _p1, _p2) => {
+                // TODO: Convert to event
+                Event::Ignore
+            }
         }
     }
 }
@@ -805,52 +848,52 @@ mod test {
     fn grow_left() {
         let mut s = Screen::new();
         s.make_room();
-        s.x = -3;
+        s.cursor.x = -3;
         s.make_room();
         assert_eq!(s.width(), 4);
         assert_eq!(s.height(), 1);
         assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.x, 0);
-        assert_eq!(s.y, 0);
+        assert_eq!(s.cursor.x, 0);
+        assert_eq!(s.cursor.y, 0);
     }
 
     #[test]
     fn grow_right() {
         let mut s = Screen::new();
         s.make_room();
-        s.x = 3;
+        s.cursor.x = 3;
         s.make_room();
         assert_eq!(s.width(), 4);
         assert_eq!(s.height(), 1);
         assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.x, 3);
-        assert_eq!(s.y, 0);
+        assert_eq!(s.cursor.x, 3);
+        assert_eq!(s.cursor.y, 0);
     }
 
     #[test]
     fn grow_up() {
         let mut s = Screen::new();
         s.make_room();
-        s.y = -3;
+        s.cursor.y = -3;
         s.make_room();
         assert_eq!(s.width(), 1);
         assert_eq!(s.height(), 4);
         assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.x, 0);
-        assert_eq!(s.y, 0);
+        assert_eq!(s.cursor.x, 0);
+        assert_eq!(s.cursor.y, 0);
     }
 
     #[test]
     fn grow_down() {
         let mut s = Screen::new();
         s.make_room();
-        s.y = 3;
+        s.cursor.y = 3;
         s.make_room();
         assert_eq!(s.width(), 1);
         assert_eq!(s.height(), 4);
         assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.x, 0);
-        assert_eq!(s.y, 3);
+        assert_eq!(s.cursor.x, 0);
+        assert_eq!(s.cursor.y, 3);
     }
 
     #[test]
@@ -906,8 +949,8 @@ mod test {
         s.add_bytes(b"hello\nworld\n");
 
         // Delete the e
-        s.x = 1;
-        s.y = 0;
+        s.cursor.x = 1;
+        s.cursor.y = 0;
         s.delete_character();
 
         assert_eq!(s.height(), 2);
@@ -921,8 +964,8 @@ mod test {
         s.add_bytes(b"hello\nworld\n");
 
         // Insert before the e
-        s.x = 1;
-        s.y = 0;
+        s.cursor.x = 1;
+        s.cursor.y = 0;
         s.insert_character();
 
         assert_eq!(s.height(), 2);
@@ -942,8 +985,8 @@ mod test {
         check_compacted_row(&s, 1, "world");
 
         // Delete the first row
-        s.x = 1;
-        s.y = 0;
+        s.cursor.x = 1;
+        s.cursor.y = 0;
         s.delete_row();
 
         assert_eq!(s.height(), 1);
@@ -956,8 +999,8 @@ mod test {
         s.add_bytes(b"hello\nworld\n");
 
         // Delete the first row
-        s.x = 1;
-        s.y = 1;
+        s.cursor.x = 1;
+        s.cursor.y = 1;
         s.delete_row();
 
         assert_eq!(s.height(), 1);
@@ -970,8 +1013,8 @@ mod test {
         s.add_bytes(b"hello\nworld\n");
 
         // Insert a row between the two
-        s.x = 1;
-        s.y = 0;
+        s.cursor.x = 1;
+        s.cursor.y = 0;
         s.insert_row();
 
         assert_eq!(s.height(), 3);
@@ -997,12 +1040,12 @@ mod test {
         s.add_bytes(b"hello\nworld\n");
 
         // Break the first line between the l
-        s.x = 3;
-        s.y = 0;
+        s.cursor.x = 3;
+        s.cursor.y = 0;
         s.break_line();
 
-        assert_eq!(s.x, 0);
-        assert_eq!(s.y, 1);
+        assert_eq!(s.cursor.x, 0);
+        assert_eq!(s.cursor.y, 1);
 
         assert_eq!(s.height(), 3);
         check_compacted_row(&s, 0, "hel");
@@ -1016,8 +1059,8 @@ mod test {
         s.add_bytes(b"hello");
         s.break_line();
 
-        assert_eq!(s.x, 0);
-        assert_eq!(s.y, 1);
+        assert_eq!(s.cursor.x, 0);
+        assert_eq!(s.cursor.y, 1);
 
         assert_eq!(s.height(), 2);
         check_compacted_row(&s, 0, "hello");
@@ -1030,8 +1073,8 @@ mod test {
         s.add_bytes(b"hello\nworld\n");
 
         // Get hell
-        s.x = 4;
-        s.y = 0;
+        s.cursor.x = 4;
+        s.cursor.y = 0;
         let tbc = s.text_before_cursor();
         assert_eq!(tbc.as_str(), "hell");
     }
@@ -1042,8 +1085,8 @@ mod test {
         s.add_bytes(b"hello\nworld\n");
 
         // Get hell
-        s.x = 5;
-        s.y = 0;
+        s.cursor.x = 5;
+        s.cursor.y = 0;
         s.join_next_line();
         assert_eq!(s.height(), 1);
         check_compacted_row(&s, 0, "helloworld");
