@@ -1,5 +1,5 @@
 /*
-    BiTE - Bash-integrated Terminal Emulator
+    BiTE - Bash-integrated Terminal Parser
     Copyright (C) 2018  Lars Krüger
 
     This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//! The model component of the model-view-presenter pattern.
-//!
-//! All modules deal with the bash script interpreter, either interactively or non-interactively.
-
-pub mod bash;
-pub mod conversation;
-pub mod interaction;
-pub mod iterators;
-pub mod response;
-pub mod session;
-pub mod types;
-pub mod error;
-pub mod history;
-pub mod screen;
-pub mod control_sequence;
+mod types;
+pub mod action;
+pub mod parser;
+pub mod parameter;
+mod vt_parse_table;

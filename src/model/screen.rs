@@ -24,7 +24,8 @@
 use std::cmp;
 use std::hash::{Hash, Hasher};
 
-use super::control_sequence::{Parser, Action};
+use super::control_sequence::action::Action;
+use super::control_sequence::parser::Parser;
 
 /// Colors are pairs of foreground/background indices into the same palette.
 #[derive(Clone, Copy, Debug, Hash)]
@@ -768,7 +769,6 @@ impl Screen {
                         _ => {}
                     };
                 }
-                self.parser.reset();
                 Event::Ignore
             }
             Action::DECREQTPARM => {

@@ -1,5 +1,5 @@
 /*
-    BiTE - Bash-integrated Terminal Parser
+    BiTE - Bash-integrated Terminal
     Copyright (C) 2018  Lars Krüger
 
     This program is free software: you can redistribute it and/or modify
@@ -71,7 +71,7 @@
  * SOFTWARE.
 */
 
-use super::control_sequence::{Case, CaseTable};
+use super::types::{Case, CaseTable};
 
 pub static ansi_table: CaseTable = [
     /*	NUL		SOH		STX		ETX	*/

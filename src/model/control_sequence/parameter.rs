@@ -1,0 +1,126 @@
+/*
+    BiTE - Bash-integrated Terminal Parser
+    Copyright (C) 2018  Lars Krüger
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+//! Control sequence parameters
+
+use std::cmp;
+
+/// Parameter of a control sequence.
+///
+/// Prepared for sub-parameters.
+pub type Parameter = u32;
+
+/// Maximal number of parameters
+const NUM_PARAMETERS: usize = 30;
+
+pub struct Parameters {
+    /// Number of parameters used
+    count: u8,
+
+    /// Values of parameters
+    values: [Parameter; NUM_PARAMETERS],
+}
+
+impl Parameters {
+    pub fn new() -> Self {
+        Self {
+            count: 0,
+            values: [0; NUM_PARAMETERS],
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.count = 0;
+    }
+
+    pub fn count(&self) -> usize {
+        self.count as usize
+    }
+
+    pub fn has_subparams(&self) -> bool {
+        // TODO: Add handling of sub parameters
+        false
+    }
+
+    pub fn add_default(&mut self) {
+        if (self.count  as usize) < NUM_PARAMETERS {
+            self.count += 1;
+        }
+        let cm = self.current_mut();
+        *cm = 0;
+    }
+
+    pub fn current_mut(&mut self) -> &mut Parameter {
+        debug_assert!(self.count != 0);
+        &mut self.values[(self.count - 1) as usize]
+    }
+
+    /// Return an iterator on the parameters
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Parameter> + 'a {
+        let c = self.count as usize;
+        self.values[0..c].into_iter().map(|v| *v)
+    }
+
+    fn at_least_if_default(&self, param_index: u8, min_val: Parameter) -> Parameter {
+        if param_index < self.count {
+            cmp::max(min_val, self.values[param_index as usize])
+        } else {
+            min_val
+        }
+    }
+
+    pub fn zero_if_default(&self, param_index: u8) -> Parameter {
+        self.at_least_if_default(param_index, 0)
+    }
+
+    pub fn one_if_default(&self, param_index: u8) -> Parameter {
+        self.at_least_if_default(param_index, 1)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub fn add_digit(&mut self, byte: u8) {
+        debug_assert!(b'0' <= byte && byte <= b'9');
+        if !self.is_empty() {
+            let cm = self.current_mut();
+            *cm = cmp::min(65535, 10 * (*cm) + ((byte - b'0') as u32));
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn basic() {
+        let mut p = Parameters::new();
+        assert_eq!(p.count(), 0);
+        p.add_default();
+        assert_eq!(p.count(), 1);
+
+        // Add one parameter more than we can handle
+        for _i in 0..NUM_PARAMETERS {
+            p.add_default();
+        }
+        assert_eq!(p.count(), NUM_PARAMETERS);
+    }
+
+}

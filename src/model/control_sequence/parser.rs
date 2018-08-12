@@ -19,12 +19,12 @@
 //! Terminal Control Sequences Parser
 
 use std::char;
-use std::fmt;
-use std::mem;
-use std::iter;
 use std::cmp;
 
 use super::vt_parse_table::*;
+use super::types::{Case, CaseTable};
+use super::action::Action;
+use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
 #[allow(dead_code)]
@@ -41,11 +41,8 @@ pub struct Parser {
     /// First byte of an utf8 string
     first_byte: u8,
 
-    /// Index of last parameter or None if none has been set yet.
-    last_parameter_index: Option<u8>,
-
     /// Parameters
-    parameter: [Parameter; PARAMETERS],
+    parameter: Parameters,
 
     parsestate: &'static CaseTable,
     private_function: bool,
@@ -57,255 +54,6 @@ pub struct Parser {
     string_mode: i32,
     string_area: String,
 }
-
-/// Maximal number of parameters
-const PARAMETERS: usize = 30;
-
-/// Parameter of a control sequence.
-///
-/// Prepared for sub-parameters.
-type Parameter = u32;
-
-/// Actions to be taken after processing a byte
-#[derive(PartialEq)]
-pub enum Action {
-    /// Send more input, no output yet
-    More,
-
-    /// An error occurred, state was reset
-    Error,
-
-    /// A carriage-return has been seen
-    Cr,
-
-    /// A new line character has been seen
-    NewLine,
-
-    /// A UTF8 character has been completed
-    Char(char),
-
-    /// An SGR sequence has been found.
-    ///
-    /// Process the parameters outside and then reset the state
-    Sgr,
-
-    DECREQTPARM,
-
-    SaveCursor,
-    RestoreCursor,
-
-    HorizontalMove(isize),
-
-    VerticalPos(isize),
-
-    DA1(usize),
-
-    WindowOps(u8, usize, usize),
-}
-
-/// State machine cases for control sequence parser.
-///
-/// Taken from: $XTermId: VTparse.def,v 1.49 2014/04/25 21:36:12 tom Exp $
-/// licensed as:
-/// Copyright 1996-2013,2014 by Thomas E. Dickey
-///
-///                         All Rights Reserved
-///
-/// Permission is hereby granted, free of charge, to any person obtaining a
-/// copy of this software and associated documentation files (the
-/// "Software"), to deal in the Software without restriction, including
-/// without limitation the rights to use, copy, modify, merge, publish,
-/// distribute, sublicense, and/or sell copies of the Software, and to
-/// permit persons to whom the Software is furnished to do so, subject to
-/// the following conditions:
-///
-/// The above copyright notice and this permission notice shall be included
-/// in all copies or substantial portions of the Software.
-///
-/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-/// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-/// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-/// IN NO EVENT SHALL THE ABOVE LISTED COPYRIGHT HOLDER(S) BE LIABLE FOR ANY
-/// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-/// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-/// SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-///
-/// Except as contained in this notice, the name(s) of the above copyright
-/// holders shall not be used in advertising or otherwise to promote the
-/// sale, use or other dealings in this Software without prior written
-/// authorization.
-#[allow(non_camel_case_types)]
-#[derive(PartialEq, Copy, Clone)]
-#[repr(u8)]
-pub enum Case {
-    Illegal = 0,
-    GROUND_STATE,
-    IGNORE,
-    BELL,
-    BS,
-    CR,
-    ESC,
-    VMOT,
-    TAB,
-    SI,
-    SO,
-    SCR_STATE,
-    SCS0_STATE,
-    SCS1_STATE,
-    SCS2_STATE,
-    SCS3_STATE,
-    ESC_IGNORE,
-    ESC_DIGIT,
-    ESC_SEMI,
-    DEC_STATE,
-    ICH,
-    CUU,
-    CUD,
-    CUF,
-    CUB,
-    CUP,
-    ED,
-    EL,
-    IL,
-    DL,
-    DCH,
-    DA1,
-    TRACK_MOUSE,
-    TBC,
-    SET,
-    RST,
-    SGR,
-    CPR,
-    DECSTBM,
-    DECREQTPARM,
-    DECSET,
-    DECRST,
-    DECALN,
-    GSETS,
-    DECSC,
-    DECRC,
-    DECKPAM,
-    DECKPNM,
-    IND,
-    NEL,
-    HTS,
-    RI,
-    SS2,
-    SS3,
-    CSI_STATE,
-    OSC,
-    RIS,
-    LS2,
-    LS3,
-    LS3R,
-    LS2R,
-    LS1R,
-    PRINT,
-    XTERM_SAVE,
-    XTERM_RESTORE,
-    XTERM_TITLE,
-    DECID,
-    HP_MEM_LOCK,
-    HP_MEM_UNLOCK,
-    HP_BUGGY_LL,
-    HPA,
-    VPA,
-    XTERM_WINOPS,
-    ECH,
-    CHT,
-    CPL,
-    CNL,
-    CBT,
-    SU,
-    SD,
-    S7C1T,
-    S8C1T,
-    ESC_SP_STATE,
-    ENQ,
-    DECSCL,
-    DECSCA,
-    DECSED,
-    DECSEL,
-    DCS,
-    PM,
-    SOS,
-    ST,
-    APC,
-    EPA,
-    SPA,
-    CSI_QUOTE_STATE,
-    DSR,
-    ANSI_LEVEL_1,
-    ANSI_LEVEL_2,
-    ANSI_LEVEL_3,
-    MC,
-    DEC2_STATE,
-    DA2,
-    DEC3_STATE,
-    DECRPTUI,
-    VT52_CUP,
-    REP,
-    CSI_EX_STATE,
-    DECSTR,
-    DECDHL,
-    DECSWL,
-    DECDWL,
-    DEC_MC,
-    ESC_PERCENT,
-    UTF8,
-    CSI_TICK_STATE,
-    DECELR,
-    DECRQLP,
-    DECEFR,
-    DECSLE,
-    CSI_IGNORE,
-    VT52_IGNORE,
-    VT52_FINISH,
-    CSI_DOLLAR_STATE,
-    DECCRA,
-    DECERA,
-    DECFRA,
-    DECSERA,
-    DECSACE,
-    DECCARA,
-    DECRARA,
-    CSI_STAR_STATE,
-    SET_MOD_FKEYS,
-    SET_MOD_FKEYS0,
-    HIDE_POINTER,
-    SCS1A_STATE,
-    SCS2A_STATE,
-    SCS3A_STATE,
-    CSI_SPACE_STATE,
-    DECSCUSR,
-    SM_TITLE,
-    RM_TITLE,
-    DECSMBV,
-    DECSWBV,
-    DECLL,
-    DECRQM,
-    RQM,
-    CSI_DEC_DOLLAR_STATE,
-    SL,
-    SR,
-    DECDC,
-    DECIC,
-    DECBI,
-    DECFI,
-    DECRQCRA,
-    HPR,
-    VPR,
-    ANSI_SC,
-    ANSI_RC,
-    ESC_COLON,
-    SCS_PERCENT,
-    GSETS_PERCENT,
-    GRAPHICS_ATTRIBUTES,
-
-    NUM_CASES,
-}
-
-pub type CaseTable = [Case; TAG_CONT_U8 as usize];
 
 // Taken from core::str::mod.rs and std_unicode::lossy, see https://www.rust-lang.org/COPYRIGHT.
 // Applies to the following sections between the markers "RUST CODE BEGIN" and "RUST CODE END".
@@ -376,8 +124,7 @@ impl Parser {
             code_byte: 0,
             code_bytes: 0,
             first_byte: 0,
-            last_parameter_index: None,
-            parameter: unsafe { mem::uninitialized() },
+            parameter: Parameters::new(),
 
             parsestate: &ansi_table,
             private_function: false,
@@ -388,6 +135,10 @@ impl Parser {
             string_mode: 0,
             string_area: String::new(),
         }
+    }
+
+    pub fn parameters<'a>(&'a self) -> impl Iterator<Item = Parameter> + 'a {
+        self.parameter.iter()
     }
 
     /// Process a single-byte character and check for potential escape sequences.
@@ -413,7 +164,7 @@ impl Parser {
 
         // If the parameter list has subparameters (tokens separated by ":")
         // reject any controls that do not accept subparameters.
-        if self.has_subparams() {
+        if self.parameter.has_subparams() {
             match self.nextstate {
                 Case::GROUND_STATE |
                 Case::CSI_IGNORE |
@@ -439,7 +190,7 @@ impl Parser {
                 Case::DEC_STATE => {
                     // use this branch when we do not yet have the final character
                     // ...unexpected subparam usage
-                    self.last_parameter_index = None;
+                    self.parameter.reset();
                     self.nextstate = Case::CSI_IGNORE;
                 }
 
@@ -459,28 +210,6 @@ impl Parser {
 
         // Call the respective method
         dispatch_case[self.nextstate as usize](self, byte)
-    }
-
-    fn has_subparams(&self) -> bool {
-        // TODO: Add handling of sub parameters
-        false
-    }
-
-    fn init_params(&mut self) {
-        self.last_parameter_index = None;
-    }
-
-    fn add_default_param(&mut self) {
-        match self.last_parameter_index {
-            None => {
-                self.last_parameter_index = Some(0);
-                self.parameter[0] = 0;
-            }
-            Some(ref mut n) => {
-                *n += 1;
-                self.parameter[*n as usize] = 0;
-            }
-        }
     }
 
     /// Process a single byte from the input stream, convert from utf8 to chars on the fly.
@@ -536,37 +265,6 @@ impl Parser {
         self.code_point = 0;
         self.code_bytes = 0;
         self.parsestate = &ansi_table;
-    }
-
-    /// Return an iterator on the parameters
-    pub fn parameters<'a>(&'a self) -> Box<Iterator<Item = Parameter> + 'a> {
-        match self.last_parameter_index {
-            None => Box::new(iter::empty()),
-            Some(last) => {
-                let count = last + 1;
-                Box::new((0..count).map(move |i| self.parameter[i as usize]))
-            }
-        }
-    }
-
-    fn param_at_least_if_default(&self, param_index: u8, min_val: Parameter) -> Parameter {
-        match self.last_parameter_index {
-            None => min_val,
-            Some(last) => {
-                if param_index <= last {
-                    cmp::max(min_val, self.parameter[param_index as usize])
-                } else {
-                    min_val
-                }
-            }
-        }
-    }
-
-    fn param_zero_if_default(&self, param_index: u8) -> Parameter {
-        self.param_at_least_if_default(param_index, 0)
-    }
-    fn param_one_if_default(&self, param_index: u8) -> Parameter {
-        self.param_at_least_if_default(param_index, 1)
     }
 
     fn action_Illegal(&mut self, _byte: u8) -> Action {
@@ -628,22 +326,14 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_ESC_DIGIT(&mut self, byte: u8) -> Action {
-        if let Some(last) = self.last_parameter_index {
-            let last = last as usize;
-            self.parameter[last] =
-                cmp::min(65535, 10 * self.parameter[last] + ((byte - b'0') as u32));
-        }
+        self.parameter.add_digit(byte);
         if self.parsestate as *const CaseTable == &csi_table as *const CaseTable {
             self.parsestate = &csi2_table;
         }
         Action::More
     }
     fn action_ESC_SEMI(&mut self, _byte: u8) -> Action {
-        if let Some(last) = self.last_parameter_index {
-            if (last as usize) < PARAMETERS {
-                self.add_default_param();
-            }
-        }
+        self.parameter.add_default();
         if self.parsestate as *const CaseTable == &csi_table as *const CaseTable {
             self.parsestate = &csi2_table;
         }
@@ -686,7 +376,7 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DA1(&mut self, _byte: u8) -> Action {
-        let val = self.param_zero_if_default(0);
+        let val = self.parameter.zero_if_default(0);
         self.reset();
         Action::DA1(val as usize)
     }
@@ -703,6 +393,7 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_SGR(&mut self, _byte: u8) -> Action {
+        self.reset();
         Action::Sgr
     }
     fn action_CPR(&mut self, _byte: u8) -> Action {
@@ -758,8 +449,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_CSI_STATE(&mut self, _byte: u8) -> Action {
-        self.init_params();
-        self.add_default_param();
+        self.parameter.reset();
+        self.parameter.add_default();
         self.parsestate = &csi_table;
         Action::More
     }
@@ -812,16 +503,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_VPA(&mut self, _byte: u8) -> Action {
-        let val = self.param_one_if_default(0) - 1;
+        let val = self.parameter.one_if_default(0) - 1;
         self.reset();
         Action::VerticalPos(val as isize)
     }
     fn action_XTERM_WINOPS(&mut self, _byte: u8) -> Action {
-        let val = self.param_zero_if_default(0);
-        let val1 = self.param_zero_if_default(1);
-        let val2 = self.param_zero_if_default(2);
+        let val = self.parameter.zero_if_default(0);
+        let val1 = self.parameter.zero_if_default(1);
+        let val2 = self.parameter.zero_if_default(2);
         self.reset();
-        Action::WindowOps(cmp::max(val, 255) as u8, val1 as usize, val2 as usize)
+        Action::WindowOps(cmp::min(val, 255) as u8, val1 as usize, val2 as usize)
     }
     fn action_ECH(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1073,7 +764,7 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_HPR(&mut self, _byte: u8) -> Action {
-        let col = self.param_one_if_default(0);
+        let col = self.parameter.one_if_default(0);
         self.reset();
         Action::HorizontalMove(col as isize)
     }
@@ -1271,32 +962,6 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_GRAPHICS_ATTRIBUTES,
     ];
 
-impl Action {
-    fn char_from_u32(byte: u32) -> Action {
-        Action::Char(unsafe { char::from_u32_unchecked(byte as u32) })
-    }
-}
-
-impl fmt::Debug for Action {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Action::More => write!(f, "More"),
-            Action::Error => write!(f, "Error"),
-            Action::Cr => write!(f, "Cr"),
-            Action::NewLine => write!(f, "NewLine"),
-            Action::Sgr => write!(f, "Sgr"),
-            Action::Char(c) => write!(f, "Char({})", *c as u32),
-            Action::DECREQTPARM => write!(f, "DECREQTPARM"),
-            Action::HorizontalMove(n) => write!(f, "HorizontalMove({})", n),
-            Action::VerticalPos(n) => write!(f, "VerticalPos({})", n),
-            Action::DA1(n) => write!(f, "DA1({})", n),
-            Action::SaveCursor => write!(f, "SaveCursor"),
-            Action::RestoreCursor => write!(f, "RestoreCursor"),
-            Action::WindowOps(n0, n1, n2) => write!(f, "WindowOps({},{},{})", n0, n1, n2),
-
-        }
-    }
-}
 
 #[cfg(test)]
 mod test {
@@ -1320,20 +985,6 @@ mod test {
         });
         assert_eq!(e.code_byte, 0);
         actions
-    }
-
-    /// Helper function to map a string to the vector of actions and states that were returned
-    /// after each byte
-    fn emus(bytes: &[u8]) -> Vec<(Action, u8)> {
-        let mut e = Parser::new();
-        let mut res = Vec::new();
-        for b in bytes {
-            let a = e.add_byte(*b);
-            let s = e.code_byte;
-            res.push((a, s));
-        }
-        assert_eq!(e.code_byte, 0);
-        res
     }
 
     fn c(ch: char) -> Action {
@@ -1520,9 +1171,9 @@ mod test {
                 let actions: Vec<Action> = b"\x1b[32;12m".iter().map(|b| e.add_byte(*b)).collect();
                 assert_eq!(e.code_byte, 0);
                 assert_eq!(actions, [m(), m(), m(), m(), m(), m(), m(), Action::Sgr]);
-                assert_eq!(e.last_parameter_index, Some(1));
-                assert_eq!(e.parameter[0], 32);
-                assert_eq!(e.parameter[1], 12);
+                assert_eq!(e.parameter.count(), (2));
+                assert_eq!(e.parameter.zero_if_default(0), 32);
+                assert_eq!(e.parameter.zero_if_default(1), 12);
 
                 let ps: Vec<Parameter> = e.parameters().collect();
                 assert_eq!(ps, [32, 12]);
@@ -1531,12 +1182,133 @@ mod test {
                 let actions: Vec<Action> = b"\x1b[45m".iter().map(|b| e.add_byte(*b)).collect();
                 assert_eq!(e.code_byte, 0);
                 assert_eq!(actions, [m(), m(), m(), m(), Action::Sgr]);
-                assert_eq!(e.last_parameter_index, Some(0));
-                assert_eq!(e.parameter[0], 45);
+                assert_eq!(e.parameter.count(), (1));
+                assert_eq!(e.parameter.zero_if_default(0), 45);
 
                 let ps: Vec<Parameter> = e.parameters().collect();
                 assert_eq!(ps, [45]);
             }
         }
     }
+
+    #[test]
+    fn newline() {
+        assert_eq!(
+            emu(b"a\nx"),
+            [
+                c('a'),
+                Action::NewLine,
+                c('x')
+            ]
+        );
+    }
+
+    #[test]
+    fn horizontal_move() {
+        assert_eq!(
+            emu(b"a\x1b[12ax"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::HorizontalMove(12),
+                c('x')
+            ]
+        );
+    }
+
+    #[test]
+    fn save_cursor() {
+        assert_eq!(
+            emu(b"a\x1b[sx"),
+            [
+                c('a'),
+                m(),
+                m(),
+                Action::SaveCursor,
+                c('x')
+            ]
+        );
+    }
+
+    #[test]
+    fn restore_cursor() {
+        assert_eq!(
+            emu(b"a\x1b[ux"),
+            [
+                c('a'),
+                m(),
+                m(),
+                Action::RestoreCursor,
+                c('x')
+            ]
+        );
+    }
+
+    #[test]
+    fn da1() {
+        assert_eq!(
+            emu(b"a\x1b[12cx"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::DA1(12),
+                c('x')
+            ]
+        );
+    }
+
+    #[test]
+    fn DECREQTPARM() {
+        assert_eq!(
+            emu(b"a\x1b[12xy"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::DECREQTPARM,
+                c('y')
+            ]
+        );
+    }
+
+    #[test]
+    fn vertical_pos() {
+        assert_eq!(
+            emu(b"a\x1b[12dy"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::VerticalPos(11),
+                c('y')
+            ]
+        );
+    }
+
+    #[test]
+    fn winops() {
+        assert_eq!(
+            emu(b"a\x1b[12ty"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::WindowOps(12,0,0),
+                c('y')
+            ]
+        );
+    }
+
 }
