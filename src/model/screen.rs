@@ -799,6 +799,10 @@ impl Screen {
                 // TODO: Convert to event
                 Event::Ignore
             }
+            Action::Show8BitControl(_b) => {
+                // TODO: Convert to event
+                Event::Ignore
+            }
         }
     }
 }

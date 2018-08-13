@@ -2705,8 +2705,7 @@ Case::LS1R,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static esc_sp_table:CaseTable =		/* ESC SP */
+pub static esc_sp_table:CaseTable =		/* ESC SP */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,

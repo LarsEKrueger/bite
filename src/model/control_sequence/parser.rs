@@ -536,13 +536,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_S7C1T(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::Show8BitControl(false)
     }
     fn action_S8C1T(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::Show8BitControl(true)
     }
     fn action_ESC_SP_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.parsestate = &esc_sp_table;
+        Action::More
     }
     fn action_ENQ(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1310,5 +1313,34 @@ mod test {
             ]
         );
     }
+
+    #[test]
+    fn s7c1t() {
+        assert_eq!(
+            emu(b"a\x1b Fy"),
+            [
+                c('a'),
+                m(),
+                m(),
+                Action::Show8BitControl(false),
+                c('y')
+            ]
+        );
+    }
+
+    #[test]
+    fn s8c1t() {
+        assert_eq!(
+            emu(b"a\x1b Gy"),
+            [
+                c('a'),
+                m(),
+                m(),
+                Action::Show8BitControl(true),
+                c('y')
+            ]
+        );
+    }
+
 
 }

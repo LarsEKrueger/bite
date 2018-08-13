@@ -56,6 +56,8 @@ pub enum Action {
     DA1(usize),
 
     WindowOps(u8, usize, usize),
+
+    Show8BitControl(bool),
 }
 
 impl Action {
@@ -80,6 +82,7 @@ impl fmt::Debug for Action {
             Action::SaveCursor => write!(f, "SaveCursor"),
             Action::RestoreCursor => write!(f, "RestoreCursor"),
             Action::WindowOps(n0, n1, n2) => write!(f, "WindowOps({},{},{})", n0, n1, n2),
+            Action::Show8BitControl(n) => write!(f, "Show8BitControl({})", n),
 
         }
     }
