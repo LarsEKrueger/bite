@@ -590,13 +590,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_ANSI_LEVEL_1(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::AnsiConformanceLevel(1)
     }
     fn action_ANSI_LEVEL_2(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::AnsiConformanceLevel(2)
     }
     fn action_ANSI_LEVEL_3(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::AnsiConformanceLevel(3)
     }
     fn action_MC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1341,6 +1344,28 @@ mod test {
             ]
         );
     }
+
+    #[test]
+    fn ansi_conformance_level() {
+        assert_eq!(
+            emu(b"a\x1b Ly\x1b M\x1b Nz"),
+            [
+                c('a'),
+                m(),
+                m(),
+                Action::AnsiConformanceLevel(1),
+                c('y'),
+                m(),
+                m(),
+                Action::AnsiConformanceLevel(2),
+                m(),
+                m(),
+                Action::AnsiConformanceLevel(3),
+                c('z'),
+            ]
+        );
+    }
+
 
 
 }

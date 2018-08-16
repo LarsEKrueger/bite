@@ -803,6 +803,10 @@ impl Screen {
                 // TODO: Convert to event
                 Event::Ignore
             }
+            Action::AnsiConformanceLevel(_l) => {
+                // TODO: Convert to event
+                Event::Ignore
+            }
         }
     }
 }
