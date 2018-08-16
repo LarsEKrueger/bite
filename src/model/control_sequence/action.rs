@@ -60,6 +60,14 @@ pub enum Action {
     Show8BitControl(bool),
 
     AnsiConformanceLevel(u8),
+
+    /// DECDHL (top half = true, bottom half = false)
+    DecDoubleHeight(bool),
+
+    /// DECSWL/DESDWL (single width = false)
+    DecDoubleWidth(bool),
+
+    DecAlignmentTest,
 }
 
 impl Action {
@@ -86,7 +94,9 @@ impl fmt::Debug for Action {
             Action::WindowOps(n0, n1, n2) => write!(f, "WindowOps({},{},{})", n0, n1, n2),
             Action::Show8BitControl(n) => write!(f, "Show8BitControl({})", n),
             Action::AnsiConformanceLevel(n) => write!(f, "AnsiConformanceLevel({})", n),
-
+            Action::DecDoubleHeight(n) => write!(f, "DecDoubleHeight({})", n),
+            Action::DecDoubleWidth(n) => write!(f, "DecDoubleWidth({})", n),
+            Action::DecAlignmentTest => write!(f, "DecAlignmentTest"),
         }
     }
 }

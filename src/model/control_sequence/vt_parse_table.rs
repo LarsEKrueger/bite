@@ -2869,8 +2869,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static scrtable:CaseTable =		/* ESC # */
+pub static scrtable:CaseTable =		/* ESC # */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,

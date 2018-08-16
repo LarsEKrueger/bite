@@ -795,15 +795,12 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
-            Action::WindowOps(_op, _p1, _p2) => {
-                // TODO: Convert to event
-                Event::Ignore
-            }
-            Action::Show8BitControl(_b) => {
-                // TODO: Convert to event
-                Event::Ignore
-            }
-            Action::AnsiConformanceLevel(_l) => {
+            Action::WindowOps(_, _, _) |
+            Action::Show8BitControl(_) |
+            Action::AnsiConformanceLevel(_) |
+            Action::DecAlignmentTest |
+            Action::DecDoubleHeight(_) |
+            Action::DecDoubleWidth(_) =>  {
                 // TODO: Convert to event
                 Event::Ignore
             }

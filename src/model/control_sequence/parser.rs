@@ -308,7 +308,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_SCR_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.parsestate = &scrtable;
+        Action::More
     }
     fn action_SCS0_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -413,7 +414,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECALN(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DecAlignmentTest
     }
     fn action_GSETS(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -628,14 +630,17 @@ impl Parser {
     fn action_DECSTR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECDHL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+    fn action_DECDHL(&mut self, byte: u8) -> Action {
+        self.reset();
+        Action::DecDoubleHeight( byte == b'3')
     }
     fn action_DECSWL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DecDoubleWidth(false)
     }
     fn action_DECDWL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DecDoubleWidth(true)
     }
     fn action_DEC_MC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1366,6 +1371,31 @@ mod test {
         );
     }
 
+    #[test]
+    fn dec_double_size() {
+        assert_eq!(
+            emu(b"a\x1b#3\x1b#4\x1b#5\x1b#6\x1b#8z"),
+            [
+                c('a'),
+                m(),
+                m(),
+                Action::DecDoubleHeight(true),
+                m(),
+                m(),
+                Action::DecDoubleHeight(false),
+                m(),
+                m(),
+                Action::DecDoubleWidth(false),
+                m(),
+                m(),
+                Action::DecDoubleWidth(true),
+                m(),
+                m(),
+                Action::DecAlignmentTest,
+                c('z'),
+            ]
+        );
+    }
 
 
 }
