@@ -73,6 +73,11 @@
 
 use super::types::{Case, CaseTable};
 
+/*
+ * Stupid Apollo C preprocessor can't handle long lines.  So... To keep
+ * it happy, we put each onto a separate line....  Sigh...
+ */
+
 pub static ansi_table: CaseTable = [
     /*	NUL		SOH		STX		ETX	*/
     Case::IGNORE,
@@ -282,7 +287,7 @@ Case::IGNORE,
 Case::CSI_SPACE_STATE,
 Case::CSI_EX_STATE,
 Case::CSI_QUOTE_STATE,
-Case::CSI_IGNORE,
+Case::CSI_HASH_STATE,
 /*	$		%		&		'	*/
 Case::CSI_DOLLAR_STATE,
 Case::CSI_IGNORE,
@@ -356,7 +361,7 @@ Case::GROUND_STATE,
 /*	\		]		^		_	*/
 Case::GROUND_STATE,
 Case::GROUND_STATE,
-Case::GROUND_STATE,
+Case::SD,
 Case::GROUND_STATE,
 /*	`		a		b		c	*/
 Case::HPA,
@@ -400,7 +405,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-pub static csi2_table : CaseTable =		/* CSI */
+pub static csi2_table:CaseTable =		/* CSI */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -446,7 +451,7 @@ Case::IGNORE,
 Case::CSI_SPACE_STATE,
 Case::CSI_EX_STATE,
 Case::CSI_QUOTE_STATE,
-Case::CSI_IGNORE,
+Case::CSI_HASH_STATE,
 /*	$		%		&		'	*/
 Case::CSI_DOLLAR_STATE,
 Case::CSI_IGNORE,
@@ -520,7 +525,7 @@ Case::GROUND_STATE,
 /*	\		]		^		_	*/
 Case::GROUND_STATE,
 Case::GROUND_STATE,
-Case::GROUND_STATE,
+Case::SD,
 Case::GROUND_STATE,
 /*	`		a		b		c	*/
 Case::HPA,
@@ -565,7 +570,7 @@ Case::IGNORE,
 ];
 
 #[allow(dead_code)]
-static csi_ex_table : CaseTable =		/* CSI ! */
+static csi_ex_table:CaseTable =		/* CSI ! */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -730,7 +735,7 @@ Case::IGNORE,
 ];
 
 #[allow(dead_code)]
-static csi_quo_table : CaseTable =		/* CSI ... " */
+pub static csi_quo_table:CaseTable =		/* CSI ... " */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -894,7 +899,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-pub static csi_sp_table : CaseTable =		/* CSI ... SP */
+pub static csi_sp_table:CaseTable =		/* CSI ... SP */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -1058,8 +1063,9 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
+
 #[allow(dead_code)]
-static csi_tick_table:CaseTable =	/* CSI ... ' */
+pub static csi_tick_table:CaseTable =	/* CSI ... ' */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -1223,6 +1229,172 @@ Case::DECDC,
 Case::IGNORE,
 ];
 
+#[allow(dead_code)]
+pub static csi_hash_table:CaseTable =	/* CSI ... # */
+[
+/*	NUL		SOH		STX		ETX	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	EOT		ENQ		ACK		BEL	*/
+Case::IGNORE,
+Case::ENQ,
+Case::IGNORE,
+Case::BELL,
+/*	BS		HT		NL		VT	*/
+Case::BS,
+Case::TAB,
+Case::VMOT,
+Case::VMOT,
+/*	FF		CR		SO		SI	*/
+Case::VMOT,
+Case::CR,
+Case::SO,
+Case::SI,
+/*	DLE		DC1		DC2		DC3	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	DC4		NAK		SYN		ETB	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	CAN		EM		SUB		ESC	*/
+Case::GROUND_STATE,
+Case::IGNORE,
+Case::GROUND_STATE,
+Case::ESC,
+/*	FS		GS		RS		US	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	SP		!		"		#	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	$		%		&		'	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	(		)		*		+	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	,		-		.		/	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	0		1		2		3	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	4		5		6		7	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	8		9		:		;	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	<		=		>		?	*/
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+Case::CSI_IGNORE,
+/*	@		A		B		C	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	D		E		F		G	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	H		I		J		K	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	L		M		N		O	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	P		Q		R		S	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	T		U		V		W	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	X		Y		Z		[	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	\		]		^		_	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	`		a		b		c	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	d		e		f		g	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	h		i		j		k	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	l		m		n		o	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	p		q		r		s	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	t		u		v		w	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	x		y		z		{	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::XTERM_PUSH_SGR,
+/*	|		}		~		DEL	*/
+Case::XTERM_REPORT_SGR,
+Case::XTERM_POP_SGR,
+Case::GROUND_STATE,
+Case::IGNORE,
+];
+
+
 pub static csi_dollar_table:CaseTable =	/* CSI ... $ */
 [
 /*	NUL		SOH		STX		ETX	*/
@@ -1374,21 +1546,21 @@ Case::GROUND_STATE,
 Case::DECRARA,
 Case::GROUND_STATE,
 Case::DECCRA,
-Case::GROUND_STATE,
+Case::DECRQPSR,
 /*	x		y		z		{	*/
 Case::DECFRA,
 Case::GROUND_STATE,
 Case::DECERA,
 Case::DECSERA,
 /*	|		}		~		DEL	*/
-Case::GROUND_STATE,
+Case::DECSCPP,
 Case::GROUND_STATE,
 Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
 #[allow(dead_code)]
-static csi_star_table:CaseTable =	/* CSI ... * */
+pub static csi_star_table:CaseTable =	/* CSI ... * */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -1546,14 +1718,15 @@ Case::DECRQCRA,
 Case::GROUND_STATE,
 Case::GROUND_STATE,
 /*	|		}		~		DEL	*/
-Case::GROUND_STATE,
+Case::DECSNLS,
 Case::GROUND_STATE,
 Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
+
 #[allow(dead_code)]
-static dec_table:CaseTable =		/* CSI ? */
+pub static dec_table:CaseTable =		/* CSI ? */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -1717,8 +1890,9 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
+
 #[allow(dead_code)]
-static csi_dec_dollar_table:CaseTable =	/* CSI ?... $ */
+pub static csi_dec_dollar_table:CaseTable =	/* CSI ?... $ */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -1882,8 +2056,9 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
+
 #[allow(dead_code)]
-static dec2_table:CaseTable =		/* CSI > */
+pub static dec2_table:CaseTable =		/* CSI > */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -2048,7 +2223,7 @@ Case::IGNORE,
 ];
 
 #[allow(dead_code)]
-static dec3_table:CaseTable =		/* CSI = */
+pub static dec3_table:CaseTable =		/* CSI = */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -2212,7 +2387,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-pub static cigtable:CaseTable =		/* Case::CSI_IGNORE */
+pub static cigtable:CaseTable =		/* CASE_CSI_IGNORE */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -2377,7 +2552,7 @@ Case::IGNORE,
 ];
 
 #[allow(dead_code)]
-static eigtable:CaseTable =		/* Case::ESC_IGNORE */
+pub static eigtable:CaseTable =		/* CASE_ESC_IGNORE */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -3033,8 +3208,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static scstable:CaseTable =		/* ESC ( etc. */
+pub static scstable:CaseTable =		/* ESC ( etc. */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -3108,7 +3282,7 @@ Case::GSETS,
 Case::GSETS,
 /*	8		9		:		;	*/
 Case::GROUND_STATE,
-Case::GROUND_STATE,
+Case::GSETS,
 Case::GROUND_STATE,
 Case::GROUND_STATE,
 /*	<		=		>		?	*/
@@ -3164,7 +3338,7 @@ Case::GROUND_STATE,
 /*	d		e		f		g	*/
 Case::GROUND_STATE,
 Case::GROUND_STATE,
-Case::GROUND_STATE,
+Case::GSETS,
 Case::GROUND_STATE,
 /*	h		i		j		k	*/
 Case::GROUND_STATE,
@@ -3198,8 +3372,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static scs96table:CaseTable =		/* ESC - etc. */
+pub static scs96table:CaseTable =		/* ESC - etc. */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -3364,7 +3537,7 @@ Case::IGNORE,
 ];
 
 /*
- * This table is treated specially.  The Case::IGNORE entries correspond to the
+ * This table is treated specially.  The CASE_IGNORE entries correspond to the
  * characters that can be accumulated for the string function (e.g., OSC).
  */
 pub static sos_table:CaseTable =		/* OSC, DCS, etc. */
@@ -3528,5 +3701,335 @@ Case::IGNORE,
 Case::IGNORE,
 Case::IGNORE,
 Case::IGNORE,
+Case::IGNORE,
+];
+
+
+#[allow(dead_code)]
+static esc_pct_table:CaseTable =		/* ESC % */
+[
+/*	NUL		SOH		STX		ETX	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	EOT		ENQ		ACK		BEL	*/
+Case::IGNORE,
+Case::ENQ,
+Case::IGNORE,
+Case::BELL,
+/*	BS		HT		NL		VT	*/
+Case::BS,
+Case::TAB,
+Case::VMOT,
+Case::VMOT,
+/*	FF		CR		SO		SI	*/
+Case::VMOT,
+Case::CR,
+Case::SO,
+Case::SI,
+/*	DLE		DC1		DC2		DC3	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	DC4		NAK		SYN		ETB	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	CAN		EM		SUB		ESC	*/
+Case::GROUND_STATE,
+Case::IGNORE,
+Case::GROUND_STATE,
+Case::ESC,
+/*	FS		GS		RS		US	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	SP		!		"		#	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	$		%		&		'	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	(		)		*		+	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	,		-		.		/	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	0		1		2		3	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	4		5		6		7	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	8		9		:		;	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	<		=		>		?	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	@		A		B		C	*/
+Case::UTF8,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	D		E		F		G	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::UTF8,
+/*	H		I		J		K	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	L		M		N		O	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	P		Q		R		S	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	T		U		V		W	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	X		Y		Z		[	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	\		]		^		_	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	`		a		b		c	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	d		e		f		g	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	h		i		j		k	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	l		m		n		o	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	p		q		r		s	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	t		u		v		w	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	x		y		z		{	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	|		}		~		DEL	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::IGNORE,
+];
+
+pub static scs_pct_table:CaseTable =		/* SCS % */
+[
+/*	NUL		SOH		STX		ETX	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	EOT		ENQ		ACK		BEL	*/
+Case::IGNORE,
+Case::ENQ,
+Case::IGNORE,
+Case::BELL,
+/*	BS		HT		NL		VT	*/
+Case::BS,
+Case::TAB,
+Case::VMOT,
+Case::VMOT,
+/*	FF		CR		SO		SI	*/
+Case::VMOT,
+Case::CR,
+Case::SO,
+Case::SI,
+/*	DLE		DC1		DC2		DC3	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	DC4		NAK		SYN		ETB	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	CAN		EM		SUB		ESC	*/
+Case::GROUND_STATE,
+Case::IGNORE,
+Case::GROUND_STATE,
+Case::ESC,
+/*	FS		GS		RS		US	*/
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+Case::IGNORE,
+/*	SP		!		"		#	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	$		%		&		'	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	(		)		*		+	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	,		-		.		/	*/
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+Case::ESC_IGNORE,
+/*	0		1		2		3	*/
+Case::GSETS_PERCENT,
+Case::GROUND_STATE,
+Case::GSETS_PERCENT,
+Case::GSETS_PERCENT,
+/*	4		5		6		7	*/
+Case::GROUND_STATE,
+Case::GSETS_PERCENT,
+Case::GSETS_PERCENT,
+Case::GROUND_STATE,
+/*	8		9		:		;	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	<		=		>		?	*/
+Case::GROUND_STATE,
+Case::GSETS_PERCENT,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	@		A		B		C	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	D		E		F		G	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	H		I		J		K	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	L		M		N		O	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	P		Q		R		S	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	T		U		V		W	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	X		Y		Z		[	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	\		]		^		_	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	`		a		b		c	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	d		e		f		g	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	h		i		j		k	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	l		m		n		o	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	p		q		r		s	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	t		u		v		w	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	x		y		z		{	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+/*	|		}		~		DEL	*/
+Case::GROUND_STATE,
+Case::GROUND_STATE,
+Case::GROUND_STATE,
 Case::IGNORE,
 ];
