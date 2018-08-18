@@ -795,6 +795,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::DesignateCharacterSet(_,_) |
             Action::WindowOps(_, _, _) |
             Action::Show8BitControl(_) |
             Action::AnsiConformanceLevel(_) |

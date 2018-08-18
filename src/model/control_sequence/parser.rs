@@ -23,7 +23,7 @@ use std::cmp;
 
 use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
-use super::action::Action;
+use super::action::{Action,CharSet};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -48,6 +48,8 @@ pub struct Parser {
     private_function: bool,
     lastchar: i32,
     nextstate: Case,
+
+    scstype:u8,
 
     print_area: String,
 
@@ -131,6 +133,8 @@ impl Parser {
             lastchar: -1,
             nextstate: Case::Illegal,
             print_area: String::new(),
+
+            scstype:0,
 
             string_mode: 0,
             string_area: String::new(),
@@ -312,19 +316,28 @@ impl Parser {
         Action::More
     }
     fn action_SCS0_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.scstype=0;
+        self.parsestate=&scstable;
+        Action::More
     }
     fn action_SCS1_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.scstype=1;
+        self.parsestate=&scstable;
+        Action::More
     }
     fn action_SCS2_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.scstype=2;
+        self.parsestate=&scstable;
+        Action::More
     }
     fn action_SCS3_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.scstype=3;
+        self.parsestate=&scstable;
+        Action::More
     }
     fn action_ESC_IGNORE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.parsestate=&eigtable;
+        Action::More
     }
     fn action_ESC_DIGIT(&mut self, byte: u8) -> Action {
         self.parameter.add_digit(byte);
@@ -417,8 +430,37 @@ impl Parser {
         self.reset();
         Action::DecAlignmentTest
     }
-    fn action_GSETS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+    fn action_GSETS(&mut self, byte: u8) -> Action {
+        let cs = match byte {
+            b'B' => CharSet::UsAscii,             
+            b'A' => CharSet::Uk,           
+            b'0' => CharSet::DecSpecial,  
+            b'1' => CharSet::DecSupplemental,     
+            b'2' => CharSet::DecSupplementalGraphics,  
+            b'<' => CharSet::DecSupplemental,          
+            b'4' => CharSet::Dutch,             
+            b'5' => CharSet::Finnish,           
+            b'C' => CharSet::Finnish2,          
+            b'R' => CharSet::French,            
+            b'f' => CharSet::French2,           
+            b'Q' => CharSet::FrenchCanadian,   
+            b'K' => CharSet::German,            
+            b'Y' => CharSet::Italian,           
+            b'E' => CharSet::Norwegian2, 
+            b'6' => CharSet::Norwegian3, 
+            b'Z' => CharSet::Spanish,           
+            b'7' => CharSet::Swedish,           
+            b'H' => CharSet::Swedish2,          
+            b'=' => CharSet::Swiss,             
+            b'>' => CharSet::DecTechnical,     
+            b'9' => CharSet::FrenchCanadian2,  
+            b'`' => CharSet::Norwegian,  
+            _ => CharSet::DefaultSet,
+        };
+        self.reset();
+        if cs != CharSet::DefaultSet {
+        Action::DesignateCharacterSet(self.scstype,cs)
+        } else { Action::More }
     }
     fn action_DECSC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -646,10 +688,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_ESC_PERCENT(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+	    self.parsestate = &esc_pct_table;
+        Action::More
     }
-    fn action_UTF8(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+    fn action_UTF8(&mut self, byte: u8) -> Action {
+        self.reset();
+        match byte {
+            b'@' => Action::DesignateCharacterSet(0, CharSet::DefaultSet),
+            b'G' => Action::DesignateCharacterSet(0, CharSet::Utf8),
+            _ => Action::More
+        }
     }
     fn action_CSI_TICK_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -714,13 +762,19 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_SCS1A_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.scstype=1;
+        self.parsestate=&scs96table;
+        Action::More
     }
     fn action_SCS2A_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.scstype=2;
+        self.parsestate=&scs96table;
+        Action::More
     }
     fn action_SCS3A_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.scstype=3;
+        self.parsestate=&scs96table;
+        Action::More
     }
     fn action_CSI_SPACE_STATE(&mut self, _byte: u8) -> Action {
         self.parsestate = &csi_sp_table;
@@ -794,12 +848,42 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_SCS_PERCENT(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.parsestate=&scs_pct_table;
+        Action::More
     }
-    fn action_GSETS_PERCENT(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+    fn action_GSETS_PERCENT(&mut self, byte: u8) -> Action {
+        let cs = match byte {
+            b'5' => CharSet::DecSupplementalGraphics,  
+            b'6' => CharSet::Portugese,         
+            _ => CharSet::DefaultSet,
+        };
+        self.reset();
+        if cs != CharSet::DefaultSet {
+        Action::DesignateCharacterSet(self.scstype,cs)
+        } else { Action::More }
     }
     fn action_GRAPHICS_ATTRIBUTES(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+   fn action_CSI_HASH_STATE(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+   fn action_XTERM_PUSH_SGR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+   fn action_XTERM_REPORT_SGR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+   fn action_XTERM_POP_SGR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+   fn action_DECRQPSR(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+   fn action_DECSCPP(&mut self, _byte: u8) -> Action {
+        panic!("Not implemented");
+    }
+   fn action_DECSNLS(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
 }
@@ -971,6 +1055,13 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_SCS_PERCENT,
         Parser::action_GSETS_PERCENT,
         Parser::action_GRAPHICS_ATTRIBUTES,
+   Parser::action_CSI_HASH_STATE,
+   Parser::action_XTERM_PUSH_SGR,
+   Parser::action_XTERM_REPORT_SGR,
+   Parser::action_XTERM_POP_SGR,
+   Parser::action_DECRQPSR,
+   Parser::action_DECSCPP,
+   Parser::action_DECSNLS,
     ];
 
 
@@ -1008,6 +1099,10 @@ mod test {
 
     fn e() -> Action {
         Action::Error
+    }
+
+    fn s() -> Action {
+        Action::Char( ' ')
     }
 
     #[test]
@@ -1397,5 +1492,718 @@ mod test {
         );
     }
 
+    #[test]
+    fn character_sets() {
+        assert_eq!(emu(b"\x1b(f"),
+                   [m(),
+                   m(),
+                   Action::DesignateCharacterSet(0,CharSet::French2),
+                   ]);
+
+        assert_eq!(
+            emu(b"\x1b(0 \x1b(< \x1b(%5 \x1b(> \x1b(A \x1b(B \x1b(4 \x1b(C \x1b(5 \x1b(R \x1b(f \x1b(Q \x1b(9 \x1b(K \x1b(Y \x1b(` \x1b(E \x1b(6 \x1b(%6 \x1b(Z \x1b(H \x1b(7 \x1b(="),
+            vec![
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::DecSpecial),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::DecSupplemental),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::DecSupplementalGraphics),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::DecTechnical),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Uk),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::UsAscii),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Dutch),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Finnish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Finnish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::French),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::French2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::FrenchCanadian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::FrenchCanadian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::German),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Italian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Norwegian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Norwegian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Norwegian3),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Portugese),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Spanish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Swedish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Swedish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(0,CharSet::Swiss),
+            ]
+                );
+
+        assert_eq!(
+          emu( b"\x1b)0 \x1b)< \x1b)%5 \x1b)> \x1b)A \x1b)B \x1b)4 \x1b)C \x1b)5 \x1b)R \x1b)f \x1b)Q \x1b)9 \x1b)K \x1b)Y \x1b)` \x1b)E \x1b)6 \x1b)%6 \x1b)Z \x1b)H \x1b)7 \x1b)="),
+            vec![
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::DecSpecial),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::DecSupplemental),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::DecSupplementalGraphics),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::DecTechnical),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Uk),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::UsAscii),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Dutch),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Finnish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Finnish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::French),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::French2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::FrenchCanadian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::FrenchCanadian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::German),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Italian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Norwegian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Norwegian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Norwegian3),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Portugese),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Spanish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Swedish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Swedish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Swiss),
+            ]
+                );
+
+        assert_eq!(
+          emu( b"\x1b*0 \x1b*< \x1b*%5 \x1b*> \x1b*A \x1b*B \x1b*4 \x1b*C \x1b*5 \x1b*R \x1b*f \x1b*Q \x1b*9 \x1b*K \x1b*Y \x1b*` \x1b*E \x1b*6 \x1b*%6 \x1b*Z \x1b*H \x1b*7 \x1b*="),
+            vec![
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::DecSpecial),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::DecSupplemental),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::DecSupplementalGraphics),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::DecTechnical),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Uk),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::UsAscii),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Dutch),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Finnish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Finnish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::French),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::French2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::FrenchCanadian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::FrenchCanadian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::German),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Italian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Norwegian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Norwegian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Norwegian3),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Portugese),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Spanish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Swedish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Swedish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Swiss),
+            ]
+                );
+
+       assert_eq!(
+         emu( b"\x1b+0 \x1b+< \x1b+%5 \x1b+> \x1b+A \x1b+B \x1b+4 \x1b+C \x1b+5 \x1b+R \x1b+f \x1b+Q \x1b+9 \x1b+K \x1b+Y \x1b+` \x1b+E \x1b+6 \x1b+%6 \x1b+Z \x1b+H \x1b+7 \x1b+="),
+            vec![
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::DecSpecial),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::DecSupplemental),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::DecSupplementalGraphics),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::DecTechnical),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Uk),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::UsAscii),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Dutch),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Finnish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Finnish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::French),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::French2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::FrenchCanadian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::FrenchCanadian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::German),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Italian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Norwegian),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Norwegian2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Norwegian3),
+            s(),
+            m(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Portugese),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Spanish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Swedish2),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Swedish),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Swiss),
+            ]
+                );
+
+       // For the next three block, there seems to be an inconsistency between XTerm's
+       // implementation and specification. We test for identical implementation.
+       assert_eq!(
+         emu( b"\x1b-0 \x1b-< \x1b-%5 \x1b-> \x1b-A \x1b-B \x1b-4 \x1b-C \x1b-5 \x1b-R \x1b-f \x1b-Q \x1b-9 \x1b-K \x1b-Y \x1b-` \x1b-E \x1b-6 \x1b-%6 \x1b-Z \x1b-H \x1b-7 \x1b-="),
+            vec![
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::DecSpecial),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::DecSupplemental),
+            s(),
+            m(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::DecSupplementalGraphics),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::DecTechnical),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(1,CharSet::Uk),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::UsAscii),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Dutch),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Finnish2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Finnish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::French),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::French2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::FrenchCanadian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::FrenchCanadian2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::German),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Italian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Norwegian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Norwegian2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Norwegian3),
+            s(),
+            m(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Portugese),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Spanish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Swedish2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Swedish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(1,CharSet::Swiss),
+            ]
+                );
+
+       assert_eq!(
+         emu( b"\x1b.0 \x1b.< \x1b.%5 \x1b.> \x1b.A \x1b.B \x1b.4 \x1b.C \x1b.5 \x1b.R \x1b.f \x1b.Q \x1b.9 \x1b.K \x1b.Y \x1b.` \x1b.E \x1b.6 \x1b.%6 \x1b.Z \x1b.H \x1b.7 \x1b.="),
+            vec![
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::DecSpecial),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::DecSupplemental),
+            s(),
+            m(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::DecSupplementalGraphics),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::DecTechnical),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(2,CharSet::Uk),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::UsAscii),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Dutch),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Finnish2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Finnish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::French),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::French2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::FrenchCanadian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::FrenchCanadian2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::German),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Italian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Norwegian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Norwegian2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Norwegian3),
+            s(),
+            m(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Portugese),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Spanish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Swedish2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Swedish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(2,CharSet::Swiss),
+            ]);
+
+       assert_eq!(
+         emu( b"\x1b/0 \x1b/< \x1b/%5 \x1b/> \x1b/A \x1b/B \x1b/4 \x1b/C \x1b/5 \x1b/R \x1b/f \x1b/Q \x1b/9 \x1b/K \x1b/Y \x1b/` \x1b/E \x1b/6 \x1b/%6 \x1b/Z \x1b/H \x1b/7 \x1b/="),
+            vec![
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::DecSpecial),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::DecSupplemental),
+            s(),
+            m(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::DecSupplementalGraphics),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::DecTechnical),
+            s(),
+            m(),
+            m(),
+            Action::DesignateCharacterSet(3,CharSet::Uk),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::UsAscii),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Dutch),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Finnish2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Finnish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::French),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::French2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::FrenchCanadian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::FrenchCanadian2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::German),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Italian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Norwegian),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Norwegian2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Norwegian3),
+            s(),
+            m(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Portugese),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Spanish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Swedish2),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Swedish),
+            s(),
+            m(),
+            m(),
+            m(), // Action::DesignateCharacterSet(3,CharSet::Swiss),
+            ]);
+
+        assert_eq!(
+            emu( b"\x1b%@\x1b%G"),
+            [
+                m(),
+                m(),
+                Action::DesignateCharacterSet(0,CharSet::DefaultSet),
+                m(),
+                m(),
+                Action::DesignateCharacterSet(0,CharSet::Utf8),
+            ]
+        );
+    }
 
 }

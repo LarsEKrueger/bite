@@ -68,7 +68,41 @@ pub enum Action {
     DecDoubleWidth(bool),
 
     DecAlignmentTest,
+
+    /// Charset(level,CharSet)
+    DesignateCharacterSet(u8,CharSet),
 }
+
+/// Character set
+#[derive(PartialEq,Debug)]
+pub enum CharSet {
+    DefaultSet,
+    Utf8,
+    DecSpecial,
+    DecSupplemental,
+    DecSupplementalGraphics,
+    DecTechnical,
+    Uk,
+    UsAscii,
+    Dutch,
+    Finnish,
+    Finnish2,
+    French,
+    French2,
+    FrenchCanadian,
+    FrenchCanadian2,
+    German,
+    Italian,
+    Norwegian,
+    Norwegian2,
+    Norwegian3,
+    Portugese,
+    Spanish,
+    Swedish,
+    Swedish2,
+    Swiss
+}
+
 
 impl Action {
     pub fn char_from_u32(byte: u32) -> Action {
@@ -97,6 +131,7 @@ impl fmt::Debug for Action {
             Action::DecDoubleHeight(n) => write!(f, "DecDoubleHeight({})", n),
             Action::DecDoubleWidth(n) => write!(f, "DecDoubleWidth({})", n),
             Action::DecAlignmentTest => write!(f, "DecAlignmentTest"),
+            Action::DesignateCharacterSet(l,s) => write!(f, "CharSet({},{:?})", l, s),
         }
     }
 }

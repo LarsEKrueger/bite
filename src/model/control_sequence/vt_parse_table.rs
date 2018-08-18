@@ -3704,9 +3704,7 @@ Case::IGNORE,
 Case::IGNORE,
 ];
 
-
-#[allow(dead_code)]
-static esc_pct_table:CaseTable =		/* ESC % */
+pub static esc_pct_table:CaseTable =		/* ESC % */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
