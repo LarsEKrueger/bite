@@ -799,6 +799,8 @@ impl Screen {
             Action::WindowOps(_, _, _) |
             Action::Show8BitControl(_) |
             Action::AnsiConformanceLevel(_) |
+            Action::DecBackIndex |
+            Action::DecForwardIndex |
             Action::DecAlignmentTest |
             Action::DecDoubleHeight(_) |
             Action::DecDoubleWidth(_) =>  {

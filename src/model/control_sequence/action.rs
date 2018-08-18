@@ -71,6 +71,9 @@ pub enum Action {
 
     /// Charset(level,CharSet)
     DesignateCharacterSet(u8,CharSet),
+
+    DecBackIndex,
+    DecForwardIndex,
 }
 
 /// Character set
@@ -132,6 +135,9 @@ impl fmt::Debug for Action {
             Action::DecDoubleWidth(n) => write!(f, "DecDoubleWidth({})", n),
             Action::DecAlignmentTest => write!(f, "DecAlignmentTest"),
             Action::DesignateCharacterSet(l,s) => write!(f, "CharSet({},{:?})", l, s),
+            Action::DecBackIndex => write!(f, "DecBackIndex"),
+            Action::DecForwardIndex => write!(f, "DecForwardIndex"),
+
         }
     }
 }

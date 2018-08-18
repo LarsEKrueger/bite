@@ -820,10 +820,12 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECBI(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DecBackIndex
     }
     fn action_DECFI(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DecForwardIndex
     }
     fn action_DECRQCRA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2204,6 +2206,20 @@ mod test {
                 Action::DesignateCharacterSet(0,CharSet::Utf8),
             ]
         );
+    }
+
+    #[test]
+    fn fwd_back_index() {
+        assert_eq!(
+            emu( b"a\x1b6b\x1b9c"),
+            [
+            c('a'),
+            m(),
+            Action::DecBackIndex,
+            c('b'),
+            m(),
+            Action::DecForwardIndex,
+            c('c')]);
     }
 
 }
