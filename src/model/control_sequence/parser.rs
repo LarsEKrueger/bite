@@ -504,7 +504,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_RIS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::FullReset
     }
     fn action_LS2(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -537,13 +538,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_HP_MEM_LOCK(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::LockMemory(true)
     }
     fn action_HP_MEM_UNLOCK(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::LockMemory(false)
     }
     fn action_HP_BUGGY_LL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::CursorLowerLeft
     }
     fn action_HPA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2238,4 +2242,39 @@ mod test {
             c('c')]);
     }
 
+    #[test]
+    fn cursor_lower_left() {
+        assert_eq!(
+            emu( b"a\x1bFc"),
+            [
+            c('a'),
+            m(),
+            Action::CursorLowerLeft,
+            c('c')]);
+    }
+
+    #[test]
+    fn full_reset() {
+        assert_eq!(
+            emu( b"a\x1bcc"),
+            [
+            c('a'),
+            m(),
+            Action::FullReset,
+            c('c')]);
+    }
+
+    #[test]
+    fn lock_memory() {
+        assert_eq!(
+            emu( b"a\x1blb\x1bmc"),
+            [
+            c('a'),
+            m(),
+            Action::LockMemory(true),
+            c('b'),
+            m(),
+            Action::LockMemory(false),
+            c('c')]);
+    }
 }

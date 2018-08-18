@@ -77,6 +77,13 @@ pub enum Action {
 
     /// true = Application, false = normal
     DecApplicationKeypad(bool),
+
+    CursorLowerLeft,
+
+    FullReset,
+
+    /// true = Lock Memory, false = Unlock Memory
+    LockMemory(bool),
 }
 
 /// Character set
@@ -141,6 +148,9 @@ impl fmt::Debug for Action {
             Action::DecBackIndex => write!(f, "DecBackIndex"),
             Action::DecForwardIndex => write!(f, "DecForwardIndex"),
             Action::DecApplicationKeypad(n) => write!(f, "DecApplicationKeypad({})", n),
+            Action::CursorLowerLeft => write!(f, "CursorLowerLeft"),
+            Action::FullReset => write!(f, "FullReset"),
+            Action::LockMemory(n) => write!(f, "LockMemory({})", n),
         }
     }
 }
