@@ -469,10 +469,12 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECKPAM(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DecApplicationKeypad(true)
     }
     fn action_DECKPNM(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::DecApplicationKeypad(false)
     }
     fn action_IND(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2219,6 +2221,20 @@ mod test {
             c('b'),
             m(),
             Action::DecForwardIndex,
+            c('c')]);
+    }
+
+    #[test]
+    fn dec_application_keypad() {
+        assert_eq!(
+            emu( b"a\x1b=b\x1b>c"),
+            [
+            c('a'),
+            m(),
+            Action::DecApplicationKeypad(true),
+            c('b'),
+            m(),
+            Action::DecApplicationKeypad(false),
             c('c')]);
     }
 

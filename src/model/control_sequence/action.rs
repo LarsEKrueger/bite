@@ -74,6 +74,9 @@ pub enum Action {
 
     DecBackIndex,
     DecForwardIndex,
+
+    /// true = Application, false = normal
+    DecApplicationKeypad(bool),
 }
 
 /// Character set
@@ -137,7 +140,7 @@ impl fmt::Debug for Action {
             Action::DesignateCharacterSet(l,s) => write!(f, "CharSet({},{:?})", l, s),
             Action::DecBackIndex => write!(f, "DecBackIndex"),
             Action::DecForwardIndex => write!(f, "DecForwardIndex"),
-
+            Action::DecApplicationKeypad(n) => write!(f, "DecApplicationKeypad({})", n),
         }
     }
 }
