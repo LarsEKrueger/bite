@@ -84,6 +84,11 @@ pub enum Action {
 
     /// true = Lock Memory, false = Unlock Memory
     LockMemory(bool),
+
+    /// (level, is_gr)
+    /// level = 1 -> G1
+    /// is_gr = true -> invoke as GR
+    InvokeCharSet(u8,bool),
 }
 
 /// Character set
@@ -145,6 +150,7 @@ impl fmt::Debug for Action {
             Action::DecDoubleWidth(n) => write!(f, "DecDoubleWidth({})", n),
             Action::DecAlignmentTest => write!(f, "DecAlignmentTest"),
             Action::DesignateCharacterSet(l,s) => write!(f, "CharSet({},{:?})", l, s),
+            Action::InvokeCharSet(l,b) => write!(f, "InvokeCharSet({},{:?})", l, b),
             Action::DecBackIndex => write!(f, "DecBackIndex"),
             Action::DecForwardIndex => write!(f, "DecForwardIndex"),
             Action::DecApplicationKeypad(n) => write!(f, "DecApplicationKeypad({})", n),

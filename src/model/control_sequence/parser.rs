@@ -508,19 +508,24 @@ impl Parser {
         Action::FullReset
     }
     fn action_LS2(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::InvokeCharSet(2,false)
     }
     fn action_LS3(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::InvokeCharSet(3,false)
     }
     fn action_LS3R(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::InvokeCharSet(3,true)
     }
     fn action_LS2R(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::InvokeCharSet(2,true)
     }
     fn action_LS1R(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::InvokeCharSet(1,true)
     }
     fn action_PRINT(&mut self, _byte: u8) -> Action {
         panic!("This should not happen: Printable characters have no action.");
@@ -2276,5 +2281,24 @@ mod test {
             m(),
             Action::LockMemory(false),
             c('c')]);
+    }
+
+    #[test]
+    fn invoke_char_set() {
+        assert_eq!(
+            emu( b"a\x1bn\x1bo\x1b|\x1b}\x1b~b"),
+            [
+            c('a'),
+            m(),
+            Action::InvokeCharSet(2,false),
+            m(),
+            Action::InvokeCharSet(3,false),
+            m(),
+            Action::InvokeCharSet(3,true),
+            m(),
+            Action::InvokeCharSet(2,true),
+            m(),
+            Action::InvokeCharSet(1,true),
+            c('b')]);
     }
 }

@@ -799,6 +799,7 @@ impl Screen {
             Action::FullReset |
             Action::CursorLowerLeft |
             Action::DesignateCharacterSet(_,_) |
+            Action::InvokeCharSet(_,_) |
             Action::WindowOps(_, _, _) |
             Action::Show8BitControl(_) |
             Action::AnsiConformanceLevel(_) |
