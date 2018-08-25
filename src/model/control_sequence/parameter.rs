@@ -58,7 +58,7 @@ impl Parameters {
     }
 
     pub fn add_default(&mut self) {
-        if (self.count  as usize) < NUM_PARAMETERS {
+        if (self.count as usize) < NUM_PARAMETERS {
             self.count += 1;
         }
         let cm = self.current_mut();

@@ -70,7 +70,7 @@ pub enum Action {
     DecAlignmentTest,
 
     /// Charset(level,CharSet)
-    DesignateCharacterSet(u8,CharSet),
+    DesignateCharacterSet(u8, CharSet),
 
     DecBackIndex,
     DecForwardIndex,
@@ -88,11 +88,13 @@ pub enum Action {
     /// (level, is_gr)
     /// level = 1 -> G1
     /// is_gr = true -> invoke as GR
-    InvokeCharSet(u8,bool),
+    InvokeCharSet(u8, bool),
+
+    ApplicationProgramCommand(String),
 }
 
 /// Character set
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq, Debug)]
 pub enum CharSet {
     DefaultSet,
     Utf8,
@@ -118,9 +120,16 @@ pub enum CharSet {
     Spanish,
     Swedish,
     Swedish2,
-    Swiss
+    Swiss,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum StringMode {
+    None,
+    Apc,
+    Pm,
+    Dcs,
+}
 
 impl Action {
     pub fn char_from_u32(byte: u32) -> Action {
@@ -149,14 +158,17 @@ impl fmt::Debug for Action {
             Action::DecDoubleHeight(n) => write!(f, "DecDoubleHeight({})", n),
             Action::DecDoubleWidth(n) => write!(f, "DecDoubleWidth({})", n),
             Action::DecAlignmentTest => write!(f, "DecAlignmentTest"),
-            Action::DesignateCharacterSet(l,s) => write!(f, "CharSet({},{:?})", l, s),
-            Action::InvokeCharSet(l,b) => write!(f, "InvokeCharSet({},{:?})", l, b),
+            Action::DesignateCharacterSet(l, s) => write!(f, "CharSet({},{:?})", l, s),
+            Action::InvokeCharSet(l, b) => write!(f, "InvokeCharSet({},{:?})", l, b),
             Action::DecBackIndex => write!(f, "DecBackIndex"),
             Action::DecForwardIndex => write!(f, "DecForwardIndex"),
             Action::DecApplicationKeypad(n) => write!(f, "DecApplicationKeypad({})", n),
             Action::CursorLowerLeft => write!(f, "CursorLowerLeft"),
             Action::FullReset => write!(f, "FullReset"),
             Action::LockMemory(n) => write!(f, "LockMemory({})", n),
+            Action::ApplicationProgramCommand(n) => {
+                write!(f, "ApplicationProgramCommand(\"{}\")", n)
+            }
         }
     }
 }
