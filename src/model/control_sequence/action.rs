@@ -18,11 +18,10 @@
 
 //! Parsing result, action to be taken from seeing this sequence.
 
-use std::fmt;
 use std::char;
 
 /// Actions to be taken after processing a byte
-#[derive(PartialEq)]
+#[derive(PartialEq,Debug)]
 pub enum Action {
     /// Send more input, no output yet
     More,
@@ -137,38 +136,3 @@ impl Action {
     }
 }
 
-impl fmt::Debug for Action {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Action::More => write!(f, "More"),
-            Action::Error => write!(f, "Error"),
-            Action::Cr => write!(f, "Cr"),
-            Action::NewLine => write!(f, "NewLine"),
-            Action::Sgr => write!(f, "Sgr"),
-            Action::Char(c) => write!(f, "Char({})", *c as u32),
-            Action::DECREQTPARM => write!(f, "DECREQTPARM"),
-            Action::HorizontalMove(n) => write!(f, "HorizontalMove({})", n),
-            Action::VerticalPos(n) => write!(f, "VerticalPos({})", n),
-            Action::DA1(n) => write!(f, "DA1({})", n),
-            Action::SaveCursor => write!(f, "SaveCursor"),
-            Action::RestoreCursor => write!(f, "RestoreCursor"),
-            Action::WindowOps(n0, n1, n2) => write!(f, "WindowOps({},{},{})", n0, n1, n2),
-            Action::Show8BitControl(n) => write!(f, "Show8BitControl({})", n),
-            Action::AnsiConformanceLevel(n) => write!(f, "AnsiConformanceLevel({})", n),
-            Action::DecDoubleHeight(n) => write!(f, "DecDoubleHeight({})", n),
-            Action::DecDoubleWidth(n) => write!(f, "DecDoubleWidth({})", n),
-            Action::DecAlignmentTest => write!(f, "DecAlignmentTest"),
-            Action::DesignateCharacterSet(l, s) => write!(f, "CharSet({},{:?})", l, s),
-            Action::InvokeCharSet(l, b) => write!(f, "InvokeCharSet({},{:?})", l, b),
-            Action::DecBackIndex => write!(f, "DecBackIndex"),
-            Action::DecForwardIndex => write!(f, "DecForwardIndex"),
-            Action::DecApplicationKeypad(n) => write!(f, "DecApplicationKeypad({})", n),
-            Action::CursorLowerLeft => write!(f, "CursorLowerLeft"),
-            Action::FullReset => write!(f, "FullReset"),
-            Action::LockMemory(n) => write!(f, "LockMemory({})", n),
-            Action::ApplicationProgramCommand(n) => {
-                write!(f, "ApplicationProgramCommand(\"{}\")", n)
-            }
-        }
-    }
-}
