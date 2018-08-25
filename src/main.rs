@@ -29,6 +29,7 @@
 
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
+#![recursion_limit="128"]
 
 extern crate argparse;
 extern crate libc;
