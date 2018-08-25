@@ -359,7 +359,8 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_ICH(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        Action::InsertCharacters( self.parameter.one_if_default(0))
     }
     fn action_CUU(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2323,7 +2324,7 @@ mod test {
     }
 
     #[test]
-    fn decudk() {
+    fn dcs() {
         assert_eq!(
             emu(b"a\x1bP0;0|17/17;15/15\x1b\\b"),
             [
@@ -2351,4 +2352,21 @@ mod test {
             ]
         );
     }
+
+    #[test]
+    fn ich() {
+        assert_eq!(
+            emu(b"a\x1b[12@b"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::InsertCharacters(12),
+                c('b'),
+            ]
+        );
+    }
+
 }

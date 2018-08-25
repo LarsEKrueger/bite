@@ -91,7 +91,12 @@ pub enum Action {
 
     ApplicationProgramCommand(String),
 
+    /// This will currently catch all DCS command in the parameter.
+    ///
+    /// TODO: Implement string decoding
     DecUserDefinedKeys(String),
+
+    InsertCharacters(u32),
 }
 
 /// Character set

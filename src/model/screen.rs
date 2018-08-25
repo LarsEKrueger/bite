@@ -795,6 +795,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::InsertCharacters(_) |
             Action::DecUserDefinedKeys(_) |
             Action::ApplicationProgramCommand(_) |
             Action::LockMemory(_) |
