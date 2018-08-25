@@ -121,6 +121,127 @@ fn utf8_is_cont_byte(byte: u8) -> bool {
 
 // RUST CODE END
 
+mod action {
+    use super::*;
+
+    macro_rules! action_reset {
+        ($name:ident,$action:ident) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action { p.reset(); Action::$action }
+        };
+        ($name:ident,$action:ident,zero) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::$action( p.parameter.zero_if_default(0))
+            }
+        };
+        ($name:ident,$action:ident,one) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::$action( p.parameter.one_if_default(0))
+            }
+        };
+        ($name:ident,$action:ident,$const:tt) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::$action( $const)
+            }
+        };
+        ($name:ident,$action:ident,$c1:tt,$c2:tt) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::$action( $c1, $c2)
+            }
+        };
+    }
+
+    macro_rules! action_simple {
+        ($i:ident,$a:ident) => {
+            pub fn $i(_p:&mut Parser, _byte: u8) -> Action { Action::$a }
+        }
+    }
+
+    macro_rules! action_state {
+        ($i:ident,$a:ident) => {
+            pub fn $i(p:&mut Parser, _byte: u8) -> Action {
+                p.parsestate = &$a;
+                Action::More
+            }
+        }
+    }
+
+    macro_rules! action_string {
+        ($i:ident,$a:ident) => {
+            pub fn $i(p:&mut Parser, _byte: u8) -> Action {
+                p.string_mode = StringMode::$a;
+                p.parsestate = &sos_table;
+                Action::More
+            }
+        }
+    }
+
+    macro_rules! action_scs {
+        ($name:ident,$table:ident, $const:tt) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.scstype = $const;
+                p.parsestate = &$table;
+                Action::More 
+            }
+        }
+    }
+
+    action_scs!(SCS0_STATE , scstable  , 0);
+    action_scs!(SCS1_STATE , scstable  , 1);
+    action_scs!(SCS2_STATE , scstable  , 2);
+    action_scs!(SCS3_STATE , scstable  , 3);
+    action_scs!(SCS1A_STATE, scs96table, 1);
+    action_scs!(SCS2A_STATE, scs96table, 2);
+    action_scs!(SCS3A_STATE, scs96table, 3);
+
+    action_string!(DCS,Dcs);
+    action_string!(APC,Apc);
+
+    action_reset!(GROUND_STATE,More);
+    action_simple!(IGNORE, More);
+    action_simple!(CR,Cr);
+    action_state!(ESC,esc_table);
+    action_state!(SCR_STATE,scrtable);
+    action_state!(ESC_IGNORE,eigtable);
+    action_reset!(ICH,InsertCharacters,one);
+    action_reset!(DA1,DA1,zero);
+    action_reset!(SGR,Sgr);
+    action_reset!(DECREQTPARM,DECREQTPARM);
+    action_reset!(DECALN,DecAlignmentTest);
+    action_reset!(DECKPAM,DecApplicationKeypad,true);
+    action_reset!(DECKPNM,DecApplicationKeypad,false);
+    action_reset!(RIS,FullReset);
+    action_reset!(LS2 ,InvokeCharSet, 2, false);
+    action_reset!(LS3 ,InvokeCharSet, 3, false);
+    action_reset!(LS3R,InvokeCharSet, 3, true);
+    action_reset!(LS2R,InvokeCharSet, 2, true);
+    action_reset!(LS1R,InvokeCharSet, 1, true);
+    action_reset!(HP_MEM_LOCK,LockMemory,true);
+    action_reset!(HP_MEM_UNLOCK,LockMemory,false);
+    action_reset!(HP_BUGGY_LL,CursorLowerLeft);
+    action_reset!(S7C1T,Show8BitControl,false);
+    action_reset!(S8C1T,Show8BitControl,true);
+    action_state!(ESC_SP_STATE,esc_sp_table);
+    action_reset!(ANSI_LEVEL_1,AnsiConformanceLevel,1);
+    action_reset!(ANSI_LEVEL_2,AnsiConformanceLevel,2);
+    action_reset!(ANSI_LEVEL_3,AnsiConformanceLevel,3);
+    action_reset!(DECSWL,DecDoubleWidth,false);
+    action_reset!(DECDWL,DecDoubleWidth,true);
+    action_state!(ESC_PERCENT,esc_pct_table);
+    action_state!(CSI_IGNORE,cigtable);
+    action_state!(CSI_DOLLAR_STATE,csi_dollar_table);
+    action_state!(CSI_SPACE_STATE,csi_sp_table);
+    action_reset!(DECBI,DecBackIndex);
+    action_reset!(DECFI,DecForwardIndex);
+    action_reset!(HPR,HorizontalMove,one);
+    action_reset!(ANSI_SC,SaveCursor);
+    action_reset!(ANSI_RC,RestoreCursor);
+    action_state!(SCS_PERCENT,scs_pct_table);
+}
+
 impl Parser {
     pub fn new() -> Self {
         Self {
@@ -278,26 +399,11 @@ impl Parser {
         panic!("This should not happen!");
     }
 
-    fn action_GROUND_STATE(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::More
-    }
-    fn action_IGNORE(&mut self, _byte: u8) -> Action {
-        // Ignore this state
-        Action::More
-    }
     fn action_BELL(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_BS(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_CR(&mut self, _byte: u8) -> Action {
-        Action::Cr
-    }
-    fn action_ESC(&mut self, _byte: u8) -> Action {
-        self.parsestate = &esc_table;
-        Action::More
     }
     fn action_VMOT(&mut self, byte: u8) -> Action {
         match byte {
@@ -313,34 +419,6 @@ impl Parser {
     }
     fn action_SO(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_SCR_STATE(&mut self, _byte: u8) -> Action {
-        self.parsestate = &scrtable;
-        Action::More
-    }
-    fn action_SCS0_STATE(&mut self, _byte: u8) -> Action {
-        self.scstype = 0;
-        self.parsestate = &scstable;
-        Action::More
-    }
-    fn action_SCS1_STATE(&mut self, _byte: u8) -> Action {
-        self.scstype = 1;
-        self.parsestate = &scstable;
-        Action::More
-    }
-    fn action_SCS2_STATE(&mut self, _byte: u8) -> Action {
-        self.scstype = 2;
-        self.parsestate = &scstable;
-        Action::More
-    }
-    fn action_SCS3_STATE(&mut self, _byte: u8) -> Action {
-        self.scstype = 3;
-        self.parsestate = &scstable;
-        Action::More
-    }
-    fn action_ESC_IGNORE(&mut self, _byte: u8) -> Action {
-        self.parsestate = &eigtable;
-        Action::More
     }
     fn action_ESC_DIGIT(&mut self, byte: u8) -> Action {
         self.parameter.add_digit(byte);
@@ -358,10 +436,6 @@ impl Parser {
     }
     fn action_DEC_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_ICH(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::InsertCharacters(self.parameter.one_if_default(0))
     }
     fn action_CUU(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -393,11 +467,6 @@ impl Parser {
     fn action_DCH(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DA1(&mut self, _byte: u8) -> Action {
-        let val = self.parameter.zero_if_default(0);
-        self.reset();
-        Action::DA1(val as usize)
-    }
     fn action_TRACK_MOUSE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -410,29 +479,17 @@ impl Parser {
     fn action_RST(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_SGR(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::Sgr
-    }
     fn action_CPR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_DECSTBM(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECREQTPARM(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DECREQTPARM
-    }
     fn action_DECSET(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_DECRST(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_DECALN(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DecAlignmentTest
     }
     fn action_GSETS(&mut self, byte: u8) -> Action {
         let cs = match byte {
@@ -474,14 +531,6 @@ impl Parser {
     fn action_DECRC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECKPAM(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DecApplicationKeypad(true)
-    }
-    fn action_DECKPNM(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DecApplicationKeypad(false)
-    }
     fn action_IND(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -509,30 +558,6 @@ impl Parser {
     fn action_OSC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_RIS(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::FullReset
-    }
-    fn action_LS2(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::InvokeCharSet(2, false)
-    }
-    fn action_LS3(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::InvokeCharSet(3, false)
-    }
-    fn action_LS3R(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::InvokeCharSet(3, true)
-    }
-    fn action_LS2R(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::InvokeCharSet(2, true)
-    }
-    fn action_LS1R(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::InvokeCharSet(1, true)
-    }
     fn action_PRINT(&mut self, _byte: u8) -> Action {
         panic!("This should not happen: Printable characters have no action.");
     }
@@ -547,18 +572,6 @@ impl Parser {
     }
     fn action_DECID(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_HP_MEM_LOCK(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::LockMemory(true)
-    }
-    fn action_HP_MEM_UNLOCK(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::LockMemory(false)
-    }
-    fn action_HP_BUGGY_LL(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::CursorLowerLeft
     }
     fn action_HPA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -596,18 +609,6 @@ impl Parser {
     fn action_SD(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_S7C1T(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::Show8BitControl(false)
-    }
-    fn action_S8C1T(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::Show8BitControl(true)
-    }
-    fn action_ESC_SP_STATE(&mut self, _byte: u8) -> Action {
-        self.parsestate = &esc_sp_table;
-        Action::More
-    }
     fn action_ENQ(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -622,11 +623,6 @@ impl Parser {
     }
     fn action_DECSEL(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_DCS(&mut self, _byte: u8) -> Action {
-        self.string_mode = StringMode::Dcs;
-        self.parsestate = &sos_table;
-        Action::More
     }
     fn action_PM(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -654,11 +650,6 @@ impl Parser {
         };
         res
     }
-    fn action_APC(&mut self, _byte: u8) -> Action {
-        self.string_mode = StringMode::Apc;
-        self.parsestate = &sos_table;
-        Action::More
-    }
     fn action_EPA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -670,18 +661,6 @@ impl Parser {
     }
     fn action_DSR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_ANSI_LEVEL_1(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::AnsiConformanceLevel(1)
-    }
-    fn action_ANSI_LEVEL_2(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::AnsiConformanceLevel(2)
-    }
-    fn action_ANSI_LEVEL_3(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::AnsiConformanceLevel(3)
     }
     fn action_MC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -714,20 +693,8 @@ impl Parser {
         self.reset();
         Action::DecDoubleHeight(byte == b'3')
     }
-    fn action_DECSWL(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DecDoubleWidth(false)
-    }
-    fn action_DECDWL(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DecDoubleWidth(true)
-    }
     fn action_DEC_MC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_ESC_PERCENT(&mut self, _byte: u8) -> Action {
-        self.parsestate = &esc_pct_table;
-        Action::More
     }
     fn action_UTF8(&mut self, byte: u8) -> Action {
         self.reset();
@@ -752,19 +719,11 @@ impl Parser {
     fn action_DECSLE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_CSI_IGNORE(&mut self, _byte: u8) -> Action {
-        self.parsestate = &cigtable;
-        Action::More
-    }
     fn action_VT52_IGNORE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_VT52_FINISH(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_CSI_DOLLAR_STATE(&mut self, _byte: u8) -> Action {
-        self.parsestate = &csi_dollar_table;
-        Action::More
     }
     fn action_DECCRA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -798,25 +757,6 @@ impl Parser {
     }
     fn action_HIDE_POINTER(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_SCS1A_STATE(&mut self, _byte: u8) -> Action {
-        self.scstype = 1;
-        self.parsestate = &scs96table;
-        Action::More
-    }
-    fn action_SCS2A_STATE(&mut self, _byte: u8) -> Action {
-        self.scstype = 2;
-        self.parsestate = &scs96table;
-        Action::More
-    }
-    fn action_SCS3A_STATE(&mut self, _byte: u8) -> Action {
-        self.scstype = 3;
-        self.parsestate = &scs96table;
-        Action::More
-    }
-    fn action_CSI_SPACE_STATE(&mut self, _byte: u8) -> Action {
-        self.parsestate = &csi_sp_table;
-        Action::More
     }
     fn action_DECSCUSR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -857,39 +797,14 @@ impl Parser {
     fn action_DECIC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECBI(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DecBackIndex
-    }
-    fn action_DECFI(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::DecForwardIndex
-    }
     fn action_DECRQCRA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_HPR(&mut self, _byte: u8) -> Action {
-        let col = self.parameter.one_if_default(0);
-        self.reset();
-        Action::HorizontalMove(col as isize)
     }
     fn action_VPR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_ANSI_SC(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::SaveCursor
-    }
-    fn action_ANSI_RC(&mut self, _byte: u8) -> Action {
-        self.reset();
-        Action::RestoreCursor
-    }
     fn action_ESC_COLON(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
-    }
-    fn action_SCS_PERCENT(&mut self, _byte: u8) -> Action {
-        self.parsestate = &scs_pct_table;
-        Action::More
     }
     fn action_GSETS_PERCENT(&mut self, byte: u8) -> Action {
         let cs = match byte {
@@ -935,26 +850,26 @@ type CaseDispatch = fn(&mut Parser, byte: u8) -> Action;
 static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
     [
         Parser::action_Illegal,
-        Parser::action_GROUND_STATE,
-        Parser::action_IGNORE,
+        action::GROUND_STATE,
+        action::IGNORE,
         Parser::action_BELL,
         Parser::action_BS,
-        Parser::action_CR,
-        Parser::action_ESC,
+        action::CR,
+        action::ESC,
         Parser::action_VMOT,
         Parser::action_TAB,
         Parser::action_SI,
         Parser::action_SO,
-        Parser::action_SCR_STATE,
-        Parser::action_SCS0_STATE,
-        Parser::action_SCS1_STATE,
-        Parser::action_SCS2_STATE,
-        Parser::action_SCS3_STATE,
-        Parser::action_ESC_IGNORE,
+        action::SCR_STATE,
+        action::SCS0_STATE,
+        action::SCS1_STATE,
+        action::SCS2_STATE,
+        action::SCS3_STATE,
+        action::ESC_IGNORE,
         Parser::action_ESC_DIGIT,
         Parser::action_ESC_SEMI,
         Parser::action_DEC_STATE,
-        Parser::action_ICH,
+        action::ICH,
         Parser::action_CUU,
         Parser::action_CUD,
         Parser::action_CUF,
@@ -965,23 +880,23 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_IL,
         Parser::action_DL,
         Parser::action_DCH,
-        Parser::action_DA1,
+        action::DA1,
         Parser::action_TRACK_MOUSE,
         Parser::action_TBC,
         Parser::action_SET,
         Parser::action_RST,
-        Parser::action_SGR,
+        action::SGR,
         Parser::action_CPR,
         Parser::action_DECSTBM,
-        Parser::action_DECREQTPARM,
+        action::DECREQTPARM,
         Parser::action_DECSET,
         Parser::action_DECRST,
-        Parser::action_DECALN,
+        action::DECALN,
         Parser::action_GSETS,
         Parser::action_DECSC,
         Parser::action_DECRC,
-        Parser::action_DECKPAM,
-        Parser::action_DECKPNM,
+        action::DECKPAM,
+        action::DECKPNM,
         Parser::action_IND,
         Parser::action_NEL,
         Parser::action_HTS,
@@ -990,20 +905,20 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_SS3,
         Parser::action_CSI_STATE,
         Parser::action_OSC,
-        Parser::action_RIS,
-        Parser::action_LS2,
-        Parser::action_LS3,
-        Parser::action_LS3R,
-        Parser::action_LS2R,
-        Parser::action_LS1R,
+        action::RIS,
+        action::LS2,
+        action::LS3,
+        action::LS3R,
+        action::LS2R,
+        action::LS1R,
         Parser::action_PRINT,
         Parser::action_XTERM_SAVE,
         Parser::action_XTERM_RESTORE,
         Parser::action_XTERM_TITLE,
         Parser::action_DECID,
-        Parser::action_HP_MEM_LOCK,
-        Parser::action_HP_MEM_UNLOCK,
-        Parser::action_HP_BUGGY_LL,
+        action::HP_MEM_LOCK,
+        action::HP_MEM_UNLOCK,
+        action::HP_BUGGY_LL,
         Parser::action_HPA,
         Parser::action_VPA,
         Parser::action_XTERM_WINOPS,
@@ -1014,26 +929,26 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_CBT,
         Parser::action_SU,
         Parser::action_SD,
-        Parser::action_S7C1T,
-        Parser::action_S8C1T,
-        Parser::action_ESC_SP_STATE,
+        action::S7C1T,
+        action::S8C1T,
+        action::ESC_SP_STATE,
         Parser::action_ENQ,
         Parser::action_DECSCL,
         Parser::action_DECSCA,
         Parser::action_DECSED,
         Parser::action_DECSEL,
-        Parser::action_DCS,
+        action::DCS,
         Parser::action_PM,
         Parser::action_SOS,
         Parser::action_ST,
-        Parser::action_APC,
+        action::APC,
         Parser::action_EPA,
         Parser::action_SPA,
         Parser::action_CSI_QUOTE_STATE,
         Parser::action_DSR,
-        Parser::action_ANSI_LEVEL_1,
-        Parser::action_ANSI_LEVEL_2,
-        Parser::action_ANSI_LEVEL_3,
+        action::ANSI_LEVEL_1,
+        action::ANSI_LEVEL_2,
+        action::ANSI_LEVEL_3,
         Parser::action_MC,
         Parser::action_DEC2_STATE,
         Parser::action_DA2,
@@ -1044,20 +959,20 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_CSI_EX_STATE,
         Parser::action_DECSTR,
         Parser::action_DECDHL,
-        Parser::action_DECSWL,
-        Parser::action_DECDWL,
+        action::DECSWL,
+        action::DECDWL,
         Parser::action_DEC_MC,
-        Parser::action_ESC_PERCENT,
+        action::ESC_PERCENT,
         Parser::action_UTF8,
         Parser::action_CSI_TICK_STATE,
         Parser::action_DECELR,
         Parser::action_DECRQLP,
         Parser::action_DECEFR,
         Parser::action_DECSLE,
-        Parser::action_CSI_IGNORE,
+        action::CSI_IGNORE,
         Parser::action_VT52_IGNORE,
         Parser::action_VT52_FINISH,
-        Parser::action_CSI_DOLLAR_STATE,
+        action::CSI_DOLLAR_STATE,
         Parser::action_DECCRA,
         Parser::action_DECERA,
         Parser::action_DECFRA,
@@ -1069,10 +984,10 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_SET_MOD_FKEYS,
         Parser::action_SET_MOD_FKEYS0,
         Parser::action_HIDE_POINTER,
-        Parser::action_SCS1A_STATE,
-        Parser::action_SCS2A_STATE,
-        Parser::action_SCS3A_STATE,
-        Parser::action_CSI_SPACE_STATE,
+        action::SCS1A_STATE,
+        action::SCS2A_STATE,
+        action::SCS3A_STATE,
+        action::CSI_SPACE_STATE,
         Parser::action_DECSCUSR,
         Parser::action_SM_TITLE,
         Parser::action_RM_TITLE,
@@ -1086,15 +1001,15 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_SR,
         Parser::action_DECDC,
         Parser::action_DECIC,
-        Parser::action_DECBI,
-        Parser::action_DECFI,
+        action::DECBI,
+        action::DECFI,
         Parser::action_DECRQCRA,
-        Parser::action_HPR,
+        action::HPR,
         Parser::action_VPR,
-        Parser::action_ANSI_SC,
-        Parser::action_ANSI_RC,
+        action::ANSI_SC,
+        action::ANSI_RC,
         Parser::action_ESC_COLON,
-        Parser::action_SCS_PERCENT,
+        action::SCS_PERCENT,
         Parser::action_GSETS_PERCENT,
         Parser::action_GRAPHICS_ATTRIBUTES,
         Parser::action_CSI_HASH_STATE,

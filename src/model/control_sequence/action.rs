@@ -48,11 +48,11 @@ pub enum Action {
     SaveCursor,
     RestoreCursor,
 
-    HorizontalMove(isize),
+    HorizontalMove(u32),
 
     VerticalPos(isize),
 
-    DA1(usize),
+    DA1(u32),
 
     WindowOps(u8, usize, usize),
 
