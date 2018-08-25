@@ -21,7 +21,7 @@
 use std::char;
 
 /// Actions to be taken after processing a byte
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq, Debug)]
 pub enum Action {
     /// Send more input, no output yet
     More,
@@ -142,4 +142,3 @@ impl Action {
         Action::Char(unsafe { char::from_u32_unchecked(byte as u32) })
     }
 }
-
