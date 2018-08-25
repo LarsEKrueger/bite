@@ -90,6 +90,8 @@ pub enum Action {
     InvokeCharSet(u8, bool),
 
     ApplicationProgramCommand(String),
+
+    DecUserDefinedKeys(String),
 }
 
 /// Character set

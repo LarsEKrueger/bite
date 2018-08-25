@@ -622,7 +622,9 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DCS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.string_mode = StringMode::Dcs;
+        self.parsestate = &sos_table;
+        Action::More
     }
     fn action_PM(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -637,6 +639,11 @@ impl Parser {
                 let mut s = mem::replace(&mut self.string_area, String::new());
                 let _ = s.pop();
                 Action::ApplicationProgramCommand(s)
+            }
+            StringMode::Dcs => {
+                let mut s = mem::replace(&mut self.string_area, String::new());
+                let _ = s.pop();
+                Action::DecUserDefinedKeys(s)
             }
             _ => {
                 self.string_area.clear();
@@ -2297,7 +2304,6 @@ mod test {
 
     #[test]
     fn apc() {
-
         assert_eq!(
             emu(b"a\x1b_stuff\x1b\\b"),
             [
@@ -2311,6 +2317,36 @@ mod test {
                 m(),
                 m(),
                 Action::ApplicationProgramCommand("stuff".to_string()),
+                c('b'),
+            ]
+        );
+    }
+
+    #[test]
+    fn decudk() {
+        assert_eq!(
+            emu(b"a\x1bP0;0|17/17;15/15\x1b\\b"),
+            [
+                c('a'),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                m(),
+                Action::DecUserDefinedKeys("0;0|17/17;15/15".to_string()),
                 c('b'),
             ]
         );
