@@ -118,6 +118,19 @@ pub enum Action {
 
     InsertCharacters(u32),
     InsertLines(u32),
+
+    DeleteLines(u32),
+    DeleteCharacters(u32),
+
+    ScrollUp(u32),
+    ScrollDown(u32),
+
+    GraphicRegister(GraReg, GraOp),
+
+    /// The 5 parameters of the sequence
+    MouseTracking(u32, u32, u32, u32, u32),
+
+    ResetTitleModes(TitleModes),
 }
 
 /// Character set
@@ -171,6 +184,36 @@ pub enum EraseLine {
     Left,
     Right,
     All,
+}
+
+/// Graphic register
+#[derive(Debug, PartialEq)]
+pub enum GraReg {
+    Color,
+    Sixel,
+    Regis,
+}
+
+/// Operations on graphics registers
+#[derive(Debug, PartialEq)]
+pub enum GraOp {
+    Read,
+    Reset,
+    Write(u32),
+    GetMax,
+}
+
+bitflags! {
+    pub struct TitleModes: u8 {
+        const SetLabelHex  = 0b0001;
+        const GetLabelHex  = 0b0010;
+        const SetLabelUtf8 = 0b0100;
+        const GetLabelUtf8 = 0b1000;
+
+        const DEFAULT = 0;
+        const ALL = Self::SetLabelHex.bits | Self::GetLabelHex.bits | Self::SetLabelUtf8.bits |
+            Self::GetLabelUtf8.bits;
+    }
 }
 
 impl Action {

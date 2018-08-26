@@ -795,6 +795,10 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::ResetTitleModes(_) |
+            Action::MouseTracking(_,_,_,_,_)|
+            Action::ScrollUp(_) |
+            Action::ScrollDown(_) |
             Action::EraseDisplay(_,_)|
             Action::EraseLine(_,_)|
             Action::CursorAbsoluteColumn(_)|
@@ -808,6 +812,8 @@ impl Screen {
             Action::CursorPrevLine(_)|
             Action::InsertCharacters(_) |
             Action::InsertLines(_) |
+            Action::DeleteLines(_) |
+            Action::DeleteCharacters(_) |
             Action::DecUserDefinedKeys(_) |
             Action::ApplicationProgramCommand(_) |
             Action::LockMemory(_) |
@@ -818,6 +824,7 @@ impl Screen {
             Action::WindowOps(_, _, _) |
             Action::Show8BitControl(_) |
             Action::AnsiConformanceLevel(_) |
+            Action::GraphicRegister(_,_) |
             Action::DecApplicationKeypad(_) |
             Action::DecBackIndex |
             Action::DecForwardIndex |

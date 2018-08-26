@@ -25,7 +25,8 @@ use std::mem;
 
 use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
-use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine};
+use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
+                    TitleModes};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -242,7 +243,10 @@ mod action {
     action_reset!(S7C1T, Show8BitControl, false);
     action_reset!(S8C1T, Show8BitControl, true);
     action_reset!(SGR, Sgr);
-    action_reset!(IL,InsertLines,one);
+    action_reset!(IL, InsertLines, one);
+    action_reset!(DL, DeleteLines, one);
+    action_reset!(DCH, DeleteCharacters, one);
+    action_reset!(SU, ScrollUp, one);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -262,6 +266,7 @@ mod action {
     action_state!(ESC_SP_STATE, esc_sp_table);
     action_state!(SCR_STATE, scrtable);
     action_state!(SCS_PERCENT, scs_pct_table);
+    action_state!(DEC2_STATE, dec2_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
@@ -492,15 +497,22 @@ impl Parser {
     fn action_DECSEL(&mut self, _byte: u8) -> Action {
         self.decode_EL(true)
     }
-
-    fn action_DL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DCH(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_TRACK_MOUSE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        // One non-zero parameter is scroll down. Everything else is mouse tracking.
+        let func = self.parameter.zero_if_default(0);
+        if self.parameter.count() == 1 && func != 0 {
+            Action::ScrollDown(func)
+        } else {
+            let ref p = self.parameter;
+            Action::MouseTracking(
+                func,
+                p.zero_if_default(1),
+                p.zero_if_default(2),
+                p.zero_if_default(3),
+                p.zero_if_default(4),
+            )
+        }
     }
     fn action_TBC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -623,9 +635,6 @@ impl Parser {
     fn action_CBT(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_SU(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_SD(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -677,9 +686,6 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_MC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DEC2_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_DA2(&mut self, _byte: u8) -> Action {
@@ -779,7 +785,18 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_RM_TITLE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let mut tm = TitleModes::empty();
+        for p in self.parameter.iter() {
+            match p {
+                0 => tm.insert(TitleModes::SetLabelHex),
+                1 => tm.insert(TitleModes::GetLabelHex),
+                2 => tm.insert(TitleModes::SetLabelUtf8),
+                3 => tm.insert(TitleModes::GetLabelUtf8),
+                _ => {}
+            }
+        }
+        Action::ResetTitleModes(tm)
     }
     fn action_DECSMBV(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -834,7 +851,24 @@ impl Parser {
         }
     }
     fn action_GRAPHICS_ATTRIBUTES(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        let register = match self.parameter.zero_if_default(0) {
+            1 => Some(GraReg::Color),
+            2 => Some(GraReg::Sixel),
+            3 => Some(GraReg::Regis),
+            _ => None,
+        };
+        let op = match self.parameter.zero_if_default(1) {
+            1 => Some(GraOp::Read),
+            2 => Some(GraOp::Reset),
+            3 => Some(GraOp::Write(self.parameter.zero_if_default(2))),
+            4 => Some(GraOp::GetMax),
+            _ => None,
+        };
+        self.reset();
+        match (register, op) {
+            (Some(r), Some(o)) => Action::GraphicRegister(r, o),
+            _ => Action::More,
+        }
     }
     fn action_CSI_HASH_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -892,8 +926,8 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_ED,
         Parser::action_EL,
         action::IL,
-        Parser::action_DL,
-        Parser::action_DCH,
+        action::DL,
+        action::DCH,
         action::DA1,
         Parser::action_TRACK_MOUSE,
         Parser::action_TBC,
@@ -941,7 +975,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::CPL,
         action::CNL,
         Parser::action_CBT,
-        Parser::action_SU,
+        action::SU,
         Parser::action_SD,
         action::S7C1T,
         action::S8C1T,
@@ -964,7 +998,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::ANSI_LEVEL_2,
         action::ANSI_LEVEL_3,
         Parser::action_MC,
-        Parser::action_DEC2_STATE,
+        action::DEC2_STATE,
         Parser::action_DA2,
         Parser::action_DEC3_STATE,
         Parser::action_DECRPTUI,
@@ -1100,9 +1134,13 @@ mod test {
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr) $($rest:tt)*) -> ($($body:tt)*)) => {
                 pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2),));
         };
-        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr,$v3:expr ) $($rest:tt)*) ->
+        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr) $($rest:tt)*) ->
          ($($body:tt)*)) => {
                 pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3),));
+        };
+        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr)
+                         $($rest:tt)*) -> ($($body:tt)*)) => {
+                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5),));
         };
         (@accu $str:tt, ($i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
                 pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i,))
@@ -1338,7 +1376,33 @@ mod test {
         pt!(b"a\x1b[?1Kb", c'a' m m m m EraseLine(EraseLine::Left,true) c'b');
         pt!(b"a\x1b[?2Kb", c'a' m m m m EraseLine(EraseLine::All,true) c'b');
         pt!(b"a\x1b[?23Kb", c'a' m m m m m m c'b');
-
         pt!(b"a\x1b[23Lb", c'a' m m m m InsertLines(23) c'b');
+        pt!(b"a\x1b[23Mb", c'a' m m m m DeleteLines(23) c'b');
+        pt!(b"a\x1b[23Pb", c'a' m m m m DeleteCharacters(23) c'b');
+        pt!(b"a\x1b[23Sb", c'a' m m m m ScrollUp(23) c'b');
+        pt!(b"a\x1b[?1;1;1Sb", c'a' m m m m m m m m
+            GraphicRegister(GraReg::Color,GraOp::Read) c'b');
+        pt!(b"a\x1b[?2;1;1Sb", c'a' m m m m m m m m
+            GraphicRegister(GraReg::Sixel,GraOp::Read) c'b');
+        pt!(b"a\x1b[?3;1;1Sb", c'a' m m m m m m m m
+            GraphicRegister(GraReg::Regis,GraOp::Read) c'b');
+        pt!(b"a\x1b[?1;2;1Sb", c'a' m m m m m m m m
+            GraphicRegister(GraReg::Color,GraOp::Reset) c'b');
+        pt!(b"a\x1b[?1;3;5Sb", c'a' m m m m m m m m
+            GraphicRegister(GraReg::Color,GraOp::Write(5)) c'b');
+        pt!(b"a\x1b[?1;4;5Sb", c'a' m m m m m m m m
+            GraphicRegister(GraReg::Color,GraOp::GetMax) c'b');
+        pt!(b"a\x1b[?1;5;1Sb", c'a' m m m m m m m m m c'b');
+        pt!(b"a\x1b[?4;1;1Sb", c'a' m m m m m m m m m c'b');
+        pt!(b"a\x1b[23Tb", c'a' m m m m ScrollDown(23) c'b');
+        pt!(b"a\x1b[23;1;2;3;4Tb", c'a' m m m m m m m m m m m m MouseTracking(23,1,2,3,4) c'b');
+
+        pt!(b"a\x1b[>0Tb", c'a' m m m m ResetTitleModes(TitleModes::SetLabelHex) c'b');
+        pt!(b"a\x1b[>1Tb", c'a' m m m m ResetTitleModes(TitleModes::GetLabelHex) c'b');
+        pt!(b"a\x1b[>2Tb", c'a' m m m m ResetTitleModes(TitleModes::SetLabelUtf8) c'b');
+        pt!(b"a\x1b[>3Tb", c'a' m m m m ResetTitleModes(TitleModes::GetLabelUtf8) c'b');
+        pt!(b"a\x1b[>0;1Tb", c'a' m m m m m m
+            ResetTitleModes(TitleModes::SetLabelHex | TitleModes::GetLabelHex) c'b');
+        pt!(b"a\x1b[>12;14Tb", c'a' m m m m m m m m ResetTitleModes(TitleModes::empty()) c'b');
     }
 }
