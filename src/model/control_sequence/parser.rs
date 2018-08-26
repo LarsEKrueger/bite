@@ -25,7 +25,7 @@ use std::mem;
 
 use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
-use super::action::{Action, CharSet, StringMode};
+use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -140,6 +140,18 @@ mod action {
                 Action::$action( p.parameter.one_if_default(0))
             }
         };
+        ($name:ident,$action:ident,one_minus) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::$action( p.parameter.one_if_default(0)-1)
+            }
+        };
+        ($name:ident,$action:ident,one_minus, one_minus) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::$action( p.parameter.one_if_default(0)-1, p.parameter.one_if_default(1)-1)
+            }
+        };
         ($name:ident,$action:ident,$const:tt) => {
             pub fn $name(p:&mut Parser, _byte: u8) -> Action {
                 p.reset();
@@ -184,62 +196,74 @@ mod action {
             pub fn $name(p:&mut Parser, _byte: u8) -> Action {
                 p.scstype = $const;
                 p.parsestate = &$table;
-                Action::More 
+                Action::More
             }
         }
     }
 
-    action_scs!(SCS0_STATE , scstable  , 0);
-    action_scs!(SCS1_STATE , scstable  , 1);
-    action_scs!(SCS2_STATE , scstable  , 2);
-    action_scs!(SCS3_STATE , scstable  , 3);
-    action_scs!(SCS1A_STATE, scs96table, 1);
-    action_scs!(SCS2A_STATE, scs96table, 2);
-    action_scs!(SCS3A_STATE, scs96table, 3);
-
-    action_string!(DCS,Dcs);
-    action_string!(APC,Apc);
-
-    action_reset!(GROUND_STATE,More);
+    action_simple!(CR, Cr);
     action_simple!(IGNORE, More);
-    action_simple!(CR,Cr);
-    action_state!(ESC,esc_table);
-    action_state!(SCR_STATE,scrtable);
-    action_state!(ESC_IGNORE,eigtable);
-    action_reset!(ICH,InsertCharacters,one);
-    action_reset!(DA1,DA1,zero);
-    action_reset!(SGR,Sgr);
-    action_reset!(DECREQTPARM,DECREQTPARM);
-    action_reset!(DECALN,DecAlignmentTest);
-    action_reset!(DECKPAM,DecApplicationKeypad,true);
-    action_reset!(DECKPNM,DecApplicationKeypad,false);
-    action_reset!(RIS,FullReset);
-    action_reset!(LS2 ,InvokeCharSet, 2, false);
-    action_reset!(LS3 ,InvokeCharSet, 3, false);
-    action_reset!(LS3R,InvokeCharSet, 3, true);
-    action_reset!(LS2R,InvokeCharSet, 2, true);
-    action_reset!(LS1R,InvokeCharSet, 1, true);
-    action_reset!(HP_MEM_LOCK,LockMemory,true);
-    action_reset!(HP_MEM_UNLOCK,LockMemory,false);
-    action_reset!(HP_BUGGY_LL,CursorLowerLeft);
-    action_reset!(S7C1T,Show8BitControl,false);
-    action_reset!(S8C1T,Show8BitControl,true);
-    action_state!(ESC_SP_STATE,esc_sp_table);
-    action_reset!(ANSI_LEVEL_1,AnsiConformanceLevel,1);
-    action_reset!(ANSI_LEVEL_2,AnsiConformanceLevel,2);
-    action_reset!(ANSI_LEVEL_3,AnsiConformanceLevel,3);
-    action_reset!(DECSWL,DecDoubleWidth,false);
-    action_reset!(DECDWL,DecDoubleWidth,true);
-    action_state!(ESC_PERCENT,esc_pct_table);
-    action_state!(CSI_IGNORE,cigtable);
-    action_state!(CSI_DOLLAR_STATE,csi_dollar_table);
-    action_state!(CSI_SPACE_STATE,csi_sp_table);
-    action_reset!(DECBI,DecBackIndex);
-    action_reset!(DECFI,DecForwardIndex);
-    action_reset!(HPR,HorizontalMove,one);
-    action_reset!(ANSI_SC,SaveCursor);
-    action_reset!(ANSI_RC,RestoreCursor);
-    action_state!(SCS_PERCENT,scs_pct_table);
+
+    action_reset!(ANSI_LEVEL_1, AnsiConformanceLevel, 1);
+    action_reset!(ANSI_LEVEL_2, AnsiConformanceLevel, 2);
+    action_reset!(ANSI_LEVEL_3, AnsiConformanceLevel, 3);
+    action_reset!(ANSI_RC, RestoreCursor);
+    action_reset!(ANSI_SC, SaveCursor);
+    action_reset!(CHT, CursorForwardTab, one);
+    action_reset!(CNL, CursorNextLine, one);
+    action_reset!(CPL, CursorPrevLine, one);
+    action_reset!(CUB, CursorBackward, one);
+    action_reset!(CUD, CursorDown, one);
+    action_reset!(CUF, CursorForward, one);
+    action_reset!(CUP, CursorAbsolutePosition, one_minus, one_minus);
+    action_reset!(CUU, CursorUp, one);
+    action_reset!(DA1, DA1, zero);
+    action_reset!(DECALN, DecAlignmentTest);
+    action_reset!(DECBI, DecBackIndex);
+    action_reset!(DECDWL, DecDoubleWidth, true);
+    action_reset!(DECFI, DecForwardIndex);
+    action_reset!(DECKPAM, DecApplicationKeypad, true);
+    action_reset!(DECKPNM, DecApplicationKeypad, false);
+    action_reset!(DECREQTPARM, DECREQTPARM);
+    action_reset!(DECSWL, DecDoubleWidth, false);
+    action_reset!(GROUND_STATE, More);
+    action_reset!(HPA, CursorAbsoluteColumn, one_minus);
+    action_reset!(HPR, HorizontalMove, one);
+    action_reset!(HP_BUGGY_LL, CursorLowerLeft);
+    action_reset!(HP_MEM_LOCK, LockMemory, true);
+    action_reset!(HP_MEM_UNLOCK, LockMemory, false);
+    action_reset!(ICH, InsertCharacters, one);
+    action_reset!(LS1R, InvokeCharSet, 1, true);
+    action_reset!(LS2, InvokeCharSet, 2, false);
+    action_reset!(LS2R, InvokeCharSet, 2, true);
+    action_reset!(LS3, InvokeCharSet, 3, false);
+    action_reset!(LS3R, InvokeCharSet, 3, true);
+    action_reset!(RIS, FullReset);
+    action_reset!(S7C1T, Show8BitControl, false);
+    action_reset!(S8C1T, Show8BitControl, true);
+    action_reset!(SGR, Sgr);
+
+    action_scs!(SCS0_STATE, scstable, 0);
+    action_scs!(SCS1A_STATE, scs96table, 1);
+    action_scs!(SCS1_STATE, scstable, 1);
+    action_scs!(SCS2A_STATE, scs96table, 2);
+    action_scs!(SCS2_STATE, scstable, 2);
+    action_scs!(SCS3A_STATE, scs96table, 3);
+    action_scs!(SCS3_STATE, scstable, 3);
+
+    action_state!(CSI_DOLLAR_STATE, csi_dollar_table);
+    action_state!(CSI_IGNORE, cigtable);
+    action_state!(CSI_SPACE_STATE, csi_sp_table);
+    action_state!(DEC_STATE, dec_table);
+    action_state!(ESC, esc_table);
+    action_state!(ESC_IGNORE, eigtable);
+    action_state!(ESC_PERCENT, esc_pct_table);
+    action_state!(ESC_SP_STATE, esc_sp_table);
+    action_state!(SCR_STATE, scrtable);
+    action_state!(SCS_PERCENT, scs_pct_table);
+
+    action_string!(APC, Apc);
+    action_string!(DCS, Dcs);
 }
 
 impl Parser {
@@ -434,30 +458,40 @@ impl Parser {
         }
         Action::More
     }
-    fn action_DEC_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CUU(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CUD(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CUF(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CUB(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CUP(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+
+    fn decode_ED(&mut self, selective: bool) -> Action {
+        self.reset();
+        match self.parameter.zero_if_default(0) {
+            0 => Action::EraseDisplay(EraseDisplay::Below, selective),
+            1 => Action::EraseDisplay(EraseDisplay::Above, selective),
+            2 => Action::EraseDisplay(EraseDisplay::All, selective),
+            3 => Action::EraseDisplay(EraseDisplay::Saved, selective),
+            _ => Action::More,
+        }
     }
     fn action_ED(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.decode_ED(false)
+    }
+    fn action_DECSED(&mut self, _byte: u8) -> Action {
+        self.decode_ED(true)
+    }
+
+    fn decode_EL(&mut self, selective: bool) -> Action {
+        self.reset();
+        match self.parameter.zero_if_default(0) {
+            0 => Action::EraseLine(EraseLine::Right, selective),
+            1 => Action::EraseLine(EraseLine::Left, selective),
+            2 => Action::EraseLine(EraseLine::All, selective),
+            _ => Action::More,
+        }
     }
     fn action_EL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.decode_EL(false)
     }
+    fn action_DECSEL(&mut self, _byte: u8) -> Action {
+        self.decode_EL(true)
+    }
+
     fn action_IL(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -573,9 +607,6 @@ impl Parser {
     fn action_DECID(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_HPA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_VPA(&mut self, _byte: u8) -> Action {
         let val = self.parameter.one_if_default(0) - 1;
         self.reset();
@@ -589,15 +620,6 @@ impl Parser {
         Action::WindowOps(cmp::min(val, 255) as u8, val1 as usize, val2 as usize)
     }
     fn action_ECH(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CHT(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CPL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CNL(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_CBT(&mut self, _byte: u8) -> Action {
@@ -616,12 +638,6 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECSCA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECSED(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECSEL(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_PM(&mut self, _byte: u8) -> Action {
@@ -868,13 +884,13 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::ESC_IGNORE,
         Parser::action_ESC_DIGIT,
         Parser::action_ESC_SEMI,
-        Parser::action_DEC_STATE,
+        action::DEC_STATE,
         action::ICH,
-        Parser::action_CUU,
-        Parser::action_CUD,
-        Parser::action_CUF,
-        Parser::action_CUB,
-        Parser::action_CUP,
+        action::CUU,
+        action::CUD,
+        action::CUF,
+        action::CUB,
+        action::CUP,
         Parser::action_ED,
         Parser::action_EL,
         Parser::action_IL,
@@ -919,13 +935,13 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::HP_MEM_LOCK,
         action::HP_MEM_UNLOCK,
         action::HP_BUGGY_LL,
-        Parser::action_HPA,
+        action::HPA,
         Parser::action_VPA,
         Parser::action_XTERM_WINOPS,
         Parser::action_ECH,
-        Parser::action_CHT,
-        Parser::action_CPL,
-        Parser::action_CNL,
+        action::CHT,
+        action::CPL,
+        action::CNL,
         Parser::action_CBT,
         Parser::action_SU,
         Parser::action_SD,
@@ -1077,7 +1093,8 @@ mod test {
                 pt!(@accu $str, ($($rest)*) -> ($($body)* Action::Char(' '),));
         };
         (@accu $str:tt, (DCS $n:tt $i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::DesignateCharacterSet($n,CharSet::$i),))
+                pt!(@accu $str, ($($rest)*) ->
+                    ($($body)* Action::DesignateCharacterSet($n,CharSet::$i),))
         };
         (@accu $str:tt, ($i:ident ($v1:expr ) $($rest:tt)*) -> ($($body:tt)*)) => {
                 pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1),));
@@ -1085,7 +1102,8 @@ mod test {
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr) $($rest:tt)*) -> ($($body:tt)*)) => {
                 pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2),));
         };
-        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr,$v3:expr ) $($rest:tt)*) -> ($($body:tt)*)) => {
+        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr,$v3:expr ) $($rest:tt)*) ->
+         ($($body:tt)*)) => {
                 pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3),));
         };
         (@accu $str:tt, ($i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
@@ -1282,7 +1300,9 @@ mod test {
         pt!(b"a\x1b[12@b", c 'a' m m m m InsertCharacters(12) c 'b');
 
         pt!(b"a\x1b6b\x1b9c", c'a' m DecBackIndex c'b' m DecForwardIndex c'c');
-        pt!(b"a\x1b=b\x1b>c", c'a' m DecApplicationKeypad(true) c'b' m DecApplicationKeypad(false) c'c');
+        pt!(b"a\x1b=b\x1b>c",
+            c'a' m DecApplicationKeypad(true) c'b'
+            m DecApplicationKeypad(false) c'c');
         pt!(b"a\x1bFc", c'a' m CursorLowerLeft c'c');
         pt!(b"a\x1bcc", c'a' m FullReset c'c');
         pt!(b"a\x1blb\x1bmc", c'a' m LockMemory(true) c'b' m LockMemory(false) c'c');
@@ -1293,5 +1313,34 @@ mod test {
             ApplicationProgramCommand("stuff".to_string()) c'b');
         pt!(b"a\x1bP0;0|17/17;15/15\x1b\\b", c'a' m m m m m m m m m m m m m m m m m m
             DecUserDefinedKeys("0;0|17/17;15/15".to_string()) c'b');
+        pt!(b"a\x1b[12Ab", c'a' m m m m CursorUp(12) c'b');
+        pt!(b"a\x1b[12Bb", c'a' m m m m CursorDown(12) c'b');
+        pt!(b"a\x1b[12Cb", c'a' m m m m CursorForward(12) c'b');
+        pt!(b"a\x1b[12Db", c'a' m m m m CursorBackward(12) c'b');
+        pt!(b"a\x1b[12Eb", c'a' m m m m CursorNextLine(12) c'b');
+        pt!(b"a\x1b[12Fb", c'a' m m m m CursorPrevLine(12) c'b');
+        pt!(b"a\x1b[12Gb", c'a' m m m m CursorAbsoluteColumn(11) c'b');
+        pt!(b"a\x1b[12;13Hb", c'a' m m m m m m m CursorAbsolutePosition(11,12) c'b');
+        pt!(b"a\x1b[12Ib", c'a' m m m m CursorForwardTab(12) c'b');
+        pt!(b"a\x1b[0Jb", c'a' m m m EraseDisplay(EraseDisplay::Below,false) c'b');
+        pt!(b"a\x1b[1Jb", c'a' m m m EraseDisplay(EraseDisplay::Above,false) c'b');
+        pt!(b"a\x1b[2Jb", c'a' m m m EraseDisplay(EraseDisplay::All,false) c'b');
+        pt!(b"a\x1b[3Jb", c'a' m m m EraseDisplay(EraseDisplay::Saved,false) c'b');
+        pt!(b"a\x1b[12Jb", c'a' m m m m m c'b');
+        pt!(b"a\x1b[?0Jb", c'a' m m m m EraseDisplay(EraseDisplay::Below,true) c'b');
+        pt!(b"a\x1b[?1Jb", c'a' m m m m EraseDisplay(EraseDisplay::Above,true) c'b');
+        pt!(b"a\x1b[?2Jb", c'a' m m m m EraseDisplay(EraseDisplay::All,true) c'b');
+        pt!(b"a\x1b[?3Jb", c'a' m m m m EraseDisplay(EraseDisplay::Saved,true) c'b');
+        pt!(b"a\x1b[?12Jb", c'a' m m m m m m c'b');
+
+        pt!(b"a\x1b[0Kb", c'a' m m m EraseLine(EraseLine::Right,false) c'b');
+        pt!(b"a\x1b[1Kb", c'a' m m m EraseLine(EraseLine::Left,false) c'b');
+        pt!(b"a\x1b[2Kb", c'a' m m m EraseLine(EraseLine::All,false) c'b');
+        pt!(b"a\x1b[23Kb", c'a' m m m m m c'b');
+
+        pt!(b"a\x1b[?0Kb", c'a' m m m m EraseLine(EraseLine::Right,true) c'b');
+        pt!(b"a\x1b[?1Kb", c'a' m m m m EraseLine(EraseLine::Left,true) c'b');
+        pt!(b"a\x1b[?2Kb", c'a' m m m m EraseLine(EraseLine::All,true) c'b');
+        pt!(b"a\x1b[?23Kb", c'a' m m m m m m c'b');
     }
 }

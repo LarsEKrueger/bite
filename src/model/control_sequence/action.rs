@@ -78,6 +78,26 @@ pub enum Action {
     DecApplicationKeypad(bool),
 
     CursorLowerLeft,
+    CursorUp(u32),
+    CursorDown(u32),
+    CursorForward(u32),
+    CursorBackward(u32),
+    CursorNextLine(u32),
+    CursorPrevLine(u32),
+    CursorAbsoluteColumn(u32),
+    /// row, column
+    CursorAbsolutePosition(u32, u32),
+    CursorForwardTab(u32),
+
+    /// Erase in display
+    ///
+    /// (direction,selective)
+    EraseDisplay(EraseDisplay, bool),
+
+    /// Erase in line
+    ///
+    /// (direction,selective)
+    EraseLine(EraseLine, bool),
 
     FullReset,
 
@@ -135,6 +155,21 @@ pub enum StringMode {
     Apc,
     Pm,
     Dcs,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EraseDisplay {
+    Below,
+    Above,
+    All,
+    Saved,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EraseLine {
+    Left,
+    Right,
+    All,
 }
 
 impl Action {

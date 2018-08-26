@@ -795,6 +795,17 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::EraseDisplay(_,_)|
+            Action::EraseLine(_,_)|
+            Action::CursorAbsoluteColumn(_)|
+            Action::CursorAbsolutePosition(_,_)|
+            Action::CursorForwardTab(_)|
+            Action::CursorUp(_)|
+            Action::CursorDown(_)|
+            Action::CursorForward(_)|
+            Action::CursorBackward(_)|
+            Action::CursorNextLine(_)|
+            Action::CursorPrevLine(_)|
             Action::InsertCharacters(_) |
             Action::DecUserDefinedKeys(_) |
             Action::ApplicationProgramCommand(_) |
