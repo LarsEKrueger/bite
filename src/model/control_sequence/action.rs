@@ -117,6 +117,7 @@ pub enum Action {
     DecUserDefinedKeys(String),
 
     InsertCharacters(u32),
+    InsertLines(u32),
 }
 
 /// Character set

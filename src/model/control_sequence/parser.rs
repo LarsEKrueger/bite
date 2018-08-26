@@ -242,6 +242,7 @@ mod action {
     action_reset!(S7C1T, Show8BitControl, false);
     action_reset!(S8C1T, Show8BitControl, true);
     action_reset!(SGR, Sgr);
+    action_reset!(IL,InsertLines,one);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -492,9 +493,6 @@ impl Parser {
         self.decode_EL(true)
     }
 
-    fn action_IL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DL(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -893,7 +891,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::CUP,
         Parser::action_ED,
         Parser::action_EL,
-        Parser::action_IL,
+        action::IL,
         Parser::action_DL,
         Parser::action_DCH,
         action::DA1,
@@ -1332,15 +1330,15 @@ mod test {
         pt!(b"a\x1b[?2Jb", c'a' m m m m EraseDisplay(EraseDisplay::All,true) c'b');
         pt!(b"a\x1b[?3Jb", c'a' m m m m EraseDisplay(EraseDisplay::Saved,true) c'b');
         pt!(b"a\x1b[?12Jb", c'a' m m m m m m c'b');
-
         pt!(b"a\x1b[0Kb", c'a' m m m EraseLine(EraseLine::Right,false) c'b');
         pt!(b"a\x1b[1Kb", c'a' m m m EraseLine(EraseLine::Left,false) c'b');
         pt!(b"a\x1b[2Kb", c'a' m m m EraseLine(EraseLine::All,false) c'b');
         pt!(b"a\x1b[23Kb", c'a' m m m m m c'b');
-
         pt!(b"a\x1b[?0Kb", c'a' m m m m EraseLine(EraseLine::Right,true) c'b');
         pt!(b"a\x1b[?1Kb", c'a' m m m m EraseLine(EraseLine::Left,true) c'b');
         pt!(b"a\x1b[?2Kb", c'a' m m m m EraseLine(EraseLine::All,true) c'b');
         pt!(b"a\x1b[?23Kb", c'a' m m m m m m c'b');
+
+        pt!(b"a\x1b[23Lb", c'a' m m m m InsertLines(23) c'b');
     }
 }

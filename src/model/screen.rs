@@ -807,6 +807,7 @@ impl Screen {
             Action::CursorNextLine(_)|
             Action::CursorPrevLine(_)|
             Action::InsertCharacters(_) |
+            Action::InsertLines(_) |
             Action::DecUserDefinedKeys(_) |
             Action::ApplicationProgramCommand(_) |
             Action::LockMemory(_) |
