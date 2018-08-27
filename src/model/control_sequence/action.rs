@@ -50,9 +50,10 @@ pub enum Action {
 
     HorizontalMove(u32),
 
-    VerticalPos(isize),
+    VerticalPos(u32),
 
     DA1(u32),
+    DA2(u32),
 
     WindowOps(u8, usize, usize),
 
@@ -88,6 +89,7 @@ pub enum Action {
     /// row, column
     CursorAbsolutePosition(u32, u32),
     CursorForwardTab(u32),
+    CursorBackwardTab(u32),
 
     /// Erase in display
     ///
@@ -121,6 +123,9 @@ pub enum Action {
 
     DeleteLines(u32),
     DeleteCharacters(u32),
+
+    EraseCharacters(u32),
+    RepeatCharacter(u32),
 
     ScrollUp(u32),
     ScrollDown(u32),

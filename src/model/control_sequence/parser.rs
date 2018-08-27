@@ -219,6 +219,7 @@ mod action {
     action_reset!(CUP, CursorAbsolutePosition, one_minus, one_minus);
     action_reset!(CUU, CursorUp, one);
     action_reset!(DA1, DA1, zero);
+    action_reset!(DA2,DA2,zero);
     action_reset!(DECALN, DecAlignmentTest);
     action_reset!(DECBI, DecBackIndex);
     action_reset!(DECDWL, DecDoubleWidth, true);
@@ -247,6 +248,11 @@ mod action {
     action_reset!(DL, DeleteLines, one);
     action_reset!(DCH, DeleteCharacters, one);
     action_reset!(SU, ScrollUp, one);
+    action_reset!(ECH,EraseCharacters,one);
+    action_reset!(CBT,CursorBackwardTab,one);
+    action_reset!(SD,ScrollDown,one);
+    action_reset!(REP,RepeatCharacter,one);
+    action_reset!(VPA,VerticalPos,one_minus);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -617,26 +623,12 @@ impl Parser {
     fn action_DECID(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_VPA(&mut self, _byte: u8) -> Action {
-        let val = self.parameter.one_if_default(0) - 1;
-        self.reset();
-        Action::VerticalPos(val as isize)
-    }
     fn action_XTERM_WINOPS(&mut self, _byte: u8) -> Action {
         let val = self.parameter.zero_if_default(0);
         let val1 = self.parameter.zero_if_default(1);
         let val2 = self.parameter.zero_if_default(2);
         self.reset();
         Action::WindowOps(cmp::min(val, 255) as u8, val1 as usize, val2 as usize)
-    }
-    fn action_ECH(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CBT(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SD(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_ENQ(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -688,9 +680,6 @@ impl Parser {
     fn action_MC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DA2(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DEC3_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -698,9 +687,6 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_VT52_CUP(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_REP(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_CSI_EX_STATE(&mut self, _byte: u8) -> Action {
@@ -968,15 +954,15 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::HP_MEM_UNLOCK,
         action::HP_BUGGY_LL,
         action::HPA,
-        Parser::action_VPA,
+        action::VPA,
         Parser::action_XTERM_WINOPS,
-        Parser::action_ECH,
+        action::ECH,
         action::CHT,
         action::CPL,
         action::CNL,
-        Parser::action_CBT,
+        action::CBT,
         action::SU,
-        Parser::action_SD,
+        action::SD,
         action::S7C1T,
         action::S8C1T,
         action::ESC_SP_STATE,
@@ -999,11 +985,11 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::ANSI_LEVEL_3,
         Parser::action_MC,
         action::DEC2_STATE,
-        Parser::action_DA2,
+        action::DA2,
         Parser::action_DEC3_STATE,
         Parser::action_DECRPTUI,
         Parser::action_VT52_CUP,
-        Parser::action_REP,
+        action::REP,
         Parser::action_CSI_EX_STATE,
         Parser::action_DECSTR,
         Parser::action_DECDHL,
@@ -1318,12 +1304,9 @@ mod test {
             }
         }
 
-        pt!(b"a\x1b[12ax", c'a' m m m m HorizontalMove(12) c'x');
         pt!(b"a\x1b[sx", c'a' m m SaveCursor c'x');
         pt!(b"a\x1b[ux", c'a' m m RestoreCursor c'x');
-        pt!(b"a\x1b[12cx", c'a' m m m m DA1(12) c'x');
         pt!(b"a\x1b[12xy", c'a' m m m m DECREQTPARM c'y');
-        pt!(b"a\x1b[12dy", c'a' m m m m VerticalPos(11) c'y');
         pt!(b"a\x1b[12ty", c'a' m m m m WindowOps(12, 0, 0) c'y');
         pt!(b"a\x1b Fy", c'a' m m Show8BitControl(false) c'y');
         pt!(b"a\x1b Gy", c'a' m m Show8BitControl(true) c'y');
@@ -1404,5 +1387,14 @@ mod test {
         pt!(b"a\x1b[>0;1Tb", c'a' m m m m m m
             ResetTitleModes(TitleModes::SetLabelHex | TitleModes::GetLabelHex) c'b');
         pt!(b"a\x1b[>12;14Tb", c'a' m m m m m m m m ResetTitleModes(TitleModes::empty()) c'b');
+        pt!(b"a\x1b[12Xc", c'a' m m m m EraseCharacters(12) c'c');
+        pt!(b"a\x1b[12Zc", c'a' m m m m CursorBackwardTab(12) c'c');
+        pt!(b"a\x1b[12^c", c'a' m m m m ScrollDown(12) c'c');
+        pt!(b"a\x1b[12`c", c'a' m m m m CursorAbsoluteColumn(11) c'c');
+        pt!(b"a\x1b[12ax", c'a' m m m m HorizontalMove(12) c'x');
+        pt!(b"a\x1b[12bx", c'a' m m m m RepeatCharacter(12) c'x');
+        pt!(b"a\x1b[12cx", c'a' m m m m DA1(12) c'x');
+        pt!(b"a\x1b[>12cx", c'a' m m m m m DA2(12) c'x');
+        pt!(b"a\x1b[12dy", c'a' m m m m VerticalPos(11) c'y');
     }
 }

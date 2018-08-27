@@ -779,12 +779,8 @@ impl Screen {
                 self.cursor.x += n as isize;
                 Event::Ignore
             }
-            Action::DA1(_n) => {
-                // TODO: Send response
-                Event::Ignore
-            }
             Action::VerticalPos(n) => {
-                self.cursor.y = n;
+                self.cursor.y = n as isize;
                 Event::Ignore
             }
             Action::SaveCursor => {
@@ -795,6 +791,10 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::DA1(_) |
+            Action::DA2(_) |
+            Action::RepeatCharacter(_) |
+            Action::EraseCharacters(_) |
             Action::ResetTitleModes(_) |
             Action::MouseTracking(_,_,_,_,_)|
             Action::ScrollUp(_) |
@@ -804,6 +804,7 @@ impl Screen {
             Action::CursorAbsoluteColumn(_)|
             Action::CursorAbsolutePosition(_,_)|
             Action::CursorForwardTab(_)|
+            Action::CursorBackwardTab(_)|
             Action::CursorUp(_)|
             Action::CursorDown(_)|
             Action::CursorForward(_)|
