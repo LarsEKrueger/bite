@@ -791,8 +791,11 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::MediaCopy(_) |
             Action::SetMode(_) |
+            Action::ResetMode(_) |
             Action::SetPrivateMode(_) |
+            Action::ResetPrivateMode(_) |
             Action::TabClear(_) |
             Action::VerticalPositionRelative(_)|
             Action::DA1(_) |

@@ -141,7 +141,10 @@ pub enum Action {
 
     TabClear(TabClear),
     SetMode(SetMode),
+    ResetMode(SetMode),
     SetPrivateMode(SetPrivateMode),
+    ResetPrivateMode(SetPrivateMode),
+    MediaCopy(MediaCopy),
 }
 
 /// Character set
@@ -291,6 +294,20 @@ pub enum SetPrivateMode {
         LegacyKeyboard,
         Vt220Keyboard,
         BracketedPaste,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum MediaCopy {
+        PrintScreen,
+        PrinterCtrlOff,
+        PrinterCtrlOn,
+        HtmlScreenDump,
+        SvgScreenDump,
+        PrintCursorLine,
+        AutoPrintOff,
+        AutoPrintOn,
+        PrintComposeDisplay,
+        PrintAllPages,
 }
 
 bitflags! {
