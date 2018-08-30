@@ -779,7 +779,7 @@ impl Screen {
                 self.cursor.x += n as isize;
                 Event::Ignore
             }
-            Action::VerticalPos(n) => {
+            Action::VerticalPositionAbsolute(n) => {
                 self.cursor.y = n as isize;
                 Event::Ignore
             }
@@ -791,6 +791,10 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::SetMode(_) |
+            Action::SetPrivateMode(_) |
+            Action::TabClear(_) |
+            Action::VerticalPositionRelative(_)|
             Action::DA1(_) |
             Action::DA2(_) |
             Action::RepeatCharacter(_) |

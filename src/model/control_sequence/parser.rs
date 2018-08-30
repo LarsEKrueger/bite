@@ -26,7 +26,7 @@ use std::mem;
 use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
-                    TitleModes};
+                    TitleModes, TabClear, SetMode, SetPrivateMode};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -202,6 +202,27 @@ mod action {
         }
     }
 
+    macro_rules! action_switch_param {
+        ($name:ident, $action:ident, [$($n:expr => $v:ident),+]) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                match p.parameter.zero_if_default(0) {
+                    $($n => Action::$action($action::$v)),+
+                    , _ => Action::More,
+                }
+            }
+        };
+        ($name:ident, $action:ident, $v2:expr, [$($n:expr => $v:ident),+]) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                match p.parameter.zero_if_default(0) {
+                    $($n => Action::$action($action::$v, $v2)),+
+                    , _ => Action::More,
+                }
+            }
+        };
+    }
+
     action_simple!(CR, Cr);
     action_simple!(IGNORE, More);
 
@@ -252,7 +273,8 @@ mod action {
     action_reset!(CBT,CursorBackwardTab,one);
     action_reset!(SD,ScrollDown,one);
     action_reset!(REP,RepeatCharacter,one);
-    action_reset!(VPA,VerticalPos,one_minus);
+    action_reset!(VPA,VerticalPositionAbsolute,one_minus);
+    action_reset!(VPR,VerticalPositionRelative,one_minus);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -276,6 +298,34 @@ mod action {
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
+
+    action_switch_param!(SET, SetMode, [2 => KeyboardAction, 4 => Insert, 12 => SendReceive, 20 => AutomaticNewline]);
+    action_switch_param!(TBC, TabClear, [ 0 => Column, 3 => All ]);
+    action_switch_param!(ED,EraseDisplay,false, [0 => Below, 1 => Above, 2 => All, 3 => Saved]);
+    action_switch_param!(DECSED,EraseDisplay,true, [0 => Below, 1 => Above, 2 => All, 3 => Saved]);
+    action_switch_param!(EL,EraseLine,false,[ 0 => Right, 1 => Left, 2 => All]);
+    action_switch_param!(DECSEL,EraseLine,true,[ 0 => Right, 1 => Left, 2 => All]);
+
+    action_switch_param!(
+        DECSET,SetPrivateMode, [ 1 => ApplicationCursorKeys, 2 => UsAsciiForG0toG3,
+        3 => Hundred32Columns, 4 => SmoothScroll, 5 => ReverseVideo, 6 => OriginMode, 
+        7 => AutoWrapMode, 8 => AutoRepeatKeys, 9 => SendMousePosOnPress, 10 => ShowToolbar, 
+        12 => StartBlinkingCursor, 13 => StartBlinkingCursor, 14 => EnableXorBlinkingCursor, 
+        18 => PrintFormFeed, 19 => PrintFullScreen, 25 => ShowCursor, 30 => ShowScrollbar, 
+        35 => EnableFontShifting, 38 => TektronixMode, 40 => AllowHundred32Mode, 41 => MoreFix, 
+        42 => EnableNrc, 44 => MarginBell, 45 => ReverseWrapAroundMode, 46 => StartLogging, 
+        47 => AlternateScreenBuffer, 66 => ApplicationKeypad, 67 => BackArrowIsBackSspace, 
+        69 => EnableLeftRightMarginMode, 95 => NoClearScreenOnDECCOLM, 
+        1000 => SendMousePosOnBoth, 1001 => HiliteMouseTracking, 1002 => CellMouseTracking, 
+        1003 => AllMouseTracking, 1004 => SendFocusEvents, 1005 => Utf8MouseMode, 
+        1006 => SgrMouseMode, 1007 => AlternateScrollMode, 1010 => ScrollToBottomOnTty, 
+        1011 => ScrollToBottomOnKey, 1015 => UrxvtMouseMode, 1034 => InterpretMetaKey, 
+        1035 => EnableSpecialModifiers, 1036 => SendEscOnMeta, 1037 => SendDelOnKeypad, 
+        1039 => SendEscOnAlt, 1040 => KeepSelection, 1041 => UseClipboard, 1042 => UrgencyHint, 
+        1043 => RaiseWindowOnBell, 1044 => KeepClipboard, 1046 => EnableAlternateScreen, 
+        1047 => UseAlternateScreen, 1048 => SaveCursor, 1049 => SaveCursorAndUseAlternateScreen, 
+        1050 => TerminfoFnMode, 1051 => SunFnMode, 1052 => HpFnMode, 1053 => ScoFnMode, 
+        1060 => LegacyKeyboard, 1061 => Vt220Keyboard, 2004 => BracketedPaste]);
 }
 
 impl Parser {
@@ -471,38 +521,6 @@ impl Parser {
         Action::More
     }
 
-    fn decode_ED(&mut self, selective: bool) -> Action {
-        self.reset();
-        match self.parameter.zero_if_default(0) {
-            0 => Action::EraseDisplay(EraseDisplay::Below, selective),
-            1 => Action::EraseDisplay(EraseDisplay::Above, selective),
-            2 => Action::EraseDisplay(EraseDisplay::All, selective),
-            3 => Action::EraseDisplay(EraseDisplay::Saved, selective),
-            _ => Action::More,
-        }
-    }
-    fn action_ED(&mut self, _byte: u8) -> Action {
-        self.decode_ED(false)
-    }
-    fn action_DECSED(&mut self, _byte: u8) -> Action {
-        self.decode_ED(true)
-    }
-
-    fn decode_EL(&mut self, selective: bool) -> Action {
-        self.reset();
-        match self.parameter.zero_if_default(0) {
-            0 => Action::EraseLine(EraseLine::Right, selective),
-            1 => Action::EraseLine(EraseLine::Left, selective),
-            2 => Action::EraseLine(EraseLine::All, selective),
-            _ => Action::More,
-        }
-    }
-    fn action_EL(&mut self, _byte: u8) -> Action {
-        self.decode_EL(false)
-    }
-    fn action_DECSEL(&mut self, _byte: u8) -> Action {
-        self.decode_EL(true)
-    }
     fn action_TRACK_MOUSE(&mut self, _byte: u8) -> Action {
         self.reset();
         // One non-zero parameter is scroll down. Everything else is mouse tracking.
@@ -520,12 +538,6 @@ impl Parser {
             )
         }
     }
-    fn action_TBC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SET(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_RST(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -533,9 +545,6 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECSTBM(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECSET(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_DECRST(&mut self, _byte: u8) -> Action {
@@ -817,9 +826,6 @@ impl Parser {
     fn action_DECRQCRA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_VPR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_ESC_COLON(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -909,21 +915,21 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::CUF,
         action::CUB,
         action::CUP,
-        Parser::action_ED,
-        Parser::action_EL,
+        action::ED,
+        action::EL,
         action::IL,
         action::DL,
         action::DCH,
         action::DA1,
         Parser::action_TRACK_MOUSE,
-        Parser::action_TBC,
-        Parser::action_SET,
+        action::TBC,
+        action::SET,
         Parser::action_RST,
         action::SGR,
         Parser::action_CPR,
         Parser::action_DECSTBM,
         action::DECREQTPARM,
-        Parser::action_DECSET,
+        action::DECSET,
         Parser::action_DECRST,
         action::DECALN,
         Parser::action_GSETS,
@@ -969,8 +975,8 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_ENQ,
         Parser::action_DECSCL,
         Parser::action_DECSCA,
-        Parser::action_DECSED,
-        Parser::action_DECSEL,
+        action::DECSED,
+        action::DECSEL,
         action::DCS,
         Parser::action_PM,
         Parser::action_SOS,
@@ -1039,7 +1045,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::DECFI,
         Parser::action_DECRQCRA,
         action::HPR,
-        Parser::action_VPR,
+        action::VPR,
         action::ANSI_SC,
         action::ANSI_RC,
         Parser::action_ESC_COLON,
@@ -1395,6 +1401,80 @@ mod test {
         pt!(b"a\x1b[12bx", c'a' m m m m RepeatCharacter(12) c'x');
         pt!(b"a\x1b[12cx", c'a' m m m m DA1(12) c'x');
         pt!(b"a\x1b[>12cx", c'a' m m m m m DA2(12) c'x');
-        pt!(b"a\x1b[12dy", c'a' m m m m VerticalPos(11) c'y');
+        pt!(b"a\x1b[12dy", c'a' m m m m VerticalPositionAbsolute(11) c'y');
+        pt!(b"a\x1b[12ey", c'a' m m m m VerticalPositionRelative(11) c'y');
+        pt!(b"a\x1b[12;13fy", c'a' m m m m m m m CursorAbsolutePosition(11,12) c'y');
+        pt!(b"a\x1b[0gy", c'a' m m m TabClear(TabClear::Column) c'y');
+        pt!(b"a\x1b[3gy", c'a' m m m TabClear(TabClear::All) c'y');
+        pt!(b"a\x1b[13gy", c'a' m m m m m c'y');
+        pt!(b"a\x1b[2hy", c'a' m m m SetMode(SetMode::KeyboardAction) c'y');
+        pt!(b"a\x1b[4hy", c'a' m m m SetMode(SetMode::Insert) c'y');
+        pt!(b"a\x1b[12hy", c'a' m m m m SetMode(SetMode::SendReceive) c'y');
+        pt!(b"a\x1b[20hy", c'a' m m m m SetMode(SetMode::AutomaticNewline) c'y');
+        pt!(b"a\x1b[21hy", c'a' m m m m m c'y');
+
+        pt!(b"a\x1b[?1hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::ApplicationCursorKeys) c'z');
+        pt!(b"a\x1b[?2hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::UsAsciiForG0toG3) c'z');
+        pt!(b"a\x1b[?3hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::Hundred32Columns) c'z');
+        pt!(b"a\x1b[?4hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::SmoothScroll) c'z');
+        pt!(b"a\x1b[?5hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::ReverseVideo) c'z');
+        pt!(b"a\x1b[?6hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::OriginMode) c'z');
+        pt!(b"a\x1b[?7hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::AutoWrapMode) c'z');
+        pt!(b"a\x1b[?8hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::AutoRepeatKeys) c'z');
+        pt!(b"a\x1b[?9hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::SendMousePosOnPress) c'z');
+        pt!(b"a\x1b[?10hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ShowToolbar) c'z');
+        pt!(b"a\x1b[?12hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
+        pt!(b"a\x1b[?13hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
+        pt!(b"a\x1b[?14hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableXorBlinkingCursor) c'z');
+        pt!(b"a\x1b[?18hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::PrintFormFeed) c'z');
+        pt!(b"a\x1b[?19hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::PrintFullScreen) c'z');
+        pt!(b"a\x1b[?25hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ShowCursor) c'z');
+        pt!(b"a\x1b[?30hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ShowScrollbar) c'z');
+        pt!(b"a\x1b[?35hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableFontShifting) c'z');
+        pt!(b"a\x1b[?38hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::TektronixMode) c'z');
+        pt!(b"a\x1b[?40hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::AllowHundred32Mode) c'z');
+        pt!(b"a\x1b[?41hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::MoreFix) c'z');
+        pt!(b"a\x1b[?42hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableNrc) c'z');
+        pt!(b"a\x1b[?44hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::MarginBell) c'z');
+        pt!(b"a\x1b[?45hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ReverseWrapAroundMode) c'z');
+        pt!(b"a\x1b[?46hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::StartLogging) c'z');
+        pt!(b"a\x1b[?47hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::AlternateScreenBuffer) c'z');
+        pt!(b"a\x1b[?66hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ApplicationKeypad) c'z');
+        pt!(b"a\x1b[?67hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::BackArrowIsBackSspace) c'z');
+        pt!(b"a\x1b[?69hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableLeftRightMarginMode) c'z');
+        pt!(b"a\x1b[?95hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::NoClearScreenOnDECCOLM) c'z');
+        pt!(b"a\x1b[?1000hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendMousePosOnBoth) c'z');
+        pt!(b"a\x1b[?1001hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::HiliteMouseTracking) c'z');
+        pt!(b"a\x1b[?1002hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::CellMouseTracking) c'z');
+        pt!(b"a\x1b[?1003hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::AllMouseTracking) c'z');
+        pt!(b"a\x1b[?1004hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendFocusEvents) c'z');
+        pt!(b"a\x1b[?1005hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::Utf8MouseMode) c'z');
+        pt!(b"a\x1b[?1006hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SgrMouseMode) c'z');
+        pt!(b"a\x1b[?1007hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::AlternateScrollMode) c'z');
+        pt!(b"a\x1b[?1010hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::ScrollToBottomOnTty) c'z');
+        pt!(b"a\x1b[?1011hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::ScrollToBottomOnKey) c'z');
+        pt!(b"a\x1b[?1015hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UrxvtMouseMode) c'z');
+        pt!(b"a\x1b[?1034hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::InterpretMetaKey) c'z');
+        pt!(b"a\x1b[?1035hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::EnableSpecialModifiers) c'z');
+        pt!(b"a\x1b[?1036hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendEscOnMeta) c'z');
+        pt!(b"a\x1b[?1037hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendDelOnKeypad) c'z');
+        pt!(b"a\x1b[?1039hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendEscOnAlt) c'z');
+        pt!(b"a\x1b[?1040hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::KeepSelection) c'z');
+        pt!(b"a\x1b[?1041hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UseClipboard) c'z');
+        pt!(b"a\x1b[?1042hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UrgencyHint) c'z');
+        pt!(b"a\x1b[?1043hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::RaiseWindowOnBell) c'z');
+        pt!(b"a\x1b[?1044hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::KeepClipboard) c'z');
+        pt!(b"a\x1b[?1046hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::EnableAlternateScreen) c'z');
+        pt!(b"a\x1b[?1047hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UseAlternateScreen) c'z');
+        pt!(b"a\x1b[?1048hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SaveCursor) c'z');
+        pt!(b"a\x1b[?1049hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SaveCursorAndUseAlternateScreen) c'z');
+        pt!(b"a\x1b[?1050hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::TerminfoFnMode) c'z');
+        pt!(b"a\x1b[?1051hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SunFnMode) c'z');
+        pt!(b"a\x1b[?1052hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::HpFnMode) c'z');
+        pt!(b"a\x1b[?1053hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::ScoFnMode) c'z');
+        pt!(b"a\x1b[?1060hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::LegacyKeyboard) c'z');
+        pt!(b"a\x1b[?1061hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::Vt220Keyboard) c'z');
+        pt!(b"a\x1b[?2004hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::BracketedPaste) c'z');
+        pt!(b"a\x1b[?0hz", c'a' m m m m m c'z');
     }
 }

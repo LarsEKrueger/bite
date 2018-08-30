@@ -50,7 +50,8 @@ pub enum Action {
 
     HorizontalMove(u32),
 
-    VerticalPos(u32),
+    VerticalPositionAbsolute(u32),
+    VerticalPositionRelative(u32),
 
     DA1(u32),
     DA2(u32),
@@ -90,6 +91,7 @@ pub enum Action {
     CursorAbsolutePosition(u32, u32),
     CursorForwardTab(u32),
     CursorBackwardTab(u32),
+
 
     /// Erase in display
     ///
@@ -136,6 +138,10 @@ pub enum Action {
     MouseTracking(u32, u32, u32, u32, u32),
 
     ResetTitleModes(TitleModes),
+
+    TabClear(TabClear),
+    SetMode(SetMode),
+    SetPrivateMode(SetPrivateMode),
 }
 
 /// Character set
@@ -206,6 +212,85 @@ pub enum GraOp {
     Reset,
     Write(u32),
     GetMax,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TabClear {
+    All,
+    Column
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SetMode {
+    KeyboardAction,
+    Insert,
+    SendReceive,
+    AutomaticNewline,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SetPrivateMode {
+        ApplicationCursorKeys,
+        UsAsciiForG0toG3,
+        Hundred32Columns,
+        SmoothScroll,
+        ReverseVideo,
+        OriginMode,
+        AutoWrapMode,
+        AutoRepeatKeys,
+        SendMousePosOnPress,
+        ShowToolbar,
+        StartBlinkingCursor,
+        EnableXorBlinkingCursor,
+        PrintFormFeed,
+        PrintFullScreen,
+        ShowCursor,
+        ShowScrollbar,
+        EnableFontShifting,
+        TektronixMode,
+        AllowHundred32Mode,
+        MoreFix,
+        EnableNrc,
+        MarginBell,
+        ReverseWrapAroundMode,
+        StartLogging,
+        AlternateScreenBuffer,
+        ApplicationKeypad,
+        BackArrowIsBackSspace,
+        EnableLeftRightMarginMode,
+        NoClearScreenOnDECCOLM,
+        SendMousePosOnBoth,
+        HiliteMouseTracking,
+        CellMouseTracking,
+        AllMouseTracking,
+        SendFocusEvents,
+        Utf8MouseMode,
+        SgrMouseMode,
+        AlternateScrollMode,
+        ScrollToBottomOnTty,
+        ScrollToBottomOnKey,
+        UrxvtMouseMode,
+        InterpretMetaKey,
+        EnableSpecialModifiers,
+        SendEscOnMeta,
+        SendDelOnKeypad,
+        SendEscOnAlt,
+        KeepSelection,
+        UseClipboard,
+        UrgencyHint,
+        RaiseWindowOnBell,
+        KeepClipboard,
+        EnableAlternateScreen,
+        UseAlternateScreen,
+        SaveCursor,
+        SaveCursorAndUseAlternateScreen,
+        TerminfoFnMode,
+        SunFnMode,
+        HpFnMode,
+        ScoFnMode,
+        LegacyKeyboard,
+        Vt220Keyboard,
+        BracketedPaste,
 }
 
 bitflags! {
