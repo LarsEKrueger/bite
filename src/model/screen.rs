@@ -24,7 +24,7 @@
 use std::cmp;
 use std::hash::{Hash, Hasher};
 
-use super::control_sequence::action::Action;
+use super::control_sequence::action::{Action,CharacterAttribute,Color};
 use super::control_sequence::parser::Parser;
 
 /// Colors are pairs of foreground/background indices into the same palette.
@@ -40,6 +40,30 @@ pub struct Colors {
 impl PartialEq for Colors {
     fn eq(&self, other: &Colors) -> bool {
         self.foreground == other.foreground && self.background == other.background
+    }
+}
+
+impl Colors {
+    fn fromColor(c:Color) -> u8 {
+        match c {
+            Color::Default => 0,
+            Color::Black => 0,
+            Color::Red => 1,
+            Color::Green => 2,
+            Color::Yellow => 3,
+            Color::Blue => 4,
+            Color::Magenta => 5,
+            Color::Cyan => 6,
+            Color::White => 7,
+            Color::Grey => 8,
+            Color::BrightRed => 9,
+            Color::BrightGreen => 10,
+            Color::BrightYellow => 11,
+            Color::BrightBlue => 12,
+            Color::BrightMagenta => 13,
+            Color::BrightCyan => 14,
+            Color::BrightWhite => 15,
+        }
     }
 }
 
@@ -732,41 +756,39 @@ impl Screen {
                 self.place_char(c);
                 Event::Ignore
             }
-            Action::Sgr => {
-                for op in self.parser.parameters() {
-                    match op {
-                        0 => self.attributes = Attributes::empty(),
-                        1 => self.attributes.insert(Attributes::BOLD),
-                        2 => self.attributes.insert(Attributes::ATR_FAINT),
-                        3 => self.attributes.insert(Attributes::ATR_ITALIC),
-                        4 => self.attributes.insert(Attributes::UNDERLINE),
-                        5 => self.attributes.insert(Attributes::BLINK),
-                        7 => self.attributes.insert(Attributes::INVERSE),
-                        8 => self.attributes.insert(Attributes::INVISIBLE),
-                        9 => self.attributes.insert(Attributes::ATR_STRIKEOUT),
-                        21 => self.attributes.insert(Attributes::ATR_DBL_UNDER),
-                        22 => {
+            Action::CharacterAttributes(attrs) => {
+                for attr in attrs {
+                    match attr {
+                        CharacterAttribute::Normal     => self.attributes = Attributes::empty(),
+                        CharacterAttribute::Bold       => self.attributes.insert(Attributes::BOLD),
+                        CharacterAttribute::Faint      => self.attributes.insert(Attributes::ATR_FAINT),
+                        CharacterAttribute::Italicized => self.attributes.insert(Attributes::ATR_ITALIC),
+                        CharacterAttribute::Underlined => self.attributes.insert(Attributes::UNDERLINE),
+                        CharacterAttribute::Blink      => self.attributes.insert(Attributes::BLINK),
+                        CharacterAttribute::Inverse    => self.attributes.insert(Attributes::INVERSE),
+                        CharacterAttribute::Invisible  => self.attributes.insert(Attributes::INVISIBLE),
+                        CharacterAttribute::CrossedOut => self.attributes.insert(Attributes::ATR_STRIKEOUT),
+                        CharacterAttribute::DoublyUnderlined => self.attributes.insert(Attributes::ATR_DBL_UNDER),
+                        CharacterAttribute::NotBoldFaint => {
                             self.attributes.remove(Attributes::BOLD);
                             self.attributes.remove(Attributes::ATR_FAINT);
                         }
-                        23 => self.attributes.remove(Attributes::ATR_ITALIC),
-                        24 => self.attributes.remove(Attributes::UNDERLINE),
-                        25 => self.attributes.remove(Attributes::BLINK),
-                        27 => self.attributes.remove(Attributes::INVERSE),
-                        28 => self.attributes.remove(Attributes::INVISIBLE),
-                        29 => self.attributes.remove(Attributes::ATR_STRIKEOUT),
-                        30...37 => {
+                        CharacterAttribute::NotItalicized => self.attributes.remove(Attributes::ATR_ITALIC),
+                        CharacterAttribute::NotUnderlined => self.attributes.remove(Attributes::UNDERLINE),
+                        CharacterAttribute::Steady        => self.attributes.remove(Attributes::BLINK),
+                        CharacterAttribute::Positive      => self.attributes.remove(Attributes::INVERSE),
+                        CharacterAttribute::Visible       => self.attributes.remove(Attributes::INVISIBLE),
+                        CharacterAttribute::NotCrossedOut => self.attributes.remove(Attributes::ATR_STRIKEOUT),
+                        CharacterAttribute::Foreground(Color::Default) => self.attributes.remove(Attributes::FG_COLOR),
+                        CharacterAttribute::Foreground(c) => {
                             self.attributes.insert(Attributes::FG_COLOR);
-                            self.colors.foreground = (op - 30) as u8;
+                            self.colors.foreground = Colors::fromColor(c);
                         }
-                        39 => self.attributes.remove(Attributes::FG_COLOR),
-                        40...47 => {
+                        CharacterAttribute::Background(Color::Default) => self.attributes.remove(Attributes::BG_COLOR),
+                        CharacterAttribute::Background(c) => {
                             self.attributes.insert(Attributes::BG_COLOR);
-                            self.colors.background = (op - 40) as u8;
+                            self.colors.background = Colors::fromColor(c);
                         }
-                        49 => self.attributes.remove(Attributes::BG_COLOR),
-
-                        _ => {}
                     };
                 }
                 Event::Ignore
@@ -791,6 +813,10 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::ForegroundColorRgb(_,_,_) |
+            Action::ForegroundColorIndex(_) |
+            Action::BackgroundColorRgb(_,_,_) |
+            Action::BackgroundColorIndex(_) |
             Action::MediaCopy(_) |
             Action::SetMode(_) |
             Action::ResetMode(_) |
@@ -809,8 +835,8 @@ impl Screen {
             Action::EraseDisplay(_,_)|
             Action::EraseLine(_,_)|
             Action::CursorAbsoluteColumn(_)|
-            Action::CursorAbsolutePosition(_,_)|
             Action::CursorForwardTab(_)|
+            Action::CursorAbsolutePosition(_,_)|
             Action::CursorBackwardTab(_)|
             Action::CursorUp(_)|
             Action::CursorDown(_)|

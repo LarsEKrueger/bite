@@ -38,11 +38,6 @@ pub enum Action {
     /// A UTF8 character has been completed
     Char(char),
 
-    /// An SGR sequence has been found.
-    ///
-    /// Process the parameters outside and then reset the state
-    Sgr,
-
     DECREQTPARM,
 
     SaveCursor,
@@ -91,7 +86,6 @@ pub enum Action {
     CursorAbsolutePosition(u32, u32),
     CursorForwardTab(u32),
     CursorBackwardTab(u32),
-
 
     /// Erase in display
     ///
@@ -145,6 +139,12 @@ pub enum Action {
     SetPrivateMode(SetPrivateMode),
     ResetPrivateMode(SetPrivateMode),
     MediaCopy(MediaCopy),
+
+    CharacterAttributes(Vec<CharacterAttribute>),
+    ForegroundColorRgb(u8, u8, u8),
+    ForegroundColorIndex(u8),
+    BackgroundColorRgb(u8, u8, u8),
+    BackgroundColorIndex(u8),
 }
 
 /// Character set
@@ -220,7 +220,7 @@ pub enum GraOp {
 #[derive(Debug, PartialEq)]
 pub enum TabClear {
     All,
-    Column
+    Column,
 }
 
 #[derive(Debug, PartialEq)]
@@ -233,81 +233,81 @@ pub enum SetMode {
 
 #[derive(Debug, PartialEq)]
 pub enum SetPrivateMode {
-        ApplicationCursorKeys,
-        UsAsciiForG0toG3,
-        Hundred32Columns,
-        SmoothScroll,
-        ReverseVideo,
-        OriginMode,
-        AutoWrapMode,
-        AutoRepeatKeys,
-        SendMousePosOnPress,
-        ShowToolbar,
-        StartBlinkingCursor,
-        EnableXorBlinkingCursor,
-        PrintFormFeed,
-        PrintFullScreen,
-        ShowCursor,
-        ShowScrollbar,
-        EnableFontShifting,
-        TektronixMode,
-        AllowHundred32Mode,
-        MoreFix,
-        EnableNrc,
-        MarginBell,
-        ReverseWrapAroundMode,
-        StartLogging,
-        AlternateScreenBuffer,
-        ApplicationKeypad,
-        BackArrowIsBackSspace,
-        EnableLeftRightMarginMode,
-        NoClearScreenOnDECCOLM,
-        SendMousePosOnBoth,
-        HiliteMouseTracking,
-        CellMouseTracking,
-        AllMouseTracking,
-        SendFocusEvents,
-        Utf8MouseMode,
-        SgrMouseMode,
-        AlternateScrollMode,
-        ScrollToBottomOnTty,
-        ScrollToBottomOnKey,
-        UrxvtMouseMode,
-        InterpretMetaKey,
-        EnableSpecialModifiers,
-        SendEscOnMeta,
-        SendDelOnKeypad,
-        SendEscOnAlt,
-        KeepSelection,
-        UseClipboard,
-        UrgencyHint,
-        RaiseWindowOnBell,
-        KeepClipboard,
-        EnableAlternateScreen,
-        UseAlternateScreen,
-        SaveCursor,
-        SaveCursorAndUseAlternateScreen,
-        TerminfoFnMode,
-        SunFnMode,
-        HpFnMode,
-        ScoFnMode,
-        LegacyKeyboard,
-        Vt220Keyboard,
-        BracketedPaste,
+    ApplicationCursorKeys,
+    UsAsciiForG0toG3,
+    Hundred32Columns,
+    SmoothScroll,
+    ReverseVideo,
+    OriginMode,
+    AutoWrapMode,
+    AutoRepeatKeys,
+    SendMousePosOnPress,
+    ShowToolbar,
+    StartBlinkingCursor,
+    EnableXorBlinkingCursor,
+    PrintFormFeed,
+    PrintFullScreen,
+    ShowCursor,
+    ShowScrollbar,
+    EnableFontShifting,
+    TektronixMode,
+    AllowHundred32Mode,
+    MoreFix,
+    EnableNrc,
+    MarginBell,
+    ReverseWrapAroundMode,
+    StartLogging,
+    AlternateScreenBuffer,
+    ApplicationKeypad,
+    BackArrowIsBackSspace,
+    EnableLeftRightMarginMode,
+    NoClearScreenOnDECCOLM,
+    SendMousePosOnBoth,
+    HiliteMouseTracking,
+    CellMouseTracking,
+    AllMouseTracking,
+    SendFocusEvents,
+    Utf8MouseMode,
+    SgrMouseMode,
+    AlternateScrollMode,
+    ScrollToBottomOnTty,
+    ScrollToBottomOnKey,
+    UrxvtMouseMode,
+    InterpretMetaKey,
+    EnableSpecialModifiers,
+    SendEscOnMeta,
+    SendDelOnKeypad,
+    SendEscOnAlt,
+    KeepSelection,
+    UseClipboard,
+    UrgencyHint,
+    RaiseWindowOnBell,
+    KeepClipboard,
+    EnableAlternateScreen,
+    UseAlternateScreen,
+    SaveCursor,
+    SaveCursorAndUseAlternateScreen,
+    TerminfoFnMode,
+    SunFnMode,
+    HpFnMode,
+    ScoFnMode,
+    LegacyKeyboard,
+    Vt220Keyboard,
+    BracketedPaste,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum MediaCopy {
-        PrintScreen,
-        PrinterCtrlOff,
-        PrinterCtrlOn,
-        HtmlScreenDump,
-        SvgScreenDump,
-        PrintCursorLine,
-        AutoPrintOff,
-        AutoPrintOn,
-        PrintComposeDisplay,
-        PrintAllPages,
+    PrintScreen,
+    PrinterCtrlOff,
+    PrinterCtrlOn,
+    HtmlScreenDump,
+    SvgScreenDump,
+    PrintCursorLine,
+    AutoPrintOff,
+    AutoPrintOn,
+    PrintComposeDisplay,
+    PrintAllPages,
 }
 
 bitflags! {
@@ -321,6 +321,50 @@ bitflags! {
         const ALL = Self::SetLabelHex.bits | Self::GetLabelHex.bits | Self::SetLabelUtf8.bits |
             Self::GetLabelUtf8.bits;
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CharacterAttribute {
+    Normal,
+    Bold,
+    Faint,
+    Italicized,
+    Underlined,
+    Blink,
+    Inverse,
+    Invisible,
+    CrossedOut,
+    DoublyUnderlined,
+    NotBoldFaint,
+    NotItalicized,
+    NotUnderlined,
+    Steady,
+    Positive,
+    Visible,
+    NotCrossedOut,
+    Foreground(Color),
+    Background(Color),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Color {
+    Default,
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+    Grey,
+    BrightRed,
+    BrightGreen,
+    BrightYellow,
+    BrightBlue,
+    BrightMagenta,
+    BrightCyan,
+    BrightWhite,
 }
 
 impl Action {

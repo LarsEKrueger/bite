@@ -26,7 +26,8 @@ use std::mem;
 use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
-                    TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy};
+                    TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
+                    Color};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -212,7 +213,8 @@ mod action {
                 }
             }
         };
-        ($name:ident, $action:ident, $countername:ident, $counteraction:ident, [$($n:expr => $v:ident),+]) => {
+        ($name:ident, $action:ident, $countername:ident, $counteraction:ident,
+         [$($n:expr => $v:ident),+]) => {
             pub fn $name(p:&mut Parser, _byte: u8) -> Action {
                 p.reset();
                 match p.parameter.zero_if_default(0) {
@@ -256,7 +258,7 @@ mod action {
     action_reset!(CUP, CursorAbsolutePosition, one_minus, one_minus);
     action_reset!(CUU, CursorUp, one);
     action_reset!(DA1, DA1, zero);
-    action_reset!(DA2,DA2,zero);
+    action_reset!(DA2, DA2, zero);
     action_reset!(DECALN, DecAlignmentTest);
     action_reset!(DECBI, DecBackIndex);
     action_reset!(DECDWL, DecDoubleWidth, true);
@@ -280,17 +282,16 @@ mod action {
     action_reset!(RIS, FullReset);
     action_reset!(S7C1T, Show8BitControl, false);
     action_reset!(S8C1T, Show8BitControl, true);
-    action_reset!(SGR, Sgr);
     action_reset!(IL, InsertLines, one);
     action_reset!(DL, DeleteLines, one);
     action_reset!(DCH, DeleteCharacters, one);
     action_reset!(SU, ScrollUp, one);
-    action_reset!(ECH,EraseCharacters,one);
-    action_reset!(CBT,CursorBackwardTab,one);
-    action_reset!(SD,ScrollDown,one);
-    action_reset!(REP,RepeatCharacter,one);
-    action_reset!(VPA,VerticalPositionAbsolute,one_minus);
-    action_reset!(VPR,VerticalPositionRelative,one_minus);
+    action_reset!(ECH, EraseCharacters, one);
+    action_reset!(CBT, CursorBackwardTab, one);
+    action_reset!(SD, ScrollDown, one);
+    action_reset!(REP, RepeatCharacter, one);
+    action_reset!(VPA, VerticalPositionAbsolute, one_minus);
+    action_reset!(VPR, VerticalPositionRelative, one_minus);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -329,23 +330,23 @@ mod action {
         DECSET,SetPrivateMode,
         DECRESET,ResetPrivateMode,
         [ 1 => ApplicationCursorKeys, 2 => UsAsciiForG0toG3,
-        3 => Hundred32Columns, 4 => SmoothScroll, 5 => ReverseVideo, 6 => OriginMode, 
-        7 => AutoWrapMode, 8 => AutoRepeatKeys, 9 => SendMousePosOnPress, 10 => ShowToolbar, 
-        12 => StartBlinkingCursor, 13 => StartBlinkingCursor, 14 => EnableXorBlinkingCursor, 
-        18 => PrintFormFeed, 19 => PrintFullScreen, 25 => ShowCursor, 30 => ShowScrollbar, 
-        35 => EnableFontShifting, 38 => TektronixMode, 40 => AllowHundred32Mode, 41 => MoreFix, 
-        42 => EnableNrc, 44 => MarginBell, 45 => ReverseWrapAroundMode, 46 => StartLogging, 
-        47 => AlternateScreenBuffer, 66 => ApplicationKeypad, 67 => BackArrowIsBackSspace, 
-        69 => EnableLeftRightMarginMode, 95 => NoClearScreenOnDECCOLM, 
-        1000 => SendMousePosOnBoth, 1001 => HiliteMouseTracking, 1002 => CellMouseTracking, 
-        1003 => AllMouseTracking, 1004 => SendFocusEvents, 1005 => Utf8MouseMode, 
-        1006 => SgrMouseMode, 1007 => AlternateScrollMode, 1010 => ScrollToBottomOnTty, 
-        1011 => ScrollToBottomOnKey, 1015 => UrxvtMouseMode, 1034 => InterpretMetaKey, 
-        1035 => EnableSpecialModifiers, 1036 => SendEscOnMeta, 1037 => SendDelOnKeypad, 
-        1039 => SendEscOnAlt, 1040 => KeepSelection, 1041 => UseClipboard, 1042 => UrgencyHint, 
-        1043 => RaiseWindowOnBell, 1044 => KeepClipboard, 1046 => EnableAlternateScreen, 
-        1047 => UseAlternateScreen, 1048 => SaveCursor, 1049 => SaveCursorAndUseAlternateScreen, 
-        1050 => TerminfoFnMode, 1051 => SunFnMode, 1052 => HpFnMode, 1053 => ScoFnMode, 
+        3 => Hundred32Columns, 4 => SmoothScroll, 5 => ReverseVideo, 6 => OriginMode,
+        7 => AutoWrapMode, 8 => AutoRepeatKeys, 9 => SendMousePosOnPress, 10 => ShowToolbar,
+        12 => StartBlinkingCursor, 13 => StartBlinkingCursor, 14 => EnableXorBlinkingCursor,
+        18 => PrintFormFeed, 19 => PrintFullScreen, 25 => ShowCursor, 30 => ShowScrollbar,
+        35 => EnableFontShifting, 38 => TektronixMode, 40 => AllowHundred32Mode, 41 => MoreFix,
+        42 => EnableNrc, 44 => MarginBell, 45 => ReverseWrapAroundMode, 46 => StartLogging,
+        47 => AlternateScreenBuffer, 66 => ApplicationKeypad, 67 => BackArrowIsBackSspace,
+        69 => EnableLeftRightMarginMode, 95 => NoClearScreenOnDECCOLM,
+        1000 => SendMousePosOnBoth, 1001 => HiliteMouseTracking, 1002 => CellMouseTracking,
+        1003 => AllMouseTracking, 1004 => SendFocusEvents, 1005 => Utf8MouseMode,
+        1006 => SgrMouseMode, 1007 => AlternateScrollMode, 1010 => ScrollToBottomOnTty,
+        1011 => ScrollToBottomOnKey, 1015 => UrxvtMouseMode, 1034 => InterpretMetaKey,
+        1035 => EnableSpecialModifiers, 1036 => SendEscOnMeta, 1037 => SendDelOnKeypad,
+        1039 => SendEscOnAlt, 1040 => KeepSelection, 1041 => UseClipboard, 1042 => UrgencyHint,
+        1043 => RaiseWindowOnBell, 1044 => KeepClipboard, 1046 => EnableAlternateScreen,
+        1047 => UseAlternateScreen, 1048 => SaveCursor, 1049 => SaveCursorAndUseAlternateScreen,
+        1050 => TerminfoFnMode, 1051 => SunFnMode, 1052 => HpFnMode, 1053 => ScoFnMode,
         1060 => LegacyKeyboard, 1061 => Vt220Keyboard, 2004 => BracketedPaste]);
     action_switch_param!(MC,MediaCopy, [ 0 => PrintScreen, 4 => PrinterCtrlOff, 5 => PrinterCtrlOn,
                          10 => HtmlScreenDump, 11 => SvgScreenDump]);
@@ -563,6 +564,118 @@ impl Parser {
             )
         }
     }
+
+    fn action_SGR(&mut self, _byte: u8) -> Action {
+        self.reset();
+        let p0 = self.parameter.zero_if_default(0);
+        match p0 {
+            38 | 48 => {
+                let p1 = self.parameter.zero_if_default(1);
+                match p1 {
+                    2 => {
+                        // Set RGB
+                        match self.parameter.iter().count() {
+                            5 => {
+                                let r = self.parameter.clip8(2);
+                                let g = self.parameter.clip8(3);
+                                let b = self.parameter.clip8(4);
+                                if p0 == 38 {
+                                    Action::ForegroundColorRgb(r, g, b)
+                                } else {
+                                    Action::BackgroundColorRgb(r, g, b)
+                                }
+                            }
+                            6 => {
+                                let r = self.parameter.clip8(3);
+                                let g = self.parameter.clip8(4);
+                                let b = self.parameter.clip8(5);
+                                if p0 == 38 {
+                                    Action::ForegroundColorRgb(r, g, b)
+                                } else {
+                                    Action::BackgroundColorRgb(r, g, b)
+                                }
+                            }
+                            _ => Action::More,
+                        }
+                    }
+                    5 => {
+                        // Set index
+                        let p2 = self.parameter.clip8(2);
+                        if p0 == 38 {
+                            Action::ForegroundColorIndex(p2)
+                        } else {
+                            Action::BackgroundColorIndex(p2)
+                        }
+                    }
+                    _ => Action::More,
+                }
+            }
+            _ => {
+                let attrs: Vec<CharacterAttribute> = self.parameters()
+                    .filter_map(|attr| match attr {
+                        0 => Some(CharacterAttribute::Normal),
+                        1 => Some(CharacterAttribute::Bold),
+                        2 => Some(CharacterAttribute::Faint),
+                        3 => Some(CharacterAttribute::Italicized),
+                        4 => Some(CharacterAttribute::Underlined),
+                        5 => Some(CharacterAttribute::Blink),
+                        7 => Some(CharacterAttribute::Inverse),
+                        8 => Some(CharacterAttribute::Invisible),
+                        9 => Some(CharacterAttribute::CrossedOut),
+                        21 => Some(CharacterAttribute::DoublyUnderlined),
+                        22 => Some(CharacterAttribute::NotBoldFaint),
+                        23 => Some(CharacterAttribute::NotItalicized),
+                        24 => Some(CharacterAttribute::NotUnderlined),
+                        25 => Some(CharacterAttribute::Steady),
+                        27 => Some(CharacterAttribute::Positive),
+                        28 => Some(CharacterAttribute::Visible),
+                        29 => Some(CharacterAttribute::NotCrossedOut),
+                        30 => Some(CharacterAttribute::Foreground(Color::Black)),
+                        31 => Some(CharacterAttribute::Foreground(Color::Red)),
+                        32 => Some(CharacterAttribute::Foreground(Color::Green)),
+                        33 => Some(CharacterAttribute::Foreground(Color::Yellow)),
+                        34 => Some(CharacterAttribute::Foreground(Color::Blue)),
+                        35 => Some(CharacterAttribute::Foreground(Color::Magenta)),
+                        36 => Some(CharacterAttribute::Foreground(Color::Cyan)),
+                        37 => Some(CharacterAttribute::Foreground(Color::White)),
+                        39 => Some(CharacterAttribute::Foreground(Color::Default)),
+                        40 => Some(CharacterAttribute::Background(Color::Black)),
+                        41 => Some(CharacterAttribute::Background(Color::Red)),
+                        42 => Some(CharacterAttribute::Background(Color::Green)),
+                        43 => Some(CharacterAttribute::Background(Color::Yellow)),
+                        44 => Some(CharacterAttribute::Background(Color::Blue)),
+                        45 => Some(CharacterAttribute::Background(Color::Magenta)),
+                        46 => Some(CharacterAttribute::Background(Color::Cyan)),
+                        47 => Some(CharacterAttribute::Background(Color::White)),
+                        49 => Some(CharacterAttribute::Background(Color::Default)),
+                        90 => Some(CharacterAttribute::Foreground(Color::Grey)),
+                        91 => Some(CharacterAttribute::Foreground(Color::BrightRed)),
+                        92 => Some(CharacterAttribute::Foreground(Color::BrightGreen)),
+                        93 => Some(CharacterAttribute::Foreground(Color::BrightYellow)),
+                        94 => Some(CharacterAttribute::Foreground(Color::BrightBlue)),
+                        95 => Some(CharacterAttribute::Foreground(Color::BrightMagenta)),
+                        96 => Some(CharacterAttribute::Foreground(Color::BrightCyan)),
+                        97 => Some(CharacterAttribute::Foreground(Color::BrightWhite)),
+                        100 => Some(CharacterAttribute::Background(Color::Grey)),
+                        101 => Some(CharacterAttribute::Background(Color::BrightRed)),
+                        102 => Some(CharacterAttribute::Background(Color::BrightGreen)),
+                        103 => Some(CharacterAttribute::Background(Color::BrightYellow)),
+                        104 => Some(CharacterAttribute::Background(Color::BrightBlue)),
+                        105 => Some(CharacterAttribute::Background(Color::BrightMagenta)),
+                        106 => Some(CharacterAttribute::Background(Color::BrightCyan)),
+                        107 => Some(CharacterAttribute::Background(Color::BrightWhite)),
+                        _ => None,
+                    })
+                    .collect();
+                if attrs.is_empty() {
+                    Action::More
+                } else {
+                    Action::CharacterAttributes(attrs)
+                }
+            }
+        }
+    }
+
     fn action_CPR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -938,7 +1051,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::TBC,
         action::SET,
         action::RESET,
-        action::SGR,
+        Parser::action_SGR,
         Parser::action_CPR,
         Parser::action_DECSTBM,
         action::DECREQTPARM,
@@ -1113,44 +1226,44 @@ mod test {
 
     macro_rules! pt {
         (@accu $str:tt, () -> ($($body:tt)*)) => {
-                assert_eq!(
-                    emu($str),
-                    vec![$($body)*]);
+            assert_eq!(
+                emu($str),
+                vec![$($body)*]);
         };
         (@accu $str:tt, (c $c:tt $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::Char($c),));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::Char($c),));
         };
         (@accu $str:tt, (m $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::More,));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::More,));
         };
         (@accu $str:tt, (e $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::Error,));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::Error,));
         };
         (@accu $str:tt, (s $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::Char(' '),));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::Char(' '),));
         };
         (@accu $str:tt, (DCS $n:tt $i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) ->
-                    ($($body)* Action::DesignateCharacterSet($n,CharSet::$i),))
+            pt!(@accu $str, ($($rest)*) ->
+                ($($body)* Action::DesignateCharacterSet($n,CharSet::$i),))
         };
         (@accu $str:tt, ($i:ident ($v1:expr ) $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1),));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1),));
         };
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr) $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2),));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2),));
         };
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr) $($rest:tt)*) ->
          ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3),));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3),));
         };
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr)
                          $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5),));
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5),));
         };
         (@accu $str:tt, ($i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
-                pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i,))
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i,))
         };
-       ($str:expr, $($rest:tt)+ ) => {pt!(@accu $str, ($($rest)*) -> ());};
+        ($str:expr, $($rest:tt)+ ) => {pt!(@accu $str, ($($rest)*) -> ());};
     }
 
 
@@ -1185,8 +1298,8 @@ mod test {
     fn rust_tests() {
         pt!(b"hello", c'h' c'e' c'l' c'l' c'o');
         pt!("ศไทย中华Việt Nam".as_bytes(),
-            m  m  c 'ศ' m  m  c 'ไ' m  m  c 'ท' m  m  c 'ย' m  m  c '中'
-            m  m  c '华' c 'V' c 'i' m  m  c 'ệ' c 't' c ' ' c 'N' c 'a' c 'm');
+        m  m  c 'ศ' m  m  c 'ไ' m  m  c 'ท' m  m  c 'ย' m  m  c '中'
+        m  m  c '华' c 'V' c 'i' m  m  c 'ệ' c 't' c ' ' c 'N' c 'a' c 'm');
         pt!("Hä".as_bytes(), c'H' m c'ä');
 
         assert_eq!(
@@ -1292,7 +1405,6 @@ mod test {
         pt!(b"he\rwo", c'h' c'e' Cr c'w' c'o');
         pt!(b"a\nx", c'a' NewLine c'x');
         pt!(b"a\x1b[0x\n", c'a' m m m DECREQTPARM NewLine);
-        pt!(b"a\x1b[32;12;0m", c'a' m m m m m m m m m Sgr);
 
         // Non-SGR sequence (no escape)
         pt!(b"a[32m", c'a' c'[' c'3' c'2' c'm');
@@ -1303,7 +1415,19 @@ mod test {
             {
                 let actions: Vec<Action> = b"\x1b[32;12m".iter().map(|b| e.add_byte(*b)).collect();
                 assert_eq!(e.code_byte, 0);
-                assert_eq!(actions, [m(), m(), m(), m(), m(), m(), m(), Action::Sgr]);
+                assert_eq!(
+                    actions,
+                    [
+                        m(),
+                        m(),
+                        m(),
+                        m(),
+                        m(),
+                        m(),
+                        m(),
+                        Action::CharacterAttributes(vec![CharacterAttribute::Foreground(Color::Green)]),
+                    ]
+                );
                 assert_eq!(e.parameter.count(), (2));
                 assert_eq!(e.parameter.zero_if_default(0), 32);
                 assert_eq!(e.parameter.zero_if_default(1), 12);
@@ -1314,7 +1438,16 @@ mod test {
             {
                 let actions: Vec<Action> = b"\x1b[45m".iter().map(|b| e.add_byte(*b)).collect();
                 assert_eq!(e.code_byte, 0);
-                assert_eq!(actions, [m(), m(), m(), m(), Action::Sgr]);
+                assert_eq!(
+                    actions,
+                    [
+                        m(),
+                        m(),
+                        m(),
+                        m(),
+                        Action::CharacterAttributes(vec![CharacterAttribute::Background(Color::Magenta)]),
+                    ]
+                );
                 assert_eq!(e.parameter.count(), (1));
                 assert_eq!(e.parameter.zero_if_default(0), 45);
 
@@ -1425,68 +1558,102 @@ mod test {
         pt!(b"a\x1b[12hy", c'a' m m m m SetMode(SetMode::SendReceive) c'y');
         pt!(b"a\x1b[20hy", c'a' m m m m SetMode(SetMode::AutomaticNewline) c'y');
         pt!(b"a\x1b[21hy", c'a' m m m m m c'y');
-        pt!(b"a\x1b[?1hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::ApplicationCursorKeys) c'z');
-        pt!(b"a\x1b[?2hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::UsAsciiForG0toG3) c'z');
-        pt!(b"a\x1b[?3hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::Hundred32Columns) c'z');
-        pt!(b"a\x1b[?4hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::SmoothScroll) c'z');
-        pt!(b"a\x1b[?5hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::ReverseVideo) c'z');
-        pt!(b"a\x1b[?6hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::OriginMode) c'z');
-        pt!(b"a\x1b[?7hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::AutoWrapMode) c'z');
-        pt!(b"a\x1b[?8hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::AutoRepeatKeys) c'z');
-        pt!(b"a\x1b[?9hz", c'a' m m m m     SetPrivateMode(SetPrivateMode::SendMousePosOnPress) c'z');
-        pt!(b"a\x1b[?10hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ShowToolbar) c'z');
-        pt!(b"a\x1b[?12hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
-        pt!(b"a\x1b[?13hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
-        pt!(b"a\x1b[?14hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableXorBlinkingCursor) c'z');
-        pt!(b"a\x1b[?18hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::PrintFormFeed) c'z');
-        pt!(b"a\x1b[?19hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::PrintFullScreen) c'z');
-        pt!(b"a\x1b[?25hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ShowCursor) c'z');
-        pt!(b"a\x1b[?30hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ShowScrollbar) c'z');
-        pt!(b"a\x1b[?35hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableFontShifting) c'z');
-        pt!(b"a\x1b[?38hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::TektronixMode) c'z');
-        pt!(b"a\x1b[?40hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::AllowHundred32Mode) c'z');
-        pt!(b"a\x1b[?41hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::MoreFix) c'z');
-        pt!(b"a\x1b[?42hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableNrc) c'z');
-        pt!(b"a\x1b[?44hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::MarginBell) c'z');
-        pt!(b"a\x1b[?45hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ReverseWrapAroundMode) c'z');
-        pt!(b"a\x1b[?46hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::StartLogging) c'z');
-        pt!(b"a\x1b[?47hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::AlternateScreenBuffer) c'z');
-        pt!(b"a\x1b[?66hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::ApplicationKeypad) c'z');
-        pt!(b"a\x1b[?67hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::BackArrowIsBackSspace) c'z');
-        pt!(b"a\x1b[?69hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::EnableLeftRightMarginMode) c'z');
-        pt!(b"a\x1b[?95hz", c'a' m m m m m  SetPrivateMode(SetPrivateMode::NoClearScreenOnDECCOLM) c'z');
-        pt!(b"a\x1b[?1000hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendMousePosOnBoth) c'z');
-        pt!(b"a\x1b[?1001hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::HiliteMouseTracking) c'z');
-        pt!(b"a\x1b[?1002hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::CellMouseTracking) c'z');
-        pt!(b"a\x1b[?1003hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::AllMouseTracking) c'z');
-        pt!(b"a\x1b[?1004hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendFocusEvents) c'z');
-        pt!(b"a\x1b[?1005hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::Utf8MouseMode) c'z');
+        pt!(b"a\x1b[?1hz", c'a' m m m m SetPrivateMode(SetPrivateMode::ApplicationCursorKeys) c'z');
+        pt!(b"a\x1b[?2hz", c'a' m m m m SetPrivateMode(SetPrivateMode::UsAsciiForG0toG3) c'z');
+        pt!(b"a\x1b[?3hz", c'a' m m m m SetPrivateMode(SetPrivateMode::Hundred32Columns) c'z');
+        pt!(b"a\x1b[?4hz", c'a' m m m m SetPrivateMode(SetPrivateMode::SmoothScroll) c'z');
+        pt!(b"a\x1b[?5hz", c'a' m m m m SetPrivateMode(SetPrivateMode::ReverseVideo) c'z');
+        pt!(b"a\x1b[?6hz", c'a' m m m m SetPrivateMode(SetPrivateMode::OriginMode) c'z');
+        pt!(b"a\x1b[?7hz", c'a' m m m m SetPrivateMode(SetPrivateMode::AutoWrapMode) c'z');
+        pt!(b"a\x1b[?8hz", c'a' m m m m SetPrivateMode(SetPrivateMode::AutoRepeatKeys) c'z');
+        pt!(b"a\x1b[?9hz", c'a' m m m m SetPrivateMode(SetPrivateMode::SendMousePosOnPress) c'z');
+        pt!(b"a\x1b[?10hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::ShowToolbar) c'z');
+        pt!(b"a\x1b[?12hz", c'a' m m m m m
+            SetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
+        pt!(b"a\x1b[?13hz", c'a' m m m m m
+            SetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
+        pt!(b"a\x1b[?14hz", c'a' m m m m m
+            SetPrivateMode(SetPrivateMode::EnableXorBlinkingCursor) c'z');
+        pt!(b"a\x1b[?18hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::PrintFormFeed) c'z');
+        pt!(b"a\x1b[?19hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::PrintFullScreen) c'z');
+        pt!(b"a\x1b[?25hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::ShowCursor) c'z');
+        pt!(b"a\x1b[?30hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::ShowScrollbar) c'z');
+        pt!(b"a\x1b[?35hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::EnableFontShifting) c'z');
+        pt!(b"a\x1b[?38hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::TektronixMode) c'z');
+        pt!(b"a\x1b[?40hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::AllowHundred32Mode) c'z');
+        pt!(b"a\x1b[?41hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::MoreFix) c'z');
+        pt!(b"a\x1b[?42hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::EnableNrc) c'z');
+        pt!(b"a\x1b[?44hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::MarginBell) c'z');
+        pt!(b"a\x1b[?45hz", c'a' m m m m m
+            SetPrivateMode(SetPrivateMode::ReverseWrapAroundMode) c'z');
+        pt!(b"a\x1b[?46hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::StartLogging) c'z');
+        pt!(b"a\x1b[?47hz", c'a' m m m m m
+            SetPrivateMode(SetPrivateMode::AlternateScreenBuffer) c'z');
+        pt!(b"a\x1b[?66hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::ApplicationKeypad) c'z');
+        pt!(b"a\x1b[?67hz", c'a' m m m m m
+            SetPrivateMode(SetPrivateMode::BackArrowIsBackSspace) c'z');
+        pt!(b"a\x1b[?69hz", c'a' m m m m m
+            SetPrivateMode(SetPrivateMode::EnableLeftRightMarginMode) c'z');
+        pt!(b"a\x1b[?95hz", c'a' m m m m m SetPrivateMode(SetPrivateMode::NoClearScreenOnDECCOLM)
+            c'z');
+        pt!(b"a\x1b[?1000hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendMousePosOnBoth)
+            c'z');
+        pt!(b"a\x1b[?1001hz", c'a' m m m m m m m
+            SetPrivateMode(SetPrivateMode::HiliteMouseTracking) c'z');
+        pt!(b"a\x1b[?1002hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::CellMouseTracking)
+            c'z');
+        pt!(b"a\x1b[?1003hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::AllMouseTracking)
+            c'z');
+        pt!(b"a\x1b[?1004hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendFocusEvents)
+            c'z');
+        pt!(b"a\x1b[?1005hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::Utf8MouseMode)
+            c'z');
         pt!(b"a\x1b[?1006hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SgrMouseMode) c'z');
-        pt!(b"a\x1b[?1007hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::AlternateScrollMode) c'z');
-        pt!(b"a\x1b[?1010hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::ScrollToBottomOnTty) c'z');
-        pt!(b"a\x1b[?1011hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::ScrollToBottomOnKey) c'z');
-        pt!(b"a\x1b[?1015hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UrxvtMouseMode) c'z');
-        pt!(b"a\x1b[?1034hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::InterpretMetaKey) c'z');
-        pt!(b"a\x1b[?1035hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::EnableSpecialModifiers) c'z');
-        pt!(b"a\x1b[?1036hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendEscOnMeta) c'z');
-        pt!(b"a\x1b[?1037hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendDelOnKeypad) c'z');
-        pt!(b"a\x1b[?1039hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendEscOnAlt) c'z');
-        pt!(b"a\x1b[?1040hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::KeepSelection) c'z');
-        pt!(b"a\x1b[?1041hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UseClipboard) c'z');
+        pt!(b"a\x1b[?1007hz", c'a' m m m m m m m
+            SetPrivateMode(SetPrivateMode::AlternateScrollMode) c'z');
+        pt!(b"a\x1b[?1010hz", c'a' m m m m m m m
+            SetPrivateMode(SetPrivateMode::ScrollToBottomOnTty) c'z');
+        pt!(b"a\x1b[?1011hz", c'a' m m m m m m m
+            SetPrivateMode(SetPrivateMode::ScrollToBottomOnKey) c'z');
+        pt!(b"a\x1b[?1015hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UrxvtMouseMode)
+            c'z');
+        pt!(b"a\x1b[?1034hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::InterpretMetaKey)
+            c'z');
+        pt!(b"a\x1b[?1035hz", c'a' m m m m m m m
+            SetPrivateMode(SetPrivateMode::EnableSpecialModifiers) c'z');
+        pt!(b"a\x1b[?1036hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendEscOnMeta)
+            c'z');
+        pt!(b"a\x1b[?1037hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendDelOnKeypad)
+            c'z');
+        pt!(b"a\x1b[?1039hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SendEscOnAlt)
+            c'z');
+        pt!(b"a\x1b[?1040hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::KeepSelection)
+            c'z');
+        pt!(b"a\x1b[?1041hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UseClipboard)
+            c'z');
         pt!(b"a\x1b[?1042hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UrgencyHint) c'z');
-        pt!(b"a\x1b[?1043hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::RaiseWindowOnBell) c'z');
-        pt!(b"a\x1b[?1044hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::KeepClipboard) c'z');
-        pt!(b"a\x1b[?1046hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::EnableAlternateScreen) c'z');
-        pt!(b"a\x1b[?1047hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UseAlternateScreen) c'z');
+        pt!(b"a\x1b[?1043hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::RaiseWindowOnBell)
+            c'z');
+        pt!(b"a\x1b[?1044hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::KeepClipboard)
+            c'z');
+        pt!(b"a\x1b[?1046hz", c'a' m m m m m m m
+            SetPrivateMode(SetPrivateMode::EnableAlternateScreen) c'z');
+        pt!(b"a\x1b[?1047hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::UseAlternateScreen)
+            c'z');
         pt!(b"a\x1b[?1048hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SaveCursor) c'z');
-        pt!(b"a\x1b[?1049hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SaveCursorAndUseAlternateScreen) c'z');
-        pt!(b"a\x1b[?1050hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::TerminfoFnMode) c'z');
+        pt!(b"a\x1b[?1049hz", c'a' m m m m m m m
+            SetPrivateMode(SetPrivateMode::SaveCursorAndUseAlternateScreen) c'z');
+        pt!(b"a\x1b[?1050hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::TerminfoFnMode)
+            c'z');
         pt!(b"a\x1b[?1051hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::SunFnMode) c'z');
         pt!(b"a\x1b[?1052hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::HpFnMode) c'z');
         pt!(b"a\x1b[?1053hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::ScoFnMode) c'z');
-        pt!(b"a\x1b[?1060hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::LegacyKeyboard) c'z');
-        pt!(b"a\x1b[?1061hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::Vt220Keyboard) c'z');
-        pt!(b"a\x1b[?2004hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::BracketedPaste) c'z');
+        pt!(b"a\x1b[?1060hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::LegacyKeyboard)
+            c'z');
+        pt!(b"a\x1b[?1061hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::Vt220Keyboard)
+            c'z');
+        pt!(b"a\x1b[?2004hz", c'a' m m m m m m m SetPrivateMode(SetPrivateMode::BracketedPaste)
+            c'z');
         pt!(b"a\x1b[?0hz", c'a' m m m m m c'z');
         pt!(b"a\x1b[0ik", c'a' m m m MediaCopy(MediaCopy::PrintScreen) c'k');
         pt!(b"a\x1b[4ik", c'a' m m m MediaCopy(MediaCopy::PrinterCtrlOff) c'k');
@@ -1505,68 +1672,201 @@ mod test {
         pt!(b"a\x1b[12ly", c'a' m m m m ResetMode(SetMode::SendReceive) c'y');
         pt!(b"a\x1b[20ly", c'a' m m m m ResetMode(SetMode::AutomaticNewline) c'y');
         pt!(b"a\x1b[21ly", c'a' m m m m m c'y');
-        pt!(b"a\x1b[?1lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::ApplicationCursorKeys) c'z');
-        pt!(b"a\x1b[?2lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::UsAsciiForG0toG3) c'z');
-        pt!(b"a\x1b[?3lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::Hundred32Columns) c'z');
-        pt!(b"a\x1b[?4lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::SmoothScroll) c'z');
-        pt!(b"a\x1b[?5lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::ReverseVideo) c'z');
-        pt!(b"a\x1b[?6lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::OriginMode) c'z');
-        pt!(b"a\x1b[?7lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::AutoWrapMode) c'z');
-        pt!(b"a\x1b[?8lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::AutoRepeatKeys) c'z');
-        pt!(b"a\x1b[?9lz", c'a' m m m m     ResetPrivateMode(SetPrivateMode::SendMousePosOnPress) c'z');
-        pt!(b"a\x1b[?10lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::ShowToolbar) c'z');
-        pt!(b"a\x1b[?12lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
-        pt!(b"a\x1b[?13lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
-        pt!(b"a\x1b[?14lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::EnableXorBlinkingCursor) c'z');
-        pt!(b"a\x1b[?18lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::PrintFormFeed) c'z');
-        pt!(b"a\x1b[?19lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::PrintFullScreen) c'z');
-        pt!(b"a\x1b[?25lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::ShowCursor) c'z');
-        pt!(b"a\x1b[?30lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::ShowScrollbar) c'z');
-        pt!(b"a\x1b[?35lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::EnableFontShifting) c'z');
-        pt!(b"a\x1b[?38lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::TektronixMode) c'z');
-        pt!(b"a\x1b[?40lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::AllowHundred32Mode) c'z');
-        pt!(b"a\x1b[?41lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::MoreFix) c'z');
-        pt!(b"a\x1b[?42lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::EnableNrc) c'z');
-        pt!(b"a\x1b[?44lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::MarginBell) c'z');
-        pt!(b"a\x1b[?45lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::ReverseWrapAroundMode) c'z');
-        pt!(b"a\x1b[?46lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::StartLogging) c'z');
-        pt!(b"a\x1b[?47lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::AlternateScreenBuffer) c'z');
-        pt!(b"a\x1b[?66lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::ApplicationKeypad) c'z');
-        pt!(b"a\x1b[?67lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::BackArrowIsBackSspace) c'z');
-        pt!(b"a\x1b[?69lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::EnableLeftRightMarginMode) c'z');
-        pt!(b"a\x1b[?95lz", c'a' m m m m m  ResetPrivateMode(SetPrivateMode::NoClearScreenOnDECCOLM) c'z');
-        pt!(b"a\x1b[?1000lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendMousePosOnBoth) c'z');
-        pt!(b"a\x1b[?1001lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::HiliteMouseTracking) c'z');
-        pt!(b"a\x1b[?1002lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::CellMouseTracking) c'z');
-        pt!(b"a\x1b[?1003lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::AllMouseTracking) c'z');
-        pt!(b"a\x1b[?1004lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendFocusEvents) c'z');
-        pt!(b"a\x1b[?1005lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::Utf8MouseMode) c'z');
-        pt!(b"a\x1b[?1006lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SgrMouseMode) c'z');
-        pt!(b"a\x1b[?1007lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::AlternateScrollMode) c'z');
-        pt!(b"a\x1b[?1010lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::ScrollToBottomOnTty) c'z');
-        pt!(b"a\x1b[?1011lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::ScrollToBottomOnKey) c'z');
-        pt!(b"a\x1b[?1015lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::UrxvtMouseMode) c'z');
-        pt!(b"a\x1b[?1034lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::InterpretMetaKey) c'z');
-        pt!(b"a\x1b[?1035lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::EnableSpecialModifiers) c'z');
-        pt!(b"a\x1b[?1036lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendEscOnMeta) c'z');
-        pt!(b"a\x1b[?1037lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendDelOnKeypad) c'z');
-        pt!(b"a\x1b[?1039lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendEscOnAlt) c'z');
-        pt!(b"a\x1b[?1040lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::KeepSelection) c'z');
-        pt!(b"a\x1b[?1041lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::UseClipboard) c'z');
-        pt!(b"a\x1b[?1042lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::UrgencyHint) c'z');
-        pt!(b"a\x1b[?1043lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::RaiseWindowOnBell) c'z');
-        pt!(b"a\x1b[?1044lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::KeepClipboard) c'z');
-        pt!(b"a\x1b[?1046lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::EnableAlternateScreen) c'z');
-        pt!(b"a\x1b[?1047lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::UseAlternateScreen) c'z');
-        pt!(b"a\x1b[?1048lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SaveCursor) c'z');
-        pt!(b"a\x1b[?1049lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SaveCursorAndUseAlternateScreen) c'z');
-        pt!(b"a\x1b[?1050lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::TerminfoFnMode) c'z');
+        pt!(b"a\x1b[?1lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::ApplicationCursorKeys)
+            c'z');
+        pt!(b"a\x1b[?2lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::UsAsciiForG0toG3) c'z');
+        pt!(b"a\x1b[?3lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::Hundred32Columns) c'z');
+        pt!(b"a\x1b[?4lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::SmoothScroll) c'z');
+        pt!(b"a\x1b[?5lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::ReverseVideo) c'z');
+        pt!(b"a\x1b[?6lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::OriginMode) c'z');
+        pt!(b"a\x1b[?7lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::AutoWrapMode) c'z');
+        pt!(b"a\x1b[?8lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::AutoRepeatKeys) c'z');
+        pt!(b"a\x1b[?9lz", c'a' m m m m ResetPrivateMode(SetPrivateMode::SendMousePosOnPress)
+            c'z');
+        pt!(b"a\x1b[?10lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::ShowToolbar) c'z');
+        pt!(b"a\x1b[?12lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::StartBlinkingCursor)
+            c'z');
+        pt!(b"a\x1b[?13lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::StartBlinkingCursor)
+            c'z');
+        pt!(b"a\x1b[?14lz", c'a' m m m m m
+            ResetPrivateMode(SetPrivateMode::EnableXorBlinkingCursor) c'z');
+        pt!(b"a\x1b[?18lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::PrintFormFeed) c'z');
+        pt!(b"a\x1b[?19lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::PrintFullScreen) c'z');
+        pt!(b"a\x1b[?25lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::ShowCursor) c'z');
+        pt!(b"a\x1b[?30lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::ShowScrollbar) c'z');
+        pt!(b"a\x1b[?35lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::EnableFontShifting)
+            c'z');
+        pt!(b"a\x1b[?38lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::TektronixMode) c'z');
+        pt!(b"a\x1b[?40lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::AllowHundred32Mode)
+            c'z');
+        pt!(b"a\x1b[?41lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::MoreFix) c'z');
+        pt!(b"a\x1b[?42lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::EnableNrc) c'z');
+        pt!(b"a\x1b[?44lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::MarginBell) c'z');
+        pt!(b"a\x1b[?45lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::ReverseWrapAroundMode)
+            c'z');
+        pt!(b"a\x1b[?46lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::StartLogging) c'z');
+        pt!(b"a\x1b[?47lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::AlternateScreenBuffer)
+            c'z');
+        pt!(b"a\x1b[?66lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::ApplicationKeypad)
+            c'z');
+        pt!(b"a\x1b[?67lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::BackArrowIsBackSspace)
+            c'z');
+        pt!(b"a\x1b[?69lz", c'a' m m m m m
+            ResetPrivateMode(SetPrivateMode::EnableLeftRightMarginMode) c'z');
+        pt!(b"a\x1b[?95lz", c'a' m m m m m ResetPrivateMode(SetPrivateMode::NoClearScreenOnDECCOLM)
+            c'z');
+        pt!(b"a\x1b[?1000lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::SendMousePosOnBoth) c'z');
+        pt!(b"a\x1b[?1001lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::HiliteMouseTracking) c'z');
+        pt!(b"a\x1b[?1002lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::CellMouseTracking) c'z');
+        pt!(b"a\x1b[?1003lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::AllMouseTracking)
+            c'z');
+        pt!(b"a\x1b[?1004lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendFocusEvents)
+            c'z');
+        pt!(b"a\x1b[?1005lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::Utf8MouseMode)
+            c'z');
+        pt!(b"a\x1b[?1006lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SgrMouseMode)
+            c'z');
+        pt!(b"a\x1b[?1007lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::AlternateScrollMode) c'z');
+        pt!(b"a\x1b[?1010lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::ScrollToBottomOnTty) c'z');
+        pt!(b"a\x1b[?1011lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::ScrollToBottomOnKey) c'z');
+        pt!(b"a\x1b[?1015lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::UrxvtMouseMode)
+            c'z');
+        pt!(b"a\x1b[?1034lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::InterpretMetaKey)
+            c'z');
+        pt!(b"a\x1b[?1035lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::EnableSpecialModifiers) c'z');
+        pt!(b"a\x1b[?1036lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendEscOnMeta)
+            c'z');
+        pt!(b"a\x1b[?1037lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendDelOnKeypad)
+            c'z');
+        pt!(b"a\x1b[?1039lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SendEscOnAlt)
+            c'z');
+        pt!(b"a\x1b[?1040lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::KeepSelection)
+            c'z');
+        pt!(b"a\x1b[?1041lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::UseClipboard)
+            c'z');
+        pt!(b"a\x1b[?1042lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::UrgencyHint)
+            c'z');
+        pt!(b"a\x1b[?1043lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::RaiseWindowOnBell) c'z');
+        pt!(b"a\x1b[?1044lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::KeepClipboard)
+            c'z');
+        pt!(b"a\x1b[?1046lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::EnableAlternateScreen) c'z');
+        pt!(b"a\x1b[?1047lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::UseAlternateScreen) c'z');
+        pt!(b"a\x1b[?1048lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SaveCursor)
+            c'z');
+        pt!(b"a\x1b[?1049lz", c'a' m m m m m m m
+            ResetPrivateMode(SetPrivateMode::SaveCursorAndUseAlternateScreen) c'z');
+        pt!(b"a\x1b[?1050lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::TerminfoFnMode)
+            c'z');
         pt!(b"a\x1b[?1051lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::SunFnMode) c'z');
         pt!(b"a\x1b[?1052lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::HpFnMode) c'z');
         pt!(b"a\x1b[?1053lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::ScoFnMode) c'z');
-        pt!(b"a\x1b[?1060lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::LegacyKeyboard) c'z');
-        pt!(b"a\x1b[?1061lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::Vt220Keyboard) c'z');
-        pt!(b"a\x1b[?2004lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::BracketedPaste) c'z');
+        pt!(b"a\x1b[?1060lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::LegacyKeyboard)
+            c'z');
+        pt!(b"a\x1b[?1061lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::Vt220Keyboard)
+            c'z');
+        pt!(b"a\x1b[?2004lz", c'a' m m m m m m m ResetPrivateMode(SetPrivateMode::BracketedPaste)
+            c'z');
         pt!(b"a\x1b[?0lz", c'a' m m m m m c'z');
+        pt!(b"a\x1b[38;2;0;12;13;14mx", c'a' m m m m m m m m m m m m m m m m m
+            ForegroundColorRgb(12,13,14) c'x');
+        pt!(b"a\x1b[38;5;12mx", c'a' m m m m m m m m m ForegroundColorIndex(12) c'x');
+        pt!(b"a\x1b[48;2;0;12;13;14mx", c'a' m m m m m m m m m m m m m m m m m
+            BackgroundColorRgb(12,13,14) c'x');
+        pt!(b"a\x1b[48;5;12mx", c'a' m m m m m m m m m BackgroundColorIndex(12) c'x');
+        pt!(b"a\x1b[38;2;12;13;14mx", c'a' m m m m m m m m m m m m m m m
+            ForegroundColorRgb(12,13,14) c'x');
+        pt!(b"a\x1b[48;2;12;13;14mx", c'a' m m m m m m m m m m m m m m m
+            BackgroundColorRgb(12,13,14) c'x');
+
+        pt!(b"a\x1b[0;1;2;3;50;4;5mx", c'a' m m m m m m m m m m m m m m m m
+            CharacterAttributes(
+                vec![
+                CharacterAttribute::Normal,
+                CharacterAttribute::Bold,
+                CharacterAttribute::Faint,
+                CharacterAttribute::Italicized,
+                CharacterAttribute::Underlined,
+                CharacterAttribute::Blink
+                ]) c'x');
+        pt!(b"a\x1b[6;7;8;9;21;22;23;24;25;27;28;29mx", c'a' m m m m m m m m m m m m m m m m m m m
+            m m m m m m m m m m m m m m
+            CharacterAttributes(
+                vec![
+                CharacterAttribute::Inverse,
+                CharacterAttribute::Invisible,
+                CharacterAttribute::CrossedOut,
+                CharacterAttribute::DoublyUnderlined,
+                CharacterAttribute::NotBoldFaint,
+                CharacterAttribute::NotItalicized,
+                CharacterAttribute::NotUnderlined,
+                CharacterAttribute::Steady,
+                CharacterAttribute::Positive,
+                CharacterAttribute::Visible,
+                CharacterAttribute::NotCrossedOut,
+                ]) c'x');
+        pt!(b"a\x1b[30;31;32;33;34;35;36;37;39mx", c'a' m m m m m m m m m m m m m m
+            m m m m m m m m m m m m m m
+            CharacterAttributes(
+                vec![
+                CharacterAttribute::Foreground(Color::Black),
+                CharacterAttribute::Foreground(Color::Red),
+                CharacterAttribute::Foreground(Color::Green),
+                CharacterAttribute::Foreground(Color::Yellow),
+                CharacterAttribute::Foreground(Color::Blue),
+                CharacterAttribute::Foreground(Color::Magenta),
+                CharacterAttribute::Foreground(Color::Cyan),
+                CharacterAttribute::Foreground(Color::White),
+                CharacterAttribute::Foreground(Color::Default),
+                ]) c'x');
+        pt!(b"a\x1b[40;41;42;43;44;45;46;47;49mx", c'a' m m m m m m m m m m m m m m
+            m m m m m m m m m m m m m m
+            CharacterAttributes(
+                vec![
+                CharacterAttribute::Background(Color::Black),
+                CharacterAttribute::Background(Color::Red),
+                CharacterAttribute::Background(Color::Green),
+                CharacterAttribute::Background(Color::Yellow),
+                CharacterAttribute::Background(Color::Blue),
+                CharacterAttribute::Background(Color::Magenta),
+                CharacterAttribute::Background(Color::Cyan),
+                CharacterAttribute::Background(Color::White),
+                CharacterAttribute::Background(Color::Default),
+                ]) c'x');
+        pt!(b"a\x1b[90;91;92;93;94;95;96;97mx", c'a' m m m m m m m m m m m
+            m m m m m m m m m m m m m m
+            CharacterAttributes(
+                vec![
+                CharacterAttribute::Foreground(Color::Grey),
+                CharacterAttribute::Foreground(Color::BrightRed),
+                CharacterAttribute::Foreground(Color::BrightGreen),
+                CharacterAttribute::Foreground(Color::BrightYellow),
+                CharacterAttribute::Foreground(Color::BrightBlue),
+                CharacterAttribute::Foreground(Color::BrightMagenta),
+                CharacterAttribute::Foreground(Color::BrightCyan),
+                CharacterAttribute::Foreground(Color::BrightWhite),
+                ]) c'x');
+        pt!(b"a\x1b[100;101;102;103;104;105;106;107mx", c'a' m m m m m m m m m m m m m m m m m m m
+            m m m m m m m m m m m m m m
+            CharacterAttributes(
+                vec![
+                CharacterAttribute::Background(Color::Grey),
+                CharacterAttribute::Background(Color::BrightRed),
+                CharacterAttribute::Background(Color::BrightGreen),
+                CharacterAttribute::Background(Color::BrightYellow),
+                CharacterAttribute::Background(Color::BrightBlue),
+                CharacterAttribute::Background(Color::BrightMagenta),
+                CharacterAttribute::Background(Color::BrightCyan),
+                CharacterAttribute::Background(Color::BrightWhite),
+                ]) c'x');
     }
 }

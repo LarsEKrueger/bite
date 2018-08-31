@@ -88,6 +88,10 @@ impl Parameters {
         self.at_least_if_default(param_index, 0)
     }
 
+    pub fn clip8(&self, param_index: u8) -> u8 {
+        cmp::min(255, self.zero_if_default(param_index)) as u8
+    }
+
     pub fn one_if_default(&self, param_index: u8) -> Parameter {
         self.at_least_if_default(param_index, 1)
     }
