@@ -174,6 +174,8 @@ pub enum Action {
 
     /// Led, true=on
     LoadLeds(LoadLeds,bool),
+
+    CursorStyle(CursorStyle),
 }
 
 /// Character set
@@ -427,6 +429,16 @@ pub enum LoadLeds {
     NumLock,
     CapsLock,
     ScrollLock
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CursorStyle {
+     BlinkBlock,
+     SteadyBlock,
+     BlinkUnderline,
+     SteadyUnderline,
+     BlinkBar,
+     SteadyBar,
 }
 
 impl Action {

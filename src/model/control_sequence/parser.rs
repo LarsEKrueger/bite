@@ -27,7 +27,7 @@ use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
-                    Color, FKeys, PointerMode, Terminal, LoadLeds};
+                    Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -395,6 +395,9 @@ mod action {
                          [0=>(All,false),1=>(NumLock,false),2=>(CapsLock,false),
                          3=>(ScrollLock,false),21=>(NumLock,true),22=>(CapsLock,true),
                          23=>(ScrollLock,true)]);
+    action_switch_param!(DECSCUSR,CursorStyle,
+                         [0=>BlinkBlock,1=>BlinkBlock,2=>SteadyBlock,3=>BlinkUnderline,
+                         4=>SteadyUnderline,5=>BlinkBar,6=>SteadyBar]);
 }
 
 impl Parser {
@@ -971,9 +974,6 @@ impl Parser {
             }
         }
     }
-    fn action_DECSCUSR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_SM_TITLE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -1228,7 +1228,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::SCS2A_STATE,
         action::SCS3A_STATE,
         action::CSI_SPACE_STATE,
-        Parser::action_DECSCUSR,
+        action::DECSCUSR,
         Parser::action_SM_TITLE,
         Parser::action_RM_TITLE,
         Parser::action_DECSMBV,
@@ -2104,6 +2104,16 @@ mod test {
         pt!(b"a\x1b[21qc", c'a' m m m m LoadLeds(LoadLeds::NumLock,true) c'c');
         pt!(b"a\x1b[22qc", c'a' m m m m LoadLeds(LoadLeds::CapsLock,true) c'c');
         pt!(b"a\x1b[23qc", c'a' m m m m LoadLeds(LoadLeds::ScrollLock,true) c'c');
+
+
+        pt!(b"a\x1b[0 qx", c'a' m m m m CursorStyle(CursorStyle::BlinkBlock) c'x');
+        pt!(b"a\x1b[1 qx", c'a' m m m m CursorStyle(CursorStyle::BlinkBlock) c'x');
+        pt!(b"a\x1b[2 qx", c'a' m m m m CursorStyle(CursorStyle::SteadyBlock) c'x');
+        pt!(b"a\x1b[3 qx", c'a' m m m m CursorStyle(CursorStyle::BlinkUnderline) c'x');
+        pt!(b"a\x1b[4 qx", c'a' m m m m CursorStyle(CursorStyle::SteadyUnderline) c'x');
+        pt!(b"a\x1b[5 qx", c'a' m m m m CursorStyle(CursorStyle::BlinkBar) c'x');
+        pt!(b"a\x1b[6 qx", c'a' m m m m CursorStyle(CursorStyle::SteadyBar) c'x');
+        pt!(b"a\x1b[7 qx", c'a' m m m m m c'x');
 
     }
 }

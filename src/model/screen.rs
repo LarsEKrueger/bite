@@ -813,6 +813,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::CursorStyle(_) |
             Action::LoadLeds(_,_) |
             Action::PointerMode(_) |
             Action::SoftReset |
