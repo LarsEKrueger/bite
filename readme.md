@@ -235,6 +235,7 @@ non-GUI program.
 
 # TODOs
 * [ ] Bug: $() does not work correctly
+* [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Merge history during save
 * [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate which line was entered by the user and allow them to be filtered.

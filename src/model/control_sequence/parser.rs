@@ -27,7 +27,7 @@ use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
-                    Color};
+                    Color,FKeys};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -204,6 +204,15 @@ mod action {
     }
 
     macro_rules! action_switch_param {
+        ($name:ident, [$($n:expr => $v:ident),+]) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                match p.parameter.zero_if_default(0) {
+                    $($n => Action::$v),+
+                    , _ => Action::More,
+                }
+            }
+        };
         ($name:ident, $action:ident, [$($n:expr => $v:ident),+]) => {
             pub fn $name(p:&mut Parser, _byte: u8) -> Action {
                 p.reset();
@@ -352,6 +361,7 @@ mod action {
                          10 => HtmlScreenDump, 11 => SvgScreenDump]);
     action_switch_param!(DECMC,MediaCopy, [ 1 => PrintCursorLine, 4 => AutoPrintOff,
                          5 => AutoPrintOn, 10 => PrintComposeDisplay, 11 => PrintAllPages]);
+    action_switch_param!(CPR, [5=>StatusReport,6=>ReportCursorPosition]);
 }
 
 impl Parser {
@@ -676,9 +686,6 @@ impl Parser {
         }
     }
 
-    fn action_CPR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECSTBM(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -742,7 +749,6 @@ impl Parser {
     }
     fn action_CSI_STATE(&mut self, _byte: u8) -> Action {
         self.parameter.reset();
-        self.parameter.add_default();
         self.parsestate = &csi_table;
         Action::More
     }
@@ -816,7 +822,21 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DSR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        match self.parameter.zero_if_default(0) {
+            6 => Action::DecDeviceStatusReport,
+            15 => Action::PrinterStatusReport,
+            25 => Action::UdkStatusReport,
+            26 => Action::KeyboardStatusReport,
+            53 => Action::LocatorStatusReport ,
+            55 => Action::LocatorStatusReport,
+            56 => Action::LocatorTypeReport,
+            62 => Action::MacroStatusReport,
+            63 => Action::MemoryStatusReport(self.parameter.zero_if_default(1)),
+            75 => Action::DataIntegrityReport,
+            85 => Action::MultiSessionReport,
+            _ => Action::More,
+        }
     }
     fn action_DEC3_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -891,10 +911,29 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_SET_MOD_FKEYS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let p1 = self.parameter.zero_if_default(1);
+        match self.parameter.zero_if_default(0) {
+            0 => Action::SetModFKeys(FKeys::Keyboard,p1),
+            1 => Action::SetModFKeys(FKeys::Cursor,p1),
+            2 => Action::SetModFKeys(FKeys::Function,p1),
+            4 => Action::SetModFKeys(FKeys::Other,p1),
+            _ => Action::More
+        }
     }
     fn action_SET_MOD_FKEYS0(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        if self.parameter.is_empty() {
+            Action::DisableModFKeys(FKeys::Function)
+        } else {
+            match self.parameter.zero_if_default(0) {
+                0 => Action::DisableModFKeys(FKeys::Keyboard),
+                1 => Action::DisableModFKeys(FKeys::Cursor),
+                2 => Action::DisableModFKeys(FKeys::Function),
+                4 => Action::DisableModFKeys(FKeys::Other),
+                _ => Action::More
+            }
+        }
     }
     fn action_HIDE_POINTER(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1052,7 +1091,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::SET,
         action::RESET,
         Parser::action_SGR,
-        Parser::action_CPR,
+        action::CPR,
         Parser::action_DECSTBM,
         action::DECREQTPARM,
         action::DECSET,
@@ -1868,5 +1907,31 @@ mod test {
                 CharacterAttribute::Background(Color::BrightCyan),
                 CharacterAttribute::Background(Color::BrightWhite),
                 ]) c'x');
+        pt!(b"a\x1b[>0;12mx", c'a' m m m m m m m SetModFKeys(FKeys::Keyboard,12) c'x');
+        pt!(b"a\x1b[>1;12mx", c'a' m m m m m m m SetModFKeys(FKeys::Cursor,12) c'x');
+        pt!(b"a\x1b[>2;12mx", c'a' m m m m m m m SetModFKeys(FKeys::Function,12) c'x');
+        pt!(b"a\x1b[>4;12mx", c'a' m m m m m m m SetModFKeys(FKeys::Other,12) c'x');
+        pt!(b"a\x1b[>3;12mx", c'a' m m m m m m m m c'x');
+        pt!(b"a\x1b[5nx", c'a' m m m StatusReport c'x');
+        pt!(b"a\x1b[6nx", c'a' m m m ReportCursorPosition c'x');
+        pt!(b"a\x1b[0nx", c'a' m m m m c'x');
+        pt!(b"a\x1b[>0nx", c'a' m m m m DisableModFKeys(FKeys::Keyboard) c'x');
+        pt!(b"a\x1b[>1nx", c'a' m m m m DisableModFKeys(FKeys::Cursor) c'x');
+        pt!(b"a\x1b[>2nx", c'a' m m m m DisableModFKeys(FKeys::Function) c'x');
+        pt!(b"a\x1b[>4nx", c'a' m m m m DisableModFKeys(FKeys::Other) c'x');
+        pt!(b"a\x1b[>nx", c'a' m m m DisableModFKeys(FKeys::Function) c'x');
+        pt!(b"a\x1b[>3nx", c'a' m m m m m c'x');
+        pt!(b"a\x1b[?6nx", c'a' m m m m DecDeviceStatusReport c'x');
+        pt!(b"a\x1b[?15nx", c'a' m m m m m PrinterStatusReport c'x');
+        pt!(b"a\x1b[?25nx", c'a' m m m m m UdkStatusReport c'x');
+        pt!(b"a\x1b[?26nx", c'a' m m m m m KeyboardStatusReport c'x');
+        pt!(b"a\x1b[?53nx", c'a' m m m m m LocatorStatusReport c'x');
+        pt!(b"a\x1b[?55nx", c'a' m m m m m LocatorStatusReport c'x');
+        pt!(b"a\x1b[?56nx", c'a' m m m m m LocatorTypeReport c'x');
+        pt!(b"a\x1b[?62nx", c'a' m m m m m MacroStatusReport c'x');
+        pt!(b"a\x1b[?63;12nx", c'a' m m m m m m m m MemoryStatusReport(12) c'x');
+        pt!(b"a\x1b[?75nx", c'a' m m m m m DataIntegrityReport c'x');
+        pt!(b"a\x1b[?85nx", c'a' m m m m m MultiSessionReport c'x');
+        pt!(b"a\x1b[?86nx", c'a' m m m m m m c'x');
     }
 }

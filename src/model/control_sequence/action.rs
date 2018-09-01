@@ -145,6 +145,22 @@ pub enum Action {
     ForegroundColorIndex(u8),
     BackgroundColorRgb(u8, u8, u8),
     BackgroundColorIndex(u8),
+
+    SetModFKeys(FKeys,u32),
+    DisableModFKeys(FKeys),
+    StatusReport,
+    ReportCursorPosition,
+
+    DecDeviceStatusReport,
+    PrinterStatusReport,
+    UdkStatusReport,
+    KeyboardStatusReport,
+    LocatorStatusReport,
+    LocatorTypeReport,
+    MacroStatusReport,
+    MemoryStatusReport(u32),
+    DataIntegrityReport,
+    MultiSessionReport,
 }
 
 /// Character set
@@ -365,6 +381,14 @@ pub enum Color {
     BrightMagenta,
     BrightCyan,
     BrightWhite,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FKeys {
+    Keyboard,
+    Cursor,
+    Function,
+    Other
 }
 
 impl Action {

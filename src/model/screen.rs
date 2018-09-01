@@ -813,6 +813,20 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::DecDeviceStatusReport |
+            Action::PrinterStatusReport |
+            Action::UdkStatusReport |
+            Action::KeyboardStatusReport |
+            Action::LocatorStatusReport |
+            Action::LocatorTypeReport |
+            Action::MacroStatusReport |
+            Action::MemoryStatusReport(_) |
+            Action::DataIntegrityReport |
+            Action::MultiSessionReport |
+            Action::StatusReport |
+            Action::ReportCursorPosition |
+            Action::SetModFKeys(_,_) |
+            Action::DisableModFKeys(_) |
             Action::ForegroundColorRgb(_,_,_) |
             Action::ForegroundColorIndex(_) |
             Action::BackgroundColorRgb(_,_,_) |

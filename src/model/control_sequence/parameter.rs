@@ -96,16 +96,17 @@ impl Parameters {
         self.at_least_if_default(param_index, 1)
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.count == 0
     }
 
     pub fn add_digit(&mut self, byte: u8) {
         debug_assert!(b'0' <= byte && byte <= b'9');
-        if !self.is_empty() {
-            let cm = self.current_mut();
-            *cm = cmp::min(65535, 10 * (*cm) + ((byte - b'0') as u32));
+        if self.is_empty() {
+            self.add_default();
         }
+        let cm = self.current_mut();
+        *cm = cmp::min(65535, 10 * (*cm) + ((byte - b'0') as u32));
     }
 }
 
@@ -117,6 +118,7 @@ mod test {
     fn basic() {
         let mut p = Parameters::new();
         assert_eq!(p.count(), 0);
+        assert_eq!(p.is_empty(), true);
         p.add_default();
         assert_eq!(p.count(), 1);
 
@@ -125,6 +127,14 @@ mod test {
             p.add_default();
         }
         assert_eq!(p.count(), NUM_PARAMETERS);
+    }
+
+    #[test]
+    fn add_to_empty() {
+        let mut p = Parameters::new();
+        p.add_digit(b'5');
+        assert_eq!(p.count(),1);
+        assert_eq!(p.zero_if_default(0), 5);
     }
 
 }
