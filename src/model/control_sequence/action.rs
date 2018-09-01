@@ -171,6 +171,9 @@ pub enum Action {
     ///
     /// Terminal, 8 bit
     ConformanceLevel(Terminal,bool),
+
+    /// Led, true=on
+    LoadLeds(LoadLeds,bool),
 }
 
 /// Character set
@@ -416,6 +419,14 @@ pub enum Terminal {
     Vt100,
     Vt200,
     Vt300
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LoadLeds {
+    All,
+    NumLock,
+    CapsLock,
+    ScrollLock
 }
 
 impl Action {

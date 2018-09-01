@@ -27,7 +27,7 @@ use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
-                    Color, FKeys, PointerMode, Terminal};
+                    Color, FKeys, PointerMode, Terminal, LoadLeds};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -222,6 +222,15 @@ mod action {
                 }
             }
         };
+        ($name:ident, $action:ident, [$($n:expr => ($v1:ident,$v2:expr)),+]) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                match p.parameter.zero_if_default(0) {
+                    $($n => Action::$action($action::$v1,$v2)),+
+                    , _ => Action::More,
+                }
+            }
+        };
         ($name:ident, $action:ident, one, [$($n:expr => $v:ident),+]) => {
             pub fn $name(p:&mut Parser, _byte: u8) -> Action {
                 p.reset();
@@ -382,6 +391,10 @@ mod action {
 
     action_switch_param!(HIDE_POINTER, PointerMode, one,
                          [0=>NeverHide,1=>HideNotTracking,2=>HideOutside,3=>AlwaysHide]);
+    action_switch_param!(DECLL,LoadLeds,
+                         [0=>(All,false),1=>(NumLock,false),2=>(CapsLock,false),
+                         3=>(ScrollLock,false),21=>(NumLock,true),22=>(CapsLock,true),
+                         23=>(ScrollLock,true)]);
 }
 
 impl Parser {
@@ -984,9 +997,6 @@ impl Parser {
     fn action_DECSWBV(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECLL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECRQM(&mut self, _byte: u8) -> Action {
         self.reset();
         match action::param_set_private_mode(self.parameter.zero_if_default(0)) {
@@ -1223,7 +1233,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_RM_TITLE,
         Parser::action_DECSMBV,
         Parser::action_DECSWBV,
-        Parser::action_DECLL,
+        action::DECLL,
         Parser::action_DECRQM,
         Parser::action_RQM,
         action::CSI_DEC_DOLLAR_STATE,
@@ -2086,5 +2096,14 @@ mod test {
             c'z');
         pt!(b"a\x1b[?2005$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::Unknown)
             c'z');
+        pt!(b"a\x1b[0qc", c'a' m m m LoadLeds(LoadLeds::All,false) c'c');
+        pt!(b"a\x1b[1qc", c'a' m m m LoadLeds(LoadLeds::NumLock,false) c'c');
+        pt!(b"a\x1b[2qc", c'a' m m m LoadLeds(LoadLeds::CapsLock,false) c'c');
+        pt!(b"a\x1b[3qc", c'a' m m m LoadLeds(LoadLeds::ScrollLock,false) c'c');
+        pt!(b"a\x1b[20qc", c'a' m m m m m c'c');
+        pt!(b"a\x1b[21qc", c'a' m m m m LoadLeds(LoadLeds::NumLock,true) c'c');
+        pt!(b"a\x1b[22qc", c'a' m m m m LoadLeds(LoadLeds::CapsLock,true) c'c');
+        pt!(b"a\x1b[23qc", c'a' m m m m LoadLeds(LoadLeds::ScrollLock,true) c'c');
+
     }
 }
