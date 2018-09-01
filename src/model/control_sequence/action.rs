@@ -171,10 +171,10 @@ pub enum Action {
     /// Conformance Level
     ///
     /// Terminal, 8 bit
-    ConformanceLevel(Terminal,bool),
+    ConformanceLevel(Terminal, bool),
 
     /// Led, true=on
-    LoadLeds(LoadLeds,bool),
+    LoadLeds(LoadLeds, bool),
 
     CursorStyle(CursorStyle),
     CharacterProtection(CharacterProtection),
@@ -184,12 +184,17 @@ pub enum Action {
     /// top, bottom. Scroll region is exclusive, i.e. if bottom is one more than top, the region is
     /// one line.
     /// (0,0) means region is the full window.
-    ScrollRegion(u32,u32),
+    ScrollRegion(u32, u32),
 
     /// Change Attributes in area
     ///
     /// top, left, bottom, right, attribute. Range is exclusive.
-    ChangeAttributesArea(u32,u32,u32,u32,CharacterAttribute),
+    ChangeAttributesArea(u32, u32, u32, u32, CharacterAttribute),
+
+    /// Set left and right margins
+    ///
+    /// left, right. Range in exclusive.
+    SetMargins(u32, u32),
 }
 
 /// Character set
@@ -434,7 +439,7 @@ pub enum PointerMode {
 pub enum Terminal {
     Vt100,
     Vt200,
-    Vt300
+    Vt300,
 }
 
 #[derive(Debug, PartialEq)]
@@ -442,23 +447,23 @@ pub enum LoadLeds {
     All,
     NumLock,
     CapsLock,
-    ScrollLock
+    ScrollLock,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum CursorStyle {
-     BlinkBlock,
-     SteadyBlock,
-     BlinkUnderline,
-     SteadyUnderline,
-     BlinkBar,
-     SteadyBar,
+    BlinkBlock,
+    SteadyBlock,
+    BlinkUnderline,
+    SteadyUnderline,
+    BlinkBar,
+    SteadyBar,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum CharacterProtection {
     CanErase,
-    NoErase
+    NoErase,
 }
 
 impl Action {

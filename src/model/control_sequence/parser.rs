@@ -27,7 +27,8 @@ use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
-                    Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle, CharacterProtection};
+                    Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
+                    CharacterProtection};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -276,7 +277,6 @@ mod action {
     action_reset!(ANSI_LEVEL_2, AnsiConformanceLevel, 2);
     action_reset!(ANSI_LEVEL_3, AnsiConformanceLevel, 3);
     action_reset!(ANSI_RC, RestoreCursor);
-    action_reset!(ANSI_SC, SaveCursor);
     action_reset!(CHT, CursorForwardTab, one);
     action_reset!(CNL, CursorNextLine, one);
     action_reset!(CPL, CursorPrevLine, one);
@@ -320,7 +320,7 @@ mod action {
     action_reset!(REP, RepeatCharacter, one);
     action_reset!(VPA, VerticalPositionAbsolute, one_minus);
     action_reset!(VPR, VerticalPositionRelative, one_minus);
-    action_reset!(DECSTR,SoftReset);
+    action_reset!(DECSTR, SoftReset);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -343,7 +343,7 @@ mod action {
     action_state!(DEC2_STATE, dec2_table);
     action_state!(CSI_EX_STATE, csi_ex_table);
     action_state!(CSI_QUOTE_STATE, csi_quo_table);
-    action_state!(CSI_DEC_DOLLAR_STATE,csi_dec_dollar_table);
+    action_state!(CSI_DEC_DOLLAR_STATE, csi_dec_dollar_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
@@ -728,10 +728,10 @@ impl Parser {
         self.reset();
         let p0 = self.parameter.zero_if_default(0);
         let p1 = self.parameter.zero_if_default(1);
-        if p0 != 0 && p1 != 0 && p1>p0 {
-            Action::ScrollRegion(p0-1,p1-1)
-        }else if p0 == 0 && p1 ==0 {
-            Action::ScrollRegion(0,0)
+        if p0 != 0 && p1 != 0 && p1 > p0 {
+            Action::ScrollRegion(p0 - 1, p1 - 1)
+        } else if p0 == 0 && p1 == 0 {
+            Action::ScrollRegion(0, 0)
         } else {
             Action::More
         }
@@ -778,6 +778,20 @@ impl Parser {
     }
     fn action_IND(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
+    }
+    fn action_ANSI_SC(&mut self, _byte: u8) -> Action {
+        self.reset();
+        if self.parameter.is_empty() {
+            Action::SaveCursor
+        } else {
+            let p0 = self.parameter.one_if_default(0);
+            let p1 = self.parameter.one_if_default(1);
+            if p0 != 0 && p1 != 0 && p0 < p1 {
+                Action::SetMargins(p0 - 1, p1 - 1)
+            } else {
+                Action::More
+            }
+        }
     }
     fn action_NEL(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -828,14 +842,14 @@ impl Parser {
         self.reset();
         let p0 = self.parameter.zero_if_default(0);
         let p1 = self.parameter.zero_if_default(1);
-        match (p0,p1) {
-            (61,_) => Action::ConformanceLevel(Terminal::Vt100, false),
-            (62,0) => Action::ConformanceLevel(Terminal::Vt200, true),
-            (62,1) => Action::ConformanceLevel(Terminal::Vt200, false),
-            (62,2) => Action::ConformanceLevel(Terminal::Vt200, true),
-            (63,0) => Action::ConformanceLevel(Terminal::Vt300, true),
-            (63,1) => Action::ConformanceLevel(Terminal::Vt300, false),
-            (63,2) => Action::ConformanceLevel(Terminal::Vt300, true),
+        match (p0, p1) {
+            (61, _) => Action::ConformanceLevel(Terminal::Vt100, false),
+            (62, 0) => Action::ConformanceLevel(Terminal::Vt200, true),
+            (62, 1) => Action::ConformanceLevel(Terminal::Vt200, false),
+            (62, 2) => Action::ConformanceLevel(Terminal::Vt200, true),
+            (63, 0) => Action::ConformanceLevel(Terminal::Vt300, true),
+            (63, 1) => Action::ConformanceLevel(Terminal::Vt300, false),
+            (63, 2) => Action::ConformanceLevel(Terminal::Vt300, true),
             _ => Action::More,
         }
     }
@@ -954,12 +968,46 @@ impl Parser {
         let attr = self.parameter.zero_if_default(4);
         if top < bottom && left < right {
             match attr {
-                0 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Normal),
-                1 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Bold),
-                4 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Underlined),
-                5 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Blink),
-                7 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Inverse),
-                _ => Action::More
+                0 => {
+                    Action::ChangeAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Normal,
+                    )
+                }
+                1 => {
+                    Action::ChangeAttributesArea(top, left, bottom, right, CharacterAttribute::Bold)
+                }
+                4 => {
+                    Action::ChangeAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Underlined,
+                    )
+                }
+                5 => {
+                    Action::ChangeAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Blink,
+                    )
+                }
+                7 => {
+                    Action::ChangeAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Inverse,
+                    )
+                }
+                _ => Action::More,
             }
         } else {
             Action::More
@@ -1109,179 +1157,178 @@ impl Parser {
 
 type CaseDispatch = fn(&mut Parser, byte: u8) -> Action;
 
-static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
-    [
-        Parser::action_Illegal,
-        action::GROUND_STATE,
-        action::IGNORE,
-        Parser::action_BELL,
-        Parser::action_BS,
-        action::CR,
-        action::ESC,
-        Parser::action_VMOT,
-        Parser::action_TAB,
-        Parser::action_SI,
-        Parser::action_SO,
-        action::SCR_STATE,
-        action::SCS0_STATE,
-        action::SCS1_STATE,
-        action::SCS2_STATE,
-        action::SCS3_STATE,
-        action::ESC_IGNORE,
-        Parser::action_ESC_DIGIT,
-        Parser::action_ESC_SEMI,
-        action::DEC_STATE,
-        action::ICH,
-        action::CUU,
-        action::CUD,
-        action::CUF,
-        action::CUB,
-        action::CUP,
-        action::ED,
-        action::EL,
-        action::IL,
-        action::DL,
-        action::DCH,
-        action::DA1,
-        Parser::action_TRACK_MOUSE,
-        action::TBC,
-        action::SET,
-        action::RESET,
-        Parser::action_SGR,
-        action::CPR,
-        Parser::action_DECSTBM,
-        action::DECREQTPARM,
-        action::DECSET,
-        action::DECRESET,
-        action::DECALN,
-        Parser::action_GSETS,
-        Parser::action_DECSC,
-        Parser::action_DECRC,
-        action::DECKPAM,
-        action::DECKPNM,
-        Parser::action_IND,
-        Parser::action_NEL,
-        Parser::action_HTS,
-        Parser::action_RI,
-        Parser::action_SS2,
-        Parser::action_SS3,
-        Parser::action_CSI_STATE,
-        Parser::action_OSC,
-        action::RIS,
-        action::LS2,
-        action::LS3,
-        action::LS3R,
-        action::LS2R,
-        action::LS1R,
-        Parser::action_PRINT,
-        Parser::action_XTERM_SAVE,
-        action::XTERM_RESTORE,
-        Parser::action_XTERM_TITLE,
-        Parser::action_DECID,
-        action::HP_MEM_LOCK,
-        action::HP_MEM_UNLOCK,
-        action::HP_BUGGY_LL,
-        action::HPA,
-        action::VPA,
-        Parser::action_XTERM_WINOPS,
-        action::ECH,
-        action::CHT,
-        action::CPL,
-        action::CNL,
-        action::CBT,
-        action::SU,
-        action::SD,
-        action::S7C1T,
-        action::S8C1T,
-        action::ESC_SP_STATE,
-        Parser::action_ENQ,
-        Parser::action_DECSCL,
-        action::DECSCA,
-        action::DECSED,
-        action::DECSEL,
-        action::DCS,
-        Parser::action_PM,
-        Parser::action_SOS,
-        Parser::action_ST,
-        action::APC,
-        Parser::action_EPA,
-        Parser::action_SPA,
-        action::CSI_QUOTE_STATE,
-        Parser::action_DSR,
-        action::ANSI_LEVEL_1,
-        action::ANSI_LEVEL_2,
-        action::ANSI_LEVEL_3,
-        action::MC,
-        action::DEC2_STATE,
-        action::DA2,
-        Parser::action_DEC3_STATE,
-        Parser::action_DECRPTUI,
-        Parser::action_VT52_CUP,
-        action::REP,
-        action::CSI_EX_STATE,
-        action::DECSTR,
-        Parser::action_DECDHL,
-        action::DECSWL,
-        action::DECDWL,
-        action::DECMC,
-        action::ESC_PERCENT,
-        Parser::action_UTF8,
-        Parser::action_CSI_TICK_STATE,
-        Parser::action_DECELR,
-        Parser::action_DECRQLP,
-        Parser::action_DECEFR,
-        Parser::action_DECSLE,
-        action::CSI_IGNORE,
-        Parser::action_VT52_IGNORE,
-        Parser::action_VT52_FINISH,
-        action::CSI_DOLLAR_STATE,
-        Parser::action_DECCRA,
-        Parser::action_DECERA,
-        Parser::action_DECFRA,
-        Parser::action_DECSERA,
-        Parser::action_DECSACE,
-        Parser::action_DECCARA,
-        Parser::action_DECRARA,
-        Parser::action_CSI_STAR_STATE,
-        Parser::action_SET_MOD_FKEYS,
-        Parser::action_SET_MOD_FKEYS0,
-        action::HIDE_POINTER,
-        action::SCS1A_STATE,
-        action::SCS2A_STATE,
-        action::SCS3A_STATE,
-        action::CSI_SPACE_STATE,
-        action::DECSCUSR,
-        Parser::action_SM_TITLE,
-        Parser::action_RM_TITLE,
-        Parser::action_DECSMBV,
-        Parser::action_DECSWBV,
-        action::DECLL,
-        Parser::action_DECRQM,
-        Parser::action_RQM,
-        action::CSI_DEC_DOLLAR_STATE,
-        Parser::action_SL,
-        Parser::action_SR,
-        Parser::action_DECDC,
-        Parser::action_DECIC,
-        action::DECBI,
-        action::DECFI,
-        Parser::action_DECRQCRA,
-        action::HPR,
-        action::VPR,
-        action::ANSI_SC,
-        action::ANSI_RC,
-        Parser::action_ESC_COLON,
-        action::SCS_PERCENT,
-        Parser::action_GSETS_PERCENT,
-        Parser::action_GRAPHICS_ATTRIBUTES,
-        Parser::action_CSI_HASH_STATE,
-        Parser::action_XTERM_PUSH_SGR,
-        Parser::action_XTERM_REPORT_SGR,
-        Parser::action_XTERM_POP_SGR,
-        Parser::action_DECRQPSR,
-        Parser::action_DECSCPP,
-        Parser::action_DECSNLS,
-    ];
+static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
+    Parser::action_Illegal,
+    action::GROUND_STATE,
+    action::IGNORE,
+    Parser::action_BELL,
+    Parser::action_BS,
+    action::CR,
+    action::ESC,
+    Parser::action_VMOT,
+    Parser::action_TAB,
+    Parser::action_SI,
+    Parser::action_SO,
+    action::SCR_STATE,
+    action::SCS0_STATE,
+    action::SCS1_STATE,
+    action::SCS2_STATE,
+    action::SCS3_STATE,
+    action::ESC_IGNORE,
+    Parser::action_ESC_DIGIT,
+    Parser::action_ESC_SEMI,
+    action::DEC_STATE,
+    action::ICH,
+    action::CUU,
+    action::CUD,
+    action::CUF,
+    action::CUB,
+    action::CUP,
+    action::ED,
+    action::EL,
+    action::IL,
+    action::DL,
+    action::DCH,
+    action::DA1,
+    Parser::action_TRACK_MOUSE,
+    action::TBC,
+    action::SET,
+    action::RESET,
+    Parser::action_SGR,
+    action::CPR,
+    Parser::action_DECSTBM,
+    action::DECREQTPARM,
+    action::DECSET,
+    action::DECRESET,
+    action::DECALN,
+    Parser::action_GSETS,
+    Parser::action_DECSC,
+    Parser::action_DECRC,
+    action::DECKPAM,
+    action::DECKPNM,
+    Parser::action_IND,
+    Parser::action_NEL,
+    Parser::action_HTS,
+    Parser::action_RI,
+    Parser::action_SS2,
+    Parser::action_SS3,
+    Parser::action_CSI_STATE,
+    Parser::action_OSC,
+    action::RIS,
+    action::LS2,
+    action::LS3,
+    action::LS3R,
+    action::LS2R,
+    action::LS1R,
+    Parser::action_PRINT,
+    Parser::action_XTERM_SAVE,
+    action::XTERM_RESTORE,
+    Parser::action_XTERM_TITLE,
+    Parser::action_DECID,
+    action::HP_MEM_LOCK,
+    action::HP_MEM_UNLOCK,
+    action::HP_BUGGY_LL,
+    action::HPA,
+    action::VPA,
+    Parser::action_XTERM_WINOPS,
+    action::ECH,
+    action::CHT,
+    action::CPL,
+    action::CNL,
+    action::CBT,
+    action::SU,
+    action::SD,
+    action::S7C1T,
+    action::S8C1T,
+    action::ESC_SP_STATE,
+    Parser::action_ENQ,
+    Parser::action_DECSCL,
+    action::DECSCA,
+    action::DECSED,
+    action::DECSEL,
+    action::DCS,
+    Parser::action_PM,
+    Parser::action_SOS,
+    Parser::action_ST,
+    action::APC,
+    Parser::action_EPA,
+    Parser::action_SPA,
+    action::CSI_QUOTE_STATE,
+    Parser::action_DSR,
+    action::ANSI_LEVEL_1,
+    action::ANSI_LEVEL_2,
+    action::ANSI_LEVEL_3,
+    action::MC,
+    action::DEC2_STATE,
+    action::DA2,
+    Parser::action_DEC3_STATE,
+    Parser::action_DECRPTUI,
+    Parser::action_VT52_CUP,
+    action::REP,
+    action::CSI_EX_STATE,
+    action::DECSTR,
+    Parser::action_DECDHL,
+    action::DECSWL,
+    action::DECDWL,
+    action::DECMC,
+    action::ESC_PERCENT,
+    Parser::action_UTF8,
+    Parser::action_CSI_TICK_STATE,
+    Parser::action_DECELR,
+    Parser::action_DECRQLP,
+    Parser::action_DECEFR,
+    Parser::action_DECSLE,
+    action::CSI_IGNORE,
+    Parser::action_VT52_IGNORE,
+    Parser::action_VT52_FINISH,
+    action::CSI_DOLLAR_STATE,
+    Parser::action_DECCRA,
+    Parser::action_DECERA,
+    Parser::action_DECFRA,
+    Parser::action_DECSERA,
+    Parser::action_DECSACE,
+    Parser::action_DECCARA,
+    Parser::action_DECRARA,
+    Parser::action_CSI_STAR_STATE,
+    Parser::action_SET_MOD_FKEYS,
+    Parser::action_SET_MOD_FKEYS0,
+    action::HIDE_POINTER,
+    action::SCS1A_STATE,
+    action::SCS2A_STATE,
+    action::SCS3A_STATE,
+    action::CSI_SPACE_STATE,
+    action::DECSCUSR,
+    Parser::action_SM_TITLE,
+    Parser::action_RM_TITLE,
+    Parser::action_DECSMBV,
+    Parser::action_DECSWBV,
+    action::DECLL,
+    Parser::action_DECRQM,
+    Parser::action_RQM,
+    action::CSI_DEC_DOLLAR_STATE,
+    Parser::action_SL,
+    Parser::action_SR,
+    Parser::action_DECDC,
+    Parser::action_DECIC,
+    action::DECBI,
+    action::DECFI,
+    Parser::action_DECRQCRA,
+    action::HPR,
+    action::VPR,
+    Parser::action_ANSI_SC,
+    action::ANSI_RC,
+    Parser::action_ESC_COLON,
+    action::SCS_PERCENT,
+    Parser::action_GSETS_PERCENT,
+    Parser::action_GRAPHICS_ATTRIBUTES,
+    Parser::action_CSI_HASH_STATE,
+    Parser::action_XTERM_PUSH_SGR,
+    Parser::action_XTERM_REPORT_SGR,
+    Parser::action_XTERM_POP_SGR,
+    Parser::action_DECRQPSR,
+    Parser::action_DECSCPP,
+    Parser::action_DECSNLS,
+];
 
 
 #[cfg(test)]
@@ -1552,7 +1599,6 @@ mod test {
             }
         }
 
-        pt!(b"a\x1b[sx", c'a' m m SaveCursor c'x');
         pt!(b"a\x1b[ux", c'a' m m RestoreCursor c'x');
         pt!(b"a\x1b[12xy", c'a' m m m m DECREQTPARM c'y');
         pt!(b"a\x1b[12ty", c'a' m m m m WindowOps(12, 0, 0) c'y');
@@ -2014,8 +2060,10 @@ mod test {
 
         pt!(b"a\x1b[?1$pz", c'a' m m m m m RequestPrivateMode(SetPrivateMode::ApplicationCursorKeys)
             c'z');
-        pt!(b"a\x1b[?2$pz", c'a' m m m m m RequestPrivateMode(SetPrivateMode::UsAsciiForG0toG3) c'z');
-        pt!(b"a\x1b[?3$pz", c'a' m m m m m RequestPrivateMode(SetPrivateMode::Hundred32Columns) c'z');
+        pt!(b"a\x1b[?2$pz", c'a' m m m m m
+            RequestPrivateMode(SetPrivateMode::UsAsciiForG0toG3) c'z');
+        pt!(b"a\x1b[?3$pz", c'a' m m m m m
+            RequestPrivateMode(SetPrivateMode::Hundred32Columns) c'z');
         pt!(b"a\x1b[?4$pz", c'a' m m m m m RequestPrivateMode(SetPrivateMode::SmoothScroll) c'z');
         pt!(b"a\x1b[?5$pz", c'a' m m m m m RequestPrivateMode(SetPrivateMode::ReverseVideo) c'z');
         pt!(b"a\x1b[?6$pz", c'a' m m m m m RequestPrivateMode(SetPrivateMode::OriginMode) c'z');
@@ -2024,79 +2072,84 @@ mod test {
         pt!(b"a\x1b[?9$pz", c'a' m m m m m RequestPrivateMode(SetPrivateMode::SendMousePosOnPress)
             c'z');
         pt!(b"a\x1b[?10$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::ShowToolbar) c'z');
-        pt!(b"a\x1b[?12$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::StartBlinkingCursor)
-            c'z');
-        pt!(b"a\x1b[?13$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::StartBlinkingCursor)
-            c'z');
+        pt!(b"a\x1b[?12$pz", c'a' m m m m m m
+            RequestPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
+        pt!(b"a\x1b[?13$pz", c'a' m m m m m m
+            RequestPrivateMode(SetPrivateMode::StartBlinkingCursor) c'z');
         pt!(b"a\x1b[?14$pz", c'a' m m m m m m
             RequestPrivateMode(SetPrivateMode::EnableXorBlinkingCursor) c'z');
-        pt!(b"a\x1b[?18$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::PrintFormFeed) c'z');
-        pt!(b"a\x1b[?19$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::PrintFullScreen) c'z');
+        pt!(b"a\x1b[?18$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::PrintFormFeed)
+            c'z');
+        pt!(b"a\x1b[?19$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::PrintFullScreen)
+            c'z');
         pt!(b"a\x1b[?25$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::ShowCursor) c'z');
-        pt!(b"a\x1b[?30$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::ShowScrollbar) c'z');
+        pt!(b"a\x1b[?30$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::ShowScrollbar)
+            c'z');
         pt!(b"a\x1b[?35$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::EnableFontShifting)
             c'z');
-        pt!(b"a\x1b[?38$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::TektronixMode) c'z');
+        pt!(b"a\x1b[?38$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::TektronixMode)
+            c'z');
         pt!(b"a\x1b[?40$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::AllowHundred32Mode)
             c'z');
         pt!(b"a\x1b[?41$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::MoreFix) c'z');
         pt!(b"a\x1b[?42$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::EnableNrc) c'z');
         pt!(b"a\x1b[?44$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::MarginBell) c'z');
-        pt!(b"a\x1b[?45$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::ReverseWrapAroundMode)
+        pt!(b"a\x1b[?45$pz", c'a' m m m m m m
+            RequestPrivateMode(SetPrivateMode::ReverseWrapAroundMode) c'z');
+        pt!(b"a\x1b[?46$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::StartLogging)
             c'z');
-        pt!(b"a\x1b[?46$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::StartLogging) c'z');
-        pt!(b"a\x1b[?47$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::AlternateScreenBuffer)
-            c'z');
+        pt!(b"a\x1b[?47$pz", c'a' m m m m m m
+            RequestPrivateMode(SetPrivateMode::AlternateScreenBuffer) c'z');
         pt!(b"a\x1b[?66$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::ApplicationKeypad)
             c'z');
-        pt!(b"a\x1b[?67$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::BackArrowIsBackSspace)
-            c'z');
+        pt!(b"a\x1b[?67$pz", c'a' m m m m m m
+            RequestPrivateMode(SetPrivateMode::BackArrowIsBackSspace) c'z');
         pt!(b"a\x1b[?69$pz", c'a' m m m m m m
             RequestPrivateMode(SetPrivateMode::EnableLeftRightMarginMode) c'z');
-        pt!(b"a\x1b[?95$pz", c'a' m m m m m m RequestPrivateMode(SetPrivateMode::NoClearScreenOnDECCOLM)
-            c'z');
+        pt!(b"a\x1b[?95$pz", c'a' m m m m m m
+            RequestPrivateMode(SetPrivateMode::NoClearScreenOnDECCOLM) c'z');
         pt!(b"a\x1b[?1000$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::SendMousePosOnBoth) c'z');
         pt!(b"a\x1b[?1001$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::HiliteMouseTracking) c'z');
         pt!(b"a\x1b[?1002$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::CellMouseTracking) c'z');
-        pt!(b"a\x1b[?1003$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::AllMouseTracking)
-            c'z');
-        pt!(b"a\x1b[?1004$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::SendFocusEvents)
-            c'z');
-        pt!(b"a\x1b[?1005$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::Utf8MouseMode)
-            c'z');
-        pt!(b"a\x1b[?1006$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::SgrMouseMode)
-            c'z');
+        pt!(b"a\x1b[?1003$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::AllMouseTracking) c'z');
+        pt!(b"a\x1b[?1004$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::SendFocusEvents) c'z');
+        pt!(b"a\x1b[?1005$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::Utf8MouseMode) c'z');
+        pt!(b"a\x1b[?1006$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::SgrMouseMode) c'z');
         pt!(b"a\x1b[?1007$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::AlternateScrollMode) c'z');
         pt!(b"a\x1b[?1010$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::ScrollToBottomOnTty) c'z');
         pt!(b"a\x1b[?1011$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::ScrollToBottomOnKey) c'z');
-        pt!(b"a\x1b[?1015$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::UrxvtMouseMode)
-            c'z');
-        pt!(b"a\x1b[?1034$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::InterpretMetaKey)
-            c'z');
+        pt!(b"a\x1b[?1015$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::UrxvtMouseMode) c'z');
+        pt!(b"a\x1b[?1034$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::InterpretMetaKey) c'z');
         pt!(b"a\x1b[?1035$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::EnableSpecialModifiers) c'z');
-        pt!(b"a\x1b[?1036$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::SendEscOnMeta)
-            c'z');
-        pt!(b"a\x1b[?1037$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::SendDelOnKeypad)
-            c'z');
-        pt!(b"a\x1b[?1039$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::SendEscOnAlt)
-            c'z');
-        pt!(b"a\x1b[?1040$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::KeepSelection)
-            c'z');
-        pt!(b"a\x1b[?1041$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::UseClipboard)
-            c'z');
+        pt!(b"a\x1b[?1036$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::SendEscOnMeta) c'z');
+        pt!(b"a\x1b[?1037$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::SendDelOnKeypad) c'z');
+        pt!(b"a\x1b[?1039$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::SendEscOnAlt) c'z');
+        pt!(b"a\x1b[?1040$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::KeepSelection) c'z');
+        pt!(b"a\x1b[?1041$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::UseClipboard) c'z');
         pt!(b"a\x1b[?1042$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::UrgencyHint)
             c'z');
         pt!(b"a\x1b[?1043$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::RaiseWindowOnBell) c'z');
-        pt!(b"a\x1b[?1044$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::KeepClipboard)
-            c'z');
+        pt!(b"a\x1b[?1044$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::KeepClipboard) c'z');
         pt!(b"a\x1b[?1046$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::EnableAlternateScreen) c'z');
         pt!(b"a\x1b[?1047$pz", c'a' m m m m m m m m
@@ -2105,17 +2158,20 @@ mod test {
             c'z');
         pt!(b"a\x1b[?1049$pz", c'a' m m m m m m m m
             RequestPrivateMode(SetPrivateMode::SaveCursorAndUseAlternateScreen) c'z');
-        pt!(b"a\x1b[?1050$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::TerminfoFnMode)
+        pt!(b"a\x1b[?1050$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::TerminfoFnMode) c'z');
+        pt!(b"a\x1b[?1051$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::SunFnMode)
             c'z');
-        pt!(b"a\x1b[?1051$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::SunFnMode) c'z');
-        pt!(b"a\x1b[?1052$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::HpFnMode) c'z');
-        pt!(b"a\x1b[?1053$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::ScoFnMode) c'z');
-        pt!(b"a\x1b[?1060$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::LegacyKeyboard)
+        pt!(b"a\x1b[?1052$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::HpFnMode)
             c'z');
-        pt!(b"a\x1b[?1061$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::Vt220Keyboard)
+        pt!(b"a\x1b[?1053$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::ScoFnMode)
             c'z');
-        pt!(b"a\x1b[?2004$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::BracketedPaste)
-            c'z');
+        pt!(b"a\x1b[?1060$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::LegacyKeyboard) c'z');
+        pt!(b"a\x1b[?1061$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::Vt220Keyboard) c'z');
+        pt!(b"a\x1b[?2004$pz", c'a' m m m m m m m m
+            RequestPrivateMode(SetPrivateMode::BracketedPaste) c'z');
         pt!(b"a\x1b[?2005$pz", c'a' m m m m m m m m RequestPrivateMode(SetPrivateMode::Unknown)
             c'z');
         pt!(b"a\x1b[0qc", c'a' m m m LoadLeds(LoadLeds::All,false) c'c');
@@ -2143,7 +2199,6 @@ mod test {
         pt!(b"a\x1b[rx", c'a' m m ScrollRegion(0,0) c'x');
         pt!(b"a\x1b[?1041rz", c'a' m m m m m m m RestorePrivateMode(SetPrivateMode::UseClipboard)
             c'z');
-
         pt!(b"a\x1b[0;1;2;3;0$rx", c'a' m m m m m m m m m m m m
             ChangeAttributesArea(0,1,2,3,CharacterAttribute::Normal) c'x');
         pt!(b"a\x1b[0;1;2;3;1$rx", c'a' m m m m m m m m m m m m
@@ -2157,6 +2212,9 @@ mod test {
         pt!(b"a\x1b[0;1;2;3;2$rx", c'a' m m m m m m m m m m m m m c'x');
         pt!(b"a\x1b[0;1;0;3;0$rx", c'a' m m m m m m m m m m m m m c'x');
         pt!(b"a\x1b[0;1;2;1;0$rx", c'a' m m m m m m m m m m m m m c'x');
+        pt!(b"a\x1b[sx", c'a' m m SaveCursor c'x');
+        pt!(b"a\x1b[12;13sx", c'a' m m m m m m m SetMargins(11,12) c'x');
+        pt!(b"a\x1b[14;13sx", c'a' m m m m m m m m c'x');
 
     }
 }
