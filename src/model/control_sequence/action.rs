@@ -146,7 +146,7 @@ pub enum Action {
     BackgroundColorRgb(u8, u8, u8),
     BackgroundColorIndex(u8),
 
-    SetModFKeys(FKeys,u32),
+    SetModFKeys(FKeys, u32),
     DisableModFKeys(FKeys),
     StatusReport,
     ReportCursorPosition,
@@ -161,6 +161,14 @@ pub enum Action {
     MemoryStatusReport(u32),
     DataIntegrityReport,
     MultiSessionReport,
+
+    PointerMode(PointerMode),
+    SoftReset,
+
+    /// Conformance Level
+    ///
+    /// Terminal, 8 bit
+    ConformanceLevel(Terminal,bool),
 }
 
 /// Character set
@@ -388,7 +396,22 @@ pub enum FKeys {
     Keyboard,
     Cursor,
     Function,
-    Other
+    Other,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum PointerMode {
+    NeverHide,
+    HideNotTracking,
+    HideOutside,
+    AlwaysHide,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Terminal {
+    Vt100,
+    Vt200,
+    Vt300
 }
 
 impl Action {

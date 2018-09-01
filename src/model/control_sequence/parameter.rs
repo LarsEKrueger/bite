@@ -28,6 +28,12 @@ pub type Parameter = u32;
 /// Maximal number of parameters
 const NUM_PARAMETERS: usize = 30;
 
+/// Magic number to indicate a default value.
+///
+/// As the value of parameter is clipped to 16 bit, we can use the maximum value of an u32 as magic
+/// number.
+const DEFAULT: Parameter = Parameter::max_value();
+
 pub struct Parameters {
     /// Number of parameters used
     count: u8,
@@ -40,7 +46,7 @@ impl Parameters {
     pub fn new() -> Self {
         Self {
             count: 0,
-            values: [0; NUM_PARAMETERS],
+            values: [DEFAULT; NUM_PARAMETERS],
         }
     }
 
@@ -62,7 +68,7 @@ impl Parameters {
             self.count += 1;
         }
         let cm = self.current_mut();
-        *cm = 0;
+        *cm = DEFAULT;
     }
 
     pub fn current_mut(&mut self) -> &mut Parameter {
@@ -76,16 +82,17 @@ impl Parameters {
         self.values[0..c].into_iter().map(|v| *v)
     }
 
-    fn at_least_if_default(&self, param_index: u8, min_val: Parameter) -> Parameter {
+    fn if_default(&self, param_index: u8, min_val: Parameter) -> Parameter {
         if param_index < self.count {
-            cmp::max(min_val, self.values[param_index as usize])
+            let v = self.values[param_index as usize];
+            if v == DEFAULT { min_val } else { v }
         } else {
             min_val
         }
     }
 
     pub fn zero_if_default(&self, param_index: u8) -> Parameter {
-        self.at_least_if_default(param_index, 0)
+        self.if_default(param_index, 0)
     }
 
     pub fn clip8(&self, param_index: u8) -> u8 {
@@ -93,7 +100,7 @@ impl Parameters {
     }
 
     pub fn one_if_default(&self, param_index: u8) -> Parameter {
-        self.at_least_if_default(param_index, 1)
+        self.if_default(param_index, 1)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -106,7 +113,12 @@ impl Parameters {
             self.add_default();
         }
         let cm = self.current_mut();
-        *cm = cmp::min(65535, 10 * (*cm) + ((byte - b'0') as u32));
+        let v = (byte - b'0') as u32;
+        if *cm == DEFAULT {
+            *cm = v;
+        } else {
+            *cm = cmp::min(65535, 10 * (*cm) + v);
+        }
     }
 }
 
@@ -133,8 +145,17 @@ mod test {
     fn add_to_empty() {
         let mut p = Parameters::new();
         p.add_digit(b'5');
-        assert_eq!(p.count(),1);
+        assert_eq!(p.count(), 1);
         assert_eq!(p.zero_if_default(0), 5);
+    }
+
+    #[test]
+    fn zero_vs_default() {
+        let mut p = Parameters::new();
+        p.add_default();
+        assert_eq!(p.one_if_default(0), 1);
+        p.add_digit(b'0');
+        assert_eq!(p.one_if_default(0), 0);
     }
 
 }

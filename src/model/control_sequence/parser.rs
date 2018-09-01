@@ -27,7 +27,7 @@ use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
-                    Color,FKeys};
+                    Color, FKeys, PointerMode, Terminal};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -222,6 +222,15 @@ mod action {
                 }
             }
         };
+        ($name:ident, $action:ident, one, [$($n:expr => $v:ident),+]) => {
+            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+                p.reset();
+                match p.parameter.one_if_default(0) {
+                    $($n => Action::$action($action::$v)),+
+                    , _ => Action::More,
+                }
+            }
+        };
         ($name:ident, $action:ident, $countername:ident, $counteraction:ident,
          [$($n:expr => $v:ident),+]) => {
             pub fn $name(p:&mut Parser, _byte: u8) -> Action {
@@ -301,6 +310,7 @@ mod action {
     action_reset!(REP, RepeatCharacter, one);
     action_reset!(VPA, VerticalPositionAbsolute, one_minus);
     action_reset!(VPR, VerticalPositionRelative, one_minus);
+    action_reset!(DECSTR,SoftReset);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -321,6 +331,8 @@ mod action {
     action_state!(SCR_STATE, scrtable);
     action_state!(SCS_PERCENT, scs_pct_table);
     action_state!(DEC2_STATE, dec2_table);
+    action_state!(CSI_EX_STATE, csi_ex_table);
+    action_state!(CSI_QUOTE_STATE, csi_quo_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
@@ -362,6 +374,9 @@ mod action {
     action_switch_param!(DECMC,MediaCopy, [ 1 => PrintCursorLine, 4 => AutoPrintOff,
                          5 => AutoPrintOn, 10 => PrintComposeDisplay, 11 => PrintAllPages]);
     action_switch_param!(CPR, [5=>StatusReport,6=>ReportCursorPosition]);
+
+    action_switch_param!(HIDE_POINTER, PointerMode, one,
+                         [0=>NeverHide,1=>HideNotTracking,2=>HideOutside,3=>AlwaysHide]);
 }
 
 impl Parser {
@@ -781,7 +796,19 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECSCL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let p0 = self.parameter.zero_if_default(0);
+        let p1 = self.parameter.zero_if_default(1);
+        match (p0,p1) {
+            (61,_) => Action::ConformanceLevel(Terminal::Vt100, false),
+            (62,0) => Action::ConformanceLevel(Terminal::Vt200, true),
+            (62,1) => Action::ConformanceLevel(Terminal::Vt200, false),
+            (62,2) => Action::ConformanceLevel(Terminal::Vt200, true),
+            (63,0) => Action::ConformanceLevel(Terminal::Vt300, true),
+            (63,1) => Action::ConformanceLevel(Terminal::Vt300, false),
+            (63,2) => Action::ConformanceLevel(Terminal::Vt300, true),
+            _ => Action::More,
+        }
     }
     fn action_DECSCA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -818,9 +845,6 @@ impl Parser {
     fn action_SPA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_CSI_QUOTE_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DSR(&mut self, _byte: u8) -> Action {
         self.reset();
         match self.parameter.zero_if_default(0) {
@@ -828,7 +852,7 @@ impl Parser {
             15 => Action::PrinterStatusReport,
             25 => Action::UdkStatusReport,
             26 => Action::KeyboardStatusReport,
-            53 => Action::LocatorStatusReport ,
+            53 => Action::LocatorStatusReport,
             55 => Action::LocatorStatusReport,
             56 => Action::LocatorTypeReport,
             62 => Action::MacroStatusReport,
@@ -845,12 +869,6 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_VT52_CUP(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_CSI_EX_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECSTR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_DECDHL(&mut self, byte: u8) -> Action {
@@ -914,11 +932,11 @@ impl Parser {
         self.reset();
         let p1 = self.parameter.zero_if_default(1);
         match self.parameter.zero_if_default(0) {
-            0 => Action::SetModFKeys(FKeys::Keyboard,p1),
-            1 => Action::SetModFKeys(FKeys::Cursor,p1),
-            2 => Action::SetModFKeys(FKeys::Function,p1),
-            4 => Action::SetModFKeys(FKeys::Other,p1),
-            _ => Action::More
+            0 => Action::SetModFKeys(FKeys::Keyboard, p1),
+            1 => Action::SetModFKeys(FKeys::Cursor, p1),
+            2 => Action::SetModFKeys(FKeys::Function, p1),
+            4 => Action::SetModFKeys(FKeys::Other, p1),
+            _ => Action::More,
         }
     }
     fn action_SET_MOD_FKEYS0(&mut self, _byte: u8) -> Action {
@@ -931,12 +949,9 @@ impl Parser {
                 1 => Action::DisableModFKeys(FKeys::Cursor),
                 2 => Action::DisableModFKeys(FKeys::Function),
                 4 => Action::DisableModFKeys(FKeys::Other),
-                _ => Action::More
+                _ => Action::More,
             }
         }
-    }
-    fn action_HIDE_POINTER(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_DECSCUSR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1149,7 +1164,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::APC,
         Parser::action_EPA,
         Parser::action_SPA,
-        Parser::action_CSI_QUOTE_STATE,
+        action::CSI_QUOTE_STATE,
         Parser::action_DSR,
         action::ANSI_LEVEL_1,
         action::ANSI_LEVEL_2,
@@ -1161,8 +1176,8 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_DECRPTUI,
         Parser::action_VT52_CUP,
         action::REP,
-        Parser::action_CSI_EX_STATE,
-        Parser::action_DECSTR,
+        action::CSI_EX_STATE,
+        action::DECSTR,
         Parser::action_DECDHL,
         action::DECSWL,
         action::DECDWL,
@@ -1188,7 +1203,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         Parser::action_CSI_STAR_STATE,
         Parser::action_SET_MOD_FKEYS,
         Parser::action_SET_MOD_FKEYS0,
-        Parser::action_HIDE_POINTER,
+        action::HIDE_POINTER,
         action::SCS1A_STATE,
         action::SCS2A_STATE,
         action::SCS3A_STATE,
@@ -1933,5 +1948,22 @@ mod test {
         pt!(b"a\x1b[?75nx", c'a' m m m m m DataIntegrityReport c'x');
         pt!(b"a\x1b[?85nx", c'a' m m m m m MultiSessionReport c'x');
         pt!(b"a\x1b[?86nx", c'a' m m m m m m c'x');
+        pt!(b"a\x1b[>0px", c'a' m m m m PointerMode(PointerMode::NeverHide) c'x');
+        pt!(b"a\x1b[>1px", c'a' m m m m PointerMode(PointerMode::HideNotTracking) c'x');
+        pt!(b"a\x1b[>2px", c'a' m m m m PointerMode(PointerMode::HideOutside) c'x');
+        pt!(b"a\x1b[>3px", c'a' m m m m PointerMode(PointerMode::AlwaysHide) c'x');
+        pt!(b"a\x1b[>px", c'a' m m m PointerMode(PointerMode::HideNotTracking) c'x');
+        pt!(b"a\x1b[>4px", c'a' m m m m m c'x');
+        pt!(b"a\x1b[!px", c'a' m m m SoftReset c'x');
+
+        pt!(b"a\x1b[61;0\"px", c'a' m m m m m m m ConformanceLevel(Terminal::Vt100,false) c'x');
+        pt!(b"a\x1b[61;1\"px", c'a' m m m m m m m ConformanceLevel(Terminal::Vt100,false) c'x');
+        pt!(b"a\x1b[61;2\"px", c'a' m m m m m m m ConformanceLevel(Terminal::Vt100,false) c'x');
+        pt!(b"a\x1b[62;0\"px", c'a' m m m m m m m ConformanceLevel(Terminal::Vt200,true) c'x');
+        pt!(b"a\x1b[62;1\"px", c'a' m m m m m m m ConformanceLevel(Terminal::Vt200,false) c'x');
+        pt!(b"a\x1b[62;2\"px", c'a' m m m m m m m ConformanceLevel(Terminal::Vt200,true) c'x');
+        pt!(b"a\x1b[63;2\"px", c'a' m m m m m m m ConformanceLevel(Terminal::Vt300,true) c'x');
+        pt!(b"a\x1b[12;2\"px", c'a' m m m m m m m m c'x');
+        pt!(b"a\x1b[63;4\"px", c'a' m m m m m m m m c'x');
     }
 }

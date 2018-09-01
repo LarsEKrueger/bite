@@ -813,6 +813,9 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::PointerMode(_) |
+            Action::SoftReset |
+            Action::ConformanceLevel(_,_) |
             Action::DecDeviceStatusReport |
             Action::PrinterStatusReport |
             Action::UdkStatusReport |

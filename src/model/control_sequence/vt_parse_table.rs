@@ -569,8 +569,7 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
-static csi_ex_table:CaseTable =		/* CSI ! */
+pub static csi_ex_table:CaseTable =		/* CSI ! */
 [
 /*	NUL		SOH		STX		ETX	*/
 Case::IGNORE,
@@ -734,7 +733,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
 pub static csi_quo_table:CaseTable =		/* CSI ... " */
 [
 /*	NUL		SOH		STX		ETX	*/
