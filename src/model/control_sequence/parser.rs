@@ -946,7 +946,24 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECCARA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let top = self.parameter.one_if_default(0);
+        let left = self.parameter.one_if_default(1);
+        let bottom = self.parameter.one_if_default(2);
+        let right = self.parameter.one_if_default(3);
+        let attr = self.parameter.zero_if_default(4);
+        if top < bottom && left < right {
+            match attr {
+                0 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Normal),
+                1 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Bold),
+                4 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Underlined),
+                5 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Blink),
+                7 => Action::ChangeAttributesArea(top,left,bottom,right,CharacterAttribute::Inverse),
+                _ => Action::More
+            }
+        } else {
+            Action::More
+        }
     }
     fn action_DECRARA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2124,8 +2141,22 @@ mod test {
         pt!(b"a\x1b[12;13rx", c'a' m m m m m m m ScrollRegion(11,12) c'x');
         pt!(b"a\x1b[14;13rx", c'a' m m m m m m m m c'x');
         pt!(b"a\x1b[rx", c'a' m m ScrollRegion(0,0) c'x');
-
         pt!(b"a\x1b[?1041rz", c'a' m m m m m m m RestorePrivateMode(SetPrivateMode::UseClipboard)
             c'z');
+
+        pt!(b"a\x1b[0;1;2;3;0$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Normal) c'x');
+        pt!(b"a\x1b[0;1;2;3;1$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Bold) c'x');
+        pt!(b"a\x1b[0;1;2;3;4$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Underlined) c'x');
+        pt!(b"a\x1b[0;1;2;3;5$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Blink) c'x');
+        pt!(b"a\x1b[0;1;2;3;7$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Inverse) c'x');
+        pt!(b"a\x1b[0;1;2;3;2$rx", c'a' m m m m m m m m m m m m m c'x');
+        pt!(b"a\x1b[0;1;0;3;0$rx", c'a' m m m m m m m m m m m m m c'x');
+        pt!(b"a\x1b[0;1;2;1;0$rx", c'a' m m m m m m m m m m m m m c'x');
+
     }
 }

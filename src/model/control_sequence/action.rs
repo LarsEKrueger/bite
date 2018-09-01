@@ -185,6 +185,11 @@ pub enum Action {
     /// one line.
     /// (0,0) means region is the full window.
     ScrollRegion(u32,u32),
+
+    /// Change Attributes in area
+    ///
+    /// top, left, bottom, right, attribute. Range is exclusive.
+    ChangeAttributesArea(u32,u32,u32,u32,CharacterAttribute),
 }
 
 /// Character set
