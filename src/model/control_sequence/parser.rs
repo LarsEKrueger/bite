@@ -383,6 +383,7 @@ mod action {
         1060 => LegacyKeyboard, 1061 => Vt220Keyboard, 2004 => BracketedPaste});
     action_switch_param!(DECSET,SetPrivateMode,param_set_private_mode);
     action_switch_param!(DECRESET,ResetPrivateMode,param_set_private_mode);
+    action_switch_param!(XTERM_RESTORE,RestorePrivateMode,param_set_private_mode);
     action_switch_param!(MC,MediaCopy, [ 0 => PrintScreen, 4 => PrinterCtrlOff, 5 => PrinterCtrlOn,
                          10 => HtmlScreenDump, 11 => SvgScreenDump]);
     action_switch_param!(DECMC,MediaCopy, [ 1 => PrintCursorLine, 4 => AutoPrintOff,
@@ -807,9 +808,6 @@ impl Parser {
     fn action_XTERM_SAVE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_XTERM_RESTORE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_XTERM_TITLE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -1160,7 +1158,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::LS1R,
         Parser::action_PRINT,
         Parser::action_XTERM_SAVE,
-        Parser::action_XTERM_RESTORE,
+        action::XTERM_RESTORE,
         Parser::action_XTERM_TITLE,
         Parser::action_DECID,
         action::HP_MEM_LOCK,
@@ -2123,9 +2121,11 @@ mod test {
         pt!(b"a\x1b[1\"qx", c'a' m m m m CharacterProtection(CharacterProtection::NoErase) c'x');
         pt!(b"a\x1b[2\"qx", c'a' m m m m CharacterProtection(CharacterProtection::CanErase) c'x');
         pt!(b"a\x1b[3\"qx", c'a' m m m m m c'x');
-
         pt!(b"a\x1b[12;13rx", c'a' m m m m m m m ScrollRegion(11,12) c'x');
         pt!(b"a\x1b[14;13rx", c'a' m m m m m m m m c'x');
         pt!(b"a\x1b[rx", c'a' m m ScrollRegion(0,0) c'x');
+
+        pt!(b"a\x1b[?1041rz", c'a' m m m m m m m RestorePrivateMode(SetPrivateMode::UseClipboard)
+            c'z');
     }
 }
