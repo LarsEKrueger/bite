@@ -27,7 +27,7 @@ use super::vt_parse_table::*;
 use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
-                    Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle};
+                    Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle, CharacterProtection};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -398,6 +398,7 @@ mod action {
     action_switch_param!(DECSCUSR,CursorStyle,
                          [0=>BlinkBlock,1=>BlinkBlock,2=>SteadyBlock,3=>BlinkUnderline,
                          4=>SteadyUnderline,5=>BlinkBar,6=>SteadyBar]);
+    action_switch_param!(DECSCA,CharacterProtection,[0=>CanErase,1=>NoErase,2=>CanErase]);
 }
 
 impl Parser {
@@ -831,9 +832,6 @@ impl Parser {
             _ => Action::More,
         }
     }
-    fn action_DECSCA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_PM(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -1174,7 +1172,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] =
         action::ESC_SP_STATE,
         Parser::action_ENQ,
         Parser::action_DECSCL,
-        Parser::action_DECSCA,
+        action::DECSCA,
         action::DECSED,
         action::DECSEL,
         action::DCS,
@@ -2104,8 +2102,6 @@ mod test {
         pt!(b"a\x1b[21qc", c'a' m m m m LoadLeds(LoadLeds::NumLock,true) c'c');
         pt!(b"a\x1b[22qc", c'a' m m m m LoadLeds(LoadLeds::CapsLock,true) c'c');
         pt!(b"a\x1b[23qc", c'a' m m m m LoadLeds(LoadLeds::ScrollLock,true) c'c');
-
-
         pt!(b"a\x1b[0 qx", c'a' m m m m CursorStyle(CursorStyle::BlinkBlock) c'x');
         pt!(b"a\x1b[1 qx", c'a' m m m m CursorStyle(CursorStyle::BlinkBlock) c'x');
         pt!(b"a\x1b[2 qx", c'a' m m m m CursorStyle(CursorStyle::SteadyBlock) c'x');
@@ -2115,5 +2111,9 @@ mod test {
         pt!(b"a\x1b[6 qx", c'a' m m m m CursorStyle(CursorStyle::SteadyBar) c'x');
         pt!(b"a\x1b[7 qx", c'a' m m m m m c'x');
 
+        pt!(b"a\x1b[0\"qx", c'a' m m m m CharacterProtection(CharacterProtection::CanErase) c'x');
+        pt!(b"a\x1b[1\"qx", c'a' m m m m CharacterProtection(CharacterProtection::NoErase) c'x');
+        pt!(b"a\x1b[2\"qx", c'a' m m m m CharacterProtection(CharacterProtection::CanErase) c'x');
+        pt!(b"a\x1b[3\"qx", c'a' m m m m m c'x');
     }
 }

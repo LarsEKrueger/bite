@@ -176,6 +176,7 @@ pub enum Action {
     LoadLeds(LoadLeds,bool),
 
     CursorStyle(CursorStyle),
+    CharacterProtection(CharacterProtection),
 }
 
 /// Character set
@@ -439,6 +440,12 @@ pub enum CursorStyle {
      SteadyUnderline,
      BlinkBar,
      SteadyBar,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum CharacterProtection {
+    CanErase,
+    NoErase
 }
 
 impl Action {
