@@ -724,7 +724,16 @@ impl Parser {
     }
 
     fn action_DECSTBM(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let p0 = self.parameter.zero_if_default(0);
+        let p1 = self.parameter.zero_if_default(1);
+        if p0 != 0 && p1 != 0 && p1>p0 {
+            Action::ScrollRegion(p0-1,p1-1)
+        }else if p0 == 0 && p1 ==0 {
+            Action::ScrollRegion(0,0)
+        } else {
+            Action::More
+        }
     }
     fn action_GSETS(&mut self, byte: u8) -> Action {
         let cs = match byte {
@@ -2110,10 +2119,13 @@ mod test {
         pt!(b"a\x1b[5 qx", c'a' m m m m CursorStyle(CursorStyle::BlinkBar) c'x');
         pt!(b"a\x1b[6 qx", c'a' m m m m CursorStyle(CursorStyle::SteadyBar) c'x');
         pt!(b"a\x1b[7 qx", c'a' m m m m m c'x');
-
         pt!(b"a\x1b[0\"qx", c'a' m m m m CharacterProtection(CharacterProtection::CanErase) c'x');
         pt!(b"a\x1b[1\"qx", c'a' m m m m CharacterProtection(CharacterProtection::NoErase) c'x');
         pt!(b"a\x1b[2\"qx", c'a' m m m m CharacterProtection(CharacterProtection::CanErase) c'x');
         pt!(b"a\x1b[3\"qx", c'a' m m m m m c'x');
+
+        pt!(b"a\x1b[12;13rx", c'a' m m m m m m m ScrollRegion(11,12) c'x');
+        pt!(b"a\x1b[14;13rx", c'a' m m m m m m m m c'x');
+        pt!(b"a\x1b[rx", c'a' m m ScrollRegion(0,0) c'x');
     }
 }

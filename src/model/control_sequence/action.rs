@@ -177,6 +177,13 @@ pub enum Action {
 
     CursorStyle(CursorStyle),
     CharacterProtection(CharacterProtection),
+
+    /// Scroll region.
+    ///
+    /// top, bottom. Scroll region is exclusive, i.e. if bottom is one more than top, the region is
+    /// one line.
+    /// (0,0) means region is the full window.
+    ScrollRegion(u32,u32),
 }
 
 /// Character set

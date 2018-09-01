@@ -813,6 +813,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::ScrollRegion(_,_) |
             Action::CharacterProtection(_) |
             Action::CursorStyle(_) |
             Action::LoadLeds(_,_) |
