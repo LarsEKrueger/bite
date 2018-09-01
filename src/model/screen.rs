@@ -837,8 +837,10 @@ impl Screen {
             Action::MediaCopy(_) |
             Action::SetMode(_) |
             Action::ResetMode(_) |
+            Action::RequestAnsiMode(_) |
             Action::SetPrivateMode(_) |
             Action::ResetPrivateMode(_) |
+            Action::RequestPrivateMode(_) |
             Action::TabClear(_) |
             Action::VerticalPositionRelative(_)|
             Action::DA1(_) |

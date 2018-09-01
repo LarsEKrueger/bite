@@ -136,8 +136,10 @@ pub enum Action {
     TabClear(TabClear),
     SetMode(SetMode),
     ResetMode(SetMode),
+    RequestAnsiMode(SetMode),
     SetPrivateMode(SetPrivateMode),
     ResetPrivateMode(SetPrivateMode),
+    RequestPrivateMode(SetPrivateMode),
     MediaCopy(MediaCopy),
 
     CharacterAttributes(Vec<CharacterAttribute>),
@@ -253,6 +255,7 @@ pub enum SetMode {
     Insert,
     SendReceive,
     AutomaticNewline,
+    Unknown,
 }
 
 #[derive(Debug, PartialEq)]
@@ -318,6 +321,7 @@ pub enum SetPrivateMode {
     LegacyKeyboard,
     Vt220Keyboard,
     BracketedPaste,
+    Unknown,
 }
 
 #[derive(Debug, PartialEq)]

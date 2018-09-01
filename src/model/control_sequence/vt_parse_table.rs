@@ -1888,8 +1888,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-
-#[allow(dead_code)]
 pub static csi_dec_dollar_table:CaseTable =	/* CSI ?... $ */
 [
 /*	NUL		SOH		STX		ETX	*/
