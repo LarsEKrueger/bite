@@ -129,6 +129,7 @@ pub enum Action {
     /// The 5 parameters of the sequence
     MouseTracking(u32, u32, u32, u32, u32),
 
+    SetTitleModes(TitleModes),
     ResetTitleModes(TitleModes),
 
     TabClear(TabClear),

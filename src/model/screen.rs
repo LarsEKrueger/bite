@@ -855,6 +855,7 @@ impl Screen {
             Action::DA2(_) |
             Action::RepeatCharacter(_) |
             Action::EraseCharacters(_) |
+            Action::SetTitleModes(_) |
             Action::ResetTitleModes(_) |
             Action::MouseTracking(_,_,_,_,_)|
             Action::ScrollUp(_) |

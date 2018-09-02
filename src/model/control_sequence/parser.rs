@@ -1088,11 +1088,8 @@ impl Parser {
             }
         }
     }
-    fn action_SM_TITLE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_RM_TITLE(&mut self, _byte: u8) -> Action {
-        self.reset();
+
+    fn param_title_modes(&self) -> TitleModes {
         let mut tm = TitleModes::empty();
         for p in self.parameter.iter() {
             match p {
@@ -1103,7 +1100,16 @@ impl Parser {
                 _ => {}
             }
         }
-        Action::ResetTitleModes(tm)
+        tm
+    }
+
+    fn action_SM_TITLE(&mut self, _byte: u8) -> Action {
+        self.reset();
+        Action::SetTitleModes(self.param_title_modes())
+    }
+    fn action_RM_TITLE(&mut self, _byte: u8) -> Action {
+        self.reset();
+        Action::ResetTitleModes(self.param_title_modes())
     }
     fn action_DECSMBV(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2296,5 +2302,13 @@ mod test {
         pt!(b"a\x1b[23;1tx", c'a' m m m m m m WindowOp(WindowOp::PopIconTitle) c'x');
         pt!(b"a\x1b[23;2tx", c'a' m m m m m m WindowOp(WindowOp::PopWindowTitle) c'x');
         pt!(b"a\x1b[24tx", c'a' m m m m WindowOp(WindowOp::ResizeLines(24)) c'x');
+
+        pt!(b"a\x1b[>0tb", c'a' m m m m SetTitleModes(TitleModes::SetLabelHex) c'b');
+        pt!(b"a\x1b[>1tb", c'a' m m m m SetTitleModes(TitleModes::GetLabelHex) c'b');
+        pt!(b"a\x1b[>2tb", c'a' m m m m SetTitleModes(TitleModes::SetLabelUtf8) c'b');
+        pt!(b"a\x1b[>3tb", c'a' m m m m SetTitleModes(TitleModes::GetLabelUtf8) c'b');
+        pt!(b"a\x1b[>0;1tb", c'a' m m m m m m
+            SetTitleModes(TitleModes::SetLabelHex | TitleModes::GetLabelHex) c'b');
+        pt!(b"a\x1b[>12;14tb", c'a' m m m m m m m m SetTitleModes(TitleModes::empty()) c'b');
     }
 }
