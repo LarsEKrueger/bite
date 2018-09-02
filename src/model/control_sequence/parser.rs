@@ -1089,7 +1089,49 @@ impl Parser {
         }
     }
     fn action_DECRARA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let top = self.parameter.one_if_default(0);
+        let left = self.parameter.one_if_default(1);
+        let bottom = self.parameter.one_if_default(2);
+        let right = self.parameter.one_if_default(3);
+        let attr = self.parameter.zero_if_default(4);
+        if top < bottom && left < right {
+            match attr {
+                1 => {
+                    Action::ReverseAttributesArea(top, left, bottom, right, CharacterAttribute::Bold)
+                }
+                4 => {
+                    Action::ReverseAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Underlined,
+                    )
+                }
+                5 => {
+                    Action::ReverseAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Blink,
+                    )
+                }
+                7 => {
+                    Action::ReverseAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Inverse,
+                    )
+                }
+                _ => Action::More,
+            }
+        } else {
+            Action::More
+        }
     }
     fn action_CSI_STAR_STATE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1143,13 +1185,18 @@ impl Parser {
         Action::ResetTitleModes(self.param_title_modes())
     }
     fn action_DECSMBV(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let p0 = self.parameter.zero_if_default(0);
+        match p0 {
+            0...8 => Action::SetMarginBellVolume(p0 as u8),
+            _ => Action::More,
+        }
     }
     fn action_DECSWBV(&mut self, _byte: u8) -> Action {
         self.reset();
         let p0 = self.parameter.zero_if_default(0);
         match p0 {
-            0...8 => Action::SetBellVolume(p0 as u8),
+            0...8 => Action::SetWarningBellVolume(p0 as u8),
             _ => Action::More,
         }
     }
@@ -1685,7 +1732,6 @@ mod test {
             }
         }
 
-        pt!(b"a\x1b[ux", c'a' m m RestoreCursor c'x');
         pt!(b"a\x1b[12xy", c'a' m m m m DECREQTPARM c'y');
         pt!(b"a\x1b Fy", c'a' m m Show8BitControl(false) c'y');
         pt!(b"a\x1b Gy", c'a' m m Show8BitControl(true) c'y');
@@ -2348,8 +2394,25 @@ mod test {
         pt!(b"a\x1b[>0;1tb", c'a' m m m m m m
             SetTitleModes(TitleModes::SetLabelHex | TitleModes::GetLabelHex) c'b');
         pt!(b"a\x1b[>12;14tb", c'a' m m m m m m m m SetTitleModes(TitleModes::empty()) c'b');
-        pt!(b"a\x1b[0 tx", c'a' m m m m SetBellVolume(0) c'x');
-        pt!(b"a\x1b[8 tx", c'a' m m m m SetBellVolume(8) c'x');
+        pt!(b"a\x1b[0 tx", c'a' m m m m SetWarningBellVolume(0) c'x');
+        pt!(b"a\x1b[8 tx", c'a' m m m m SetWarningBellVolume(8) c'x');
         pt!(b"a\x1b[9 tx", c'a' m m m m m c'x');
+        pt!(b"a\x1b[0;1;2;3;0$tx", c'a' m m m m m m m m m m m m
+            m c'x');
+        pt!(b"a\x1b[0;1;2;3;1$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Bold) c'x');
+        pt!(b"a\x1b[0;1;2;3;4$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Underlined) c'x');
+        pt!(b"a\x1b[0;1;2;3;5$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Blink) c'x');
+        pt!(b"a\x1b[0;1;2;3;7$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Inverse) c'x');
+        pt!(b"a\x1b[ux", c'a' m m RestoreCursor c'x');
+
+
+        pt!(b"a\x1b[0 ux", c'a' m m m m SetMarginBellVolume(0) c'x');
+        pt!(b"a\x1b[8 ux", c'a' m m m m SetMarginBellVolume(8) c'x');
+        pt!(b"a\x1b[9 ux", c'a' m m m m m c'x');
+
     }
 }

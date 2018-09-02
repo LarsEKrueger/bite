@@ -190,6 +190,10 @@ pub enum Action {
     ///
     /// top, left, bottom, right, attribute. Range is exclusive.
     ChangeAttributesArea(u32, u32, u32, u32, CharacterAttribute),
+    /// Reverse Attributes in area
+    ///
+    /// top, left, bottom, right, attribute. Range is exclusive.
+    ReverseAttributesArea(u32, u32, u32, u32, CharacterAttribute),
 
     /// Set left and right margins
     ///
@@ -197,7 +201,9 @@ pub enum Action {
     SetMargins(u32, u32),
 
     WindowOp(WindowOp),
-    SetBellVolume(u8),
+
+    SetWarningBellVolume(u8),
+    SetMarginBellVolume(u8),
 }
 
 /// Character set
