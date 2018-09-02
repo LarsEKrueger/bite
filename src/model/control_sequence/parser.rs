@@ -384,6 +384,7 @@ mod action {
     action_switch_param!(DECSET,SetPrivateMode,param_set_private_mode);
     action_switch_param!(DECRESET,ResetPrivateMode,param_set_private_mode);
     action_switch_param!(XTERM_RESTORE,RestorePrivateMode,param_set_private_mode);
+    action_switch_param!(XTERM_SAVE,SavePrivateMode,param_set_private_mode);
     action_switch_param!(MC,MediaCopy, [ 0 => PrintScreen, 4 => PrinterCtrlOff, 5 => PrinterCtrlOn,
                          10 => HtmlScreenDump, 11 => SvgScreenDump]);
     action_switch_param!(DECMC,MediaCopy, [ 1 => PrintCursorLine, 4 => AutoPrintOff,
@@ -819,9 +820,6 @@ impl Parser {
     fn action_PRINT(&mut self, _byte: u8) -> Action {
         panic!("This should not happen: Printable characters have no action.");
     }
-    fn action_XTERM_SAVE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_XTERM_TITLE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -1221,7 +1219,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::LS2R,
     action::LS1R,
     Parser::action_PRINT,
-    Parser::action_XTERM_SAVE,
+    action::XTERM_SAVE,
     action::XTERM_RESTORE,
     Parser::action_XTERM_TITLE,
     Parser::action_DECID,
@@ -2216,5 +2214,7 @@ mod test {
         pt!(b"a\x1b[12;13sx", c'a' m m m m m m m SetMargins(11,12) c'x');
         pt!(b"a\x1b[14;13sx", c'a' m m m m m m m m c'x');
 
+        pt!(b"a\x1b[?1041sz", c'a' m m m m m m m SavePrivateMode(SetPrivateMode::UseClipboard)
+            c'z');
     }
 }

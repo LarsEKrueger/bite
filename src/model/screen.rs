@@ -848,6 +848,7 @@ impl Screen {
             Action::ResetPrivateMode(_) |
             Action::RequestPrivateMode(_) |
             Action::RestorePrivateMode(_) |
+            Action::SavePrivateMode(_) |
             Action::TabClear(_) |
             Action::VerticalPositionRelative(_)|
             Action::DA1(_) |

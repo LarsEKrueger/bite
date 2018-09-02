@@ -140,6 +140,7 @@ pub enum Action {
     SetPrivateMode(SetPrivateMode),
     ResetPrivateMode(SetPrivateMode),
     RequestPrivateMode(SetPrivateMode),
+    SavePrivateMode(SetPrivateMode),
     RestorePrivateMode(SetPrivateMode),
     MediaCopy(MediaCopy),
 
