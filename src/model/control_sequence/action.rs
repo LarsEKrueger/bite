@@ -197,6 +197,7 @@ pub enum Action {
     SetMargins(u32, u32),
 
     WindowOp(WindowOp),
+    SetBellVolume(u8),
 }
 
 /// Character set
@@ -472,14 +473,14 @@ pub enum CharacterProtection {
 pub enum WindowOp {
     DeIconify,
     Iconify,
-    Move(u32,u32),
+    Move(u32, u32),
     /// If None, don't change. If zero, use display size.
-    ResizeWindow(Option<u32>,Option<u32>),
+    ResizeWindow(Option<u32>, Option<u32>),
     Raise,
     Lower,
     Refresh,
     /// If None, don't change. If zero, use display size.
-    ResizeTextArea(Option<u32>,Option<u32>),
+    ResizeTextArea(Option<u32>, Option<u32>),
     RestoreMaximized,
     MaximizeWindow,
     MaximizeVertically,

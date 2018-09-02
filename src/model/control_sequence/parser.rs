@@ -832,51 +832,82 @@ impl Parser {
             0 => Action::More,
             1 => Action::WindowOp(WindowOp::DeIconify),
             2 => Action::WindowOp(WindowOp::Iconify),
-            3 => Action::WindowOp(WindowOp::Move(self.parameter.zero_if_default(1),self.parameter.zero_if_default(2))),
-            4 => Action::WindowOp(WindowOp::ResizeWindow(self.parameter.maybe(1),self.parameter.maybe(2))),
+            3 => Action::WindowOp(WindowOp::Move(
+                self.parameter.zero_if_default(1),
+                self.parameter.zero_if_default(2),
+            )),
+            4 => Action::WindowOp(WindowOp::ResizeWindow(
+                self.parameter.maybe(1),
+                self.parameter.maybe(2),
+            )),
             5 => Action::WindowOp(WindowOp::Raise),
             6 => Action::WindowOp(WindowOp::Lower),
             7 => Action::WindowOp(WindowOp::Refresh),
-            8 => Action::WindowOp(WindowOp::ResizeTextArea(self.parameter.maybe(1),self.parameter.maybe(2))),
-            9 => match self.parameter.zero_if_default(1){
-                    0 =>    Action::WindowOp(WindowOp::RestoreMaximized),
-                    1 =>  Action::WindowOp(WindowOp::MaximizeWindow),
-                    2 =>  Action::WindowOp(WindowOp::MaximizeVertically),
-                    3 =>  Action::WindowOp(WindowOp::MaximizeHorizontally),
+            8 => Action::WindowOp(WindowOp::ResizeTextArea(
+                self.parameter.maybe(1),
+                self.parameter.maybe(2),
+            )),
+            9 => {
+                match self.parameter.zero_if_default(1) {
+                    0 => Action::WindowOp(WindowOp::RestoreMaximized),
+                    1 => Action::WindowOp(WindowOp::MaximizeWindow),
+                    2 => Action::WindowOp(WindowOp::MaximizeVertically),
+                    3 => Action::WindowOp(WindowOp::MaximizeHorizontally),
                     _ => Action::More,
-            },
-            10   => match self.parameter.zero_if_default(1) {
-                0 =>   Action::WindowOp(WindowOp::UndoFullscreen),
-                1 =>   Action::WindowOp(WindowOp::Fullscreen),
-                2 =>   Action::WindowOp(WindowOp::ToggleFullscreen),
+                }
+            }
+            10 => {
+                match self.parameter.zero_if_default(1) {
+                    0 => Action::WindowOp(WindowOp::UndoFullscreen),
+                    1 => Action::WindowOp(WindowOp::Fullscreen),
+                    2 => Action::WindowOp(WindowOp::ToggleFullscreen),
                     _ => Action::More,
-            },
-            11 =>   Action::WindowOp(WindowOp::ReportWindowState),
+                }
+            }
+            11 => Action::WindowOp(WindowOp::ReportWindowState),
             12 => Action::More,
-            13 => if self.parameter.count() == 1 { Action::WindowOp(WindowOp:: ReportWindowPosition)} else if self.parameter.zero_if_default(1) == 2 {
-                Action::WindowOp(WindowOp::ReportTextAreaPosition) } else {Action::More},
-            14 => if self.parameter.count() == 1 { Action::WindowOp(WindowOp:: ReportTextAreaSize)} else if self.parameter.zero_if_default(1) == 2 {
-                Action::WindowOp(WindowOp::ReportWindowSize) } else {Action::More},
-            15 => Action::WindowOp(WindowOp:: ReportScreenSize),
-            16 => Action::WindowOp(WindowOp:: ReportCharacterSize),
+            13 => {
+                if self.parameter.count() == 1 {
+                    Action::WindowOp(WindowOp::ReportWindowPosition)
+                } else if self.parameter.zero_if_default(1) == 2 {
+                    Action::WindowOp(WindowOp::ReportTextAreaPosition)
+                } else {
+                    Action::More
+                }
+            }
+            14 => {
+                if self.parameter.count() == 1 {
+                    Action::WindowOp(WindowOp::ReportTextAreaSize)
+                } else if self.parameter.zero_if_default(1) == 2 {
+                    Action::WindowOp(WindowOp::ReportWindowSize)
+                } else {
+                    Action::More
+                }
+            }
+            15 => Action::WindowOp(WindowOp::ReportScreenSize),
+            16 => Action::WindowOp(WindowOp::ReportCharacterSize),
             17 => Action::More,
-            18 => Action::WindowOp(WindowOp:: ReportTextAreaSizeChar),
-            19 => Action::WindowOp(WindowOp:: ReportScreenSizeChar),
-            20 => Action::WindowOp(WindowOp:: ReportIconLabel),
-            21 => Action::WindowOp(WindowOp:: ReportWindowTitle),
-            22 => match self.parameter.zero_if_default(1) {
-                0 => Action::WindowOp( WindowOp::PushIconAndWindowTitle),
-                1 => Action::WindowOp( WindowOp::PushIconTitle),
-                2 => Action::WindowOp( WindowOp::PushWindowTitle),
-                _ => Action::More,
-            },
-            23    => match self.parameter.zero_if_default(1) {
-                0 => Action::WindowOp( WindowOp::PopIconAndWindowTitle),
-                1 => Action::WindowOp( WindowOp::PopIconTitle),
-                2 => Action::WindowOp( WindowOp::PopWindowTitle),
-                _ => Action::More,
-            },
-            _ =>  Action::WindowOp(WindowOp::ResizeLines(p0)),
+            18 => Action::WindowOp(WindowOp::ReportTextAreaSizeChar),
+            19 => Action::WindowOp(WindowOp::ReportScreenSizeChar),
+            20 => Action::WindowOp(WindowOp::ReportIconLabel),
+            21 => Action::WindowOp(WindowOp::ReportWindowTitle),
+            22 => {
+                match self.parameter.zero_if_default(1) {
+                    0 => Action::WindowOp(WindowOp::PushIconAndWindowTitle),
+                    1 => Action::WindowOp(WindowOp::PushIconTitle),
+                    2 => Action::WindowOp(WindowOp::PushWindowTitle),
+                    _ => Action::More,
+                }
+            }
+            23 => {
+                match self.parameter.zero_if_default(1) {
+                    0 => Action::WindowOp(WindowOp::PopIconAndWindowTitle),
+                    1 => Action::WindowOp(WindowOp::PopIconTitle),
+                    2 => Action::WindowOp(WindowOp::PopWindowTitle),
+                    _ => Action::More,
+                }
+            }
+            _ => Action::WindowOp(WindowOp::ResizeLines(p0)),
         }
     }
     fn action_ENQ(&mut self, _byte: u8) -> Action {
@@ -1115,7 +1146,12 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECSWBV(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let p0 = self.parameter.zero_if_default(0);
+        match p0 {
+            0...8 => Action::SetBellVolume(p0 as u8),
+            _ => Action::More,
+        }
     }
     fn action_DECRQM(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -2266,17 +2302,20 @@ mod test {
         pt!(b"a\x1b[14;13sx", c'a' m m m m m m m m c'x');
         pt!(b"a\x1b[?1041sz", c'a' m m m m m m m SavePrivateMode(SetPrivateMode::UseClipboard)
             c'z');
-
         pt!(b"a\x1b[1tx", c'a' m m m WindowOp(WindowOp::DeIconify) c'x');
         pt!(b"a\x1b[2tx", c'a' m m m WindowOp(WindowOp::Iconify) c'x');
         pt!(b"a\x1b[3;12;13tx", c'a' m m m m m m m m m WindowOp(WindowOp::Move(12,13)) c'x');
-        pt!(b"a\x1b[4;12;13tx", c'a' m m m m m m m m m WindowOp(WindowOp::ResizeWindow(Some(12),Some(13))) c'x');
-        pt!(b"a\x1b[4;;13tx", c'a' m m m m m m m WindowOp(WindowOp::ResizeWindow(None,Some(13))) c'x');
-        pt!(b"a\x1b[4;13;tx", c'a' m m m m m m m WindowOp(WindowOp::ResizeWindow(Some(13),None)) c'x');
+        pt!(b"a\x1b[4;12;13tx", c'a' m m m m m m m m m
+            WindowOp(WindowOp::ResizeWindow(Some(12),Some(13))) c'x');
+        pt!(b"a\x1b[4;;13tx", c'a' m m m m m m m
+            WindowOp(WindowOp::ResizeWindow(None,Some(13))) c'x');
+        pt!(b"a\x1b[4;13;tx", c'a' m m m m m m m
+            WindowOp(WindowOp::ResizeWindow(Some(13),None)) c'x');
         pt!(b"a\x1b[5tx", c'a' m m m WindowOp(WindowOp::Raise) c'x');
         pt!(b"a\x1b[6tx", c'a' m m m WindowOp(WindowOp::Lower) c'x');
         pt!(b"a\x1b[7tx", c'a' m m m WindowOp(WindowOp::Refresh) c'x');
-        pt!(b"a\x1b[8;12;13tx", c'a' m m m m m m m m m WindowOp(WindowOp::ResizeTextArea(Some(12),Some(13))) c'x');
+        pt!(b"a\x1b[8;12;13tx", c'a' m m m m m m m m m
+            WindowOp(WindowOp::ResizeTextArea(Some(12),Some(13))) c'x');
         pt!(b"a\x1b[9;0tx", c'a' m m m m m WindowOp(WindowOp::RestoreMaximized) c'x');
         pt!(b"a\x1b[9;1tx", c'a' m m m m m WindowOp(WindowOp::MaximizeWindow) c'x');
         pt!(b"a\x1b[9;2tx", c'a' m m m m m WindowOp(WindowOp::MaximizeVertically) c'x');
@@ -2302,7 +2341,6 @@ mod test {
         pt!(b"a\x1b[23;1tx", c'a' m m m m m m WindowOp(WindowOp::PopIconTitle) c'x');
         pt!(b"a\x1b[23;2tx", c'a' m m m m m m WindowOp(WindowOp::PopWindowTitle) c'x');
         pt!(b"a\x1b[24tx", c'a' m m m m WindowOp(WindowOp::ResizeLines(24)) c'x');
-
         pt!(b"a\x1b[>0tb", c'a' m m m m SetTitleModes(TitleModes::SetLabelHex) c'b');
         pt!(b"a\x1b[>1tb", c'a' m m m m SetTitleModes(TitleModes::GetLabelHex) c'b');
         pt!(b"a\x1b[>2tb", c'a' m m m m SetTitleModes(TitleModes::SetLabelUtf8) c'b');
@@ -2310,5 +2348,8 @@ mod test {
         pt!(b"a\x1b[>0;1tb", c'a' m m m m m m
             SetTitleModes(TitleModes::SetLabelHex | TitleModes::GetLabelHex) c'b');
         pt!(b"a\x1b[>12;14tb", c'a' m m m m m m m m SetTitleModes(TitleModes::empty()) c'b');
+        pt!(b"a\x1b[0 tx", c'a' m m m m SetBellVolume(0) c'x');
+        pt!(b"a\x1b[8 tx", c'a' m m m m SetBellVolume(8) c'x');
+        pt!(b"a\x1b[9 tx", c'a' m m m m m c'x');
     }
 }

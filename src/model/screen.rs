@@ -813,6 +813,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::SetBellVolume(_) |
             Action::SetMargins(_,_) |
             Action::ChangeAttributesArea(_,_,_,_,_) |
             Action::ScrollRegion(_,_) |
