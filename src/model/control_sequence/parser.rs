@@ -20,7 +20,6 @@
 
 
 use std::char;
-use std::cmp;
 use std::mem;
 
 use super::vt_parse_table::*;
@@ -28,7 +27,7 @@ use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
-                    CharacterProtection};
+                    CharacterProtection, WindowOp};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -827,11 +826,58 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_XTERM_WINOPS(&mut self, _byte: u8) -> Action {
-        let val = self.parameter.zero_if_default(0);
-        let val1 = self.parameter.zero_if_default(1);
-        let val2 = self.parameter.zero_if_default(2);
         self.reset();
-        Action::WindowOps(cmp::min(val, 255) as u8, val1 as usize, val2 as usize)
+        let p0 = self.parameter.zero_if_default(0);
+        match p0 {
+            0 => Action::More,
+            1 => Action::WindowOp(WindowOp::DeIconify),
+            2 => Action::WindowOp(WindowOp::Iconify),
+            3 => Action::WindowOp(WindowOp::Move(self.parameter.zero_if_default(1),self.parameter.zero_if_default(2))),
+            4 => Action::WindowOp(WindowOp::ResizeWindow(self.parameter.maybe(1),self.parameter.maybe(2))),
+            5 => Action::WindowOp(WindowOp::Raise),
+            6 => Action::WindowOp(WindowOp::Lower),
+            7 => Action::WindowOp(WindowOp::Refresh),
+            8 => Action::WindowOp(WindowOp::ResizeTextArea(self.parameter.maybe(1),self.parameter.maybe(2))),
+            9 => match self.parameter.zero_if_default(1){
+                    0 =>    Action::WindowOp(WindowOp::RestoreMaximized),
+                    1 =>  Action::WindowOp(WindowOp::MaximizeWindow),
+                    2 =>  Action::WindowOp(WindowOp::MaximizeVertically),
+                    3 =>  Action::WindowOp(WindowOp::MaximizeHorizontally),
+                    _ => Action::More,
+            },
+            10   => match self.parameter.zero_if_default(1) {
+                0 =>   Action::WindowOp(WindowOp::UndoFullscreen),
+                1 =>   Action::WindowOp(WindowOp::Fullscreen),
+                2 =>   Action::WindowOp(WindowOp::ToggleFullscreen),
+                    _ => Action::More,
+            },
+            11 =>   Action::WindowOp(WindowOp::ReportWindowState),
+            12 => Action::More,
+            13 => if self.parameter.count() == 1 { Action::WindowOp(WindowOp:: ReportWindowPosition)} else if self.parameter.zero_if_default(1) == 2 {
+                Action::WindowOp(WindowOp::ReportTextAreaPosition) } else {Action::More},
+            14 => if self.parameter.count() == 1 { Action::WindowOp(WindowOp:: ReportTextAreaSize)} else if self.parameter.zero_if_default(1) == 2 {
+                Action::WindowOp(WindowOp::ReportWindowSize) } else {Action::More},
+            15 => Action::WindowOp(WindowOp:: ReportScreenSize),
+            16 => Action::WindowOp(WindowOp:: ReportCharacterSize),
+            17 => Action::More,
+            18 => Action::WindowOp(WindowOp:: ReportTextAreaSizeChar),
+            19 => Action::WindowOp(WindowOp:: ReportScreenSizeChar),
+            20 => Action::WindowOp(WindowOp:: ReportIconLabel),
+            21 => Action::WindowOp(WindowOp:: ReportWindowTitle),
+            22 => match self.parameter.zero_if_default(1) {
+                0 => Action::WindowOp( WindowOp::PushIconAndWindowTitle),
+                1 => Action::WindowOp( WindowOp::PushIconTitle),
+                2 => Action::WindowOp( WindowOp::PushWindowTitle),
+                _ => Action::More,
+            },
+            23    => match self.parameter.zero_if_default(1) {
+                0 => Action::WindowOp( WindowOp::PopIconAndWindowTitle),
+                1 => Action::WindowOp( WindowOp::PopIconTitle),
+                2 => Action::WindowOp( WindowOp::PopWindowTitle),
+                _ => Action::More,
+            },
+            _ =>  Action::WindowOp(WindowOp::ResizeLines(p0)),
+        }
     }
     fn action_ENQ(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1599,7 +1645,6 @@ mod test {
 
         pt!(b"a\x1b[ux", c'a' m m RestoreCursor c'x');
         pt!(b"a\x1b[12xy", c'a' m m m m DECREQTPARM c'y');
-        pt!(b"a\x1b[12ty", c'a' m m m m WindowOps(12, 0, 0) c'y');
         pt!(b"a\x1b Fy", c'a' m m Show8BitControl(false) c'y');
         pt!(b"a\x1b Gy", c'a' m m Show8BitControl(true) c'y');
         pt!(b"a\x1b Ly\x1b M\x1b Nz",
@@ -2213,8 +2258,43 @@ mod test {
         pt!(b"a\x1b[sx", c'a' m m SaveCursor c'x');
         pt!(b"a\x1b[12;13sx", c'a' m m m m m m m SetMargins(11,12) c'x');
         pt!(b"a\x1b[14;13sx", c'a' m m m m m m m m c'x');
-
         pt!(b"a\x1b[?1041sz", c'a' m m m m m m m SavePrivateMode(SetPrivateMode::UseClipboard)
             c'z');
+
+        pt!(b"a\x1b[1tx", c'a' m m m WindowOp(WindowOp::DeIconify) c'x');
+        pt!(b"a\x1b[2tx", c'a' m m m WindowOp(WindowOp::Iconify) c'x');
+        pt!(b"a\x1b[3;12;13tx", c'a' m m m m m m m m m WindowOp(WindowOp::Move(12,13)) c'x');
+        pt!(b"a\x1b[4;12;13tx", c'a' m m m m m m m m m WindowOp(WindowOp::ResizeWindow(Some(12),Some(13))) c'x');
+        pt!(b"a\x1b[4;;13tx", c'a' m m m m m m m WindowOp(WindowOp::ResizeWindow(None,Some(13))) c'x');
+        pt!(b"a\x1b[4;13;tx", c'a' m m m m m m m WindowOp(WindowOp::ResizeWindow(Some(13),None)) c'x');
+        pt!(b"a\x1b[5tx", c'a' m m m WindowOp(WindowOp::Raise) c'x');
+        pt!(b"a\x1b[6tx", c'a' m m m WindowOp(WindowOp::Lower) c'x');
+        pt!(b"a\x1b[7tx", c'a' m m m WindowOp(WindowOp::Refresh) c'x');
+        pt!(b"a\x1b[8;12;13tx", c'a' m m m m m m m m m WindowOp(WindowOp::ResizeTextArea(Some(12),Some(13))) c'x');
+        pt!(b"a\x1b[9;0tx", c'a' m m m m m WindowOp(WindowOp::RestoreMaximized) c'x');
+        pt!(b"a\x1b[9;1tx", c'a' m m m m m WindowOp(WindowOp::MaximizeWindow) c'x');
+        pt!(b"a\x1b[9;2tx", c'a' m m m m m WindowOp(WindowOp::MaximizeVertically) c'x');
+        pt!(b"a\x1b[9;3tx", c'a' m m m m m WindowOp(WindowOp::MaximizeHorizontally) c'x');
+        pt!(b"a\x1b[10;0tx", c'a' m m m m m m WindowOp(WindowOp::UndoFullscreen) c'x');
+        pt!(b"a\x1b[10;1tx", c'a' m m m m m m WindowOp(WindowOp::Fullscreen) c'x');
+        pt!(b"a\x1b[10;2tx", c'a' m m m m m m WindowOp(WindowOp::ToggleFullscreen) c'x');
+        pt!(b"a\x1b[11tx", c'a' m m m m WindowOp(WindowOp::ReportWindowState) c'x');
+        pt!(b"a\x1b[13tx", c'a' m m m m WindowOp(WindowOp::ReportWindowPosition) c'x');
+        pt!(b"a\x1b[13;2tx", c'a' m m m m m m WindowOp(WindowOp::ReportTextAreaPosition) c'x');
+        pt!(b"a\x1b[14tx", c'a' m m m m WindowOp(WindowOp::ReportTextAreaSize) c'x');
+        pt!(b"a\x1b[14;2tx", c'a' m m m m m m WindowOp(WindowOp::ReportWindowSize) c'x');
+        pt!(b"a\x1b[15tx", c'a' m m m m WindowOp(WindowOp::ReportScreenSize) c'x');
+        pt!(b"a\x1b[16tx", c'a' m m m m WindowOp(WindowOp::ReportCharacterSize) c'x');
+        pt!(b"a\x1b[18tx", c'a' m m m m WindowOp(WindowOp::ReportTextAreaSizeChar) c'x');
+        pt!(b"a\x1b[19tx", c'a' m m m m WindowOp(WindowOp::ReportScreenSizeChar) c'x');
+        pt!(b"a\x1b[20tx", c'a' m m m m WindowOp(WindowOp::ReportIconLabel) c'x');
+        pt!(b"a\x1b[21tx", c'a' m m m m WindowOp(WindowOp::ReportWindowTitle) c'x');
+        pt!(b"a\x1b[22;0tx", c'a' m m m m m m WindowOp(WindowOp::PushIconAndWindowTitle) c'x');
+        pt!(b"a\x1b[22;1tx", c'a' m m m m m m WindowOp(WindowOp::PushIconTitle) c'x');
+        pt!(b"a\x1b[22;2tx", c'a' m m m m m m WindowOp(WindowOp::PushWindowTitle) c'x');
+        pt!(b"a\x1b[23;0tx", c'a' m m m m m m WindowOp(WindowOp::PopIconAndWindowTitle) c'x');
+        pt!(b"a\x1b[23;1tx", c'a' m m m m m m WindowOp(WindowOp::PopIconTitle) c'x');
+        pt!(b"a\x1b[23;2tx", c'a' m m m m m m WindowOp(WindowOp::PopWindowTitle) c'x');
+        pt!(b"a\x1b[24tx", c'a' m m m m WindowOp(WindowOp::ResizeLines(24)) c'x');
     }
 }

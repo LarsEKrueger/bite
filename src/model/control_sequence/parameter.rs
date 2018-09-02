@@ -83,12 +83,7 @@ impl Parameters {
     }
 
     fn if_default(&self, param_index: u8, min_val: Parameter) -> Parameter {
-        if param_index < self.count {
-            let v = self.values[param_index as usize];
-            if v == DEFAULT { min_val } else { v }
-        } else {
-            min_val
-        }
+        self.maybe(param_index).map_or(min_val,|x| x)
     }
 
     pub fn zero_if_default(&self, param_index: u8) -> Parameter {
@@ -101,6 +96,14 @@ impl Parameters {
 
     pub fn one_if_default(&self, param_index: u8) -> Parameter {
         self.if_default(param_index, 1)
+    }
+
+    pub fn maybe(&self, param_index: u8) -> Option<Parameter> {
+      if param_index < self.count {
+            let v = self.values[param_index as usize];
+            if v == DEFAULT { None } else { Some(v) }
+      }
+      else { None }
     }
 
     pub fn is_empty(&self) -> bool {

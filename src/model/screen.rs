@@ -882,7 +882,7 @@ impl Screen {
             Action::CursorLowerLeft |
             Action::DesignateCharacterSet(_,_) |
             Action::InvokeCharSet(_,_) |
-            Action::WindowOps(_, _, _) |
+            Action::WindowOp(_) |
             Action::Show8BitControl(_) |
             Action::AnsiConformanceLevel(_) |
             Action::GraphicRegister(_,_) |

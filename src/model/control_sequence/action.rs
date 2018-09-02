@@ -51,8 +51,6 @@ pub enum Action {
     DA1(u32),
     DA2(u32),
 
-    WindowOps(u8, usize, usize),
-
     Show8BitControl(bool),
 
     AnsiConformanceLevel(u8),
@@ -196,6 +194,8 @@ pub enum Action {
     ///
     /// left, right. Range in exclusive.
     SetMargins(u32, u32),
+
+    WindowOp(WindowOp),
 }
 
 /// Character set
@@ -465,6 +465,45 @@ pub enum CursorStyle {
 pub enum CharacterProtection {
     CanErase,
     NoErase,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum WindowOp {
+    DeIconify,
+    Iconify,
+    Move(u32,u32),
+    /// If None, don't change. If zero, use display size.
+    ResizeWindow(Option<u32>,Option<u32>),
+    Raise,
+    Lower,
+    Refresh,
+    /// If None, don't change. If zero, use display size.
+    ResizeTextArea(Option<u32>,Option<u32>),
+    RestoreMaximized,
+    MaximizeWindow,
+    MaximizeVertically,
+    MaximizeHorizontally,
+    UndoFullscreen,
+    Fullscreen,
+    ToggleFullscreen,
+    ReportWindowState,
+    ReportWindowPosition,
+    ReportTextAreaPosition,
+    ReportTextAreaSize,
+    ReportWindowSize,
+    ReportScreenSize,
+    ReportCharacterSize,
+    ReportTextAreaSizeChar,
+    ReportScreenSizeChar,
+    ReportIconLabel,
+    ReportWindowTitle,
+    PushIconAndWindowTitle,
+    PushIconTitle,
+    PushWindowTitle,
+    PopIconAndWindowTitle,
+    PopIconTitle,
+    PopWindowTitle,
+    ResizeLines(u32),
 }
 
 impl Action {
