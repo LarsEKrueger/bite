@@ -1020,7 +1020,19 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECCRA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let top = self.parameter.one_if_default(0);
+        let left = self.parameter.one_if_default(1);
+        let bottom = self.parameter.one_if_default(2);
+        let right = self.parameter.one_if_default(3);
+        let from_page = self.parameter.one_if_default(4);
+        let to_top = self.parameter.one_if_default(5);
+        let to_left = self.parameter.one_if_default(6);
+        let to_page = self.parameter.one_if_default(7);
+        if top < bottom && left < right {
+            Action::CopyArea(top,left,bottom,right,from_page,to_top, to_left, to_page)
+
+        } else { Action::More }
     }
     fn action_DECERA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");

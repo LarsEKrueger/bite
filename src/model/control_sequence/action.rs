@@ -195,6 +195,11 @@ pub enum Action {
     /// top, left, bottom, right, attribute. Range is exclusive.
     ReverseAttributesArea(u32, u32, u32, u32, CharacterAttribute),
 
+    /// Copy rectangular area
+    ///
+    /// top, left, bottom, right, from-page, to-top, to-left, to-page
+    CopyArea(u32,u32,u32,u32,u32,u32,u32,u32),
+
     /// Set left and right margins
     ///
     /// left, right. Range in exclusive.
