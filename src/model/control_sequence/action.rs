@@ -164,6 +164,8 @@ pub enum Action {
     MemoryStatusReport(u32),
     DataIntegrityReport,
     MultiSessionReport,
+    CursorInformationReport,
+    TabstopReport,
 
     PointerMode(PointerMode),
     SoftReset,

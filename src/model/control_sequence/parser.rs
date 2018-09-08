@@ -400,6 +400,8 @@ mod action {
                          [0=>BlinkBlock,1=>BlinkBlock,2=>SteadyBlock,3=>BlinkUnderline,
                          4=>SteadyUnderline,5=>BlinkBar,6=>SteadyBar]);
     action_switch_param!(DECSCA,CharacterProtection,[0=>CanErase,1=>NoErase,2=>CanErase]);
+
+    action_switch_param!(DECRQPSR,[1=>CursorInformationReport,2=>TabstopReport]);
 }
 
 impl Parser {
@@ -1289,9 +1291,6 @@ impl Parser {
     fn action_XTERM_POP_SGR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECRQPSR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECSCPP(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -1470,7 +1469,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_XTERM_PUSH_SGR,
     Parser::action_XTERM_REPORT_SGR,
     Parser::action_XTERM_POP_SGR,
-    Parser::action_DECRQPSR,
+    action::DECRQPSR,
     Parser::action_DECSCPP,
     Parser::action_DECSNLS,
 ];
@@ -1547,6 +1546,10 @@ mod test {
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr)
                          $($rest:tt)*) -> ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5),));
+        };
+        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr, $v6:expr,
+                                   $v7:expr, $v8:expr) $($rest:tt)*) -> ($($body:tt)*)) => {
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5,$v6,$v7,$v8),));
         };
         (@accu $str:tt, ($i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i,))
@@ -2420,11 +2423,13 @@ mod test {
         pt!(b"a\x1b[0;1;2;3;7$tx", c'a' m m m m m m m m m m m m
             ReverseAttributesArea(0,1,2,3,CharacterAttribute::Inverse) c'x');
         pt!(b"a\x1b[ux", c'a' m m RestoreCursor c'x');
-
-
         pt!(b"a\x1b[0 ux", c'a' m m m m SetMarginBellVolume(0) c'x');
         pt!(b"a\x1b[8 ux", c'a' m m m m SetMarginBellVolume(8) c'x');
         pt!(b"a\x1b[9 ux", c'a' m m m m m c'x');
+        pt!(b"a\x1b[0;1;2;3;4;5;6;7$vx", c'a' m m m m m m m m m m m m m m m m m m CopyArea(0,1,2,3,4,5,6,7) c'x');
+        pt!(b"a\x1b[0$wx", c'a' m m m m m c'x');
+        pt!(b"a\x1b[1$wx", c'a' m m m m CursorInformationReport c'x');
+        pt!(b"a\x1b[2$wx", c'a' m m m m TabstopReport c'x');
 
     }
 }

@@ -813,6 +813,8 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::CursorInformationReport |
+            Action::TabstopReport |
             Action::CopyArea(_,_,_,_,_,_,_,_) |
             Action::SetMarginBellVolume(_) |
             Action::SetWarningBellVolume(_) |
