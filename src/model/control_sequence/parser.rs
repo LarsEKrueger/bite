@@ -343,6 +343,7 @@ mod action {
     action_state!(CSI_EX_STATE, csi_ex_table);
     action_state!(CSI_QUOTE_STATE, csi_quo_table);
     action_state!(CSI_DEC_DOLLAR_STATE, csi_dec_dollar_table);
+    action_state!(CSI_TICK_STATE,csi_tick_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
@@ -1000,9 +1001,6 @@ impl Parser {
             _ => Action::More,
         }
     }
-    fn action_CSI_TICK_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECELR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
@@ -1010,7 +1008,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECEFR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+         self.reset();
+         let top = self.parameter.one_if_default(0);
+         let left = self.parameter.one_if_default(1);
+         let bottom = self.parameter.one_if_default(2);
+         let right = self.parameter.one_if_default(3);
+         if top < bottom && left < right {
+             Action::EnableFilterArea(top, left, bottom, right)
+         } else {
+             Action::More
+         }
     }
     fn action_DECSLE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1032,9 +1039,19 @@ impl Parser {
         let to_left = self.parameter.one_if_default(6);
         let to_page = self.parameter.one_if_default(7);
         if top < bottom && left < right {
-            Action::CopyArea(top,left,bottom,right,from_page,to_top, to_left, to_page)
-
-        } else { Action::More }
+            Action::CopyArea(
+                top,
+                left,
+                bottom,
+                right,
+                from_page,
+                to_top,
+                to_left,
+                to_page,
+            )
+        } else {
+            Action::More
+        }
     }
     fn action_DECERA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1112,7 +1129,13 @@ impl Parser {
         if top < bottom && left < right {
             match attr {
                 1 => {
-                    Action::ReverseAttributesArea(top, left, bottom, right, CharacterAttribute::Bold)
+                    Action::ReverseAttributesArea(
+                        top,
+                        left,
+                        bottom,
+                        right,
+                        CharacterAttribute::Bold,
+                    )
                 }
                 4 => {
                     Action::ReverseAttributesArea(
@@ -1417,7 +1440,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::DECMC,
     action::ESC_PERCENT,
     Parser::action_UTF8,
-    Parser::action_CSI_TICK_STATE,
+    action::CSI_TICK_STATE,
     Parser::action_DECELR,
     Parser::action_DECRQLP,
     Parser::action_DECEFR,
@@ -1543,13 +1566,18 @@ mod test {
          ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3),));
         };
+        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr)
+                         $($rest:tt)*) -> ($($body:tt)*)) => {
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4),));
+        };
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr)
                          $($rest:tt)*) -> ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5),));
         };
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr, $v6:expr,
                                    $v7:expr, $v8:expr) $($rest:tt)*) -> ($($body:tt)*)) => {
-            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5,$v6,$v7,$v8),));
+            pt!(@accu $str, ($($rest)*) -> ($($body)*
+                                            Action::$i($v1,$v2,$v3,$v4,$v5,$v6,$v7,$v8),));
         };
         (@accu $str:tt, ($i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i,))
@@ -2426,10 +2454,11 @@ mod test {
         pt!(b"a\x1b[0 ux", c'a' m m m m SetMarginBellVolume(0) c'x');
         pt!(b"a\x1b[8 ux", c'a' m m m m SetMarginBellVolume(8) c'x');
         pt!(b"a\x1b[9 ux", c'a' m m m m m c'x');
-        pt!(b"a\x1b[0;1;2;3;4;5;6;7$vx", c'a' m m m m m m m m m m m m m m m m m m CopyArea(0,1,2,3,4,5,6,7) c'x');
+        pt!(b"a\x1b[0;1;2;3;4;5;6;7$vx", c'a' m m m m m m m m m m m m m m m m m m
+            CopyArea(0,1,2,3,4,5,6,7) c'x');
         pt!(b"a\x1b[0$wx", c'a' m m m m m c'x');
         pt!(b"a\x1b[1$wx", c'a' m m m m CursorInformationReport c'x');
         pt!(b"a\x1b[2$wx", c'a' m m m m TabstopReport c'x');
-
+        pt!(b"a\x1b[0;1;2;3'wx", c'a' m m m m m m m m m m EnableFilterArea(0,1,2,3) c'x');
     }
 }

@@ -1061,8 +1061,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-
-#[allow(dead_code)]
 pub static csi_tick_table:CaseTable =	/* CSI ... ' */
 [
 /*	NUL		SOH		STX		ETX	*/

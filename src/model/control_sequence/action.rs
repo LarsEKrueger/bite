@@ -200,7 +200,12 @@ pub enum Action {
     /// Copy rectangular area
     ///
     /// top, left, bottom, right, from-page, to-top, to-left, to-page
-    CopyArea(u32,u32,u32,u32,u32,u32,u32,u32),
+    CopyArea(u32, u32, u32, u32, u32, u32, u32, u32),
+
+    /// Enable filter area
+    ///
+    /// top, left, bottom, right. Range is exclusive.
+    EnableFilterArea(u32, u32, u32, u32),
 
     /// Set left and right margins
     ///

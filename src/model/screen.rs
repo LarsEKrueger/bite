@@ -815,6 +815,7 @@ impl Screen {
             }
             Action::CursorInformationReport |
             Action::TabstopReport |
+            Action::EnableFilterArea(_,_,_,_) |
             Action::CopyArea(_,_,_,_,_,_,_,_) |
             Action::SetMarginBellVolume(_) |
             Action::SetWarningBellVolume(_) |
