@@ -814,6 +814,7 @@ impl Screen {
             Action::CursorInformationReport |
             Action::TabstopReport |
             Action::EnableFilterArea(_,_,_,_) |
+            Action::ChecksumArea(_,_,_,_,_,_) |
             Action::FillArea(_,_,_,_,_) |
             Action::CopyArea(_,_,_,_,_,_,_,_) |
             Action::SetMarginBellVolume(_) |

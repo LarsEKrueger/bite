@@ -1270,7 +1270,18 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECRQCRA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let code = self.parameter.zero_if_default(0);
+        let page = self.parameter.zero_if_default(1);
+        let top = self.parameter.one_if_default(2);
+        let left = self.parameter.one_if_default(3);
+        let bottom = self.parameter.one_if_default(4);
+        let right = self.parameter.one_if_default(5);
+        if top < bottom && left < right {
+            Action::ChecksumArea(code, page, top, left, bottom, right)
+        } else {
+            Action::More
+        }
     }
     fn action_ESC_COLON(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1579,6 +1590,10 @@ mod test {
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr)
                          $($rest:tt)*) -> ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5),));
+        };
+        (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr, $v6:expr)
+                         $($rest:tt)*) -> ($($body:tt)*)) => {
+            pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1,$v2,$v3,$v4,$v5,$v6),));
         };
         (@accu $str:tt, ($i:ident ($v1:expr, $v2:expr, $v3:expr, $v4:expr, $v5:expr, $v6:expr,
                                    $v7:expr, $v8:expr) $($rest:tt)*) -> ($($body:tt)*)) => {
@@ -2472,7 +2487,8 @@ mod test {
         pt!(b"a\x1b[2*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Rectangle)
             c'w');
         pt!(b"a\x1b[3*xw", c'a' m m m m m c'w');
-
         pt!(b"a\x1b[0;1;2;3;4$xy", c'a' m m m m m m m m m m m m FillArea(0,1,2,3,4) c'y');
+        pt!(b"a\x1b[12;0;1;2;3;4*yx", c'a' m m m m m m m m m m m m m m m ChecksumArea(12,0,1,2,3,4)
+            c'x');
     }
 }

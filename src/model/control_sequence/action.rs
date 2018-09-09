@@ -211,6 +211,11 @@ pub enum Action {
     /// character code, top, left, bottom, right. Range is exclusive.
     FillArea(u32, u32, u32, u32, u32),
 
+    /// Compute checksum of area
+    ///
+    /// id, page, top, left, bottom, right. Range is exclusive.
+    ChecksumArea(u32, u32, u32, u32, u32, u32),
+
     /// Set left and right margins
     ///
     /// left, right. Range in exclusive.
