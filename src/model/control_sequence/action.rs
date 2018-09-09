@@ -233,6 +233,11 @@ pub enum Action {
     SetMarginBellVolume(u8),
 
     AttributeChangeExtent(AttributeChangeExtent),
+
+    /// Select locator events.
+    ///
+    /// Events to set, Events to clear
+    SelectLocatorEvents(LocatorEvents,LocatorEvents),
 }
 
 /// Character set
@@ -560,6 +565,14 @@ pub enum LocatorReportEnable {
 pub enum LocatorReportUnit {
     Character,
     Device,
+}
+
+bitflags! {
+    pub struct LocatorEvents: u8 {
+        const HostRequest  = 0b0001;
+        const ButtonDown  = 0b0010;
+        const ButtonUp = 0b0100;
+    }
 }
 
 impl Action {

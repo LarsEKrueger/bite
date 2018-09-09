@@ -809,6 +809,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::SelectLocatorEvents(_,_) |
             Action::EraseArea(_,_,_,_) |
             Action::LocatorReport(_,_) |
             Action::AttributeChangeExtent(_) |

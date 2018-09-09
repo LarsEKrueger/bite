@@ -28,7 +28,7 @@ use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
                     CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable,
-                    LocatorReportUnit};
+                    LocatorReportUnit, LocatorEvents};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -1039,7 +1039,24 @@ impl Parser {
         }
     }
     fn action_DECSLE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let mut set = LocatorEvents::empty();
+        let mut reset = LocatorEvents::empty();
+        if self.parameter.is_empty() {
+                set.insert( LocatorEvents::HostRequest);
+        } else {
+            for p in self.parameter.iter() {
+                match p {
+                    0 => set.insert( LocatorEvents::HostRequest),
+                    1 => set.insert( LocatorEvents::ButtonDown),
+                    2 => reset.insert( LocatorEvents::ButtonDown),
+                    3 => set.insert( LocatorEvents::ButtonUp),
+                    4 => reset.insert( LocatorEvents::ButtonUp),
+                    _ => {},
+                }
+            }
+        }
+        Action::SelectLocatorEvents(set,reset)
     }
     fn action_VT52_IGNORE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2536,7 +2553,9 @@ mod test {
             LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Character) c'b');
         pt!(b"a\x1b[3;2'zb", c'a' m m m m m m m c'b');
         pt!(b"a\x1b[2;3'zb", c'a' m m m m m m m c'b');
-
         pt!(b"a\x1b[0;1;2;3$zc", c'a' m m m m m m m m m m EraseArea(0,1,2,3) c'c');
+
+        pt!(b"a\x1b[0'{k", c'a' m m m m SelectLocatorEvents(LocatorEvents::HostRequest, LocatorEvents::empty()) c'k');
+        pt!(b"a\x1b[1;2;3;4'{k", c'a' m m m m m m m m m m SelectLocatorEvents(LocatorEvents::ButtonDown | LocatorEvents::ButtonUp, LocatorEvents::ButtonDown | LocatorEvents::ButtonUp) c'k');
     }
 }
