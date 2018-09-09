@@ -292,7 +292,6 @@ mod action {
     action_reset!(DECFI, DecForwardIndex);
     action_reset!(DECKPAM, DecApplicationKeypad, true);
     action_reset!(DECKPNM, DecApplicationKeypad, false);
-    action_reset!(DECREQTPARM, DECREQTPARM);
     action_reset!(DECSWL, DecDoubleWidth, false);
     action_reset!(GROUND_STATE, More);
     action_reset!(HPA, CursorAbsoluteColumn, one_minus);
@@ -403,6 +402,7 @@ mod action {
     action_switch_param!(DECSCA,CharacterProtection,[0=>CanErase,1=>NoErase,2=>CanErase]);
 
     action_switch_param!(DECRQPSR,[1=>CursorInformationReport,2=>TabstopReport]);
+    action_switch_param!(DECREQTPARM, [0=>RequestTerminalParameters,1=>RequestTerminalParameters]);
 }
 
 impl Parser {
@@ -1723,7 +1723,6 @@ mod test {
     fn actions() {
         pt!(b"he\rwo", c'h' c'e' Cr c'w' c'o');
         pt!(b"a\nx", c'a' NewLine c'x');
-        pt!(b"a\x1b[0x\n", c'a' m m m DECREQTPARM NewLine);
 
         // Non-SGR sequence (no escape)
         pt!(b"a[32m", c'a' c'[' c'3' c'2' c'm');
@@ -1775,7 +1774,6 @@ mod test {
             }
         }
 
-        pt!(b"a\x1b[12xy", c'a' m m m m DECREQTPARM c'y');
         pt!(b"a\x1b Fy", c'a' m m Show8BitControl(false) c'y');
         pt!(b"a\x1b Gy", c'a' m m Show8BitControl(true) c'y');
         pt!(b"a\x1b Ly\x1b M\x1b Nz",
@@ -2460,5 +2458,8 @@ mod test {
         pt!(b"a\x1b[1$wx", c'a' m m m m CursorInformationReport c'x');
         pt!(b"a\x1b[2$wx", c'a' m m m m TabstopReport c'x');
         pt!(b"a\x1b[0;1;2;3'wx", c'a' m m m m m m m m m m EnableFilterArea(0,1,2,3) c'x');
+        pt!(b"a\x1b[0xw", c'a' m m m RequestTerminalParameters c'w');
+        pt!(b"a\x1b[1xw", c'a' m m m RequestTerminalParameters c'w');
+        pt!(b"a\x1b[2xw", c'a' m m m m c'w');
     }
 }

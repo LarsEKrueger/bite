@@ -793,10 +793,6 @@ impl Screen {
                 }
                 Event::Ignore
             }
-            Action::DECREQTPARM => {
-                // TODO: Send response
-                Event::Ignore
-            }
             Action::HorizontalMove(n) => {
                 self.cursor.x += n as isize;
                 Event::Ignore
@@ -813,6 +809,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::RequestTerminalParameters |
             Action::CursorInformationReport |
             Action::TabstopReport |
             Action::EnableFilterArea(_,_,_,_) |

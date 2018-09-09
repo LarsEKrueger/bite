@@ -38,8 +38,6 @@ pub enum Action {
     /// A UTF8 character has been completed
     Char(char),
 
-    DECREQTPARM,
-
     SaveCursor,
     RestoreCursor,
 
@@ -166,6 +164,7 @@ pub enum Action {
     MultiSessionReport,
     CursorInformationReport,
     TabstopReport,
+    RequestTerminalParameters,
 
     PointerMode(PointerMode),
     SoftReset,
