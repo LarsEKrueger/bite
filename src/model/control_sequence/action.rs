@@ -215,6 +215,8 @@ pub enum Action {
 
     SetWarningBellVolume(u8),
     SetMarginBellVolume(u8),
+
+    AttributeChangeExtent(AttributeChangeExtent),
 }
 
 /// Character set
@@ -523,6 +525,12 @@ pub enum WindowOp {
     PopIconTitle,
     PopWindowTitle,
     ResizeLines(u32),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AttributeChangeExtent {
+  Wrapped,
+  Rectangle,
 }
 
 impl Action {

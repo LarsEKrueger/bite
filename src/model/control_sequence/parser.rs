@@ -27,7 +27,7 @@ use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
-                    CharacterProtection, WindowOp};
+                    CharacterProtection, WindowOp, AttributeChangeExtent};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -343,6 +343,7 @@ mod action {
     action_state!(CSI_QUOTE_STATE, csi_quo_table);
     action_state!(CSI_DEC_DOLLAR_STATE, csi_dec_dollar_table);
     action_state!(CSI_TICK_STATE,csi_tick_table);
+    action_state!(CSI_STAR_STATE, csi_star_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
@@ -403,6 +404,7 @@ mod action {
 
     action_switch_param!(DECRQPSR,[1=>CursorInformationReport,2=>TabstopReport]);
     action_switch_param!(DECREQTPARM, [0=>RequestTerminalParameters,1=>RequestTerminalParameters]);
+    action_switch_param!(DECSACE,AttributeChangeExtent,[0=>Wrapped,1=>Wrapped,2=>Rectangle]);
 }
 
 impl Parser {
@@ -1062,9 +1064,6 @@ impl Parser {
     fn action_DECSERA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECSACE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECCARA(&mut self, _byte: u8) -> Action {
         self.reset();
         let top = self.parameter.one_if_default(0);
@@ -1169,9 +1168,6 @@ impl Parser {
         } else {
             Action::More
         }
-    }
-    fn action_CSI_STAR_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_SET_MOD_FKEYS(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -1453,10 +1449,10 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_DECERA,
     Parser::action_DECFRA,
     Parser::action_DECSERA,
-    Parser::action_DECSACE,
+    action::DECSACE,
     Parser::action_DECCARA,
     Parser::action_DECRARA,
-    Parser::action_CSI_STAR_STATE,
+    action::CSI_STAR_STATE,
     Parser::action_SET_MOD_FKEYS,
     Parser::action_SET_MOD_FKEYS0,
     action::HIDE_POINTER,
@@ -2461,5 +2457,9 @@ mod test {
         pt!(b"a\x1b[0xw", c'a' m m m RequestTerminalParameters c'w');
         pt!(b"a\x1b[1xw", c'a' m m m RequestTerminalParameters c'w');
         pt!(b"a\x1b[2xw", c'a' m m m m c'w');
+        pt!(b"a\x1b[0*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Wrapped) c'w');
+        pt!(b"a\x1b[1*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Wrapped) c'w');
+        pt!(b"a\x1b[2*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Rectangle) c'w');
+        pt!(b"a\x1b[3*xw", c'a' m m m m m c'w');
     }
 }
