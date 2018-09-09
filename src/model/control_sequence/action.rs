@@ -165,7 +165,7 @@ pub enum Action {
     CursorInformationReport,
     TabstopReport,
     RequestTerminalParameters,
-    LocatorReport(LocatorReportEnable,LocatorReportUnit),
+    LocatorReport(LocatorReportEnable, LocatorReportUnit),
 
     PointerMode(PointerMode),
     SoftReset,
@@ -216,6 +216,11 @@ pub enum Action {
     ///
     /// id, page, top, left, bottom, right. Range is exclusive.
     ChecksumArea(u32, u32, u32, u32, u32, u32),
+
+    /// Erase area
+    ///
+    /// top, left, bottom, right. Range is exclusive.
+    EraseArea(u32, u32, u32, u32),
 
     /// Set left and right margins
     ///
@@ -548,13 +553,13 @@ pub enum AttributeChangeExtent {
 pub enum LocatorReportEnable {
     Off,
     On,
-    Once
+    Once,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum LocatorReportUnit {
     Character,
-    Device
+    Device,
 }
 
 impl Action {

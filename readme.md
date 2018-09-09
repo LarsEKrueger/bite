@@ -245,6 +245,7 @@ non-GUI program.
 * [ ] Syntax highlighting in input line
 * [ ] Implement C1 control codes
 * [ ] Implement mouse tracking sequences more cleanly
+* [ ] Handle rectangluar area parameters correctly, reduce copy/paste
 * [X] Indicate return code of a completed program in the GUI
 * [X] Scroll follows output during program execution
 * [X] Shutdown bash cleanly

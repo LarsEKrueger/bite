@@ -27,7 +27,8 @@ use super::types::{Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
-                    CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable, LocatorReportUnit};
+                    CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable,
+                    LocatorReportUnit};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -1009,16 +1010,16 @@ impl Parser {
             0 => Some(LocatorReportEnable::Off),
             1 => Some(LocatorReportEnable::On),
             2 => Some(LocatorReportEnable::Once),
-            _ => None
+            _ => None,
         };
         let unit = match self.parameter.zero_if_default(1) {
             0 => Some(LocatorReportUnit::Character),
             1 => Some(LocatorReportUnit::Device),
             2 => Some(LocatorReportUnit::Character),
-            _ => None
+            _ => None,
         };
-        match (enable,unit) {
-            (Some(e),Some(u)) => Action::LocatorReport(e,u),
+        match (enable, unit) {
+            (Some(e), Some(u)) => Action::LocatorReport(e, u),
             _ => Action::More,
         }
     }
@@ -1072,7 +1073,16 @@ impl Parser {
         }
     }
     fn action_DECERA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let top = self.parameter.one_if_default(0);
+        let left = self.parameter.one_if_default(1);
+        let bottom = self.parameter.one_if_default(2);
+        let right = self.parameter.one_if_default(3);
+        if top < bottom && left < right {
+            Action::EraseArea(top, left, bottom, right)
+        } else {
+            Action::More
+        }
     }
     fn action_DECFRA(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -2506,16 +2516,27 @@ mod test {
         pt!(b"a\x1b[0;1;2;3;4$xy", c'a' m m m m m m m m m m m m FillArea(0,1,2,3,4) c'y');
         pt!(b"a\x1b[12;0;1;2;3;4*yx", c'a' m m m m m m m m m m m m m m m ChecksumArea(12,0,1,2,3,4)
             c'x');
-        pt!(b"a\x1b[0;0'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::Off,LocatorReportUnit::Character) c'b');
-        pt!(b"a\x1b[1;0'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::On,LocatorReportUnit::Character) c'b');
-        pt!(b"a\x1b[2;0'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Character) c'b');
-        pt!(b"a\x1b[0;1'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::Off,LocatorReportUnit::Device) c'b');
-        pt!(b"a\x1b[1;1'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::On,LocatorReportUnit::Device) c'b');
-        pt!(b"a\x1b[2;1'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Device) c'b');
-        pt!(b"a\x1b[0;2'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::Off,LocatorReportUnit::Character) c'b');
-        pt!(b"a\x1b[1;2'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::On,LocatorReportUnit::Character) c'b');
-        pt!(b"a\x1b[2;2'zb", c'a' m m m m m m LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Character) c'b');
+        pt!(b"a\x1b[0;0'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::Off,LocatorReportUnit::Character) c'b');
+        pt!(b"a\x1b[1;0'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::On,LocatorReportUnit::Character) c'b');
+        pt!(b"a\x1b[2;0'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Character) c'b');
+        pt!(b"a\x1b[0;1'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::Off,LocatorReportUnit::Device) c'b');
+        pt!(b"a\x1b[1;1'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::On,LocatorReportUnit::Device) c'b');
+        pt!(b"a\x1b[2;1'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Device) c'b');
+        pt!(b"a\x1b[0;2'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::Off,LocatorReportUnit::Character) c'b');
+        pt!(b"a\x1b[1;2'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::On,LocatorReportUnit::Character) c'b');
+        pt!(b"a\x1b[2;2'zb", c'a' m m m m m m
+            LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Character) c'b');
         pt!(b"a\x1b[3;2'zb", c'a' m m m m m m m c'b');
         pt!(b"a\x1b[2;3'zb", c'a' m m m m m m m c'b');
+
+        pt!(b"a\x1b[0;1;2;3$zc", c'a' m m m m m m m m m m EraseArea(0,1,2,3) c'c');
     }
 }
