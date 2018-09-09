@@ -809,6 +809,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::LocatorReport(_,_) |
             Action::AttributeChangeExtent(_) |
             Action::RequestTerminalParameters |
             Action::CursorInformationReport |

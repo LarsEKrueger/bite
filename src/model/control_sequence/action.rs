@@ -165,6 +165,7 @@ pub enum Action {
     CursorInformationReport,
     TabstopReport,
     RequestTerminalParameters,
+    LocatorReport(LocatorReportEnable,LocatorReportUnit),
 
     PointerMode(PointerMode),
     SoftReset,
@@ -541,6 +542,19 @@ pub enum WindowOp {
 pub enum AttributeChangeExtent {
     Wrapped,
     Rectangle,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LocatorReportEnable {
+    Off,
+    On,
+    Once
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LocatorReportUnit {
+    Character,
+    Device
 }
 
 impl Action {
