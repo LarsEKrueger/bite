@@ -342,7 +342,7 @@ mod action {
     action_state!(CSI_EX_STATE, csi_ex_table);
     action_state!(CSI_QUOTE_STATE, csi_quo_table);
     action_state!(CSI_DEC_DOLLAR_STATE, csi_dec_dollar_table);
-    action_state!(CSI_TICK_STATE,csi_tick_table);
+    action_state!(CSI_TICK_STATE, csi_tick_table);
     action_state!(CSI_STAR_STATE, csi_star_table);
 
     action_string!(APC, Apc);
@@ -1010,16 +1010,16 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECEFR(&mut self, _byte: u8) -> Action {
-         self.reset();
-         let top = self.parameter.one_if_default(0);
-         let left = self.parameter.one_if_default(1);
-         let bottom = self.parameter.one_if_default(2);
-         let right = self.parameter.one_if_default(3);
-         if top < bottom && left < right {
-             Action::EnableFilterArea(top, left, bottom, right)
-         } else {
-             Action::More
-         }
+        self.reset();
+        let top = self.parameter.one_if_default(0);
+        let left = self.parameter.one_if_default(1);
+        let bottom = self.parameter.one_if_default(2);
+        let right = self.parameter.one_if_default(3);
+        if top < bottom && left < right {
+            Action::EnableFilterArea(top, left, bottom, right)
+        } else {
+            Action::More
+        }
     }
     fn action_DECSLE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1059,7 +1059,17 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECFRA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let c = self.parameter.zero_if_default(0);
+        let top = self.parameter.one_if_default(1);
+        let left = self.parameter.one_if_default(2);
+        let bottom = self.parameter.one_if_default(3);
+        let right = self.parameter.one_if_default(4);
+        if top < bottom && left < right {
+            Action::FillArea(c, top, left, bottom, right)
+        } else {
+            Action::More
+        }
     }
     fn action_DECSERA(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2459,7 +2469,10 @@ mod test {
         pt!(b"a\x1b[2xw", c'a' m m m m c'w');
         pt!(b"a\x1b[0*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Wrapped) c'w');
         pt!(b"a\x1b[1*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Wrapped) c'w');
-        pt!(b"a\x1b[2*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Rectangle) c'w');
+        pt!(b"a\x1b[2*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Rectangle)
+            c'w');
         pt!(b"a\x1b[3*xw", c'a' m m m m m c'w');
+
+        pt!(b"a\x1b[0;1;2;3;4$xy", c'a' m m m m m m m m m m m m FillArea(0,1,2,3,4) c'y');
     }
 }

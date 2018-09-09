@@ -206,6 +206,11 @@ pub enum Action {
     /// top, left, bottom, right. Range is exclusive.
     EnableFilterArea(u32, u32, u32, u32),
 
+    /// Fill area
+    ///
+    /// character code, top, left, bottom, right. Range is exclusive.
+    FillArea(u32, u32, u32, u32, u32),
+
     /// Set left and right margins
     ///
     /// left, right. Range in exclusive.
@@ -529,8 +534,8 @@ pub enum WindowOp {
 
 #[derive(Debug, PartialEq)]
 pub enum AttributeChangeExtent {
-  Wrapped,
-  Rectangle,
+    Wrapped,
+    Rectangle,
 }
 
 impl Action {
