@@ -28,7 +28,7 @@ use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
                     CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable,
-                    LocatorReportUnit, LocatorEvents};
+                    LocatorReportUnit, LocatorEvents, VideoAttributes};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -345,6 +345,7 @@ mod action {
     action_state!(CSI_DEC_DOLLAR_STATE, csi_dec_dollar_table);
     action_state!(CSI_TICK_STATE, csi_tick_table);
     action_state!(CSI_STAR_STATE, csi_star_table);
+    action_state!(CSI_HASH_STATE, csi_hash_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
@@ -1043,20 +1044,20 @@ impl Parser {
         let mut set = LocatorEvents::empty();
         let mut reset = LocatorEvents::empty();
         if self.parameter.is_empty() {
-                set.insert( LocatorEvents::HostRequest);
+            set.insert(LocatorEvents::HostRequest);
         } else {
             for p in self.parameter.iter() {
                 match p {
-                    0 => set.insert( LocatorEvents::HostRequest),
-                    1 => set.insert( LocatorEvents::ButtonDown),
-                    2 => reset.insert( LocatorEvents::ButtonDown),
-                    3 => set.insert( LocatorEvents::ButtonUp),
-                    4 => reset.insert( LocatorEvents::ButtonUp),
-                    _ => {},
+                    0 => set.insert(LocatorEvents::HostRequest),
+                    1 => set.insert(LocatorEvents::ButtonDown),
+                    2 => reset.insert(LocatorEvents::ButtonDown),
+                    3 => set.insert(LocatorEvents::ButtonUp),
+                    4 => reset.insert(LocatorEvents::ButtonUp),
+                    _ => {}
                 }
             }
         }
-        Action::SelectLocatorEvents(set,reset)
+        Action::SelectLocatorEvents(set, reset)
     }
     fn action_VT52_IGNORE(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1362,11 +1363,30 @@ impl Parser {
             _ => Action::More,
         }
     }
-    fn action_CSI_HASH_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_XTERM_PUSH_SGR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let mut set = VideoAttributes::empty();
+        if self.parameter.is_empty() {
+            set = VideoAttributes::all();
+        } else {
+            for p in self.parameter.iter() {
+                set.insert(match p {
+                    1 => VideoAttributes::Bold,
+                    2 => VideoAttributes::Faint,
+                    3 => VideoAttributes::Italicized,
+                    4 => VideoAttributes::Underlined,
+                    5 => VideoAttributes::Blink,
+                    7 => VideoAttributes::Inverse,
+                    8 => VideoAttributes::Invisible,
+                    9 => VideoAttributes::CrossedOut,
+                    10 => VideoAttributes::Foreground,
+                    11 => VideoAttributes::Background,
+                    21 => VideoAttributes::DoublyUnderlined,
+                    _ => VideoAttributes::empty(),
+                });
+            }
+        }
+        Action::PushVideoAttributes(set)
     }
     fn action_XTERM_REPORT_SGR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -1548,7 +1568,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::SCS_PERCENT,
     Parser::action_GSETS_PERCENT,
     Parser::action_GRAPHICS_ATTRIBUTES,
-    Parser::action_CSI_HASH_STATE,
+    action::CSI_HASH_STATE,
     Parser::action_XTERM_PUSH_SGR,
     Parser::action_XTERM_REPORT_SGR,
     Parser::action_XTERM_POP_SGR,
@@ -2554,8 +2574,22 @@ mod test {
         pt!(b"a\x1b[3;2'zb", c'a' m m m m m m m c'b');
         pt!(b"a\x1b[2;3'zb", c'a' m m m m m m m c'b');
         pt!(b"a\x1b[0;1;2;3$zc", c'a' m m m m m m m m m m EraseArea(0,1,2,3) c'c');
-
-        pt!(b"a\x1b[0'{k", c'a' m m m m SelectLocatorEvents(LocatorEvents::HostRequest, LocatorEvents::empty()) c'k');
-        pt!(b"a\x1b[1;2;3;4'{k", c'a' m m m m m m m m m m SelectLocatorEvents(LocatorEvents::ButtonDown | LocatorEvents::ButtonUp, LocatorEvents::ButtonDown | LocatorEvents::ButtonUp) c'k');
+        pt!(b"a\x1b[0'{k", c'a' m m m m SelectLocatorEvents(LocatorEvents::HostRequest,
+                                                            LocatorEvents::empty()) c'k');
+        pt!(b"a\x1b[1;2;3;4'{k", c'a' m m m m m m m m m m
+            SelectLocatorEvents(LocatorEvents::ButtonDown | LocatorEvents::ButtonUp,
+                                LocatorEvents::ButtonDown | LocatorEvents::ButtonUp) c'k');
+        pt!(b"a\x1b[#{x", c'a' m m m PushVideoAttributes(VideoAttributes::all()) c'x');
+        pt!(b"a\x1b[0;1#{x", c'a' m m m m m m PushVideoAttributes(VideoAttributes::Bold) c'x');
+        pt!(b"a\x1b[2;3#{x", c'a' m m m m m m
+            PushVideoAttributes(VideoAttributes::Faint | VideoAttributes::Italicized) c'x');
+        pt!(b"a\x1b[4;6;5#{x", c'a' m m m m m m m m
+            PushVideoAttributes(VideoAttributes::Underlined | VideoAttributes::Blink) c'x');
+        pt!(b"a\x1b[7;8;9#{x", c'a' m m m m m m m m
+            PushVideoAttributes(VideoAttributes::Inverse | VideoAttributes::Invisible |
+                                VideoAttributes::CrossedOut) c'x');
+        pt!(b"a\x1b[10;11;21#{x", c'a' m m m m m m m m m m m
+            PushVideoAttributes(VideoAttributes::Foreground | VideoAttributes::Background |
+                                VideoAttributes::DoublyUnderlined) c'x');
     }
 }

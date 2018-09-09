@@ -1225,7 +1225,6 @@ Case::DECDC,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
 pub static csi_hash_table:CaseTable =	/* CSI ... # */
 [
 /*	NUL		SOH		STX		ETX	*/

@@ -237,7 +237,9 @@ pub enum Action {
     /// Select locator events.
     ///
     /// Events to set, Events to clear
-    SelectLocatorEvents(LocatorEvents,LocatorEvents),
+    SelectLocatorEvents(LocatorEvents, LocatorEvents),
+
+    PushVideoAttributes(VideoAttributes),
 }
 
 /// Character set
@@ -572,6 +574,22 @@ bitflags! {
         const HostRequest  = 0b0001;
         const ButtonDown  = 0b0010;
         const ButtonUp = 0b0100;
+    }
+}
+
+bitflags! {
+    pub struct VideoAttributes: u16 {
+        const Bold          = 0b00000000001;
+        const Faint         = 0b00000000001;
+        const Italicized            = 0b00000000001;
+        const Underlined            = 0b00000000001;
+        const Blink         = 0b00000000001;
+        const Inverse           = 0b00000000001;
+        const Invisible         = 0b00000000001;
+        const CrossedOut            = 0b00000000001;
+        const DoublyUnderlined          = 0b00000000001;
+        const Foreground          = 0b00000000001;
+        const Background          = 0b00000000001;
     }
 }
 
