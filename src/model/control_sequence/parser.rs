@@ -1097,7 +1097,7 @@ impl Parser {
         let bottom = self.parameter.one_if_default(2);
         let right = self.parameter.one_if_default(3);
         if top < bottom && left < right {
-            Action::EraseArea(top, left, bottom, right)
+            Action::EraseArea(top, left, bottom, right, false)
         } else {
             Action::More
         }
@@ -1116,7 +1116,16 @@ impl Parser {
         }
     }
     fn action_DECSERA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let top = self.parameter.one_if_default(0);
+        let left = self.parameter.one_if_default(1);
+        let bottom = self.parameter.one_if_default(2);
+        let right = self.parameter.one_if_default(3);
+        if top < bottom && left < right {
+            Action::EraseArea(top-1, left-1, bottom-1, right-1, true)
+        } else {
+            Action::More
+        }
     }
     fn action_DECCARA(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -2573,7 +2582,7 @@ mod test {
             LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Character) c'b');
         pt!(b"a\x1b[3;2'zb", c'a' m m m m m m m c'b');
         pt!(b"a\x1b[2;3'zb", c'a' m m m m m m m c'b');
-        pt!(b"a\x1b[0;1;2;3$zc", c'a' m m m m m m m m m m EraseArea(0,1,2,3) c'c');
+        pt!(b"a\x1b[0;1;2;3$zc", c'a' m m m m m m m m m m EraseArea(0,1,2,3,false) c'c');
         pt!(b"a\x1b[0'{k", c'a' m m m m SelectLocatorEvents(LocatorEvents::HostRequest,
                                                             LocatorEvents::empty()) c'k');
         pt!(b"a\x1b[1;2;3;4'{k", c'a' m m m m m m m m m m
@@ -2591,5 +2600,7 @@ mod test {
         pt!(b"a\x1b[10;11;21#{x", c'a' m m m m m m m m m m m
             PushVideoAttributes(VideoAttributes::Foreground | VideoAttributes::Background |
                                 VideoAttributes::DoublyUnderlined) c'x');
+        pt!(b"a\x1b[1;2;3;4${x", c'a' m m m m m m m m m m EraseArea(0,1,2,3,true) c'x');
+
     }
 }

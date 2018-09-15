@@ -811,7 +811,7 @@ impl Screen {
             }
             Action::PushVideoAttributes(_) |
             Action::SelectLocatorEvents(_,_) |
-            Action::EraseArea(_,_,_,_) |
+            Action::EraseArea(_,_,_,_,_) |
             Action::LocatorReport(_,_) |
             Action::AttributeChangeExtent(_) |
             Action::RequestTerminalParameters |

@@ -219,8 +219,8 @@ pub enum Action {
 
     /// Erase area
     ///
-    /// top, left, bottom, right. Range is exclusive.
-    EraseArea(u32, u32, u32, u32),
+    /// top, left, bottom, right, true=selective. Range is exclusive.
+    EraseArea(u32, u32, u32, u32, bool),
 
     /// Set left and right margins
     ///
