@@ -813,6 +813,7 @@ impl Screen {
             Action::RequestLocatorPosition |
             Action::ColumnsPerPage(_) |
             Action::ReportRendition(_,_,_,_) |
+            Action::PopVideoAttributes |
             Action::PushVideoAttributes(_) |
             Action::SelectLocatorEvents(_,_) |
             Action::EraseArea(_,_,_,_,_) |

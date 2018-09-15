@@ -249,6 +249,7 @@ pub enum Action {
     LinesPerScreen(u32),
 
     PushVideoAttributes(VideoAttributes),
+    PopVideoAttributes,
 }
 
 /// Character set

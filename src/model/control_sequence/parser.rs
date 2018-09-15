@@ -320,6 +320,7 @@ mod action {
     action_reset!(VPA, VerticalPositionAbsolute, one_minus);
     action_reset!(VPR, VerticalPositionRelative, one_minus);
     action_reset!(DECSTR, SoftReset);
+    action_reset!(XTERM_POP_SGR,PopVideoAttributes);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -1407,9 +1408,6 @@ impl Parser {
             Action::More
         }
     }
-    fn action_XTERM_POP_SGR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECSCPP(&mut self, _byte: u8) -> Action {
         self.reset();
         let columns = self.parameter.zero_if_default(0);
@@ -1597,7 +1595,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::CSI_HASH_STATE,
     Parser::action_XTERM_PUSH_SGR,
     Parser::action_XTERM_REPORT_SGR,
-    Parser::action_XTERM_POP_SGR,
+    action::XTERM_POP_SGR,
     action::DECRQPSR,
     Parser::action_DECSCPP,
     Parser::action_DECSNLS,
@@ -2627,5 +2625,6 @@ mod test {
         pt!(b"a\x1b[1'|x", c'a' m m m m RequestLocatorPosition c'x');
         pt!(b"a\x1b[2'|x", c'a' m m m m m c'x');
         pt!(b"a\x1b[12*|x", c'a' m m m m m LinesPerScreen(12) c'x');
+        pt!(b"a\x1b[#}x", c'a' m m m PopVideoAttributes c'x');
     }
 }
