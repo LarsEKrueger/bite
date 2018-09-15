@@ -1411,7 +1411,13 @@ impl Parser {
         panic!("Not implemented");
     }
     fn action_DECSCPP(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let columns = self.parameter.zero_if_default(0);
+        match columns {
+            0 | 80 => Action::ColumnsPerPage(80),
+            132 => Action::ColumnsPerPage(132),
+            _ => Action::More,
+        }
     }
     fn action_DECSNLS(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2608,8 +2614,11 @@ mod test {
             PushVideoAttributes(VideoAttributes::Foreground | VideoAttributes::Background |
                                 VideoAttributes::DoublyUnderlined) c'x');
         pt!(b"a\x1b[1;2;3;4${x", c'a' m m m m m m m m m m EraseArea(0,1,2,3,true) c'x');
-
         pt!(b"a\x1b[1;2;3;4#|x", c'a' m m m m m m m m m m ReportRendition(0,1,2,3) c'x');
+        pt!(b"a\x1b[0$|x", c'a' m m m m ColumnsPerPage(80) c'x');
+        pt!(b"a\x1b[80$|x", c'a' m m m m m ColumnsPerPage(80) c'x');
+        pt!(b"a\x1b[132$|x", c'a' m m m m m m ColumnsPerPage(132) c'x');
+        pt!(b"a\x1b[133$|x", c'a' m m m m m m m c'x');
         pt!(b"a\x1b[0'|x", c'a' m m m m RequestLocatorPosition c'x');
         pt!(b"a\x1b[1'|x", c'a' m m m m RequestLocatorPosition c'x');
         pt!(b"a\x1b[2'|x", c'a' m m m m m c'x');

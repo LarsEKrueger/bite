@@ -241,6 +241,11 @@ pub enum Action {
     /// Events to set, Events to clear
     SelectLocatorEvents(LocatorEvents, LocatorEvents),
 
+    /// Number of columns per page.
+    ///
+    /// Only 80 and 132 are standard and therefore accepted.
+    ColumnsPerPage(u32),
+
     PushVideoAttributes(VideoAttributes),
 }
 

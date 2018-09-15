@@ -810,6 +810,7 @@ impl Screen {
                 Event::Ignore
             }
             Action::RequestLocatorPosition |
+            Action::ColumnsPerPage(_) |
             Action::ReportRendition(_,_,_,_) |
             Action::PushVideoAttributes(_) |
             Action::SelectLocatorEvents(_,_) |
