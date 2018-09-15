@@ -407,6 +407,7 @@ mod action {
     action_switch_param!(DECRQPSR,[1=>CursorInformationReport,2=>TabstopReport]);
     action_switch_param!(DECREQTPARM, [0=>RequestTerminalParameters,1=>RequestTerminalParameters]);
     action_switch_param!(DECSACE,AttributeChangeExtent,[0=>Wrapped,1=>Wrapped,2=>Rectangle]);
+    action_switch_param!(DECRQLP,[0=>RequestLocatorPosition,1=>RequestLocatorPosition]);
 }
 
 impl Parser {
@@ -1024,9 +1025,6 @@ impl Parser {
             _ => Action::More,
         }
     }
-    fn action_DECRQLP(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECEFR(&mut self, _byte: u8) -> Action {
         self.reset();
         let top = self.parameter.one_if_default(0);
@@ -1540,7 +1538,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_UTF8,
     action::CSI_TICK_STATE,
     Parser::action_DECELR,
-    Parser::action_DECRQLP,
+    action::DECRQLP,
     Parser::action_DECEFR,
     Parser::action_DECSLE,
     action::CSI_IGNORE,
@@ -2612,5 +2610,8 @@ mod test {
         pt!(b"a\x1b[1;2;3;4${x", c'a' m m m m m m m m m m EraseArea(0,1,2,3,true) c'x');
 
         pt!(b"a\x1b[1;2;3;4#|x", c'a' m m m m m m m m m m ReportRendition(0,1,2,3) c'x');
+        pt!(b"a\x1b[0'|x", c'a' m m m m RequestLocatorPosition c'x');
+        pt!(b"a\x1b[1'|x", c'a' m m m m RequestLocatorPosition c'x');
+        pt!(b"a\x1b[2'|x", c'a' m m m m m c'x');
     }
 }

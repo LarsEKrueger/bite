@@ -809,6 +809,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::RequestLocatorPosition |
             Action::ReportRendition(_,_,_,_) |
             Action::PushVideoAttributes(_) |
             Action::SelectLocatorEvents(_,_) |
