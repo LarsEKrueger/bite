@@ -28,7 +28,7 @@ use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
                     CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable,
-                    LocatorReportUnit, LocatorEvents, VideoAttributes};
+                    LocatorReportUnit, LocatorEvents, VideoAttributes, TextParameter};
 use super::parameter::{Parameter, Parameters};
 
 /// Parser for control sequences
@@ -352,6 +352,7 @@ mod action {
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
+    action_string!(OSC, Osc);
 
     action_switch_param!(
         param_set_mode, SetMode,
@@ -571,7 +572,20 @@ impl Parser {
     }
 
     fn action_BELL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        if self.string_mode == StringMode::Osc {
+                let mut s = mem::replace(&mut self.string_area, String::new());
+                let _ = s.pop();
+                match self.parameter.zero_if_default(0) {
+                    0 => Action::SetTextParameter(TextParameter::IconAndTitle,s),
+                    1 => Action::SetTextParameter(TextParameter::Icon,s),
+                    2 => Action::SetTextParameter(TextParameter::Title,s),
+                    3 => Action::SetTextParameter(TextParameter::XProperty,s),
+                    _ => Action::More,
+                }
+        } else {
+            Action::Bell
+        }
     }
     fn action_BS(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -823,9 +837,6 @@ impl Parser {
         self.parameter.reset();
         self.parsestate = &csi_table;
         Action::More
-    }
-    fn action_OSC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_PRINT(&mut self, _byte: u8) -> Action {
         panic!("This should not happen: Printable characters have no action.");
@@ -1480,7 +1491,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_SS2,
     Parser::action_SS3,
     Parser::action_CSI_STATE,
-    Parser::action_OSC,
+    action::OSC,
     action::RIS,
     action::LS2,
     action::LS3,
@@ -2626,5 +2637,16 @@ mod test {
         pt!(b"a\x1b['}x", c'a' m m m InsertColumns(1) c'x');
         pt!(b"a\x1b[12'~x", c'a' m m m m m DeleteColumns(12) c'x');
         pt!(b"a\x1b['~x", c'a' m m m DeleteColumns(1) c'x');
+
+        pt!(b"a\x1b]0;Iconic\x07x", c'a' m m m m m m m m m m
+            SetTextParameter(TextParameter::IconAndTitle,"Iconic".to_string()) c'x');
+        pt!(b"a\x1b]1;Iconic\x07x", c'a' m m m m m m m m m m
+            SetTextParameter(TextParameter::Icon,"Iconic".to_string()) c'x');
+        pt!(b"a\x1b]2;Iconic\x07x", c'a' m m m m m m m m m m
+            SetTextParameter(TextParameter::Title,"Iconic".to_string()) c'x');
+        pt!(b"a\x1b]3;Iconic\x07x", c'a' m m m m m m m m m m
+            SetTextParameter(TextParameter::XProperty,"Iconic".to_string()) c'x');
+        pt!(b"a\x1b]3;Iconic\x1b\\x", c'a' m m m m m m m m m m m
+            SetTextParameter(TextParameter::XProperty,"Iconic".to_string()) c'x');
     }
 }

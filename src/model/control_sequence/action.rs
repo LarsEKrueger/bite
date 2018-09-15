@@ -110,6 +110,9 @@ pub enum Action {
     /// TODO: Implement string decoding
     DecUserDefinedKeys(String),
 
+    /// Set text parameter
+    SetTextParameter(TextParameter,String),
+
     InsertCharacters(u32),
     InsertLines(u32),
     InsertColumns(u32),
@@ -235,6 +238,7 @@ pub enum Action {
 
     SetWarningBellVolume(u8),
     SetMarginBellVolume(u8),
+    Bell,
 
     AttributeChangeExtent(AttributeChangeExtent),
 
@@ -290,6 +294,7 @@ pub enum StringMode {
     Apc,
     Pm,
     Dcs,
+    Osc
 }
 
 #[derive(Debug, PartialEq)]
@@ -603,6 +608,14 @@ bitflags! {
         const Foreground          = 0b00000000001;
         const Background          = 0b00000000001;
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TextParameter {
+  IconAndTitle,
+  Icon,
+  Title,
+  XProperty,
 }
 
 impl Action {
