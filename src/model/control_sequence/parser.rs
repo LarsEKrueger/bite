@@ -321,6 +321,8 @@ mod action {
     action_reset!(VPR, VerticalPositionRelative, one_minus);
     action_reset!(DECSTR, SoftReset);
     action_reset!(XTERM_POP_SGR,PopVideoAttributes);
+    action_reset!(DECIC,InsertColumns,one);
+    action_reset!(DECDC, DeleteColumns, one);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -1315,12 +1317,6 @@ impl Parser {
     fn action_SR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_DECDC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECIC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECRQCRA(&mut self, _byte: u8) -> Action {
         self.reset();
         let code = self.parameter.zero_if_default(0);
@@ -1579,8 +1575,8 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::CSI_DEC_DOLLAR_STATE,
     Parser::action_SL,
     Parser::action_SR,
-    Parser::action_DECDC,
-    Parser::action_DECIC,
+    action::DECDC,
+    action::DECIC,
     action::DECBI,
     action::DECFI,
     Parser::action_DECRQCRA,
@@ -2626,5 +2622,9 @@ mod test {
         pt!(b"a\x1b[2'|x", c'a' m m m m m c'x');
         pt!(b"a\x1b[12*|x", c'a' m m m m m LinesPerScreen(12) c'x');
         pt!(b"a\x1b[#}x", c'a' m m m PopVideoAttributes c'x');
+        pt!(b"a\x1b[12'}x", c'a' m m m m m InsertColumns(12) c'x');
+        pt!(b"a\x1b['}x", c'a' m m m InsertColumns(1) c'x');
+        pt!(b"a\x1b[12'~x", c'a' m m m m m DeleteColumns(12) c'x');
+        pt!(b"a\x1b['~x", c'a' m m m DeleteColumns(1) c'x');
     }
 }

@@ -112,6 +112,8 @@ pub enum Action {
 
     InsertCharacters(u32),
     InsertLines(u32),
+    InsertColumns(u32),
+    DeleteColumns(u32),
 
     DeleteLines(u32),
     DeleteCharacters(u32),
