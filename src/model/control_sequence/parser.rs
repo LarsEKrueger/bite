@@ -1420,7 +1420,11 @@ impl Parser {
         }
     }
     fn action_DECSNLS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let lines = self.parameter.zero_if_default(0);
+        if lines >=1 && lines <= 255 {
+            Action::LinesPerScreen(lines)
+        } else {Action::More}
     }
 }
 
@@ -2622,5 +2626,6 @@ mod test {
         pt!(b"a\x1b[0'|x", c'a' m m m m RequestLocatorPosition c'x');
         pt!(b"a\x1b[1'|x", c'a' m m m m RequestLocatorPosition c'x');
         pt!(b"a\x1b[2'|x", c'a' m m m m m c'x');
+        pt!(b"a\x1b[12*|x", c'a' m m m m m LinesPerScreen(12) c'x');
     }
 }

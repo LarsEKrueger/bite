@@ -809,6 +809,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::LinesPerScreen(_) |
             Action::RequestLocatorPosition |
             Action::ColumnsPerPage(_) |
             Action::ReportRendition(_,_,_,_) |

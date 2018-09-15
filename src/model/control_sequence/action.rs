@@ -246,6 +246,8 @@ pub enum Action {
     /// Only 80 and 132 are standard and therefore accepted.
     ColumnsPerPage(u32),
 
+    LinesPerScreen(u32),
+
     PushVideoAttributes(VideoAttributes),
 }
 
