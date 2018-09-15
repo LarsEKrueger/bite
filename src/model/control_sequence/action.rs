@@ -166,6 +166,7 @@ pub enum Action {
     TabstopReport,
     RequestTerminalParameters,
     LocatorReport(LocatorReportEnable, LocatorReportUnit),
+    ReportRendition(u32,u32,u32,u32),
 
     PointerMode(PointerMode),
     SoftReset,

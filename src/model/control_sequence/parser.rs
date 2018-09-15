@@ -1398,7 +1398,16 @@ impl Parser {
         Action::PushVideoAttributes(set)
     }
     fn action_XTERM_REPORT_SGR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        self.reset();
+        let top = self.parameter.one_if_default(0);
+        let left = self.parameter.one_if_default(1);
+        let bottom = self.parameter.one_if_default(2);
+        let right = self.parameter.one_if_default(3);
+        if top < bottom && left < right {
+            Action::ReportRendition(top-1, left-1, bottom-1, right-1)
+        } else {
+            Action::More
+        }
     }
     fn action_XTERM_POP_SGR(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
@@ -2602,5 +2611,6 @@ mod test {
                                 VideoAttributes::DoublyUnderlined) c'x');
         pt!(b"a\x1b[1;2;3;4${x", c'a' m m m m m m m m m m EraseArea(0,1,2,3,true) c'x');
 
+        pt!(b"a\x1b[1;2;3;4#|x", c'a' m m m m m m m m m m ReportRendition(0,1,2,3) c'x');
     }
 }
