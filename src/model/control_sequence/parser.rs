@@ -320,8 +320,8 @@ mod action {
     action_reset!(VPA, VerticalPositionAbsolute, one_minus);
     action_reset!(VPR, VerticalPositionRelative, one_minus);
     action_reset!(DECSTR, SoftReset);
-    action_reset!(XTERM_POP_SGR,PopVideoAttributes);
-    action_reset!(DECIC,InsertColumns,one);
+    action_reset!(XTERM_POP_SGR, PopVideoAttributes);
+    action_reset!(DECIC, InsertColumns, one);
     action_reset!(DECDC, DeleteColumns, one);
 
     action_scs!(SCS0_STATE, scstable, 0);
@@ -571,18 +571,29 @@ impl Parser {
         panic!("This should not happen!");
     }
 
+    fn parse_osc(&mut self) -> Action {
+        let mut s = mem::replace(&mut self.string_area, String::new());
+        let _ = s.pop();
+        if s.len() >= 2 {
+            let n = s.remove(0);
+            let semicolon = s.remove(0);
+            match (n, semicolon) {
+                ('0', ';') => Action::SetTextParameter(TextParameter::IconAndTitle, s),
+                ('1', ';') => Action::SetTextParameter(TextParameter::Icon, s),
+                ('2', ';') => Action::SetTextParameter(TextParameter::Title, s),
+                ('3', ';') => Action::SetTextParameter(TextParameter::XProperty, s),
+                ('4', ';') => Action::SetTextParameter(TextParameter::NamedColor, s),
+                _ => Action::More,
+            }
+        } else {
+            Action::More
+        }
+    }
+
     fn action_BELL(&mut self, _byte: u8) -> Action {
         self.reset();
         if self.string_mode == StringMode::Osc {
-                let mut s = mem::replace(&mut self.string_area, String::new());
-                let _ = s.pop();
-                match self.parameter.zero_if_default(0) {
-                    0 => Action::SetTextParameter(TextParameter::IconAndTitle,s),
-                    1 => Action::SetTextParameter(TextParameter::Icon,s),
-                    2 => Action::SetTextParameter(TextParameter::Title,s),
-                    3 => Action::SetTextParameter(TextParameter::XProperty,s),
-                    _ => Action::More,
-                }
+            self.parse_osc()
         } else {
             Action::Bell
         }
@@ -969,6 +980,7 @@ impl Parser {
                 let _ = s.pop();
                 Action::DecUserDefinedKeys(s)
             }
+            StringMode::Osc => self.parse_osc(),
             _ => {
                 self.string_area.clear();
                 Action::More
@@ -1134,7 +1146,7 @@ impl Parser {
         let bottom = self.parameter.one_if_default(2);
         let right = self.parameter.one_if_default(3);
         if top < bottom && left < right {
-            Action::EraseArea(top-1, left-1, bottom-1, right-1, true)
+            Action::EraseArea(top - 1, left - 1, bottom - 1, right - 1, true)
         } else {
             Action::More
         }
@@ -1410,7 +1422,7 @@ impl Parser {
         let bottom = self.parameter.one_if_default(2);
         let right = self.parameter.one_if_default(3);
         if top < bottom && left < right {
-            Action::ReportRendition(top-1, left-1, bottom-1, right-1)
+            Action::ReportRendition(top - 1, left - 1, bottom - 1, right - 1)
         } else {
             Action::More
         }
@@ -1427,9 +1439,11 @@ impl Parser {
     fn action_DECSNLS(&mut self, _byte: u8) -> Action {
         self.reset();
         let lines = self.parameter.zero_if_default(0);
-        if lines >=1 && lines <= 255 {
+        if lines >= 1 && lines <= 255 {
             Action::LinesPerScreen(lines)
-        } else {Action::More}
+        } else {
+            Action::More
+        }
     }
 }
 
@@ -2648,5 +2662,7 @@ mod test {
             SetTextParameter(TextParameter::XProperty,"Iconic".to_string()) c'x');
         pt!(b"a\x1b]3;Iconic\x1b\\x", c'a' m m m m m m m m m m m
             SetTextParameter(TextParameter::XProperty,"Iconic".to_string()) c'x');
+        pt!(b"a\x1b]4;17;Iconic\x1b\\x", c'a' m m m m m m m m m m m m m m
+            SetTextParameter(TextParameter::NamedColor,"17;Iconic".to_string()) c'x');
     }
 }

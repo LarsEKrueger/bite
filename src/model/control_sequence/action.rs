@@ -111,7 +111,7 @@ pub enum Action {
     DecUserDefinedKeys(String),
 
     /// Set text parameter
-    SetTextParameter(TextParameter,String),
+    SetTextParameter(TextParameter, String),
 
     InsertCharacters(u32),
     InsertLines(u32),
@@ -171,7 +171,7 @@ pub enum Action {
     TabstopReport,
     RequestTerminalParameters,
     LocatorReport(LocatorReportEnable, LocatorReportUnit),
-    ReportRendition(u32,u32,u32,u32),
+    ReportRendition(u32, u32, u32, u32),
     RequestLocatorPosition,
 
     PointerMode(PointerMode),
@@ -294,7 +294,7 @@ pub enum StringMode {
     Apc,
     Pm,
     Dcs,
-    Osc
+    Osc,
 }
 
 #[derive(Debug, PartialEq)]
@@ -612,10 +612,11 @@ bitflags! {
 
 #[derive(Debug, PartialEq)]
 pub enum TextParameter {
-  IconAndTitle,
-  Icon,
-  Title,
-  XProperty,
+    IconAndTitle,
+    Icon,
+    Title,
+    XProperty,
+    NamedColor,
 }
 
 impl Action {
