@@ -118,7 +118,7 @@ pub enum Action {
     /// level = 1 -> G1
     /// is_gr = true -> invoke as GR
     InvokeCharSet(u8, bool),
-    
+
     /// level = 1 -> G1
     SingleShift(u8),
 

@@ -335,22 +335,22 @@ mod action {
     action_reset!(XTERM_POP_SGR, PopVideoAttributes);
     action_reset!(DECIC, InsertColumns, one);
     action_reset!(DECDC, DeleteColumns, one);
-    action_reset!(IND,Index);
-    action_reset!(NEL,NextLine);
-    action_reset!(HTS,TabSet);
-    action_reset!(RI,ReverseIndex);
-    action_reset!(SS2,SingleShift,2);
-    action_reset!(SS3,SingleShift,3);
-    action_reset!(SPA,StartGuardedArea);
-    action_reset!(EPA,EndGuardedArea);
-    action_reset!(DECID,DA1,0);
-    action_reset!(DECSC,SaveCursor);
-    action_reset!(DECRC,RestoreCursor);
-    action_reset!(XTERM_TITLE,More);
-    action_reset!(ENQ,TerminalEnquire);
-    action_reset!(DECRPTUI,TerminalUnitId);
-    action_reset!(SL,ScrollLeft,one);
-    action_reset!(SR,ScrollRight,one);
+    action_reset!(IND, Index);
+    action_reset!(NEL, NextLine);
+    action_reset!(HTS, TabSet);
+    action_reset!(RI, ReverseIndex);
+    action_reset!(SS2, SingleShift, 2);
+    action_reset!(SS3, SingleShift, 3);
+    action_reset!(SPA, StartGuardedArea);
+    action_reset!(EPA, EndGuardedArea);
+    action_reset!(DECID, DA1, 0);
+    action_reset!(DECSC, SaveCursor);
+    action_reset!(DECRC, RestoreCursor);
+    action_reset!(XTERM_TITLE, More);
+    action_reset!(ENQ, TerminalEnquire);
+    action_reset!(DECRPTUI, TerminalUnitId);
+    action_reset!(SL, ScrollLeft, one);
+    action_reset!(SR, ScrollRight, one);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -377,13 +377,13 @@ mod action {
     action_state!(CSI_TICK_STATE, csi_tick_table);
     action_state!(CSI_STAR_STATE, csi_star_table);
     action_state!(CSI_HASH_STATE, csi_hash_table);
-    action_state!(DEC3_STATE,dec3_table);
+    action_state!(DEC3_STATE, dec3_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
     action_string!(OSC, Osc);
     action_string!(PM, Pm);
-    action_string!(SOS,Sos);
+    action_string!(SOS, Sos);
 
     action_switch_param!(
         param_set_mode, SetMode,
