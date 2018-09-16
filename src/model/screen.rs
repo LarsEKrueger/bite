@@ -809,6 +809,9 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::Tabulator |
+            Action::FormFeed |
+            Action::VerticalTab |
             Action::Backspace |
             Action::PrivacyMessage(_) |
             Action::Bell |

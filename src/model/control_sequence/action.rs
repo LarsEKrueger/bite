@@ -38,6 +38,10 @@ pub enum Action {
     /// Delete left
     Backspace,
 
+    VerticalTab,
+    FormFeed,
+    Tabulator,
+
     /// A UTF8 character has been completed
     Char(char),
 

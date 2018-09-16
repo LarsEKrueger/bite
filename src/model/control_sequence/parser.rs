@@ -175,6 +175,12 @@ mod action {
         }
     }
 
+    macro_rules! action_expr {
+        ($i:ident,$a:expr) => {
+            pub fn $i(_p:&mut Parser, _byte: u8) -> Action { $a }
+        }
+    }
+
     macro_rules! action_state {
         ($i:ident,$a:ident) => {
             pub fn $i(p:&mut Parser, _byte: u8) -> Action {
@@ -272,9 +278,13 @@ mod action {
 
     action_simple!(CR, Cr);
     action_simple!(IGNORE, More);
-    action_simple!(BS,Backspace);
+    action_simple!(BS, Backspace);
+    action_simple!(TAB, Tabulator);
 
-    action_reset!(Illegal,More);
+    action_expr!(SI, Action::InvokeCharSet(1, false));
+    action_expr!(SO, Action::InvokeCharSet(0, false));
+
+    action_reset!(Illegal, More);
     action_reset!(ANSI_LEVEL_1, AnsiConformanceLevel, 1);
     action_reset!(ANSI_LEVEL_2, AnsiConformanceLevel, 2);
     action_reset!(ANSI_LEVEL_3, AnsiConformanceLevel, 3);
@@ -601,17 +611,10 @@ impl Parser {
     fn action_VMOT(&mut self, byte: u8) -> Action {
         match byte {
             b'\n' => Action::NewLine,
-            _ => panic!("Unknown VMOT"),
+            0x0b => Action::VerticalTab,
+            0x0c => Action::FormFeed,
+            _ => Action::More,
         }
-    }
-    fn action_TAB(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SI(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SO(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_ESC_DIGIT(&mut self, byte: u8) -> Action {
         self.parameter.add_digit(byte);
@@ -1444,9 +1447,9 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::CR,
     action::ESC,
     Parser::action_VMOT,
-    Parser::action_TAB,
-    Parser::action_SI,
-    Parser::action_SO,
+    action::TAB,
+    action::SI,
+    action::SO,
     action::SCR_STATE,
     action::SCS0_STATE,
     action::SCS1_STATE,
@@ -1909,6 +1912,7 @@ mod test {
         pt!(b"a\x1bn\x1bo\x1b|\x1b}\x1b~b", c'a' m InvokeCharSet(2, false) m
             InvokeCharSet(3, false) m InvokeCharSet(3, true) m InvokeCharSet(2, true) m
             InvokeCharSet(1, true) c'b');
+        pt!(b"a\x0ex\x0fz", c'a' InvokeCharSet(0,false) c'x' InvokeCharSet(1,false) c 'z');
         pt!(b"a\x1b_stuff\x1b\\b", c'a' m m m m m m m m
             ApplicationProgramCommand("stuff".to_string()) c'b');
         pt!(b"a\x1bP0;0|17/17;15/15\x1b\\b", c'a' m m m m m m m m m m m m m m m m m m
@@ -2651,5 +2655,9 @@ mod test {
             SetTextParameter(TextParameter::NamedColor,"17;Iconic".to_string()) c'x');
         pt!(b"a\x1b^Stuff\x1b\\x", c'a' m m m m m m m m PrivacyMessage("Stuff".to_string()) c'x');
         pt!(b"a\x08x", c'a' Backspace c'x');
+        pt!(b"a\x0ax", c'a' NewLine c'x');
+        pt!(b"a\x0bx", c'a' VerticalTab c'x');
+        pt!(b"a\x0cx", c'a' FormFeed c'x');
+        pt!(b"a\tc", c'a' Tabulator c'c');
     }
 }
