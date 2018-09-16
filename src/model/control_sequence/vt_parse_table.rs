@@ -1718,8 +1718,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-
-#[allow(dead_code)]
 pub static dec_table:CaseTable =		/* CSI ? */
 [
 /*	NUL		SOH		STX		ETX	*/
@@ -2048,8 +2046,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-
-#[allow(dead_code)]
 pub static dec2_table:CaseTable =		/* CSI > */
 [
 /*	NUL		SOH		STX		ETX	*/
@@ -2542,7 +2538,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
 pub static eigtable:CaseTable =		/* CASE_ESC_IGNORE */
 [
 /*	NUL		SOH		STX		ETX	*/
