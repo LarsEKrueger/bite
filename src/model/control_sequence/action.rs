@@ -194,6 +194,7 @@ pub enum Action {
     LocatorReport(LocatorReportEnable, LocatorReportUnit),
     ReportRendition(u32, u32, u32, u32),
     RequestLocatorPosition,
+    TerminalEnquire,
 
     PointerMode(PointerMode),
     SoftReset,

@@ -344,6 +344,10 @@ mod action {
     action_reset!(SPA,StartGuardedArea);
     action_reset!(EPA,EndGuardedArea);
     action_reset!(DECID,DA1,0);
+    action_reset!(DECSC,SaveCursor);
+    action_reset!(DECRC,RestoreCursor);
+    action_reset!(XTERM_TITLE,More);
+    action_reset!(ENQ,TerminalEnquire);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -816,12 +820,6 @@ impl Parser {
             Action::More
         }
     }
-    fn action_DECSC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECRC(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_ANSI_SC(&mut self, _byte: u8) -> Action {
         self.reset();
         if self.parameter.is_empty() {
@@ -843,9 +841,6 @@ impl Parser {
     }
     fn action_PRINT(&mut self, _byte: u8) -> Action {
         panic!("This should not happen: Printable characters have no action.");
-    }
-    fn action_XTERM_TITLE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_XTERM_WINOPS(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -931,9 +926,6 @@ impl Parser {
             }
             _ => Action::WindowOp(WindowOp::ResizeLines(p0)),
         }
-    }
-    fn action_ENQ(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_DECSCL(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -1464,8 +1456,8 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::DECRESET,
     action::DECALN,
     Parser::action_GSETS,
-    Parser::action_DECSC,
-    Parser::action_DECRC,
+    action::DECSC,
+    action::DECRC,
     action::DECKPAM,
     action::DECKPNM,
     action::IND,
@@ -1485,7 +1477,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_PRINT,
     action::XTERM_SAVE,
     action::XTERM_RESTORE,
-    Parser::action_XTERM_TITLE,
+    action::XTERM_TITLE,
     action::DECID,
     action::HP_MEM_LOCK,
     action::HP_MEM_UNLOCK,
@@ -1503,7 +1495,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::S7C1T,
     action::S8C1T,
     action::ESC_SP_STATE,
-    Parser::action_ENQ,
+    action::ENQ,
     Parser::action_DECSCL,
     action::DECSCA,
     action::DECSED,
@@ -2650,5 +2642,9 @@ mod test {
         pt!(b"a\x1bWx", c'a' m EndGuardedArea c'x');
         pt!(b"a\x1bXStuff\x1b\\x", c'a' m m m m m m m m StartOfString("Stuff".to_string()) c'x');
         pt!(b"a\x1bZx", c'a' m DA1(0) c'x');
+        pt!(b"a\x1b7x", c'a' m SaveCursor c'x');
+        pt!(b"a\x1b8x", c'a' m RestoreCursor c'x');
+        pt!(b"a\x1bTx", c'a' m m c'x');
+        pt!(b"a\x1b\x05x", c'a' m TerminalEnquire c'x');
     }
 }
