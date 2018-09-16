@@ -272,7 +272,9 @@ mod action {
 
     action_simple!(CR, Cr);
     action_simple!(IGNORE, More);
+    action_simple!(BS,Backspace);
 
+    action_reset!(Illegal,More);
     action_reset!(ANSI_LEVEL_1, AnsiConformanceLevel, 1);
     action_reset!(ANSI_LEVEL_2, AnsiConformanceLevel, 2);
     action_reset!(ANSI_LEVEL_3, AnsiConformanceLevel, 3);
@@ -568,9 +570,6 @@ impl Parser {
         self.parsestate = &ansi_table;
     }
 
-    fn action_Illegal(&mut self, _byte: u8) -> Action {
-        panic!("This should not happen!");
-    }
 
     fn parse_osc(&mut self, mut s: String) -> Action {
         if s.len() >= 2 {
@@ -598,9 +597,6 @@ impl Parser {
         } else {
             Action::Bell
         }
-    }
-    fn action_BS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_VMOT(&mut self, byte: u8) -> Action {
         match byte {
@@ -1440,11 +1436,11 @@ impl Parser {
 type CaseDispatch = fn(&mut Parser, byte: u8) -> Action;
 
 static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
-    Parser::action_Illegal,
+    action::Illegal,
     action::GROUND_STATE,
     action::IGNORE,
     Parser::action_BELL,
-    Parser::action_BS,
+    action::BS,
     action::CR,
     action::ESC,
     Parser::action_VMOT,
@@ -2654,5 +2650,6 @@ mod test {
         pt!(b"a\x1b]4;17;Iconic\x1b\\x", c'a' m m m m m m m m m m m m m m
             SetTextParameter(TextParameter::NamedColor,"17;Iconic".to_string()) c'x');
         pt!(b"a\x1b^Stuff\x1b\\x", c'a' m m m m m m m m PrivacyMessage("Stuff".to_string()) c'x');
+        pt!(b"a\x08x", c'a' Backspace c'x');
     }
 }

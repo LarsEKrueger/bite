@@ -35,6 +35,9 @@ pub enum Action {
     /// A new line character has been seen
     NewLine,
 
+    /// Delete left
+    Backspace,
+
     /// A UTF8 character has been completed
     Char(char),
 
