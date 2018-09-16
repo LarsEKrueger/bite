@@ -195,6 +195,10 @@ pub enum Action {
     ReportRendition(u32, u32, u32, u32),
     RequestLocatorPosition,
     TerminalEnquire,
+    TerminalUnitId,
+
+    ScrollLeft(u32),
+    ScrollRight(u32),
 
     PointerMode(PointerMode),
     SoftReset,

@@ -2214,7 +2214,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-#[allow(dead_code)]
 pub static dec3_table:CaseTable =		/* CSI = */
 [
 /*	NUL		SOH		STX		ETX	*/

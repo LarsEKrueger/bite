@@ -809,6 +809,9 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::ScrollLeft(_) |
+            Action::ScrollRight(_) |
+            Action::TerminalUnitId |
             Action::TerminalEnquire |
             Action::SingleShift(_) |
             Action::TabSet |

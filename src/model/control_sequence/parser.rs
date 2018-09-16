@@ -348,6 +348,9 @@ mod action {
     action_reset!(DECRC,RestoreCursor);
     action_reset!(XTERM_TITLE,More);
     action_reset!(ENQ,TerminalEnquire);
+    action_reset!(DECRPTUI,TerminalUnitId);
+    action_reset!(SL,ScrollLeft,one);
+    action_reset!(SR,ScrollRight,one);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -374,6 +377,7 @@ mod action {
     action_state!(CSI_TICK_STATE, csi_tick_table);
     action_state!(CSI_STAR_STATE, csi_star_table);
     action_state!(CSI_HASH_STATE, csi_hash_table);
+    action_state!(DEC3_STATE,dec3_table);
 
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
@@ -973,15 +977,6 @@ impl Parser {
             _ => Action::More,
         }
     }
-    fn action_DEC3_STATE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECRPTUI(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_VT52_CUP(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECDHL(&mut self, byte: u8) -> Action {
         self.reset();
         Action::DecDoubleHeight(byte == b'3')
@@ -1044,12 +1039,6 @@ impl Parser {
             }
         }
         Action::SelectLocatorEvents(set, reset)
-    }
-    fn action_VT52_IGNORE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_VT52_FINISH(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_DECCRA(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -1296,12 +1285,6 @@ impl Parser {
             None => Action::RequestAnsiMode(SetMode::Unknown),
         }
     }
-    fn action_SL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SR(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_DECRQCRA(&mut self, _byte: u8) -> Action {
         self.reset();
         let code = self.parameter.zero_if_default(0);
@@ -1317,7 +1300,10 @@ impl Parser {
         }
     }
     fn action_ESC_COLON(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
+        // Sub-parameters are not implemented. We leave this as a reminder that we have to do it
+        // some day.
+        self.reset();
+        Action::More
     }
     fn action_GSETS_PERCENT(&mut self, byte: u8) -> Action {
         let cs = match byte {
@@ -1515,9 +1501,8 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::MC,
     action::DEC2_STATE,
     action::DA2,
-    Parser::action_DEC3_STATE,
-    Parser::action_DECRPTUI,
-    Parser::action_VT52_CUP,
+    action::DEC3_STATE,
+    action::DECRPTUI,
     action::REP,
     action::CSI_EX_STATE,
     action::DECSTR,
@@ -1533,8 +1518,6 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_DECEFR,
     Parser::action_DECSLE,
     action::CSI_IGNORE,
-    Parser::action_VT52_IGNORE,
-    Parser::action_VT52_FINISH,
     action::CSI_DOLLAR_STATE,
     Parser::action_DECCRA,
     Parser::action_DECERA,
@@ -1560,8 +1543,8 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_DECRQM,
     Parser::action_RQM,
     action::CSI_DEC_DOLLAR_STATE,
-    Parser::action_SL,
-    Parser::action_SR,
+    action::SL,
+    action::SR,
     action::DECDC,
     action::DECIC,
     action::DECBI,
@@ -2646,5 +2629,9 @@ mod test {
         pt!(b"a\x1b8x", c'a' m RestoreCursor c'x');
         pt!(b"a\x1bTx", c'a' m m c'x');
         pt!(b"a\x1b\x05x", c'a' m TerminalEnquire c'x');
+        pt!(b"a\x1b[=0cx", c'a' m m m m TerminalUnitId c'x');
+
+        pt!(b"a\x1b[12 @x", c'a' m m m m m ScrollLeft(12) c'x');
+        pt!(b"a\x1b[12 Ax", c'a' m m m m m ScrollRight(12) c'x');
     }
 }
