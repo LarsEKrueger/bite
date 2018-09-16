@@ -103,6 +103,7 @@ pub enum Action {
     /// is_gr = true -> invoke as GR
     InvokeCharSet(u8, bool),
 
+    PrivacyMessage(String),
     ApplicationProgramCommand(String),
 
     /// This will currently catch all DCS command in the parameter.

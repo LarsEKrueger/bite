@@ -353,6 +353,7 @@ mod action {
     action_string!(APC, Apc);
     action_string!(DCS, Dcs);
     action_string!(OSC, Osc);
+    action_string!(PM, Pm);
 
     action_switch_param!(
         param_set_mode, SetMode,
@@ -571,9 +572,7 @@ impl Parser {
         panic!("This should not happen!");
     }
 
-    fn parse_osc(&mut self) -> Action {
-        let mut s = mem::replace(&mut self.string_area, String::new());
-        let _ = s.pop();
+    fn parse_osc(&mut self, mut s: String) -> Action {
         if s.len() >= 2 {
             let n = s.remove(0);
             let semicolon = s.remove(0);
@@ -593,7 +592,9 @@ impl Parser {
     fn action_BELL(&mut self, _byte: u8) -> Action {
         self.reset();
         if self.string_mode == StringMode::Osc {
-            self.parse_osc()
+            let mut s = mem::replace(&mut self.string_area, String::new());
+            let _ = s.pop();
+            self.parse_osc(s)
         } else {
             Action::Bell
         }
@@ -961,30 +962,19 @@ impl Parser {
             _ => Action::More,
         }
     }
-    fn action_PM(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_SOS(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_ST(&mut self, _byte: u8) -> Action {
         self.reset();
+        let mut s = mem::replace(&mut self.string_area, String::new());
+        let _ = s.pop();
         let res = match self.string_mode {
-            StringMode::Apc => {
-                let mut s = mem::replace(&mut self.string_area, String::new());
-                let _ = s.pop();
-                Action::ApplicationProgramCommand(s)
-            }
-            StringMode::Dcs => {
-                let mut s = mem::replace(&mut self.string_area, String::new());
-                let _ = s.pop();
-                Action::DecUserDefinedKeys(s)
-            }
-            StringMode::Osc => self.parse_osc(),
-            _ => {
-                self.string_area.clear();
-                Action::More
-            }
+            StringMode::Apc => Action::ApplicationProgramCommand(s),
+            StringMode::Dcs => Action::DecUserDefinedKeys(s),
+            StringMode::Osc => self.parse_osc(s),
+            StringMode::Pm => Action::PrivacyMessage(s),
+            StringMode::None => Action::More,
         };
         res
     }
@@ -1539,7 +1529,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::DECSED,
     action::DECSEL,
     action::DCS,
-    Parser::action_PM,
+    action::PM,
     Parser::action_SOS,
     Parser::action_ST,
     action::APC,
@@ -2651,7 +2641,6 @@ mod test {
         pt!(b"a\x1b['}x", c'a' m m m InsertColumns(1) c'x');
         pt!(b"a\x1b[12'~x", c'a' m m m m m DeleteColumns(12) c'x');
         pt!(b"a\x1b['~x", c'a' m m m DeleteColumns(1) c'x');
-
         pt!(b"a\x1b]0;Iconic\x07x", c'a' m m m m m m m m m m
             SetTextParameter(TextParameter::IconAndTitle,"Iconic".to_string()) c'x');
         pt!(b"a\x1b]1;Iconic\x07x", c'a' m m m m m m m m m m
@@ -2664,5 +2653,6 @@ mod test {
             SetTextParameter(TextParameter::XProperty,"Iconic".to_string()) c'x');
         pt!(b"a\x1b]4;17;Iconic\x1b\\x", c'a' m m m m m m m m m m m m m m
             SetTextParameter(TextParameter::NamedColor,"17;Iconic".to_string()) c'x');
+        pt!(b"a\x1b^Stuff\x1b\\x", c'a' m m m m m m m m PrivacyMessage("Stuff".to_string()) c'x');
     }
 }

@@ -809,6 +809,7 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::PrivacyMessage(_) |
             Action::Bell |
             Action::SetTextParameter(_,_) |
             Action::InsertColumns(_) |
