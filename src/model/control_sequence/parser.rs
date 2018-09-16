@@ -335,6 +335,15 @@ mod action {
     action_reset!(XTERM_POP_SGR, PopVideoAttributes);
     action_reset!(DECIC, InsertColumns, one);
     action_reset!(DECDC, DeleteColumns, one);
+    action_reset!(IND,Index);
+    action_reset!(NEL,NextLine);
+    action_reset!(HTS,TabSet);
+    action_reset!(RI,ReverseIndex);
+    action_reset!(SS2,SingleShift,2);
+    action_reset!(SS3,SingleShift,3);
+    action_reset!(SPA,StartGuardedArea);
+    action_reset!(EPA,EndGuardedArea);
+    action_reset!(DECID,DA1,0);
 
     action_scs!(SCS0_STATE, scstable, 0);
     action_scs!(SCS1A_STATE, scs96table, 1);
@@ -366,6 +375,7 @@ mod action {
     action_string!(DCS, Dcs);
     action_string!(OSC, Osc);
     action_string!(PM, Pm);
+    action_string!(SOS,Sos);
 
     action_switch_param!(
         param_set_mode, SetMode,
@@ -812,9 +822,6 @@ impl Parser {
     fn action_DECRC(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
-    fn action_IND(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_ANSI_SC(&mut self, _byte: u8) -> Action {
         self.reset();
         if self.parameter.is_empty() {
@@ -829,21 +836,6 @@ impl Parser {
             }
         }
     }
-    fn action_NEL(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_HTS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_RI(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SS2(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SS3(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_CSI_STATE(&mut self, _byte: u8) -> Action {
         self.parameter.reset();
         self.parsestate = &csi_table;
@@ -853,9 +845,6 @@ impl Parser {
         panic!("This should not happen: Printable characters have no action.");
     }
     fn action_XTERM_TITLE(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_DECID(&mut self, _byte: u8) -> Action {
         panic!("Not implemented");
     }
     fn action_XTERM_WINOPS(&mut self, _byte: u8) -> Action {
@@ -961,9 +950,6 @@ impl Parser {
             _ => Action::More,
         }
     }
-    fn action_SOS(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
     fn action_ST(&mut self, _byte: u8) -> Action {
         self.reset();
         let mut s = mem::replace(&mut self.string_area, String::new());
@@ -973,15 +959,10 @@ impl Parser {
             StringMode::Dcs => Action::DecUserDefinedKeys(s),
             StringMode::Osc => self.parse_osc(s),
             StringMode::Pm => Action::PrivacyMessage(s),
+            StringMode::Sos => Action::StartOfString(s),
             StringMode::None => Action::More,
         };
         res
-    }
-    fn action_EPA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
-    }
-    fn action_SPA(&mut self, _byte: u8) -> Action {
-        panic!("Not implemented");
     }
     fn action_DSR(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -1487,12 +1468,12 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_DECRC,
     action::DECKPAM,
     action::DECKPNM,
-    Parser::action_IND,
-    Parser::action_NEL,
-    Parser::action_HTS,
-    Parser::action_RI,
-    Parser::action_SS2,
-    Parser::action_SS3,
+    action::IND,
+    action::NEL,
+    action::HTS,
+    action::RI,
+    action::SS2,
+    action::SS3,
     Parser::action_CSI_STATE,
     action::OSC,
     action::RIS,
@@ -1505,7 +1486,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::XTERM_SAVE,
     action::XTERM_RESTORE,
     Parser::action_XTERM_TITLE,
-    Parser::action_DECID,
+    action::DECID,
     action::HP_MEM_LOCK,
     action::HP_MEM_UNLOCK,
     action::HP_BUGGY_LL,
@@ -1529,11 +1510,11 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     action::DECSEL,
     action::DCS,
     action::PM,
-    Parser::action_SOS,
+    action::SOS,
     Parser::action_ST,
     action::APC,
-    Parser::action_EPA,
-    Parser::action_SPA,
+    action::EPA,
+    action::SPA,
     action::CSI_QUOTE_STATE,
     Parser::action_DSR,
     action::ANSI_LEVEL_1,
@@ -2659,5 +2640,15 @@ mod test {
         pt!(b"a\x0bx", c'a' VerticalTab c'x');
         pt!(b"a\x0cx", c'a' FormFeed c'x');
         pt!(b"a\tc", c'a' Tabulator c'c');
+        pt!(b"a\x1bDx", c'a' m Index c'x');
+        pt!(b"a\x1bEx", c'a' m NextLine c'x');
+        pt!(b"a\x1bHx", c'a' m TabSet c'x');
+        pt!(b"a\x1bMx", c'a' m ReverseIndex c'x');
+        pt!(b"a\x1bNx", c'a' m SingleShift(2) c'x');
+        pt!(b"a\x1bOx", c'a' m SingleShift(3) c'x');
+        pt!(b"a\x1bVx", c'a' m StartGuardedArea c'x');
+        pt!(b"a\x1bWx", c'a' m EndGuardedArea c'x');
+        pt!(b"a\x1bXStuff\x1b\\x", c'a' m m m m m m m m StartOfString("Stuff".to_string()) c'x');
+        pt!(b"a\x1bZx", c'a' m DA1(0) c'x');
     }
 }

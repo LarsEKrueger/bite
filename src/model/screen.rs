@@ -809,6 +809,14 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::SingleShift(_) |
+            Action::TabSet |
+            Action::NextLine |
+            Action::Index |
+            Action::ReverseIndex |
+            Action::StartGuardedArea |
+            Action::EndGuardedArea |
+            Action::StartOfString(_) |
             Action::Tabulator |
             Action::FormFeed |
             Action::VerticalTab |

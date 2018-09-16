@@ -40,7 +40,16 @@ pub enum Action {
 
     VerticalTab,
     FormFeed,
+    NextLine,
+
     Tabulator,
+    TabSet,
+
+    Index,
+    ReverseIndex,
+
+    StartGuardedArea,
+    EndGuardedArea,
 
     /// A UTF8 character has been completed
     Char(char),
@@ -109,7 +118,11 @@ pub enum Action {
     /// level = 1 -> G1
     /// is_gr = true -> invoke as GR
     InvokeCharSet(u8, bool),
+    
+    /// level = 1 -> G1
+    SingleShift(u8),
 
+    StartOfString(String),
     PrivacyMessage(String),
     ApplicationProgramCommand(String),
 
@@ -303,6 +316,7 @@ pub enum StringMode {
     Pm,
     Dcs,
     Osc,
+    Sos,
 }
 
 #[derive(Debug, PartialEq)]
