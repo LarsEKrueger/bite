@@ -19,7 +19,7 @@
 //! Parsing result, action to be taken from seeing this sequence.
 
 use std::char;
-use super::types::ActionParameter;
+use super::types::{Point, Rectangle, ActionParameter};
 
 /// Actions to be taken after processing a byte
 #[derive(PartialEq, Debug)]
@@ -152,7 +152,13 @@ pub enum Action {
     GraphicRegister(GraReg, GraOp),
 
     /// The 5 parameters of the sequence
-    MouseTracking(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
+    MouseTracking(
+        ActionParameter,
+        ActionParameter,
+        ActionParameter,
+        ActionParameter,
+        ActionParameter
+    ),
 
     SetTitleModes(TitleModes),
     ResetTitleModes(TitleModes),
@@ -193,7 +199,7 @@ pub enum Action {
     TabstopReport,
     RequestTerminalParameters,
     LocatorReport(LocatorReportEnable, LocatorReportUnit),
-    ReportRendition(ActionParameter, ActionParameter, ActionParameter, ActionParameter),
+    ReportRendition(Rectangle),
     RequestLocatorPosition,
     TerminalEnquire,
     TerminalUnitId,
@@ -222,39 +228,30 @@ pub enum Action {
     /// (0,0) means region is the full window.
     ScrollRegion(ActionParameter, ActionParameter),
 
-    /// Change Attributes in area
-    ///
-    /// top, left, bottom, right, attribute. Range is exclusive.
-    ChangeAttributesArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, CharacterAttribute),
-    /// Reverse Attributes in area
-    ///
-    /// top, left, bottom, right, attribute. Range is exclusive.
-    ReverseAttributesArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, CharacterAttribute),
+    ChangeAttributesArea(Rectangle, CharacterAttribute),
+    ReverseAttributesArea(Rectangle, CharacterAttribute),
 
     /// Copy rectangular area
     ///
-    /// top, left, bottom, right, from-page, to-top, to-left, to-page
-    CopyArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
+    /// from-rectangle, from-page, to-point, to-page
+    CopyArea(Rectangle, ActionParameter, Point, ActionParameter),
 
-    /// Enable filter area
-    ///
-    /// top, left, bottom, right. Range is exclusive.
-    EnableFilterArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter),
+    EnableFilterArea(Rectangle),
 
     /// Fill area
     ///
-    /// character code, top, left, bottom, right. Range is exclusive.
-    FillArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
+    /// character code, area
+    FillArea(ActionParameter, Rectangle),
 
     /// Compute checksum of area
     ///
-    /// id, page, top, left, bottom, right. Range is exclusive.
-    ChecksumArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
+    /// id, page, rectangle
+    ChecksumArea(ActionParameter, ActionParameter, Rectangle),
 
     /// Erase area
     ///
-    /// top, left, bottom, right, true=selective. Range is exclusive.
-    EraseArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, bool),
+    /// rectangle, true=selective.
+    EraseArea(Rectangle, bool),
 
     /// Set left and right margins
     ///

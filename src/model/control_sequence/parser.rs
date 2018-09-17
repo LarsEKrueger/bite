@@ -29,7 +29,7 @@ use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
                     CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable,
                     LocatorReportUnit, LocatorEvents, VideoAttributes, TextParameter};
-use super::parameter::{Parameters};
+use super::parameter::Parameters;
 
 /// Parser for control sequences
 #[allow(dead_code)]
@@ -1010,12 +1010,8 @@ impl Parser {
     }
     fn action_DECEFR(&mut self, _byte: u8) -> Action {
         self.reset();
-        let top = self.parameter.one_if_default(0);
-        let left = self.parameter.one_if_default(1);
-        let bottom = self.parameter.one_if_default(2);
-        let right = self.parameter.one_if_default(3);
-        if top < bottom && left < right {
-            Action::EnableFilterArea(top, left, bottom, right)
+        if let Some(r) = self.parameter.get_area(0) {
+            Action::EnableFilterArea(r)
         } else {
             Action::More
         }
@@ -1042,37 +1038,22 @@ impl Parser {
     }
     fn action_DECCRA(&mut self, _byte: u8) -> Action {
         self.reset();
-        let top = self.parameter.one_if_default(0);
-        let left = self.parameter.one_if_default(1);
-        let bottom = self.parameter.one_if_default(2);
-        let right = self.parameter.one_if_default(3);
-        let from_page = self.parameter.one_if_default(4);
-        let to_top = self.parameter.one_if_default(5);
-        let to_left = self.parameter.one_if_default(6);
-        let to_page = self.parameter.one_if_default(7);
-        if top < bottom && left < right {
-            Action::CopyArea(
-                top,
-                left,
-                bottom,
-                right,
-                from_page,
-                to_top,
-                to_left,
-                to_page,
-            )
+        if let Some(r) = self.parameter.get_area(0) {
+            let from_page = self.parameter.one_if_default(4);
+            if let Some(p) = self.parameter.get_point(5) {
+                let to_page = self.parameter.one_if_default(7);
+                Action::CopyArea(r, from_page, p, to_page)
+            } else {
+                Action::More
+            }
         } else {
             Action::More
         }
     }
     fn action_DECERA(&mut self, _byte: u8) -> Action {
         self.reset();
-        let top = self.parameter.one_if_default(0);
-        let left = self.parameter.one_if_default(1);
-        let bottom = self.parameter.one_if_default(2);
-        let right = self.parameter.one_if_default(3);
-        if top < bottom && left < right {
-            Action::EraseArea(top, left, bottom, right, false)
+        if let Some(r) = self.parameter.get_area(0) {
+            Action::EraseArea(r, false)
         } else {
             Action::More
         }
@@ -1080,76 +1061,31 @@ impl Parser {
     fn action_DECFRA(&mut self, _byte: u8) -> Action {
         self.reset();
         let c = self.parameter.zero_if_default(0);
-        let top = self.parameter.one_if_default(1);
-        let left = self.parameter.one_if_default(2);
-        let bottom = self.parameter.one_if_default(3);
-        let right = self.parameter.one_if_default(4);
-        if top < bottom && left < right {
-            Action::FillArea(c, top, left, bottom, right)
+        if let Some(r) = self.parameter.get_area(1) {
+            Action::FillArea(c, r)
         } else {
             Action::More
         }
     }
     fn action_DECSERA(&mut self, _byte: u8) -> Action {
         self.reset();
-        let top = self.parameter.one_if_default(0);
-        let left = self.parameter.one_if_default(1);
-        let bottom = self.parameter.one_if_default(2);
-        let right = self.parameter.one_if_default(3);
-        if top < bottom && left < right {
-            Action::EraseArea(top - 1, left - 1, bottom - 1, right - 1, true)
+        if let Some(r) = self.parameter.get_area(0) {
+            Action::EraseArea(r, true)
         } else {
             Action::More
         }
     }
+
     fn action_DECCARA(&mut self, _byte: u8) -> Action {
         self.reset();
-        let top = self.parameter.one_if_default(0);
-        let left = self.parameter.one_if_default(1);
-        let bottom = self.parameter.one_if_default(2);
-        let right = self.parameter.one_if_default(3);
-        let attr = self.parameter.zero_if_default(4);
-        if top < bottom && left < right {
+        if let Some(r) = self.parameter.get_area(0) {
+            let attr = self.parameter.zero_if_default(4);
             match attr {
-                0 => {
-                    Action::ChangeAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Normal,
-                    )
-                }
-                1 => {
-                    Action::ChangeAttributesArea(top, left, bottom, right, CharacterAttribute::Bold)
-                }
-                4 => {
-                    Action::ChangeAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Underlined,
-                    )
-                }
-                5 => {
-                    Action::ChangeAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Blink,
-                    )
-                }
-                7 => {
-                    Action::ChangeAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Inverse,
-                    )
-                }
+                0 => Action::ChangeAttributesArea(r, CharacterAttribute::Normal),
+                1 => Action::ChangeAttributesArea(r, CharacterAttribute::Bold),
+                4 => Action::ChangeAttributesArea(r, CharacterAttribute::Underlined),
+                5 => Action::ChangeAttributesArea(r, CharacterAttribute::Blink),
+                7 => Action::ChangeAttributesArea(r, CharacterAttribute::Inverse),
                 _ => Action::More,
             }
         } else {
@@ -1158,49 +1094,13 @@ impl Parser {
     }
     fn action_DECRARA(&mut self, _byte: u8) -> Action {
         self.reset();
-        let top = self.parameter.one_if_default(0);
-        let left = self.parameter.one_if_default(1);
-        let bottom = self.parameter.one_if_default(2);
-        let right = self.parameter.one_if_default(3);
-        let attr = self.parameter.zero_if_default(4);
-        if top < bottom && left < right {
+        if let Some(r) = self.parameter.get_area(0) {
+            let attr = self.parameter.zero_if_default(4);
             match attr {
-                1 => {
-                    Action::ReverseAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Bold,
-                    )
-                }
-                4 => {
-                    Action::ReverseAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Underlined,
-                    )
-                }
-                5 => {
-                    Action::ReverseAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Blink,
-                    )
-                }
-                7 => {
-                    Action::ReverseAttributesArea(
-                        top,
-                        left,
-                        bottom,
-                        right,
-                        CharacterAttribute::Inverse,
-                    )
-                }
+                1 => Action::ReverseAttributesArea(r, CharacterAttribute::Bold),
+                4 => Action::ReverseAttributesArea(r, CharacterAttribute::Underlined),
+                5 => Action::ReverseAttributesArea(r, CharacterAttribute::Blink),
+                7 => Action::ReverseAttributesArea(r, CharacterAttribute::Inverse),
                 _ => Action::More,
             }
         } else {
@@ -1289,12 +1189,8 @@ impl Parser {
         self.reset();
         let code = self.parameter.zero_if_default(0);
         let page = self.parameter.zero_if_default(1);
-        let top = self.parameter.one_if_default(2);
-        let left = self.parameter.one_if_default(3);
-        let bottom = self.parameter.one_if_default(4);
-        let right = self.parameter.one_if_default(5);
-        if top < bottom && left < right {
-            Action::ChecksumArea(code, page, top, left, bottom, right)
+        if let Some(r) = self.parameter.get_area(2) {
+            Action::ChecksumArea(code, page, r)
         } else {
             Action::More
         }
@@ -1365,12 +1261,8 @@ impl Parser {
     }
     fn action_XTERM_REPORT_SGR(&mut self, _byte: u8) -> Action {
         self.reset();
-        let top = self.parameter.one_if_default(0);
-        let left = self.parameter.one_if_default(1);
-        let bottom = self.parameter.one_if_default(2);
-        let right = self.parameter.one_if_default(3);
-        if top < bottom && left < right {
-            Action::ReportRendition(top - 1, left - 1, bottom - 1, right - 1)
+        if let Some(r) = self.parameter.get_area(0) {
+            Action::ReportRendition(r)
         } else {
             Action::More
         }
@@ -1571,6 +1463,7 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
 #[cfg(test)]
 mod test {
     use super::*;
+    use super::super::types::{Rectangle, Point};
 
     /// Helper function to map a string to the vector of actions that were returned after each byte
     fn emu(bytes: &[u8]) -> Vec<Action> {
@@ -1659,6 +1552,14 @@ mod test {
         ($str:expr, $($rest:tt)+ ) => {pt!(@accu $str, ($($rest)*) -> ());};
     }
 
+    macro_rules! rect {
+        ($top:expr,$left:expr,$bottom:expr,$right:expr) => {
+            Rectangle {
+                start : Point { x : $left, y : $top },
+                end : Point { x : $right, y :  $bottom }
+            }
+        };
+    }
 
     #[test]
     fn unicode() {
@@ -2446,16 +2347,16 @@ mod test {
         pt!(b"a\x1b[rx", c'a' m m ScrollRegion(0,0) c'x');
         pt!(b"a\x1b[?1041rz", c'a' m m m m m m m RestorePrivateMode(SetPrivateMode::UseClipboard)
             c'z');
-        pt!(b"a\x1b[0;1;2;3;0$rx", c'a' m m m m m m m m m m m m
-            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Normal) c'x');
-        pt!(b"a\x1b[0;1;2;3;1$rx", c'a' m m m m m m m m m m m m
-            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Bold) c'x');
-        pt!(b"a\x1b[0;1;2;3;4$rx", c'a' m m m m m m m m m m m m
-            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Underlined) c'x');
-        pt!(b"a\x1b[0;1;2;3;5$rx", c'a' m m m m m m m m m m m m
-            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Blink) c'x');
-        pt!(b"a\x1b[0;1;2;3;7$rx", c'a' m m m m m m m m m m m m
-            ChangeAttributesArea(0,1,2,3,CharacterAttribute::Inverse) c'x');
+        pt!(b"a\x1b[1;2;3;4;0$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(rect!(0,1,2,3), CharacterAttribute::Normal) c'x');
+        pt!(b"a\x1b[1;2;3;4;1$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(rect!(0,1,2,3),CharacterAttribute::Bold) c'x');
+        pt!(b"a\x1b[1;2;3;4;4$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(rect!(0,1,2,3),CharacterAttribute::Underlined) c'x');
+        pt!(b"a\x1b[1;2;3;4;5$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(rect!(0,1,2,3),CharacterAttribute::Blink) c'x');
+        pt!(b"a\x1b[1;2;3;4;7$rx", c'a' m m m m m m m m m m m m
+            ChangeAttributesArea(rect!(0,1,2,3),CharacterAttribute::Inverse) c'x');
         pt!(b"a\x1b[0;1;2;3;2$rx", c'a' m m m m m m m m m m m m m c'x');
         pt!(b"a\x1b[0;1;0;3;0$rx", c'a' m m m m m m m m m m m m m c'x');
         pt!(b"a\x1b[0;1;2;1;0$rx", c'a' m m m m m m m m m m m m m c'x');
@@ -2515,24 +2416,24 @@ mod test {
         pt!(b"a\x1b[9 tx", c'a' m m m m m c'x');
         pt!(b"a\x1b[0;1;2;3;0$tx", c'a' m m m m m m m m m m m m
             m c'x');
-        pt!(b"a\x1b[0;1;2;3;1$tx", c'a' m m m m m m m m m m m m
-            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Bold) c'x');
-        pt!(b"a\x1b[0;1;2;3;4$tx", c'a' m m m m m m m m m m m m
-            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Underlined) c'x');
-        pt!(b"a\x1b[0;1;2;3;5$tx", c'a' m m m m m m m m m m m m
-            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Blink) c'x');
-        pt!(b"a\x1b[0;1;2;3;7$tx", c'a' m m m m m m m m m m m m
-            ReverseAttributesArea(0,1,2,3,CharacterAttribute::Inverse) c'x');
+        pt!(b"a\x1b[1;2;3;4;1$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(rect!(0,1,2,3),CharacterAttribute::Bold) c'x');
+        pt!(b"a\x1b[1;2;3;4;4$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(rect!(0,1,2,3),CharacterAttribute::Underlined) c'x');
+        pt!(b"a\x1b[1;2;3;4;5$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(rect!(0,1,2,3),CharacterAttribute::Blink) c'x');
+        pt!(b"a\x1b[1;2;3;4;7$tx", c'a' m m m m m m m m m m m m
+            ReverseAttributesArea(rect!(0,1,2,3),CharacterAttribute::Inverse) c'x');
         pt!(b"a\x1b[ux", c'a' m m RestoreCursor c'x');
         pt!(b"a\x1b[0 ux", c'a' m m m m SetMarginBellVolume(0) c'x');
         pt!(b"a\x1b[8 ux", c'a' m m m m SetMarginBellVolume(8) c'x');
         pt!(b"a\x1b[9 ux", c'a' m m m m m c'x');
-        pt!(b"a\x1b[0;1;2;3;4;5;6;7$vx", c'a' m m m m m m m m m m m m m m m m m m
-            CopyArea(0,1,2,3,4,5,6,7) c'x');
+        pt!(b"a\x1b[1;2;3;4;5;6;7;8$vx", c'a' m m m m m m m m m m m m m m m m m m
+            CopyArea(rect!(0,1,2,3),5,Point { x: 6, y: 5 },8) c'x');
         pt!(b"a\x1b[0$wx", c'a' m m m m m c'x');
         pt!(b"a\x1b[1$wx", c'a' m m m m CursorInformationReport c'x');
         pt!(b"a\x1b[2$wx", c'a' m m m m TabstopReport c'x');
-        pt!(b"a\x1b[0;1;2;3'wx", c'a' m m m m m m m m m m EnableFilterArea(0,1,2,3) c'x');
+        pt!(b"a\x1b[1;2;3;4'wx", c'a' m m m m m m m m m m EnableFilterArea(rect!(0,1,2,3)) c'x');
         pt!(b"a\x1b[0xw", c'a' m m m RequestTerminalParameters c'w');
         pt!(b"a\x1b[1xw", c'a' m m m RequestTerminalParameters c'w');
         pt!(b"a\x1b[2xw", c'a' m m m m c'w');
@@ -2541,9 +2442,9 @@ mod test {
         pt!(b"a\x1b[2*xw", c'a' m m m m AttributeChangeExtent(AttributeChangeExtent::Rectangle)
             c'w');
         pt!(b"a\x1b[3*xw", c'a' m m m m m c'w');
-        pt!(b"a\x1b[0;1;2;3;4$xy", c'a' m m m m m m m m m m m m FillArea(0,1,2,3,4) c'y');
-        pt!(b"a\x1b[12;0;1;2;3;4*yx", c'a' m m m m m m m m m m m m m m m ChecksumArea(12,0,1,2,3,4)
-            c'x');
+        pt!(b"a\x1b[0;1;2;3;4$xy", c'a' m m m m m m m m m m m m FillArea(0,rect!(0,1,2,3)) c'y');
+        pt!(b"a\x1b[12;0;1;2;3;4*yx", c'a' m m m m m m m m m m m m m m m
+            ChecksumArea(12,0,rect!(0,1,2,3)) c'x');
         pt!(b"a\x1b[0;0'zb", c'a' m m m m m m
             LocatorReport(LocatorReportEnable::Off,LocatorReportUnit::Character) c'b');
         pt!(b"a\x1b[1;0'zb", c'a' m m m m m m
@@ -2564,7 +2465,7 @@ mod test {
             LocatorReport(LocatorReportEnable::Once,LocatorReportUnit::Character) c'b');
         pt!(b"a\x1b[3;2'zb", c'a' m m m m m m m c'b');
         pt!(b"a\x1b[2;3'zb", c'a' m m m m m m m c'b');
-        pt!(b"a\x1b[0;1;2;3$zc", c'a' m m m m m m m m m m EraseArea(0,1,2,3,false) c'c');
+        pt!(b"a\x1b[1;2;3;4$zc", c'a' m m m m m m m m m m EraseArea(rect!(0,1,2,3),false) c'c');
         pt!(b"a\x1b[0'{k", c'a' m m m m SelectLocatorEvents(LocatorEvents::HostRequest,
                                                             LocatorEvents::empty()) c'k');
         pt!(b"a\x1b[1;2;3;4'{k", c'a' m m m m m m m m m m
@@ -2582,8 +2483,8 @@ mod test {
         pt!(b"a\x1b[10;11;21#{x", c'a' m m m m m m m m m m m
             PushVideoAttributes(VideoAttributes::Foreground | VideoAttributes::Background |
                                 VideoAttributes::DoublyUnderlined) c'x');
-        pt!(b"a\x1b[1;2;3;4${x", c'a' m m m m m m m m m m EraseArea(0,1,2,3,true) c'x');
-        pt!(b"a\x1b[1;2;3;4#|x", c'a' m m m m m m m m m m ReportRendition(0,1,2,3) c'x');
+        pt!(b"a\x1b[1;2;3;4${x", c'a' m m m m m m m m m m EraseArea(rect!(0,1,2,3),true) c'x');
+        pt!(b"a\x1b[1;2;3;4#|x", c'a' m m m m m m m m m m ReportRendition(rect!(0,1,2,3)) c'x');
         pt!(b"a\x1b[0$|x", c'a' m m m m ColumnsPerPage(80) c'x');
         pt!(b"a\x1b[80$|x", c'a' m m m m m ColumnsPerPage(80) c'x');
         pt!(b"a\x1b[132$|x", c'a' m m m m m m ColumnsPerPage(132) c'x');

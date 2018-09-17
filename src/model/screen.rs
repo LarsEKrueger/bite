@@ -833,25 +833,25 @@ impl Screen {
             Action::LinesPerScreen(_) |
             Action::RequestLocatorPosition |
             Action::ColumnsPerPage(_) |
-            Action::ReportRendition(_,_,_,_) |
+            Action::ReportRendition(_) |
             Action::PopVideoAttributes |
             Action::PushVideoAttributes(_) |
             Action::SelectLocatorEvents(_,_) |
-            Action::EraseArea(_,_,_,_,_) |
+            Action::EraseArea(_,_) |
             Action::LocatorReport(_,_) |
             Action::AttributeChangeExtent(_) |
             Action::RequestTerminalParameters |
             Action::CursorInformationReport |
             Action::TabstopReport |
-            Action::EnableFilterArea(_,_,_,_) |
-            Action::ChecksumArea(_,_,_,_,_,_) |
-            Action::FillArea(_,_,_,_,_) |
-            Action::CopyArea(_,_,_,_,_,_,_,_) |
+            Action::EnableFilterArea(_) |
+            Action::ChecksumArea(_,_,_) |
+            Action::FillArea(_,_) |
+            Action::CopyArea(_,_,_,_) |
             Action::SetMarginBellVolume(_) |
             Action::SetWarningBellVolume(_) |
             Action::SetMargins(_,_) |
-            Action::ChangeAttributesArea(_,_,_,_,_) |
-            Action::ReverseAttributesArea(_,_,_,_,_) |
+            Action::ChangeAttributesArea(_,_) |
+            Action::ReverseAttributesArea(_,_) |
             Action::ScrollRegion(_,_) |
             Action::CharacterProtection(_) |
             Action::CursorStyle(_) |

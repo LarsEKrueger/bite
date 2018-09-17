@@ -19,7 +19,7 @@
 //! Control sequence parameters
 
 use std::cmp;
-use super::types::ActionParameter;
+use super::types::{Point, ActionParameter, Rectangle};
 
 /// Maximal number of parameters
 const NUM_PARAMETERS: usize = 30;
@@ -100,7 +100,39 @@ impl Parameters {
     pub fn maybe(&self, param_index: u8) -> Option<ActionParameter> {
         if param_index < self.count {
             let v = self.values[param_index as usize];
-            if v == DEFAULT { None } else { Some(v as ActionParameter) }
+            if v == DEFAULT {
+                None
+            } else {
+                Some(v as ActionParameter)
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Read a point from the parameters. All parameters are one based. The point is zero
+    /// based, therefore we have to correct the value.
+    pub fn get_point(&self, param_index: u8) -> Option<Point> {
+        let top = self.one_if_default(param_index + 0);
+        let left = self.one_if_default(param_index + 1);
+        if 0 < top && 0 < left {
+            Some(Point::new(top - 1, left - 1))
+        } else {
+            None
+        }
+    }
+
+    /// Read a rectangle from the parameters.
+    ///
+    /// All parameters are one based. The rectangle is zero based, therefore we have to correct the
+    /// value.
+    pub fn get_area(&self, param_index: u8) -> Option<Rectangle> {
+        let top = self.one_if_default(param_index + 0);
+        let left = self.one_if_default(param_index + 1);
+        let bottom = self.one_if_default(param_index + 2);
+        let right = self.one_if_default(param_index + 3);
+        if 0 < top && top < bottom && 0 < left && left < right {
+            Some(Rectangle::new(top - 1, left - 1, bottom - 1, right - 1))
         } else {
             None
         }

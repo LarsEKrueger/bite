@@ -230,3 +230,46 @@ pub type CaseTable = [Case; MAX_CONTROL_VALUE as usize];
 /// Parameter of an action that corresponds to a control sequence.
 pub type ActionParameter = u16;
 
+/// Point on the character grid
+///
+/// Zero based index, relative to the top left of the grid.
+#[derive(PartialEq, Debug)]
+pub struct Point {
+    /// Horizontal position
+    pub x: ActionParameter,
+    /// Vertical position
+    pub y: ActionParameter,
+}
+
+/// Rectangle on the character grid.
+///
+/// The invariant is that the top left (start) point is always smaller than the bottom right (end)
+/// point. The range is exclusive. Therefore, the smallest rectangle that can be represented is 1x1
+/// cells.
+#[derive(PartialEq, Debug)]
+pub struct Rectangle {
+    /// Start point
+    pub start: Point,
+    /// End point
+    pub end: Point,
+}
+
+impl Point {
+    pub fn new(y: ActionParameter, x: ActionParameter) -> Self {
+        Self { x, y }
+    }
+}
+
+impl Rectangle {
+    pub fn new(
+        top: ActionParameter,
+        left: ActionParameter,
+        bottom: ActionParameter,
+        right: ActionParameter,
+    ) -> Self {
+        Self {
+            start: Point::new(top, left),
+            end: Point::new(bottom, right),
+        }
+    }
+}
