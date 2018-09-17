@@ -19,27 +19,26 @@
 //! Control sequence parameters
 
 use std::cmp;
-
-/// Parameter of a control sequence.
-///
-/// Prepared for sub-parameters.
-pub type Parameter = u32;
+use super::types::ActionParameter;
 
 /// Maximal number of parameters
 const NUM_PARAMETERS: usize = 30;
+
+/// Value to hold a parameter until it's ready to be passed to an Action.
+type InternalParameter = u32;
 
 /// Magic number to indicate a default value.
 ///
 /// As the value of parameter is clipped to 16 bit, we can use the maximum value of an u32 as magic
 /// number.
-const DEFAULT: Parameter = Parameter::max_value();
+const DEFAULT: InternalParameter = InternalParameter::max_value();
 
 pub struct Parameters {
     /// Number of parameters used
     count: u8,
 
     /// Values of parameters
-    values: [Parameter; NUM_PARAMETERS],
+    values: [InternalParameter; NUM_PARAMETERS],
 }
 
 impl Parameters {
@@ -71,22 +70,22 @@ impl Parameters {
         *cm = DEFAULT;
     }
 
-    pub fn current_mut(&mut self) -> &mut Parameter {
+    pub fn current_mut(&mut self) -> &mut InternalParameter {
         debug_assert!(self.count != 0);
         &mut self.values[(self.count - 1) as usize]
     }
 
     /// Return an iterator on the parameters
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Parameter> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = ActionParameter> + 'a {
         let c = self.count as usize;
-        self.values[0..c].into_iter().map(|v| *v)
+        self.values[0..c].into_iter().map(|v| *v as ActionParameter)
     }
 
-    fn if_default(&self, param_index: u8, min_val: Parameter) -> Parameter {
+    fn if_default(&self, param_index: u8, min_val: ActionParameter) -> ActionParameter {
         self.maybe(param_index).map_or(min_val, |x| x)
     }
 
-    pub fn zero_if_default(&self, param_index: u8) -> Parameter {
+    pub fn zero_if_default(&self, param_index: u8) -> ActionParameter {
         self.if_default(param_index, 0)
     }
 
@@ -94,14 +93,14 @@ impl Parameters {
         cmp::min(255, self.zero_if_default(param_index)) as u8
     }
 
-    pub fn one_if_default(&self, param_index: u8) -> Parameter {
+    pub fn one_if_default(&self, param_index: u8) -> ActionParameter {
         self.if_default(param_index, 1)
     }
 
-    pub fn maybe(&self, param_index: u8) -> Option<Parameter> {
+    pub fn maybe(&self, param_index: u8) -> Option<ActionParameter> {
         if param_index < self.count {
             let v = self.values[param_index as usize];
-            if v == DEFAULT { None } else { Some(v) }
+            if v == DEFAULT { None } else { Some(v as ActionParameter) }
         } else {
             None
         }

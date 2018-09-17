@@ -226,3 +226,7 @@ pub enum Case {
 const MAX_CONTROL_VALUE: u8 = 128;
 
 pub type CaseTable = [Case; MAX_CONTROL_VALUE as usize];
+
+/// Parameter of an action that corresponds to a control sequence.
+pub type ActionParameter = u16;
+

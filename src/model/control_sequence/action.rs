@@ -19,6 +19,7 @@
 //! Parsing result, action to be taken from seeing this sequence.
 
 use std::char;
+use super::types::ActionParameter;
 
 /// Actions to be taken after processing a byte
 #[derive(PartialEq, Debug)]
@@ -57,13 +58,13 @@ pub enum Action {
     SaveCursor,
     RestoreCursor,
 
-    HorizontalMove(u32),
+    HorizontalMove(ActionParameter),
 
-    VerticalPositionAbsolute(u32),
-    VerticalPositionRelative(u32),
+    VerticalPositionAbsolute(ActionParameter),
+    VerticalPositionRelative(ActionParameter),
 
-    DA1(u32),
-    DA2(u32),
+    DA1(ActionParameter),
+    DA2(ActionParameter),
 
     Show8BitControl(bool),
 
@@ -87,17 +88,17 @@ pub enum Action {
     DecApplicationKeypad(bool),
 
     CursorLowerLeft,
-    CursorUp(u32),
-    CursorDown(u32),
-    CursorForward(u32),
-    CursorBackward(u32),
-    CursorNextLine(u32),
-    CursorPrevLine(u32),
-    CursorAbsoluteColumn(u32),
+    CursorUp(ActionParameter),
+    CursorDown(ActionParameter),
+    CursorForward(ActionParameter),
+    CursorBackward(ActionParameter),
+    CursorNextLine(ActionParameter),
+    CursorPrevLine(ActionParameter),
+    CursorAbsoluteColumn(ActionParameter),
     /// row, column
-    CursorAbsolutePosition(u32, u32),
-    CursorForwardTab(u32),
-    CursorBackwardTab(u32),
+    CursorAbsolutePosition(ActionParameter, ActionParameter),
+    CursorForwardTab(ActionParameter),
+    CursorBackwardTab(ActionParameter),
 
     /// Erase in display
     ///
@@ -134,24 +135,24 @@ pub enum Action {
     /// Set text parameter
     SetTextParameter(TextParameter, String),
 
-    InsertCharacters(u32),
-    InsertLines(u32),
-    InsertColumns(u32),
-    DeleteColumns(u32),
+    InsertCharacters(ActionParameter),
+    InsertLines(ActionParameter),
+    InsertColumns(ActionParameter),
+    DeleteColumns(ActionParameter),
 
-    DeleteLines(u32),
-    DeleteCharacters(u32),
+    DeleteLines(ActionParameter),
+    DeleteCharacters(ActionParameter),
 
-    EraseCharacters(u32),
-    RepeatCharacter(u32),
+    EraseCharacters(ActionParameter),
+    RepeatCharacter(ActionParameter),
 
-    ScrollUp(u32),
-    ScrollDown(u32),
+    ScrollUp(ActionParameter),
+    ScrollDown(ActionParameter),
 
     GraphicRegister(GraReg, GraOp),
 
     /// The 5 parameters of the sequence
-    MouseTracking(u32, u32, u32, u32, u32),
+    MouseTracking(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
 
     SetTitleModes(TitleModes),
     ResetTitleModes(TitleModes),
@@ -173,7 +174,7 @@ pub enum Action {
     BackgroundColorRgb(u8, u8, u8),
     BackgroundColorIndex(u8),
 
-    SetModFKeys(FKeys, u32),
+    SetModFKeys(FKeys, ActionParameter),
     DisableModFKeys(FKeys),
     StatusReport,
     ReportCursorPosition,
@@ -185,20 +186,20 @@ pub enum Action {
     LocatorStatusReport,
     LocatorTypeReport,
     MacroStatusReport,
-    MemoryStatusReport(u32),
+    MemoryStatusReport(ActionParameter),
     DataIntegrityReport,
     MultiSessionReport,
     CursorInformationReport,
     TabstopReport,
     RequestTerminalParameters,
     LocatorReport(LocatorReportEnable, LocatorReportUnit),
-    ReportRendition(u32, u32, u32, u32),
+    ReportRendition(ActionParameter, ActionParameter, ActionParameter, ActionParameter),
     RequestLocatorPosition,
     TerminalEnquire,
     TerminalUnitId,
 
-    ScrollLeft(u32),
-    ScrollRight(u32),
+    ScrollLeft(ActionParameter),
+    ScrollRight(ActionParameter),
 
     PointerMode(PointerMode),
     SoftReset,
@@ -219,46 +220,46 @@ pub enum Action {
     /// top, bottom. Scroll region is exclusive, i.e. if bottom is one more than top, the region is
     /// one line.
     /// (0,0) means region is the full window.
-    ScrollRegion(u32, u32),
+    ScrollRegion(ActionParameter, ActionParameter),
 
     /// Change Attributes in area
     ///
     /// top, left, bottom, right, attribute. Range is exclusive.
-    ChangeAttributesArea(u32, u32, u32, u32, CharacterAttribute),
+    ChangeAttributesArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, CharacterAttribute),
     /// Reverse Attributes in area
     ///
     /// top, left, bottom, right, attribute. Range is exclusive.
-    ReverseAttributesArea(u32, u32, u32, u32, CharacterAttribute),
+    ReverseAttributesArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, CharacterAttribute),
 
     /// Copy rectangular area
     ///
     /// top, left, bottom, right, from-page, to-top, to-left, to-page
-    CopyArea(u32, u32, u32, u32, u32, u32, u32, u32),
+    CopyArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
 
     /// Enable filter area
     ///
     /// top, left, bottom, right. Range is exclusive.
-    EnableFilterArea(u32, u32, u32, u32),
+    EnableFilterArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter),
 
     /// Fill area
     ///
     /// character code, top, left, bottom, right. Range is exclusive.
-    FillArea(u32, u32, u32, u32, u32),
+    FillArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
 
     /// Compute checksum of area
     ///
     /// id, page, top, left, bottom, right. Range is exclusive.
-    ChecksumArea(u32, u32, u32, u32, u32, u32),
+    ChecksumArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter, ActionParameter),
 
     /// Erase area
     ///
     /// top, left, bottom, right, true=selective. Range is exclusive.
-    EraseArea(u32, u32, u32, u32, bool),
+    EraseArea(ActionParameter, ActionParameter, ActionParameter, ActionParameter, bool),
 
     /// Set left and right margins
     ///
     /// left, right. Range in exclusive.
-    SetMargins(u32, u32),
+    SetMargins(ActionParameter, ActionParameter),
 
     WindowOp(WindowOp),
 
@@ -276,9 +277,9 @@ pub enum Action {
     /// Number of columns per page.
     ///
     /// Only 80 and 132 are standard and therefore accepted.
-    ColumnsPerPage(u32),
+    ColumnsPerPage(ActionParameter),
 
-    LinesPerScreen(u32),
+    LinesPerScreen(ActionParameter),
 
     PushVideoAttributes(VideoAttributes),
     PopVideoAttributes,
@@ -352,7 +353,7 @@ pub enum GraReg {
 pub enum GraOp {
     Read,
     Reset,
-    Write(u32),
+    Write(ActionParameter),
     GetMax,
 }
 
@@ -559,14 +560,14 @@ pub enum CharacterProtection {
 pub enum WindowOp {
     DeIconify,
     Iconify,
-    Move(u32, u32),
+    Move(ActionParameter, ActionParameter),
     /// If None, don't change. If zero, use display size.
-    ResizeWindow(Option<u32>, Option<u32>),
+    ResizeWindow(Option<ActionParameter>, Option<ActionParameter>),
     Raise,
     Lower,
     Refresh,
     /// If None, don't change. If zero, use display size.
-    ResizeTextArea(Option<u32>, Option<u32>),
+    ResizeTextArea(Option<ActionParameter>, Option<ActionParameter>),
     RestoreMaximized,
     MaximizeWindow,
     MaximizeVertically,
@@ -591,7 +592,7 @@ pub enum WindowOp {
     PopIconAndWindowTitle,
     PopIconTitle,
     PopWindowTitle,
-    ResizeLines(u32),
+    ResizeLines(ActionParameter),
 }
 
 #[derive(Debug, PartialEq)]

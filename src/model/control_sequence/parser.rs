@@ -23,13 +23,13 @@ use std::char;
 use std::mem;
 
 use super::vt_parse_table::*;
-use super::types::{Case, CaseTable};
+use super::types::{ActionParameter, Case, CaseTable};
 use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
                     TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
                     Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
                     CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable,
                     LocatorReportUnit, LocatorEvents, VideoAttributes, TextParameter};
-use super::parameter::{Parameter, Parameters};
+use super::parameter::{Parameters};
 
 /// Parser for control sequences
 #[allow(dead_code)]
@@ -249,7 +249,7 @@ mod action {
         };
         // Generate a helper function to only match the parameter
         ($name:ident, $action:ident, {$($n:expr => $v:ident),+}) => {
-            pub fn $name(p0:Parameter) -> Option<$action> {
+            pub fn $name(p0:ActionParameter) -> Option<$action> {
                 match p0 {
                     $($n => Some($action::$v)),+,
                     _ =>  None,
@@ -467,7 +467,7 @@ impl Parser {
         }
     }
 
-    pub fn parameters<'a>(&'a self) -> impl Iterator<Item = Parameter> + 'a {
+    pub fn parameters<'a>(&'a self) -> impl Iterator<Item = ActionParameter> + 'a {
         self.parameter.iter()
     }
 
@@ -1824,7 +1824,7 @@ mod test {
                 assert_eq!(e.parameter.zero_if_default(0), 32);
                 assert_eq!(e.parameter.zero_if_default(1), 12);
 
-                let ps: Vec<Parameter> = e.parameters().collect();
+                let ps: Vec<ActionParameter> = e.parameters().collect();
                 assert_eq!(ps, [32, 12]);
             }
             {
@@ -1843,7 +1843,7 @@ mod test {
                 assert_eq!(e.parameter.count(), (1));
                 assert_eq!(e.parameter.zero_if_default(0), 45);
 
-                let ps: Vec<Parameter> = e.parameters().collect();
+                let ps: Vec<ActionParameter> = e.parameters().collect();
                 assert_eq!(ps, [45]);
             }
         }
