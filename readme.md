@@ -234,6 +234,7 @@ non-GUI program.
 * [ ] 2.1 shell program editor with preview
 
 # TODOs
+* [ ] Bug: Handle rectangular area parameters correctly, reduce copy/paste
 * [ ] Bug: Bash source $() does not work correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Merge history during save
@@ -245,7 +246,6 @@ non-GUI program.
 * [ ] Syntax highlighting in input line
 * [ ] Implement C1 control codes
 * [ ] Implement mouse tracking sequences more cleanly
-* [ ] Handle rectangluar area parameters correctly, reduce copy/paste
 * [ ] Handle sub parameters correctly
 * [X] Indicate return code of a completed program in the GUI
 * [X] Scroll follows output during program execution
