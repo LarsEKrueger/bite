@@ -187,6 +187,7 @@ non-GUI program.
 * Basic design: [design.md](doc/design.md)
 * Parser library: [parser.md](doc/parser.md)
 * Architecture: [architecture.md](doc/architecture.md)
+* XTerm compliance testing: [xterm-test.md](doc/term-test.md)
 
 # Roadmap / Release Planning
 
@@ -214,8 +215,8 @@ non-GUI program.
     * [X] Display multi-line commands correctly
     * [X] Draw progress bar style line (terminated with \r) correctly
     * [ ] Switch to TUI mode and back
-        * [ ] Add xterm state machine without characters >= 128
-        * [ ] Add option to dump stdio/stderr stream to disk
+        * [X] Add xterm state machine without characters >= 128
+        * [ ] Test screen module to match xterm functionality
         * [ ] Add TUI detection
         * [ ] Add TUI presenter
     * [ ] Handle keys in TUI mode
