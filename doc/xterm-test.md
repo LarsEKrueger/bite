@@ -34,6 +34,7 @@ requirements have to be fulfilled:
 - Tests SHOULD work on character matrices of different sizes.
 - Tests SHOULD be runnable in parallel.
 - Failing tests SHOULD catch as many errors per run as possible.
+- Test coverage SHOULD be displayed.
 
 Based on these requirements, the implementation of the steps is done as follows:
 
