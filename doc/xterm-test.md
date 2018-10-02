@@ -7,9 +7,9 @@ illustrates how the common test suite is to be designed so that both BiTe (a
 Rust program) and XTerm (a C program) can use it.
 
 The tests will be written in accordance with the specification
-in XTerm's `ctlseqs.txt` and then checked if XTerm can pass them. If not, either the
-test is faulty and needs to be adapted (likely case) or an implementation bug
-in XTerm is uncovered (unlikely).
+in XTerm's `ctlseqs.txt` and then checked if XTerm can pass them. If not,
+either the test is faulty and needs to be adapted (likely case) or an
+implementation bug in XTerm is uncovered (unlikely).
 
 A secondary effect of this portable test suite is that other terminal emulators
 can also compare their implementation against XTerm, thus reducing
@@ -30,11 +30,15 @@ requirements have to be fulfilled:
 - Tests MUST check behaviour (i.e. the state of the character matrix), not
   implementation (e.g. internal states of the terminal emulator).
 - Ground Truth MUST support multiple checks per test.
+- Tests MUST be built and executed without changes to the `XTerm` repository.
+  This is a requirement from the `XTerm` maintainer.
 - Tests SHOULD be easy to define.
 - Tests SHOULD work on character matrices of different sizes.
 - Tests SHOULD be runnable in parallel.
 - Failing tests SHOULD catch as many errors per run as possible.
 - Test coverage SHOULD be displayed.
+- Tests SHALL be built as an integral part of the `BiTe` build system.
+- Tests SHALL be declared with little boiler plate code.
 
 Based on these requirements, the implementation of the steps is done as follows:
 
@@ -58,11 +62,16 @@ has the advantage that more people are familiar with it, `M4` has the
 advantage that XTerm already uses it (`automake`/`autoconf` are based on
 `M4`).
 
-`M4` is a macro processor, like the `C` preprocessor, but more powerful. It is
-to be assumed that a `python` version of the DSL will require a
-reimplementation of a large subset of `M4`'s  functionality. Integrating the
-code generator in BiTe's and XTerm's build system should be similar for either
-implementation. Thus, the code generator will be implemented in `M4`.
+`M4` is a macro processor, like the `C` preprocessor, but more powerful.
+Unfortunately, it does not support multi-byte characters very well.
+
+It is to be assumed that a `python` version of the DSL might require a
+reimplementation of a large subset of `M4`'s functionality. It might also be
+possible that the implementation of a few string interpolating functions is
+sufficient.
+
+Integrating the code generator in BiTe's and XTerm's build system should be
+similar for either implementation. 
 
 ## Example Test
 
@@ -72,6 +81,7 @@ line up, print a `ü`. The sequence is:
 
     A ESC [ A ü
 
+### `M4` Example
 The test will be implemented by this `M4` DSL code.
 
     TEST(a_up_b,80,25,40,13)
@@ -120,3 +130,28 @@ attributes are set. Here, it checks that no attributes are set.
 
 The checks `*_BG_*` and `*_FG_*` check for a given foreground / background
 color. Here, they check that the default colors are used.
+
+### `python` Example
+
+    test("a_up_b", 80, 25, 40, 13, "A\x1b[Aü")
+         .assert().size(80,25)
+         .expect().
+         .cpos(42,12)
+         .char(40,13,'A')
+         .attr(40,13,None)
+         .uc(41,12,0xfc)
+         .bg_def(41,12)
+         .fg_def(41,12)
+
+The tests are declared via the [*builder*
+pattern](https://en.wikipedia.org/wiki/Builder_pattern). As `python3` supports
+UTF-8 as the default encoding of source files, the character sequence can be
+provided directly.
+
+## Decision
+As we expect a high number of tests (BiTe has approx. 550 tests for the control
+sequence parser), writing short tests is paramount for good usability. While
+`M4` code could be shortened by using shorter macro names, `python` code can be
+shortened by using modern techniques, like the *builder* pattern.
+
+We will use *`python`*.
