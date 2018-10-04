@@ -2,3 +2,6 @@
 	path = c_src/bash
 	url = https://git.savannah.gnu.org/git/bash.git
 	ignore = dirty
+[submodule "xterm_test"]
+	path = xterm_test
+	url = https://github.com/LarsEKrueger/xterm-unit-test
