@@ -217,7 +217,7 @@ non-GUI program.
     * [ ] Switch to TUI mode and back
         * [X] Add xterm state machine without characters >= 128
         * [ ] Test screen module to match xterm functionality
-            * [ ] Implement test screen initialization
+            * [X] Implement test screen initialization
             * [ ] Implement test for simple case
             * [ ] Implement code generator and port simple case to it
             * [ ] Extend code generator to test XTerm

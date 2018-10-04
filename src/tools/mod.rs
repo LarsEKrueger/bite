@@ -22,3 +22,4 @@
 pub mod commandline;
 pub mod polling;
 pub mod versioned_file;
+pub mod prng;

@@ -36,6 +36,7 @@ extern crate libc;
 extern crate time;
 extern crate x11;
 extern crate boolinator;
+extern crate num;
 
 #[macro_use]
 extern crate cstr;
