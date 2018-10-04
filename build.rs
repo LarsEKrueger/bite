@@ -53,12 +53,19 @@ fn main() {
         "mystuff",
     );
 
+    // Check if submodules exist
+    let bash_exists = Path::new("c_src/bash/configure").exists();
+    let xut_exists = Path::new("xterm_test/README.md").exists();
+
+    // Download the source if one is missing
+    if !bash_exists || !xut_exists {
+        run(Command::new("git").args(&["submodule", "update", "--init"]));
+    }
+
     // Bash-as-a-library
 
-    // Download bash source if it's not there
-    if !Path::new("c_src/bash/configure").exists() {
-        run(Command::new("git").args(&["submodule", "update", "--init"]));
-
+    // Patch bash source if it was downloaded
+    if !bash_exists {
         // Patch source
         run(Command::new("git").args(
             &[
@@ -70,12 +77,27 @@ fn main() {
     }
 
     // Build bash
-    if let Some(_build) = try_build() {
-
-        return;
+    if let None = try_build_bash() {
+        process::exit(1);
     }
 
-    process::exit(1);
+    // Build tests
+    {
+        let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+        let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+        let xterm_tests_dir = out_dir.clone().join("xterm_tests");
+        let generate_py = manifest_dir.clone().join("xterm_test_bite").join(
+            "generate.py",
+        );
+        let xterm_test_dir = manifest_dir.clone().join("xterm_test");
+        if ! run(Command::new("python3")
+            .arg(generate_py)
+            .arg(xterm_test_dir)
+            .arg(xterm_tests_dir)
+        ) {
+            process::exit(2);
+        }
+    }
 }
 
 fn spawn(cmd: &mut Command) -> Option<Child> {
@@ -112,7 +134,7 @@ fn run(cmd: &mut Command) -> bool {
     false
 }
 
-fn try_build() -> Option<PathBuf> {
+fn try_build_bash() -> Option<PathBuf> {
     let src = PathBuf::from(env::current_dir().unwrap())
         .join("c_src")
         .join("bash");
