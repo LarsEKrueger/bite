@@ -337,6 +337,10 @@ fn empty_screen_iter() {
 #[test]
 fn init_screen() {
   let s = new_test_screen(8,6);
+  assert_eq!(s.matrix.columns(), 8);
+  assert_eq!(s.matrix.rows(), 6);
+  assert_eq!(s.cursor.x,0);
+  assert_eq!(s.cursor.y,0);
   assert_eq!(s.matrix.cells[0].code_point, 74 as char);
   assert_eq!(s.matrix.cells[0].attributes, Attributes::from_bits_truncate(4242));
 }

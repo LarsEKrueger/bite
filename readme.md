@@ -218,7 +218,7 @@ non-GUI program.
         * [X] Add xterm state machine without characters >= 128
         * [ ] Test screen module to match xterm functionality
             * [X] Implement test screen initialization
-            * [ ] Implement test for simple case
+            * [X] Implement test for simple case
             * [ ] Implement code generator and port simple case to it
             * [ ] Extend code generator to test XTerm
             * [ ] Add remaining test cases
