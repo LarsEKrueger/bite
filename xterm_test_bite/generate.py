@@ -20,23 +20,65 @@
 import sys
 import os
 
+def rust_escape(s):
+    return s
+
+def check_size(pat,check, filehandle):
+    print(("  " + pat) % ("s.width()", "%d" % check.w), file=filehandle)
+    print(("  " + pat) % ("s.height()", "%d" % check.h), file=filehandle)
+
+def check_cpos(pat,check,filehandle):
+    print(("  " + pat) % ("s.cursor_x()", "%d" % check.x), file=filehandle)
+    print(("  " + pat) % ("s.cursor_y()", "%d" % check.y), file=filehandle)
+
+check_functions = {
+    'CheckSize': check_size,
+    'CheckCPos': check_cpos,
+        }
+
 class Generator:
     def __init__(self, out_dir):
         self.out_dir = out_dir
         pass
 
     def begin_file(self, filename):
-        print("Generating for file '%s'" % filename)
+        bn = os.path.basename(filename)
+        (fn,_) = os.path.splitext(bn)
+        out_file_name = os.path.join(self.out_dir,fn + ".rs")
+        self.file = open(out_file_name, 'w')
 
     def begin_test(self, testname):
-        print("  Generating test '%s'" % testname)
+        print("#[test]\nfn %s() {" % testname, file=self.file)
+
+    def create_screen(self, w, h):
+        print("  let mut s = new_test_screen(%d,%d);" % (w,h), file=self.file)
+
+    def place_cursor(self, x, y):
+        print("  s.cursor.x = %d;\n  s.cursor.y = %d;" % (x,y), file=self.file)
+
+    def export_sequence(self, seq):
+        print("  s.add_bytes(b\"%s\");" % rust_escape(seq), file=self.file)
+
+    def begin_checks(self):
+        print("  let mut unexpected = false;", file=self.file)
+
+    def add_check(self,check):
+        if check.error:
+            pat = "assert_eq!(%s,%s);"
+        else:
+            pat = "expect_eq!(%s,%s);"
+
+        fun = check_functions[check.__class__.__name__]
+        fun(pat, check, self.file)
+
+    def end_checks(self):
+        print("  assert_eq!(unexpected,false);", file=self.file)
 
     def end_test(self, testname):
-        print("  Done generating test '%s'" % testname)
+        print("}", file=self.file)
 
     def end_file(self, filename):
-        print("Done generating for file '%s'" % filename)
-
+        self.file.close()
 
 
 # Check the arguments
@@ -47,6 +89,8 @@ if len(sys.argv) < 3:
 
 xut_path = sys.argv[1]
 out_path = sys.argv[2]
+
+os.makedirs(out_path,exist_ok=True)
 
 # Fix the python path so we can find the test framework.
 sys.path.append( xut_path)
