@@ -66,7 +66,7 @@ class Generator:
         if check.error:
             pat = "assert_eq!(%s,%s);"
         else:
-            pat = "expect_eq!(%s,%s);"
+            pat = "expect_eq!(unexpected,%s,%s);"
 
         fun = check_functions[check.__class__.__name__]
         fun(pat, check, self.file)

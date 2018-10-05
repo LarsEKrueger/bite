@@ -36,6 +36,23 @@ fn check_compacted_row(s: &Screen, row: isize, gt: &str) {
         );
 }
 
+/// Check if the two parts evaluate to identical values. If not, print a message and set the
+/// variable `unexpected`.
+///
+/// Slightly adapted version of assert_eq macro.
+macro_rules! expect_eq {
+    ($unexpected:ident, $left:expr, $right:expr) => {
+        let left_val = $left;
+        let right_val = $right;
+        if !((left_val) == (right_val)) {
+            eprintln!(r#"expectation failed: `(left == right)`
+  left: `{:?}`,
+ right: `{:?}`"#, left_val, right_val);
+            $unexpected = true;
+        }
+    }
+}
+
 /// Allocate a new screen of the given size and fill it with pseudo-random, but valid data.
 ///
 /// This function is the reference implementation for xterm-test's initialisation.
@@ -344,5 +361,7 @@ fn init_screen() {
   assert_eq!(s.matrix.cells[0].code_point, 74 as char);
   assert_eq!(s.matrix.cells[0].attributes, Attributes::from_bits_truncate(4242));
 }
+
+include!(concat!(env!("OUT_DIR"), "/xterm_tests/test_initializer.rs"));
 
 // TODO: Test for protected
