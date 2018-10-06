@@ -219,7 +219,7 @@ non-GUI program.
         * [ ] Test screen module to match xterm functionality
             * [X] Implement test screen initialization
             * [X] Implement test for simple case
-            * [ ] Implement code generator and port simple case to it
+            * [X] Implement code generator and port simple case to it
             * [ ] Extend code generator to test XTerm
             * [ ] Add remaining test cases
         * [ ] Add TUI detection

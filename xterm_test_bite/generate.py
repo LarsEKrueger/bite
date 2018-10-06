@@ -31,6 +31,22 @@ def rust_escape_char(c):
 
     return c
 
+code2attr = {
+        'i': "Attributes::INVERSE",
+        'u': "Attributes::UNDERLINE",
+        'b': "Attributes::BOLD",
+        'l': "Attributes::BLINK",
+        'c': "Attributes::BG_COLOR",
+        'f': "Attributes::FG_COLOR",
+        'p': "Attributes::PROTECTED",
+        'd': "Attributes::CHARDRAWN",
+        'a': "Attributes::ATR_FAINT",
+        't': "Attributes::ATR_ITALIC",
+        's': "Attributes::ATR_STRIKEOUT",
+        'w': "Attributes::ATR_DBL_UNDER",
+        'v': "Attributes::INVISIBLE",
+        }
+
 def check_size(pat,check, filehandle):
     print(("  " + pat) % ("s.width()", "%d" % check.w), file=filehandle)
     print(("  " + pat) % ("s.height()", "%d" % check.h), file=filehandle)
@@ -46,11 +62,27 @@ def check_char(pat,check,filehandle):
         "char::from(b'%s')" % rust_escape_char(check.c)),
         file=filehandle)
 
+def check_attr(pat,check,filehandle):
+    attr = check.a
+    if attr == '':
+        attr_str = "Attributes::empty()"
+    else:
+        attr_str = ""
+        sep = ""
+        for c in attr:
+            attr_str = attr_str + sep + code2attr[c]
+            sep = "|"
+
+    print(("  " + pat) % ("s.matrix.cell_at(%d,%d).attributes" % (check.x, check.y),
+        "%s" % attr_str),
+        file=filehandle)
+
 check_functions = {
     'CheckSize': check_size,
     'CheckCPos': check_cpos,
     'CheckChar': check_char,
-        }
+    'CheckAttr': check_attr,
+    }
 
 class Generator:
     def __init__(self, out_dir):
