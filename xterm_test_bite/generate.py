@@ -23,6 +23,14 @@ import os
 def rust_escape(s):
     return s
 
+def rust_escape_char(c):
+    if c == '\\':
+        return "\\\\"
+    if c == '\'':
+        return "\\'"
+
+    return c
+
 def check_size(pat,check, filehandle):
     print(("  " + pat) % ("s.width()", "%d" % check.w), file=filehandle)
     print(("  " + pat) % ("s.height()", "%d" % check.h), file=filehandle)
@@ -31,9 +39,17 @@ def check_cpos(pat,check,filehandle):
     print(("  " + pat) % ("s.cursor_x()", "%d" % check.x), file=filehandle)
     print(("  " + pat) % ("s.cursor_y()", "%d" % check.y), file=filehandle)
 
+def check_char(pat,check,filehandle):
+    print("  assert!(0 <= %d && %d<s.width());" % (check.x, check.x), file=filehandle);
+    print("  assert!(0 <= %d && %d<s.height());" % (check.y, check.y), file=filehandle);
+    print(("  " + pat) % ("s.matrix.cell_at(%d,%d).code_point" % (check.x, check.y),
+        "char::from(b'%s')" % rust_escape_char(check.c)),
+        file=filehandle)
+
 check_functions = {
     'CheckSize': check_size,
     'CheckCPos': check_cpos,
+    'CheckChar': check_char,
         }
 
 class Generator:

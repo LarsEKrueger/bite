@@ -222,6 +222,11 @@ impl Matrix {
         (x + y * self.width)
     }
 
+    #[allow(dead_code)]
+    fn cell_at(&self, x:isize, y:isize) -> Cell {
+        self.cells[self.cell_index(x,y) as usize]
+    }
+
     pub fn compacted_row_slice(&self, row: isize) -> &[Cell] {
         let row_start = self.cell_index(0, row);
         let mut row_end = self.cell_index(self.width - 1, row);
