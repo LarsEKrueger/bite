@@ -363,5 +363,6 @@ fn init_screen() {
 }
 
 include!(concat!(env!("OUT_DIR"), "/xterm_tests/test_initializer.rs"));
+include!(concat!(env!("OUT_DIR"), "/xterm_tests/test_simple_text.rs"));
 
 // TODO: Test for protected
