@@ -27,6 +27,8 @@ use std::hash::{Hash, Hasher};
 use super::control_sequence::action::{Action,CharacterAttribute,Color};
 use super::control_sequence::parser::Parser;
 
+mod test;
+
 /// Colors are pairs of foreground/background indices into the same palette.
 #[derive(Clone, Copy, Debug, Hash)]
 pub struct Colors {
@@ -220,6 +222,11 @@ impl Matrix {
         (x + y * self.width)
     }
 
+    #[allow(dead_code)]
+    fn cell_at(&self, x:isize, y:isize) -> Cell {
+        self.cells[self.cell_index(x,y) as usize]
+    }
+
     pub fn compacted_row_slice(&self, row: isize) -> &[Cell] {
         let row_start = self.cell_index(0, row);
         let mut row_end = self.cell_index(self.width - 1, row);
@@ -311,6 +318,9 @@ pub struct Screen {
 
     /// State for the state machine to interpret the byte stream as a terminal.
     parser: Parser,
+
+    /// Shall the screen keep it size?
+    fixed_size : bool,
 }
 
 const INITIAL_COLORS: Colors = Colors {
@@ -334,6 +344,7 @@ impl Screen {
             attributes: Attributes::empty(),
             colors: INITIAL_COLORS,
             parser: Parser::new(),
+            fixed_size:false,
         }
     }
 
@@ -360,6 +371,12 @@ impl Screen {
         self.attributes = Attributes::empty();
         self.colors = INITIAL_COLORS;
         self.parser.reset();
+        self.fixed_size = false;
+    }
+
+    /// Mark screen as fixed-size
+    pub fn fixed_size(&mut self) {
+        self.fixed_size = true;
     }
 
     /// Get width of matrix
@@ -941,302 +958,4 @@ impl PartialEq for Screen {
     fn eq(&self, other: &Screen) -> bool {
         self.matrix == other.matrix
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    fn check_compacted_row(s: &Screen, row: isize, gt: &str) {
-        let cr = s.matrix.compacted_row(row);
-        let gti = gt.chars();
-        //assert_eq!(cr.len(), gti.clone().count());
-        let crc = cr.into_iter().map(|c| c.code_point);
-        assert!(
-            crc.clone().eq(gti.clone()),
-            "found: '{}'. expected: '{}'",
-            crc.collect::<String>(),
-            gti.collect::<String>()
-        );
-    }
-
-    #[test]
-    fn start_screen() {
-        let mut s = Screen::new();
-        s.make_room();
-        assert_eq!(s.width(), 1);
-        assert_eq!(s.height(), 1);
-        assert_eq!(s.matrix.cells.len(), 1);
-    }
-
-    #[test]
-    fn place_letter() {
-        let mut s = Screen::new();
-        s.place_char('H');
-        assert_eq!(s.width(), 1);
-        assert_eq!(s.height(), 1);
-        assert_eq!(s.matrix.cells.len(), 1);
-        assert_eq!(s.matrix.cells[0].code_point, 'H');
-    }
-
-    #[test]
-    fn grow_left() {
-        let mut s = Screen::new();
-        s.make_room();
-        s.cursor.x = -3;
-        s.make_room();
-        assert_eq!(s.width(), 4);
-        assert_eq!(s.height(), 1);
-        assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.cursor.x, 0);
-        assert_eq!(s.cursor.y, 0);
-    }
-
-    #[test]
-    fn grow_right() {
-        let mut s = Screen::new();
-        s.make_room();
-        s.cursor.x = 3;
-        s.make_room();
-        assert_eq!(s.width(), 4);
-        assert_eq!(s.height(), 1);
-        assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.cursor.x, 3);
-        assert_eq!(s.cursor.y, 0);
-    }
-
-    #[test]
-    fn grow_up() {
-        let mut s = Screen::new();
-        s.make_room();
-        s.cursor.y = -3;
-        s.make_room();
-        assert_eq!(s.width(), 1);
-        assert_eq!(s.height(), 4);
-        assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.cursor.x, 0);
-        assert_eq!(s.cursor.y, 0);
-    }
-
-    #[test]
-    fn grow_down() {
-        let mut s = Screen::new();
-        s.make_room();
-        s.cursor.y = 3;
-        s.make_room();
-        assert_eq!(s.width(), 1);
-        assert_eq!(s.height(), 4);
-        assert_eq!(s.matrix.cells.len(), 4);
-        assert_eq!(s.cursor.x, 0);
-        assert_eq!(s.cursor.y, 3);
-    }
-
-    #[test]
-    fn compacted_row() {
-
-        // Matrix contains:
-        // hello
-        //       world
-        //
-
-        let mut s = Screen::new();
-        s.place_str("hello");
-        s.move_down(false);
-        s.place_str("world");
-        s.move_down(false);
-        s.make_room();
-
-        assert_eq!(s.height(), 3);
-
-        let l0 = s.matrix.compacted_row(0);
-        assert_eq!(l0.len(), 5);
-        let c0: Vec<char> = l0.iter().map(|c| c.code_point).collect();
-        assert_eq!(c0, ['h', 'e', 'l', 'l', 'o']);
-
-        check_compacted_row(&s, 0, "hello");
-        check_compacted_row(&s, 1, "     world");
-
-        let l2 = s.matrix.compacted_row(2);
-        assert_eq!(l2.len(), 0);
-    }
-
-    #[test]
-    fn newline() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        assert_eq!(s.height(), 2);
-        check_compacted_row(&s, 0, "hello");
-        check_compacted_row(&s, 1, "world");
-
-        assert_eq!(s.line_iter().count(), 2);
-    }
-
-    #[test]
-    fn empty_cell_vec() {
-        let v = Screen::one_line_cell_vec(b"");
-        assert_eq!(v.len(), 0);
-    }
-
-    #[test]
-    fn delete_char() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        // Delete the e
-        s.cursor.x = 1;
-        s.cursor.y = 0;
-        s.delete_character();
-
-        assert_eq!(s.height(), 2);
-        check_compacted_row(&s, 0, "hllo");
-        check_compacted_row(&s, 1, "world");
-    }
-
-    #[test]
-    fn insert_char() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        // Insert before the e
-        s.cursor.x = 1;
-        s.cursor.y = 0;
-        s.insert_character();
-
-        assert_eq!(s.height(), 2);
-        check_compacted_row(&s, 0, "h ello");
-        check_compacted_row(&s, 1, "world");
-    }
-
-    #[test]
-    fn delete_row_0() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        assert_eq!(s.height(), 2);
-        s.delete_row();
-        assert_eq!(s.height(), 2);
-        check_compacted_row(&s, 0, "hello");
-        check_compacted_row(&s, 1, "world");
-
-        // Delete the first row
-        s.cursor.x = 1;
-        s.cursor.y = 0;
-        s.delete_row();
-
-        assert_eq!(s.height(), 1);
-        check_compacted_row(&s, 0, "world");
-    }
-
-    #[test]
-    fn delete_row_1() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        // Delete the first row
-        s.cursor.x = 1;
-        s.cursor.y = 1;
-        s.delete_row();
-
-        assert_eq!(s.height(), 1);
-        check_compacted_row(&s, 0, "hello");
-    }
-
-    #[test]
-    fn insert_row() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        // Insert a row between the two
-        s.cursor.x = 1;
-        s.cursor.y = 0;
-        s.insert_row();
-
-        assert_eq!(s.height(), 3);
-        check_compacted_row(&s, 0, "hello");
-        check_compacted_row(&s, 1, "");
-        check_compacted_row(&s, 2, "world");
-    }
-
-    #[test]
-    fn insert_row_one_line() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello");
-        s.insert_row();
-
-        assert_eq!(s.height(), 2);
-        check_compacted_row(&s, 0, "hello");
-        check_compacted_row(&s, 1, "");
-    }
-
-    #[test]
-    fn break_line() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        // Break the first line between the l
-        s.cursor.x = 3;
-        s.cursor.y = 0;
-        s.break_line();
-
-        assert_eq!(s.cursor.x, 0);
-        assert_eq!(s.cursor.y, 1);
-
-        assert_eq!(s.height(), 3);
-        check_compacted_row(&s, 0, "hel");
-        check_compacted_row(&s, 1, "lo");
-        check_compacted_row(&s, 2, "world");
-    }
-
-    #[test]
-    fn break_line_at_end() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello");
-        s.break_line();
-
-        assert_eq!(s.cursor.x, 0);
-        assert_eq!(s.cursor.y, 1);
-
-        assert_eq!(s.height(), 2);
-        check_compacted_row(&s, 0, "hello");
-        check_compacted_row(&s, 1, "");
-    }
-
-    #[test]
-    fn text_before_cursor() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        // Get hell
-        s.cursor.x = 4;
-        s.cursor.y = 0;
-        let tbc = s.text_before_cursor();
-        assert_eq!(tbc.as_str(), "hell");
-    }
-
-    #[test]
-    fn join_next_line() {
-        let mut s = Screen::new();
-        s.add_bytes(b"hello\nworld\n");
-
-        // Get hell
-        s.cursor.x = 5;
-        s.cursor.y = 0;
-        s.join_next_line();
-        assert_eq!(s.height(), 1);
-        check_compacted_row(&s, 0, "helloworld");
-    }
-
-    #[test]
-    fn empty_screen_iter() {
-        let mut s = Screen::new();
-        assert_eq!(s.line_iter().count(), 0);
-
-        s.add_bytes(b"stuff\n");
-        assert_eq!(s.line_iter().count(), 1);
-        s.add_bytes(b"stuff\nstuff\n");
-        assert_eq!(s.line_iter().count(), 3);
-    }
-
-    // TODO: Test for protected
 }
