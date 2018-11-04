@@ -142,7 +142,7 @@ impl SubPresenter for ComposeCommandPresenter {
             }
             ((false, false, false), SpecialKey::Up) => {
                 if self.is_multi_line() {
-                    self.text_input().move_up(true);
+                    self.text_input().move_up(1);
                     (self, PresenterCommand::Redraw)
                 } else {
                     // Go to history browse mode without search.
@@ -234,7 +234,7 @@ impl SubPresenter for ComposeCommandPresenter {
             ((false, false, false), SpecialKey::Backspace) => {
                 if self.text_input().cursor_x() == 0 {
                     if self.text_input().cursor_y() > 0 {
-                        self.text_input().move_up(false);
+                        self.text_input().move_up(1);
                         self.text_input().move_end_of_line();
                         self.text_input().join_next_line();
                     }

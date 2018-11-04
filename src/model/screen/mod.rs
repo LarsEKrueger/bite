@@ -607,17 +607,16 @@ impl Screen {
         self.cursor.x -= 1;
     }
 
-    /// Move one line down
+    /// Move n lines down. Stop at the border for fixed-sized screens.
     pub fn move_down(&mut self, n: isize) {
         let c = self.cursor;
         self.move_cursor_to(c.x, c.y + n);
     }
 
-    /// Move one line up
-    pub fn move_up(&mut self, stay_inside: bool) {
-        if !stay_inside || self.cursor.y > 0 {
-            self.cursor.y -= 1;
-        }
+    /// Move n lines up. Stop at the border for fixed-sized screens.
+    pub fn move_up(&mut self, n: isize) {
+        let c = self.cursor;
+        self.move_cursor_to(c.x, c.y - n);
     }
 
     /// Move to end of current line
@@ -906,6 +905,10 @@ impl Screen {
                 self.move_cursor_to(c as isize, r as isize);
                 Event::Ignore
             }
+            Action::CursorUp(n) => {
+                self.move_up(n as isize);
+                Event::Ignore
+            }
             Action::CursorDown(n) => {
                 self.move_down(n as isize);
                 Event::Ignore
@@ -1002,7 +1005,6 @@ impl Screen {
             Action::EraseLine(_, _) |
             Action::CursorForwardTab(_) |
             Action::CursorBackwardTab(_) |
-            Action::CursorUp(_) |
             Action::CursorForward(_) |
             Action::CursorBackward(_) |
             Action::CursorNextLine(_) |

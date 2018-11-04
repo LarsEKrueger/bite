@@ -416,6 +416,15 @@ fn cursor_motion() {
         5,
         "     World",
     );
+
+    // CursorUp
+    Test::s(80, 25, b"\x1b[5BHello\x1b[2AWorld")
+        .cr(5, "Hello")
+        .cr(3, "     World");
+    Test::e(b"World!\x1b[1AHello")
+        .height(2)
+        .cr(0, "      Hello")
+        .cr(1, "World!");
 }
 
 // TODO: Test for protected
