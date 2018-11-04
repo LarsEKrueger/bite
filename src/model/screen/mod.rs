@@ -24,7 +24,7 @@
 use std::cmp;
 use std::hash::{Hash, Hasher};
 
-use super::control_sequence::action::{Action,CharacterAttribute,Color};
+use super::control_sequence::action::{Action, CharacterAttribute, Color};
 use super::control_sequence::parser::Parser;
 
 mod test;
@@ -46,7 +46,7 @@ impl PartialEq for Colors {
 }
 
 impl Colors {
-    fn fromColor(c:Color) -> u8 {
+    fn fromColor(c: Color) -> u8 {
         match c {
             Color::Default => 0,
             Color::Black => 0,
@@ -223,8 +223,8 @@ impl Matrix {
     }
 
     #[allow(dead_code)]
-    fn cell_at(&self, x:isize, y:isize) -> Cell {
-        self.cells[self.cell_index(x,y) as usize]
+    fn cell_at(&self, x: isize, y: isize) -> Cell {
+        self.cells[self.cell_index(x, y) as usize]
     }
 
     pub fn compacted_row_slice(&self, row: isize) -> &[Cell] {
@@ -320,7 +320,7 @@ pub struct Screen {
     parser: Parser,
 
     /// Shall the screen keep it size?
-    fixed_size : bool,
+    fixed_size: bool,
 }
 
 const INITIAL_COLORS: Colors = Colors {
@@ -344,7 +344,7 @@ impl Screen {
             attributes: Attributes::empty(),
             colors: INITIAL_COLORS,
             parser: Parser::new(),
-            fixed_size:false,
+            fixed_size: false,
         }
     }
 
@@ -397,6 +397,17 @@ impl Screen {
     /// Cursor position, y coordinate
     pub fn cursor_y(&self) -> isize {
         self.cursor.y
+    }
+
+    /// Place the cursor, accounting for margins later
+    fn move_cursor_to(&mut self, x: isize, y: isize) {
+        if self.fixed_size {
+            self.cursor.x = cmp::min(self.width() - 1, cmp::max(0, x));
+            self.cursor.y = cmp::min(self.height() - 1, cmp::max(0, y));
+        } else {
+            self.cursor.x = x;
+            self.cursor.y = y;
+        }
     }
 
     pub fn line_iter(&self) -> impl Iterator<Item = &[Cell]> {
@@ -480,6 +491,29 @@ impl Screen {
             colors: self.colors,
         };
         self.cursor.x += 1;
+        if self.fixed_size {
+            if self.cursor.x == self.width() {
+                self.new_line();
+            }
+        }
+    }
+
+    /// Scroll the character matrix up by one row and fill the last row with fresh cells.
+    fn scroll_up(&mut self) {
+        // Scroll up
+        let mut offset = 0;
+        let src_index = self.width() as usize;
+        let n = (self.width() * (self.height() - 1)) as usize;
+        while offset < n {
+            self.matrix.cells[offset] = self.matrix.cells[offset + src_index];
+            offset += 1;
+        }
+        // Clear last row
+        let n = (self.width() * self.height()) as usize;
+        while offset < n {
+            self.matrix.cells[offset] = Cell::new(self.colors);
+            offset += 1;
+        }
     }
 
     pub fn place_str(&mut self, s: &str) {
@@ -490,11 +524,16 @@ impl Screen {
 
     /// Ensure that there is room for the character at the current position.
     pub fn make_room(&mut self) {
-        // TODO: Also update the saved cursor position
-        let (x, y) = (self.cursor.x, self.cursor.y);
-        let (nx, ny) = self.make_room_for(x, y);
-        self.cursor.x = nx;
-        self.cursor.y = ny;
+        if self.fixed_size {
+            self.cursor.x = cmp::max(0, cmp::min(self.width() - 1, self.cursor.x));
+            self.cursor.y = cmp::max(0, cmp::min(self.height() - 1, self.cursor.y));
+        } else {
+            // TODO: Also update the saved cursor position
+            let (x, y) = (self.cursor.x, self.cursor.y);
+            let (nx, ny) = self.make_room_for(x, y);
+            self.cursor.x = nx;
+            self.cursor.y = ny;
+        }
     }
 
     fn make_room_for(&mut self, x: isize, y: isize) -> (isize, isize) {
@@ -592,7 +631,13 @@ impl Screen {
 
     pub fn new_line(&mut self) {
         self.move_left_edge();
-        self.move_down(false);
+        self.cursor.y += 1;
+        if self.fixed_size {
+            if self.cursor.y == self.height() {
+                self.scroll_up();
+                self.cursor.y -= 1;
+            }
+        }
     }
 
     /// Insert a character at the current cursor position.
@@ -776,32 +821,54 @@ impl Screen {
             Action::CharacterAttributes(attrs) => {
                 for attr in attrs {
                     match attr {
-                        CharacterAttribute::Normal     => self.attributes = Attributes::empty(),
-                        CharacterAttribute::Bold       => self.attributes.insert(Attributes::BOLD),
-                        CharacterAttribute::Faint      => self.attributes.insert(Attributes::ATR_FAINT),
-                        CharacterAttribute::Italicized => self.attributes.insert(Attributes::ATR_ITALIC),
-                        CharacterAttribute::Underlined => self.attributes.insert(Attributes::UNDERLINE),
-                        CharacterAttribute::Blink      => self.attributes.insert(Attributes::BLINK),
-                        CharacterAttribute::Inverse    => self.attributes.insert(Attributes::INVERSE),
-                        CharacterAttribute::Invisible  => self.attributes.insert(Attributes::INVISIBLE),
-                        CharacterAttribute::CrossedOut => self.attributes.insert(Attributes::ATR_STRIKEOUT),
-                        CharacterAttribute::DoublyUnderlined => self.attributes.insert(Attributes::ATR_DBL_UNDER),
+                        CharacterAttribute::Normal => self.attributes = Attributes::empty(),
+                        CharacterAttribute::Bold => self.attributes.insert(Attributes::BOLD),
+                        CharacterAttribute::Faint => self.attributes.insert(Attributes::ATR_FAINT),
+                        CharacterAttribute::Italicized => {
+                            self.attributes.insert(Attributes::ATR_ITALIC)
+                        }
+                        CharacterAttribute::Underlined => {
+                            self.attributes.insert(Attributes::UNDERLINE)
+                        }
+                        CharacterAttribute::Blink => self.attributes.insert(Attributes::BLINK),
+                        CharacterAttribute::Inverse => self.attributes.insert(Attributes::INVERSE),
+                        CharacterAttribute::Invisible => {
+                            self.attributes.insert(Attributes::INVISIBLE)
+                        }
+                        CharacterAttribute::CrossedOut => {
+                            self.attributes.insert(Attributes::ATR_STRIKEOUT)
+                        }
+                        CharacterAttribute::DoublyUnderlined => {
+                            self.attributes.insert(Attributes::ATR_DBL_UNDER)
+                        }
                         CharacterAttribute::NotBoldFaint => {
                             self.attributes.remove(Attributes::BOLD);
                             self.attributes.remove(Attributes::ATR_FAINT);
                         }
-                        CharacterAttribute::NotItalicized => self.attributes.remove(Attributes::ATR_ITALIC),
-                        CharacterAttribute::NotUnderlined => self.attributes.remove(Attributes::UNDERLINE),
-                        CharacterAttribute::Steady        => self.attributes.remove(Attributes::BLINK),
-                        CharacterAttribute::Positive      => self.attributes.remove(Attributes::INVERSE),
-                        CharacterAttribute::Visible       => self.attributes.remove(Attributes::INVISIBLE),
-                        CharacterAttribute::NotCrossedOut => self.attributes.remove(Attributes::ATR_STRIKEOUT),
-                        CharacterAttribute::Foreground(Color::Default) => self.attributes.remove(Attributes::FG_COLOR),
+                        CharacterAttribute::NotItalicized => {
+                            self.attributes.remove(Attributes::ATR_ITALIC)
+                        }
+                        CharacterAttribute::NotUnderlined => {
+                            self.attributes.remove(Attributes::UNDERLINE)
+                        }
+                        CharacterAttribute::Steady => self.attributes.remove(Attributes::BLINK),
+                        CharacterAttribute::Positive => self.attributes.remove(Attributes::INVERSE),
+                        CharacterAttribute::Visible => {
+                            self.attributes.remove(Attributes::INVISIBLE)
+                        }
+                        CharacterAttribute::NotCrossedOut => {
+                            self.attributes.remove(Attributes::ATR_STRIKEOUT)
+                        }
+                        CharacterAttribute::Foreground(Color::Default) => {
+                            self.attributes.remove(Attributes::FG_COLOR)
+                        }
                         CharacterAttribute::Foreground(c) => {
                             self.attributes.insert(Attributes::FG_COLOR);
                             self.colors.foreground = Colors::fromColor(c);
                         }
-                        CharacterAttribute::Background(Color::Default) => self.attributes.remove(Attributes::BG_COLOR),
+                        CharacterAttribute::Background(Color::Default) => {
+                            self.attributes.remove(Attributes::BG_COLOR)
+                        }
                         CharacterAttribute::Background(c) => {
                             self.attributes.insert(Attributes::BG_COLOR);
                             self.colors.background = Colors::fromColor(c);
@@ -826,6 +893,20 @@ impl Screen {
                 self.cursor = self.saved_cursor;
                 Event::Ignore
             }
+            Action::CursorLowerLeft => {
+                self.cursor.x = 0;
+                self.cursor.y = cmp::max(self.height() - 1, 0);
+                Event::Ignore
+            }
+            Action::CursorAbsoluteColumn(c) => {
+                let y = self.cursor.y;
+                self.move_cursor_to(c as isize, y);
+                Event::Ignore
+            }
+            Action::CursorAbsolutePosition(r, c) => {
+                self.move_cursor_to(c as isize, r as isize);
+                Event::Ignore
+            }
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
             Action::TerminalUnitId |
@@ -844,7 +925,7 @@ impl Screen {
             Action::Backspace |
             Action::PrivacyMessage(_) |
             Action::Bell |
-            Action::SetTextParameter(_,_) |
+            Action::SetTextParameter(_, _) |
             Action::InsertColumns(_) |
             Action::DeleteColumns(_) |
             Action::LinesPerScreen(_) |
@@ -853,29 +934,29 @@ impl Screen {
             Action::ReportRendition(_) |
             Action::PopVideoAttributes |
             Action::PushVideoAttributes(_) |
-            Action::SelectLocatorEvents(_,_) |
-            Action::EraseArea(_,_) |
-            Action::LocatorReport(_,_) |
+            Action::SelectLocatorEvents(_, _) |
+            Action::EraseArea(_, _) |
+            Action::LocatorReport(_, _) |
             Action::AttributeChangeExtent(_) |
             Action::RequestTerminalParameters |
             Action::CursorInformationReport |
             Action::TabstopReport |
             Action::EnableFilterArea(_) |
-            Action::ChecksumArea(_,_,_) |
-            Action::FillArea(_,_) |
-            Action::CopyArea(_,_,_,_) |
+            Action::ChecksumArea(_, _, _) |
+            Action::FillArea(_, _) |
+            Action::CopyArea(_, _, _, _) |
             Action::SetMarginBellVolume(_) |
             Action::SetWarningBellVolume(_) |
-            Action::SetMargins(_,_) |
-            Action::ChangeAttributesArea(_,_) |
-            Action::ReverseAttributesArea(_,_) |
-            Action::ScrollRegion(_,_) |
+            Action::SetMargins(_, _) |
+            Action::ChangeAttributesArea(_, _) |
+            Action::ReverseAttributesArea(_, _) |
+            Action::ScrollRegion(_, _) |
             Action::CharacterProtection(_) |
             Action::CursorStyle(_) |
-            Action::LoadLeds(_,_) |
+            Action::LoadLeds(_, _) |
             Action::PointerMode(_) |
             Action::SoftReset |
-            Action::ConformanceLevel(_,_) |
+            Action::ConformanceLevel(_, _) |
             Action::DecDeviceStatusReport |
             Action::PrinterStatusReport |
             Action::UdkStatusReport |
@@ -888,11 +969,11 @@ impl Screen {
             Action::MultiSessionReport |
             Action::StatusReport |
             Action::ReportCursorPosition |
-            Action::SetModFKeys(_,_) |
+            Action::SetModFKeys(_, _) |
             Action::DisableModFKeys(_) |
-            Action::ForegroundColorRgb(_,_,_) |
+            Action::ForegroundColorRgb(_, _, _) |
             Action::ForegroundColorIndex(_) |
-            Action::BackgroundColorRgb(_,_,_) |
+            Action::BackgroundColorRgb(_, _, _) |
             Action::BackgroundColorIndex(_) |
             Action::MediaCopy(_) |
             Action::SetMode(_) |
@@ -904,28 +985,26 @@ impl Screen {
             Action::RestorePrivateMode(_) |
             Action::SavePrivateMode(_) |
             Action::TabClear(_) |
-            Action::VerticalPositionRelative(_)|
+            Action::VerticalPositionRelative(_) |
             Action::DA1(_) |
             Action::DA2(_) |
             Action::RepeatCharacter(_) |
             Action::EraseCharacters(_) |
             Action::SetTitleModes(_) |
             Action::ResetTitleModes(_) |
-            Action::MouseTracking(_,_,_,_,_)|
+            Action::MouseTracking(_, _, _, _, _) |
             Action::ScrollUp(_) |
             Action::ScrollDown(_) |
-            Action::EraseDisplay(_,_)|
-            Action::EraseLine(_,_)|
-            Action::CursorAbsoluteColumn(_)|
-            Action::CursorForwardTab(_)|
-            Action::CursorAbsolutePosition(_,_)|
-            Action::CursorBackwardTab(_)|
-            Action::CursorUp(_)|
-            Action::CursorDown(_)|
-            Action::CursorForward(_)|
-            Action::CursorBackward(_)|
-            Action::CursorNextLine(_)|
-            Action::CursorPrevLine(_)|
+            Action::EraseDisplay(_, _) |
+            Action::EraseLine(_, _) |
+            Action::CursorForwardTab(_) |
+            Action::CursorBackwardTab(_) |
+            Action::CursorUp(_) |
+            Action::CursorDown(_) |
+            Action::CursorForward(_) |
+            Action::CursorBackward(_) |
+            Action::CursorNextLine(_) |
+            Action::CursorPrevLine(_) |
             Action::InsertCharacters(_) |
             Action::InsertLines(_) |
             Action::DeleteLines(_) |
@@ -934,19 +1013,18 @@ impl Screen {
             Action::ApplicationProgramCommand(_) |
             Action::LockMemory(_) |
             Action::FullReset |
-            Action::CursorLowerLeft |
-            Action::DesignateCharacterSet(_,_) |
-            Action::InvokeCharSet(_,_) |
+            Action::DesignateCharacterSet(_, _) |
+            Action::InvokeCharSet(_, _) |
             Action::WindowOp(_) |
             Action::Show8BitControl(_) |
             Action::AnsiConformanceLevel(_) |
-            Action::GraphicRegister(_,_) |
+            Action::GraphicRegister(_, _) |
             Action::DecApplicationKeypad(_) |
             Action::DecBackIndex |
             Action::DecForwardIndex |
             Action::DecAlignmentTest |
             Action::DecDoubleHeight(_) |
-            Action::DecDoubleWidth(_) =>  {
+            Action::DecDoubleWidth(_) => {
                 // TODO: Convert to event
                 Event::Ignore
             }

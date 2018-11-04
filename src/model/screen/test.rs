@@ -32,8 +32,60 @@ fn check_compacted_row(s: &Screen, row: isize, gt: &str) {
         "found: '{}'. expected: '{}'",
         crc.collect::<String>(),
         gti.collect::<String>()
-        );
+    );
 }
+
+/// Test object as thin wrapper around screen.
+struct Test(Screen);
+
+impl Test {
+    /// Create a test object with an empty screen, then add bytes to the screen.
+    fn e(bytes: &[u8]) -> Test {
+        let mut s = Screen::new();
+        s.add_bytes(bytes);
+        Test(s)
+    }
+
+    /// Create a test object with a fixed-sized screen, then add bytes.
+    fn s(w: isize, h: isize, bytes: &[u8]) -> Test {
+        let mut s = Screen::new();
+        s.make_room_for(w - 1, h - 1);
+        s.fixed_size();
+        s.add_bytes(bytes);
+        Test(s)
+    }
+
+    fn check<T: PartialEq + std::fmt::Debug>(self, gt: T, map: fn(&Screen) -> T) -> Test {
+        assert_eq!(map(&self.0), gt);
+        self
+    }
+
+    /// Check that a compacted row matches the ground truth
+    fn cr(self, row: isize, gt: &str) -> Test {
+        check_compacted_row(&self.0, row, gt);
+        self
+    }
+
+    /// Check the width of the screen
+    fn width(self, gt: isize) -> Test {
+        assert_eq!(self.0.width(), gt);
+        self
+    }
+
+    /// Check the height of the screen
+    fn height(self, gt: isize) -> Test {
+        assert_eq!(self.0.height(), gt);
+        self
+    }
+
+    /// Check if the cursor positions
+    fn cp(self, gt_x: isize, gt_y: isize) -> Test {
+        assert_eq!(self.0.cursor.x, gt_x);
+        assert_eq!(self.0.cursor.y, gt_y);
+        self
+    }
+}
+
 
 #[test]
 fn start_screen() {
@@ -108,12 +160,10 @@ fn grow_down() {
 
 #[test]
 fn compacted_row() {
-
     // Matrix contains:
     // hello
     //       world
     //
-
     let mut s = Screen::new();
     s.place_str("hello");
     s.move_down(false);
@@ -133,18 +183,6 @@ fn compacted_row() {
 
     let l2 = s.matrix.compacted_row(2);
     assert_eq!(l2.len(), 0);
-}
-
-#[test]
-fn newline() {
-    let mut s = Screen::new();
-    s.add_bytes(b"hello\nworld\n");
-
-    assert_eq!(s.height(), 2);
-    check_compacted_row(&s, 0, "hello");
-    check_compacted_row(&s, 1, "world");
-
-    assert_eq!(s.line_iter().count(), 2);
 }
 
 #[test]
@@ -311,6 +349,63 @@ fn empty_screen_iter() {
     assert_eq!(s.line_iter().count(), 1);
     s.add_bytes(b"stuff\nstuff\n");
     assert_eq!(s.line_iter().count(), 3);
+}
+
+#[test]
+fn simple_text() {
+    Test::e(b"he\rwo").cr(0, "wo").height(1);
+    Test::e(b"he\nwo\n")
+        .cr(0, "he")
+        .cr(1, "wo")
+        .height(2)
+        .check(2, |ref s| s.line_iter().count());
+}
+
+#[test]
+fn cursor_motion() {
+    // CursorLowerLeft
+    Test::s(80, 25, b"Hello\x1bFWorld!")
+        .cr(0, "Hello")
+        .cr(1, "")
+        .cr(24, "World!")
+        .cp(6, 24);
+    // Scroll up due to newline in last row
+    Test::s(80, 25, b"Hello\x1bFWorld!\n").cr(23, "World!").cp(
+        0,
+        24,
+    );
+
+    // CursorAbsoluteColumn
+    Test::s(80, 25, b"Hello World!\x1b[5Gxxxx")
+        .cr(0, "Hellxxxxrld!")
+        .cp(8, 0);
+    Test::e(b"Hello World!\x1b[5Gxxxx\x1b[32G")
+        .cr(0, "Hellxxxxrld!")
+        .cp(31, 0);
+
+    // CursorAbsolutePosition
+    Test::s(80, 25, b"Hello\nWorld!\x1b[1;5Hxxxx")
+        .cr(0, "Hellxxxx")
+        .cr(1, "World!");
+    // Wrap around at right edge
+    Test::s(10, 25, b"Hello\nWorld!\x1b[1;5Hxxxx\x1b[2;80HStuff")
+        .width(10)
+        .cr(0, "Hellxxxx")
+        .cr(1, "World!   S")
+        .cr(2, "tuff");
+    // Scroll up last row
+    Test::s(10, 25, b"Hello\nWorld!\x1b[1;5Hxxxx\x1b[25;80HStuff")
+        .width(10)
+        .cr(0, "World!")
+        .cr(23, "         S")
+        .cr(24, "tuff");
+    // Adaptive size will create new rows/columns as required
+    Test::e(b"Hello\nWorld!\x1b[3;7Hxxxx")
+        .width(10)
+        .height(3)
+        .cr(0, "Hello")
+        .cr(1, "World!")
+        .cr(2, "      xxxx");
 }
 
 // TODO: Test for protected
