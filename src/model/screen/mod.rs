@@ -608,10 +608,9 @@ impl Screen {
     }
 
     /// Move one line down
-    pub fn move_down(&mut self, stay_inside: bool) {
-        if !stay_inside || self.cursor.y + 1 < self.height() {
-            self.cursor.y += 1;
-        }
+    pub fn move_down(&mut self, n: isize) {
+        let c = self.cursor;
+        self.move_cursor_to(c.x, c.y + n);
     }
 
     /// Move one line up
@@ -907,6 +906,10 @@ impl Screen {
                 self.move_cursor_to(c as isize, r as isize);
                 Event::Ignore
             }
+            Action::CursorDown(n) => {
+                self.move_down(n as isize);
+                Event::Ignore
+            }
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
             Action::TerminalUnitId |
@@ -1000,7 +1003,6 @@ impl Screen {
             Action::CursorForwardTab(_) |
             Action::CursorBackwardTab(_) |
             Action::CursorUp(_) |
-            Action::CursorDown(_) |
             Action::CursorForward(_) |
             Action::CursorBackward(_) |
             Action::CursorNextLine(_) |

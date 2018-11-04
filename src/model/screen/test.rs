@@ -166,9 +166,9 @@ fn compacted_row() {
     //
     let mut s = Screen::new();
     s.place_str("hello");
-    s.move_down(false);
+    s.move_down(1);
     s.place_str("world");
-    s.move_down(false);
+    s.move_down(1);
     s.make_room();
 
     assert_eq!(s.height(), 3);
@@ -406,6 +406,16 @@ fn cursor_motion() {
         .cr(0, "Hello")
         .cr(1, "World!")
         .cr(2, "      xxxx");
+
+    // CursorDown
+    Test::s(80, 25, b"Hello\x1b[5BWorld").cr(0, "Hello").cr(
+        5,
+        "     World",
+    );
+    Test::e(b"Hello\x1b[5BWorld").height(6).cr(0, "Hello").cr(
+        5,
+        "     World",
+    );
 }
 
 // TODO: Test for protected

@@ -154,7 +154,7 @@ impl SubPresenter for ComposeCommandPresenter {
             }
             ((false, false, false), SpecialKey::Down) => {
                 if self.is_multi_line() {
-                    self.text_input().move_down(true);
+                    self.text_input().move_down(1);
                     (self, PresenterCommand::Redraw)
                 } else {
                     (
