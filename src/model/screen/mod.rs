@@ -598,13 +598,15 @@ impl Screen {
     }
 
     /// Move one cell to the right
-    pub fn move_right(&mut self) {
-        self.cursor.x += 1;
+    pub fn move_right(&mut self, n:isize) {
+        let c = self.cursor;
+        self.move_cursor_to(c.x+n,c.y);
     }
 
     /// Move one cell to the left
-    pub fn move_left(&mut self) {
-        self.cursor.x -= 1;
+    pub fn move_left(&mut self, n:isize) {
+        let c = self.cursor;
+        self.move_cursor_to(c.x-n,c.y);
     }
 
     /// Move n lines down. Stop at the border for fixed-sized screens.
@@ -681,7 +683,7 @@ impl Screen {
     /// Delete the character left of the cursor
     pub fn delete_left(&mut self) {
         if self.cursor.x > 0 {
-            self.move_left();
+            self.move_left(1);
             self.delete_character();
         }
     }
@@ -913,6 +915,15 @@ impl Screen {
                 self.move_down(n as isize);
                 Event::Ignore
             }
+            Action::CursorForward(n) => {
+                self.move_right(n as isize);
+                Event::Ignore
+            }
+            Action::CursorBackward(n)  => {
+                self.move_left(n as isize);
+                Event::Ignore
+            }
+
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
             Action::TerminalUnitId |
@@ -1005,8 +1016,6 @@ impl Screen {
             Action::EraseLine(_, _) |
             Action::CursorForwardTab(_) |
             Action::CursorBackwardTab(_) |
-            Action::CursorForward(_) |
-            Action::CursorBackward(_) |
             Action::CursorNextLine(_) |
             Action::CursorPrevLine(_) |
             Action::InsertCharacters(_) |

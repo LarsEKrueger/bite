@@ -137,11 +137,11 @@ impl SubPresenter for ExecuteCommandPresenter {
             }
 
             ((false, false, false), SpecialKey::Left) => {
-                self.commons_mut().text_input.move_left();
+                self.commons_mut().text_input.move_left(1);
                 (self, PresenterCommand::Redraw)
             }
             ((false, false, false), SpecialKey::Right) => {
-                self.commons_mut().text_input.move_right();
+                self.commons_mut().text_input.move_right(1);
                 (self, PresenterCommand::Redraw)
             }
 

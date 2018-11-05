@@ -425,6 +425,23 @@ fn cursor_motion() {
         .height(2)
         .cr(0, "      Hello")
         .cr(1, "World!");
+
+    // CursorForward
+    Test::s(10,25, b"\x1b[12CHello\nWorld")
+        .cr(0,"         H")
+        .cr(1,"ello")
+        .cr(2,"World");
+    Test::e(b"\x1b[12CHello\nWorld")
+        .height(2)
+        .width(17)
+        .cr(0, "            Hello")
+        .cr(1, "World");
+
+    // CursorBackward
+    Test::s(10,25, b"Hello\x1b[12DWorld")
+        .cr(0,"World");
+    Test::e(b"Hello\x1b[12DWorld")
+        .cr(0,"World  Hello");
 }
 
 // TODO: Test for protected
