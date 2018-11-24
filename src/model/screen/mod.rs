@@ -934,6 +934,20 @@ impl Screen {
                 self.move_cursor_to(x, y + (n as isize));
                 Event::Ignore
             }
+            Action::CursorNextLine(n) => {
+                let x = self.cursor.x;
+                let y = self.cursor.y;
+                self.move_cursor_to(x, y + (n as isize));
+                self.move_left_edge();
+                Event::Ignore
+            }
+            Action::CursorPrevLine(n) => {
+                let x = self.cursor.x;
+                let y = self.cursor.y;
+                self.move_cursor_to(x, y - (n as isize));
+                self.move_left_edge();
+                Event::Ignore
+            }
 
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
@@ -1025,8 +1039,6 @@ impl Screen {
             Action::EraseLine(_, _) |
             Action::CursorForwardTab(_) |
             Action::CursorBackwardTab(_) |
-            Action::CursorNextLine(_) |
-            Action::CursorPrevLine(_) |
             Action::InsertCharacters(_) |
             Action::InsertLines(_) |
             Action::DeleteLines(_) |
