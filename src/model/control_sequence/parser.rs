@@ -330,7 +330,7 @@ mod action {
     action_reset!(SD, ScrollDown, one);
     action_reset!(REP, RepeatCharacter, one);
     action_reset!(VPA, VerticalPositionAbsolute, one_minus);
-    action_reset!(VPR, VerticalPositionRelative, one_minus);
+    action_reset!(VPR, VerticalPositionRelative, one);
     action_reset!(DECSTR, SoftReset);
     action_reset!(XTERM_POP_SGR, PopVideoAttributes);
     action_reset!(DECIC, InsertColumns, one);
@@ -1838,7 +1838,7 @@ mod test {
         pt!(b"a\x1b[12cx", c'a' m m m m DA1(12) c'x');
         pt!(b"a\x1b[>12cx", c'a' m m m m m DA2(12) c'x');
         pt!(b"a\x1b[12dy", c'a' m m m m VerticalPositionAbsolute(11) c'y');
-        pt!(b"a\x1b[12ey", c'a' m m m m VerticalPositionRelative(11) c'y');
+        pt!(b"a\x1b[12ey", c'a' m m m m VerticalPositionRelative(12) c'y');
         pt!(b"a\x1b[12;13fy", c'a' m m m m m m m CursorAbsolutePosition(11,12) c'y');
         pt!(b"a\x1b[0gy", c'a' m m m TabClear(TabClear::Column) c'y');
         pt!(b"a\x1b[3gy", c'a' m m m TabClear(TabClear::All) c'y');

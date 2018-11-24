@@ -275,7 +275,7 @@ impl Hash for Matrix {
 }
 
 /// Events that happen during adding bytes.
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Event {
     /// Nothing to do.
     Ignore,
@@ -602,15 +602,15 @@ impl Screen {
     }
 
     /// Move one cell to the right
-    pub fn move_right(&mut self, n:isize) {
+    pub fn move_right(&mut self, n: isize) {
         let c = self.cursor;
-        self.move_cursor_to(c.x+n,c.y);
+        self.move_cursor_to(c.x + n, c.y);
     }
 
     /// Move one cell to the left
-    pub fn move_left(&mut self, n:isize) {
+    pub fn move_left(&mut self, n: isize) {
         let c = self.cursor;
-        self.move_cursor_to(c.x-n,c.y);
+        self.move_cursor_to(c.x - n, c.y);
     }
 
     /// Move n lines down. Stop at the border for fixed-sized screens.
@@ -923,12 +923,16 @@ impl Screen {
                 self.move_right(n as isize);
                 Event::Ignore
             }
-            Action::CursorBackward(n)  => {
+            Action::CursorBackward(n) => {
                 self.move_left(n as isize);
                 Event::Ignore
             }
-            Action::Bell => {
-                Event::Bell
+            Action::Bell => Event::Bell,
+            Action::VerticalPositionRelative(n) => {
+                let x = self.cursor.x;
+                let y = self.cursor.y;
+                self.move_cursor_to(x, y + (n as isize));
+                Event::Ignore
             }
 
             Action::ScrollLeft(_) |
@@ -1008,7 +1012,6 @@ impl Screen {
             Action::RestorePrivateMode(_) |
             Action::SavePrivateMode(_) |
             Action::TabClear(_) |
-            Action::VerticalPositionRelative(_) |
             Action::DA1(_) |
             Action::DA2(_) |
             Action::RepeatCharacter(_) |
