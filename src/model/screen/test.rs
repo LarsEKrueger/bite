@@ -448,10 +448,17 @@ fn cursor_motion() {
     Test::e(b"Hello\x1b[12DWorld").cr(0, "World  Hello");
 
     // VerticalPositionRelative
-    Test::s(80, 25, b"Hello\x1b[2eWorld").cp(10,2).cr(0, "Hello").cr(
-        2,
-        "     World",
-    );
+    Test::s(80, 25, b"Hello\x1b[2eWorld")
+        .cp(10, 2)
+        .cr(0, "Hello")
+        .cr(2, "     World");
+
+    // VerticalPositionAbsolute
+    Test::s(80, 25, b"\x1b[5dHello\x1b[2dWorld")
+        .cp(10, 1)
+        .cr(4, "Hello")
+        .cr(1, "     World");
+
 }
 
 // TODO: Test for protected
