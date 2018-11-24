@@ -275,6 +275,7 @@ impl Hash for Matrix {
 }
 
 /// Events that happen during adding bytes.
+#[derive(Debug,PartialEq)]
 pub enum Event {
     /// Nothing to do.
     Ignore,
@@ -284,6 +285,9 @@ pub enum Event {
 
     /// Carriage-return was seen.
     Cr,
+
+    /// Ring the bell (or make the screen flash)
+    Bell,
 }
 
 #[derive(Copy, Clone)]
@@ -923,6 +927,9 @@ impl Screen {
                 self.move_left(n as isize);
                 Event::Ignore
             }
+            Action::Bell => {
+                Event::Bell
+            }
 
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
@@ -941,7 +948,6 @@ impl Screen {
             Action::VerticalTab |
             Action::Backspace |
             Action::PrivacyMessage(_) |
-            Action::Bell |
             Action::SetTextParameter(_, _) |
             Action::InsertColumns(_) |
             Action::DeleteColumns(_) |

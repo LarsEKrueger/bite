@@ -352,6 +352,12 @@ fn empty_screen_iter() {
 }
 
 #[test]
+fn bell() {
+    let mut s = Screen::new();
+    assert_eq!(s.add_byte( b'\x07'),Event::Bell);
+}
+
+#[test]
 fn simple_text() {
     Test::e(b"he\rwo").cr(0, "wo").height(1);
     Test::e(b"he\nwo\n")
