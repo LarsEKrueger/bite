@@ -815,6 +815,7 @@ impl Screen {
                 Event::Cr
             }
             Action::NewLine => {
+                // TODO: This should differ from NextLine by the handling of linefeed
                 self.new_line();
                 Event::NewLine
             }
@@ -948,14 +949,19 @@ impl Screen {
                 self.move_left_edge();
                 Event::Ignore
             }
+            Action::NextLine => {
+                self.new_line();
+                Event::Ignore
+            }
 
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
+            Action::ScrollUp(_) |
+            Action::ScrollDown(_) |
             Action::TerminalUnitId |
             Action::TerminalEnquire |
             Action::SingleShift(_) |
             Action::TabSet |
-            Action::NextLine |
             Action::Index |
             Action::ReverseIndex |
             Action::StartGuardedArea |
@@ -1033,8 +1039,6 @@ impl Screen {
             Action::SetTitleModes(_) |
             Action::ResetTitleModes(_) |
             Action::MouseTracking(_, _, _, _, _) |
-            Action::ScrollUp(_) |
-            Action::ScrollDown(_) |
             Action::EraseDisplay(_, _) |
             Action::EraseLine(_, _) |
             Action::CursorForwardTab(_) |

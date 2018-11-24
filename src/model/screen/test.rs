@@ -468,9 +468,14 @@ fn cursor_motion() {
     // Cursor Previous Line
     Test::s(80, 25, b"\x1b[5eHello\x1b[3FWorld")
         .cp(5, 2)
-        .cr(0, "Hello")
+        .cr(5, "Hello")
         .cr(2, "World");
 
+    // Next Line
+    Test::s(80, 25, b"Hello\x1bEWorld")
+        .cp(5, 1)
+        .cr(0, "Hello")
+        .cr(1, "World");
 }
 
 // TODO: Test for protected
