@@ -478,14 +478,20 @@ fn cursor_motion() {
         .cr(1, "World");
 
     // Index
-    Test::s(80,25,b"Hello\x1bDWorld")
-        .cp(10,1)
-        .cr(0,"Hello")
-        .cr(1,"     World");
-    Test::s(80,25,b"\x1b[25dHello\x1bDWorld")
-        .cp(10,24)
-        .cr(23,"Hello")
-        .cr(24,"     World");
+    Test::s(80, 25, b"Hello\x1bDWorld")
+        .cp(10, 1)
+        .cr(0, "Hello")
+        .cr(1, "     World");
+    Test::s(80, 25, b"\x1b[25dHello\x1bDWorld")
+        .cp(10, 24)
+        .cr(23, "Hello")
+        .cr(24, "     World");
+
+    // Reverse Index
+    Test::s(80, 25, b"Hello\x1bMWorld")
+        .cp(10, 0)
+        .cr(0, "     World")
+        .cr(1, "Hello");
 }
 
 // TODO: Test for protected
