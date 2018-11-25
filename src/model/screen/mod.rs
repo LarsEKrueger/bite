@@ -502,21 +502,24 @@ impl Screen {
         }
     }
 
-    /// Scroll the character matrix up by one row and fill the last row with fresh cells.
-    fn scroll_up(&mut self) {
-        // Scroll up
-        let mut offset = 0;
-        let src_index = self.width() as usize;
-        let n = (self.width() * (self.height() - 1)) as usize;
-        while offset < n {
-            self.matrix.cells[offset] = self.matrix.cells[offset + src_index];
-            offset += 1;
-        }
-        // Clear last row
-        let n = (self.width() * self.height()) as usize;
-        while offset < n {
-            self.matrix.cells[offset] = Cell::new(self.colors);
-            offset += 1;
+    /// Scroll the character matrix up by n rows and fill the last rows with fresh cells.
+    fn scroll_up(&mut self, scroll_rows:isize) {
+        let scroll_rows = cmp::min(scroll_rows,self.height());
+        if scroll_rows >= 1 {
+            // Scroll up
+            let mut offset = 0;
+            let src_index = self.width() as usize;
+            let n = (self.width() * (self.height() - scroll_rows)) as usize;
+            while offset < n {
+                self.matrix.cells[offset] = self.matrix.cells[offset + src_index];
+                offset += 1;
+            }
+            // Clear last row
+            let n = (self.width() * self.height()) as usize;
+            while offset < n {
+                self.matrix.cells[offset] = Cell::new(self.colors);
+                offset += 1;
+            }
         }
     }
 
@@ -633,12 +636,29 @@ impl Screen {
         }
     }
 
+    /// Move the cursor down n lines and scroll up if necessary
+    pub fn move_down_and_scroll(&mut self, n: isize) {
+        let c = self.cursor;
+        if self.fixed_size {
+            if c.y + n < self.height() {
+                self.cursor.y += n;
+            } else {
+                // We need to scroll
+                let scroll_lines = c.y + n - self.height() + 1;
+                self.scroll_up(scroll_lines);
+                self.cursor.y = self.height() - 1;
+            }
+        } else {
+            self.cursor.y += n;
+        }
+    }
+
     pub fn new_line(&mut self) {
         self.move_left_edge();
         self.cursor.y += 1;
         if self.fixed_size {
             if self.cursor.y == self.height() {
-                self.scroll_up();
+                self.scroll_up(1);
                 self.cursor.y -= 1;
             }
         }
@@ -814,6 +834,8 @@ impl Screen {
                 self.move_left_edge();
                 Event::Cr
             }
+            Action::FormFeed |
+            Action::VerticalTab |
             Action::NewLine => {
                 // TODO: This should differ from NextLine by the handling of linefeed
                 self.new_line();
@@ -953,6 +975,10 @@ impl Screen {
                 self.new_line();
                 Event::Ignore
             }
+            Action::Index => {
+                self.move_down_and_scroll(1);
+                Event::Ignore
+            }
 
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
@@ -962,14 +988,11 @@ impl Screen {
             Action::TerminalEnquire |
             Action::SingleShift(_) |
             Action::TabSet |
-            Action::Index |
             Action::ReverseIndex |
             Action::StartGuardedArea |
             Action::EndGuardedArea |
             Action::StartOfString(_) |
             Action::Tabulator |
-            Action::FormFeed |
-            Action::VerticalTab |
             Action::Backspace |
             Action::PrivacyMessage(_) |
             Action::SetTextParameter(_, _) |
