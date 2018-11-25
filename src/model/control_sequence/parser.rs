@@ -651,19 +651,24 @@ impl Parser {
 
     fn action_TRACK_MOUSE(&mut self, _byte: u8) -> Action {
         self.reset();
-        // One non-zero parameter is scroll down. Everything else is mouse tracking.
-        let func = self.parameter.zero_if_default(0);
-        if self.parameter.count() == 1 && func != 0 {
-            Action::ScrollDown(func)
-        } else {
-            let ref p = self.parameter;
-            Action::MouseTracking(
-                func,
-                p.zero_if_default(1),
-                p.zero_if_default(2),
-                p.zero_if_default(3),
-                p.zero_if_default(4),
-            )
+        // No parameters is ScrollDown(1)
+        if self.parameter.count() == 0 {
+            Action::ScrollDown(1)
+        }else {
+            // One non-zero parameter is scroll down. Everything else is mouse tracking.
+            let func = self.parameter.zero_if_default(0);
+            if self.parameter.count() == 1 && func != 0 {
+                Action::ScrollDown(func)
+            } else {
+                let ref p = self.parameter;
+                Action::MouseTracking(
+                    func,
+                    p.zero_if_default(1),
+                    p.zero_if_default(2),
+                    p.zero_if_default(3),
+                    p.zero_if_default(4),
+                    )
+            }
         }
     }
 
@@ -1820,6 +1825,7 @@ mod test {
         pt!(b"a\x1b[?1;5;1Sb", c'a' m m m m m m m m m c'b');
         pt!(b"a\x1b[?4;1;1Sb", c'a' m m m m m m m m m c'b');
         pt!(b"a\x1b[23Tb", c'a' m m m m ScrollDown(23) c'b');
+        pt!(b"a\x1b[Tb", c'a' m m ScrollDown(1) c'b');
         pt!(b"a\x1b[23;1;2;3;4Tb", c'a' m m m m m m m m m m m m MouseTracking(23,1,2,3,4) c'b');
 
         pt!(b"a\x1b[>0Tb", c'a' m m m m ResetTitleModes(TitleModes::SetLabelHex) c'b');

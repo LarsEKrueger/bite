@@ -492,6 +492,19 @@ fn cursor_motion() {
         .cp(10, 0)
         .cr(0, "     World")
         .cr(1, "Hello");
+
+    // Scroll up
+    Test::s(80, 25, b"\n\n\n\nHello\nWorld\x1b[4STest")
+        .cp(9, 5)
+        .cr(0, "Hello")
+        .cr(1, "World")
+        .cr(5, "     Test");
+
+    // Scroll down
+    Test::s(80, 25, b"Hello World\n\x1b[1TTest ").cp(5, 1).cr(
+        1,
+        "Test  World",
+    );
 }
 
 // TODO: Test for protected

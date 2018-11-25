@@ -508,7 +508,7 @@ impl Screen {
         if scroll_rows >= 1 {
             // Scroll up
             let mut offset = 0;
-            let src_index = self.width() as usize;
+            let src_index = (scroll_rows * self.width()) as usize;
             let n = (self.width() * (self.height() - scroll_rows)) as usize;
             while offset < n {
                 self.matrix.cells[offset] = self.matrix.cells[offset + src_index];
@@ -532,7 +532,7 @@ impl Screen {
             let mut offset = (self.width() * (self.height() - scroll_rows)) as usize;
             while offset > 0 {
                 offset -= 1;
-                self.matrix.cells[dst_index+offset] = self.matrix.cells[offset];
+                self.matrix.cells[dst_index + offset] = self.matrix.cells[offset];
             }
             // Clear first rows
             let mut offset = 0;
@@ -1019,11 +1019,17 @@ impl Screen {
                 self.move_up_and_scroll(1);
                 Event::Ignore
             }
+            Action::ScrollDown(n) => {
+                self.scroll_down(n as isize);
+                Event::Ignore
+            }
+            Action::ScrollUp(n) => {
+                self.scroll_up(n as isize);
+                Event::Ignore
+            }
 
             Action::ScrollLeft(_) |
             Action::ScrollRight(_) |
-            Action::ScrollUp(_) |
-            Action::ScrollDown(_) |
             Action::TerminalUnitId |
             Action::TerminalEnquire |
             Action::SingleShift(_) |
