@@ -227,6 +227,11 @@ impl Matrix {
         self.cells[self.cell_index(x, y) as usize]
     }
 
+    fn cell_at_mut(&mut self, x: isize, y: isize) -> &mut Cell {
+        let index = self.cell_index(x, y) as usize;
+        &mut self.cells[index]
+    }
+
     pub fn compacted_row_slice(&self, row: isize) -> &[Cell] {
         let row_start = self.cell_index(0, row);
         let mut row_end = self.cell_index(self.width - 1, row);
@@ -523,6 +528,29 @@ impl Screen {
         }
     }
 
+    /// Scroll the character matrix left by n columns and fill the last rows with fresh cells.
+    fn scroll_left(&mut self, scroll_cols: isize) {
+        let scroll_cols = cmp::min(scroll_cols, self.width());
+        if scroll_cols >= 1 {
+            // Scroll left
+            let mut offset = 0;
+            let src_index = scroll_cols as usize;
+            let n = (self.width() * self.height() - scroll_cols) as usize;
+            while offset < n {
+                self.matrix.cells[offset] = self.matrix.cells[offset + src_index];
+                offset += 1;
+            }
+            // Clear last cols
+            let c0 = self.width() - scroll_cols;
+            let c1 = self.width();
+            for row in 0..self.height() {
+                for col in c0..c1 {
+                    *self.matrix.cell_at_mut(col, row) = Cell::new(self.colors);
+                }
+            }
+        }
+    }
+
     /// Scroll the character matrix down by n rows and fill the first rows with fresh cells.
     fn scroll_down(&mut self, scroll_rows: isize) {
         let scroll_rows = cmp::min(scroll_rows, self.height());
@@ -544,6 +572,27 @@ impl Screen {
         }
     }
 
+    /// Scroll the character matrix right by n columns and fill the first columns with fresh cells.
+    fn scroll_right(&mut self, scroll_cols: isize) {
+        let scroll_cols = cmp::min(scroll_cols, self.height());
+        if scroll_cols >= 1 {
+            // Scroll down
+            let dst_index = scroll_cols as usize;
+            let mut offset = (self.width() * self.height() - scroll_cols) as usize;
+            while offset > 0 {
+                offset -= 1;
+                self.matrix.cells[dst_index + offset] = self.matrix.cells[offset];
+            }
+            // Clear first columns
+            let c0 = 0;
+            let c1 = scroll_cols;
+            for row in 0..self.height() {
+                for col in c0..c1 {
+                    *self.matrix.cell_at_mut(col, row) = Cell::new(self.colors);
+                }
+            }
+        }
+    }
 
     pub fn place_str(&mut self, s: &str) {
         for c in s.chars() {
@@ -1027,9 +1076,15 @@ impl Screen {
                 self.scroll_up(n as isize);
                 Event::Ignore
             }
+            Action::ScrollLeft(n) => {
+                self.scroll_left(n as isize);
+                Event::Ignore
+            }
+            Action::ScrollRight(n) => {
+                self.scroll_right(n as isize);
+                Event::Ignore
+            }
 
-            Action::ScrollLeft(_) |
-            Action::ScrollRight(_) |
             Action::TerminalUnitId |
             Action::TerminalEnquire |
             Action::SingleShift(_) |

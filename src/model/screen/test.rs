@@ -505,6 +505,20 @@ fn cursor_motion() {
         1,
         "Test  World",
     );
+
+    // Scroll Left
+    Test::s(10, 25, b"Hello\n0123456789World\x1b[4 @")
+        .cp(5, 2)
+        .cr(0, "o")
+        .cr(1, "456789")
+        .cr(2, "d");
+
+    // Scroll Right
+    Test::s(10, 25, b"Hello\n0123456789World\x1b[4 A")
+        .cp(5, 2)
+        .cr(0, "    Hello")
+        .cr(1, "    012345")
+        .cr(2, "    World");
 }
 
 // TODO: Test for protected
