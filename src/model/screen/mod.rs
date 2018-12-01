@@ -1089,8 +1089,32 @@ impl Screen {
                 Event::Ignore
             }
 
-            Action::DecBackIndex |
-            Action::DecForwardIndex |
+            Action::DecBackIndex => {
+                if self.fixed_size {
+                    if self.cursor.x == 0 {
+                        self.scroll_right(1);
+                    } else {
+                        self.move_left(1);
+                    }
+                } else {
+                    self.move_left(1);
+                }
+                Event::Ignore
+            }
+
+            Action::DecForwardIndex => {
+                if self.fixed_size {
+                    if self.cursor.x + 1 == self.width() {
+                        self.scroll_left(1);
+                    } else {
+                        self.move_right(1);
+                    }
+                } else {
+                    self.move_right(1);
+                }
+                Event::Ignore
+            }
+
             Action::FillArea(_, _) |
             Action::CopyArea(_, _, _, _) |
             Action::InsertColumns(_) |

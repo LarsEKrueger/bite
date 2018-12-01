@@ -525,6 +525,16 @@ fn cursor_motion() {
         0,
         "Heart",
     );
+
+    // DEC Back Index
+    Test::s(80, 25, b"Hello\x1b6\x1b6\x1b6\x1b6a\x1b6\x1b6\x1b6_")
+        .cp(1, 0)
+        .cr(0, "_Hallo");
+
+    // DEC Forward Index
+    Test::s(10, 25, b"Hello\x1b9\x1b9\x1b9\x1b9\x1b9")
+        .cp(9, 0)
+        .cr(0, "ello");
 }
 
 // TODO: Test for protected
