@@ -1089,47 +1089,38 @@ impl Screen {
                 Event::Ignore
             }
 
-            Action::TerminalUnitId |
-            Action::TerminalEnquire |
-            Action::SingleShift(_) |
-            Action::TabSet |
-            Action::StartGuardedArea |
-            Action::EndGuardedArea |
-            Action::StartOfString(_) |
-            Action::Tabulator |
-            Action::PrivacyMessage(_) |
-            Action::SetTextParameter(_, _) |
+            Action::DecBackIndex |
+            Action::DecForwardIndex |
+            Action::FillArea(_, _) |
+            Action::CopyArea(_, _, _, _) |
             Action::InsertColumns(_) |
             Action::DeleteColumns(_) |
-            Action::LinesPerScreen(_) |
-            Action::RequestLocatorPosition |
-            Action::ColumnsPerPage(_) |
-            Action::ReportRendition(_) |
-            Action::PopVideoAttributes |
-            Action::PushVideoAttributes(_) |
-            Action::SelectLocatorEvents(_, _) |
             Action::EraseArea(_, _) |
-            Action::LocatorReport(_, _) |
-            Action::AttributeChangeExtent(_) |
+            Action::MediaCopy(_) |
+            Action::RepeatCharacter(_) |
+            Action::EraseCharacters(_) |
+            Action::EraseDisplay(_, _) |
+            Action::EraseLine(_, _) |
+            Action::InsertCharacters(_) |
+            Action::InsertLines(_) |
+            Action::DeleteLines(_) |
+            Action::DeleteCharacters(_) |
+            Action::TabSet |
+            Action::Tabulator |
+            Action::TabClear(_) |
+            Action::CursorForwardTab(_) |
+            Action::CursorBackwardTab(_) |
+            Action::SetMargins(_, _) |
+            Action::StartGuardedArea |
+            Action::EndGuardedArea |
+            Action::EnableFilterArea(_) |
+            Action::TerminalUnitId |
+            Action::TerminalEnquire |
+            Action::RequestLocatorPosition |
+            Action::ReportRendition(_) |
             Action::RequestTerminalParameters |
             Action::CursorInformationReport |
             Action::TabstopReport |
-            Action::EnableFilterArea(_) |
-            Action::ChecksumArea(_, _, _) |
-            Action::FillArea(_, _) |
-            Action::CopyArea(_, _, _, _) |
-            Action::SetMarginBellVolume(_) |
-            Action::SetWarningBellVolume(_) |
-            Action::SetMargins(_, _) |
-            Action::ChangeAttributesArea(_, _) |
-            Action::ReverseAttributesArea(_, _) |
-            Action::ScrollRegion(_, _) |
-            Action::CharacterProtection(_) |
-            Action::CursorStyle(_) |
-            Action::LoadLeds(_, _) |
-            Action::PointerMode(_) |
-            Action::SoftReset |
-            Action::ConformanceLevel(_, _) |
             Action::DecDeviceStatusReport |
             Action::PrinterStatusReport |
             Action::UdkStatusReport |
@@ -1142,13 +1133,35 @@ impl Screen {
             Action::MultiSessionReport |
             Action::StatusReport |
             Action::ReportCursorPosition |
+            Action::SingleShift(_) |
+            Action::StartOfString(_) |
+            Action::PrivacyMessage(_) |
+            Action::SetTextParameter(_, _) |
+            Action::LinesPerScreen(_) |
+            Action::ColumnsPerPage(_) |
+            Action::PopVideoAttributes |
+            Action::PushVideoAttributes(_) |
+            Action::SelectLocatorEvents(_, _) |
+            Action::LocatorReport(_, _) |
+            Action::AttributeChangeExtent(_) |
+            Action::ChecksumArea(_, _, _) |
+            Action::SetMarginBellVolume(_) |
+            Action::SetWarningBellVolume(_) |
+            Action::ChangeAttributesArea(_, _) |
+            Action::ReverseAttributesArea(_, _) |
+            Action::ScrollRegion(_, _) |
+            Action::CharacterProtection(_) |
+            Action::CursorStyle(_) |
+            Action::LoadLeds(_, _) |
+            Action::PointerMode(_) |
+            Action::SoftReset |
+            Action::ConformanceLevel(_, _) |
             Action::SetModFKeys(_, _) |
             Action::DisableModFKeys(_) |
             Action::ForegroundColorRgb(_, _, _) |
             Action::ForegroundColorIndex(_) |
             Action::BackgroundColorRgb(_, _, _) |
             Action::BackgroundColorIndex(_) |
-            Action::MediaCopy(_) |
             Action::SetMode(_) |
             Action::ResetMode(_) |
             Action::RequestAnsiMode(_) |
@@ -1157,22 +1170,11 @@ impl Screen {
             Action::RequestPrivateMode(_) |
             Action::RestorePrivateMode(_) |
             Action::SavePrivateMode(_) |
-            Action::TabClear(_) |
             Action::DA1(_) |
             Action::DA2(_) |
-            Action::RepeatCharacter(_) |
-            Action::EraseCharacters(_) |
             Action::SetTitleModes(_) |
             Action::ResetTitleModes(_) |
             Action::MouseTracking(_, _, _, _, _) |
-            Action::EraseDisplay(_, _) |
-            Action::EraseLine(_, _) |
-            Action::CursorForwardTab(_) |
-            Action::CursorBackwardTab(_) |
-            Action::InsertCharacters(_) |
-            Action::InsertLines(_) |
-            Action::DeleteLines(_) |
-            Action::DeleteCharacters(_) |
             Action::DecUserDefinedKeys(_) |
             Action::ApplicationProgramCommand(_) |
             Action::LockMemory(_) |
@@ -1184,8 +1186,6 @@ impl Screen {
             Action::AnsiConformanceLevel(_) |
             Action::GraphicRegister(_, _) |
             Action::DecApplicationKeypad(_) |
-            Action::DecBackIndex |
-            Action::DecForwardIndex |
             Action::DecAlignmentTest |
             Action::DecDoubleHeight(_) |
             Action::DecDoubleWidth(_) => {
