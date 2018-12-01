@@ -1084,6 +1084,10 @@ impl Screen {
                 self.scroll_right(n as isize);
                 Event::Ignore
             }
+            Action::Backspace => {
+                self.move_left(1);
+                Event::Ignore
+            }
 
             Action::TerminalUnitId |
             Action::TerminalEnquire |
@@ -1093,7 +1097,6 @@ impl Screen {
             Action::EndGuardedArea |
             Action::StartOfString(_) |
             Action::Tabulator |
-            Action::Backspace |
             Action::PrivacyMessage(_) |
             Action::SetTextParameter(_, _) |
             Action::InsertColumns(_) |

@@ -519,6 +519,12 @@ fn cursor_motion() {
         .cr(0, "    Hello")
         .cr(1, "    012345")
         .cr(2, "    World");
+
+    // Backspace
+    Test::s(80, 25, b"Hello\x08\x08\x08art").cp(5, 0).cr(
+        0,
+        "Heart",
+    );
 }
 
 // TODO: Test for protected
