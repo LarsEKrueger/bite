@@ -25,6 +25,7 @@ use std::cmp;
 use std::hash::{Hash, Hasher};
 
 use super::control_sequence::action::{Action, CharacterAttribute, Color};
+use super::control_sequence::types::Rectangle;
 use super::control_sequence::parser::Parser;
 
 mod test;
@@ -263,6 +264,10 @@ impl Matrix {
         self.cells.clear();
         self.width = 0;
         self.height = 0;
+    }
+
+    pub fn rectangle(&self) -> Rectangle {
+        Rectangle::new_isize(0,0,self.width-1,self.height-1)
     }
 }
 
@@ -1114,8 +1119,26 @@ impl Screen {
                 }
                 Event::Ignore
             }
+            Action::FillArea(c, rect) => {
+                if (c >= 0x20 && c < 0x80) || (c >= 0xa1 && c < 0xff) {
+                    self.make_room();
+                    let rect = rect.clipped(&self.matrix.rectangle());
+                    let mut cell = Cell::new(self.colors);
+                    cell.code_point = unsafe { std::char::from_u32_unchecked(c as u32) };
+                    cell.attributes = self.attributes;
+                    cell.attributes.insert(Attributes::CHARDRAWN);
+                    for y in rect.start.y..(rect.end.y+1) {
+                        let from_index = self.matrix.cell_index(rect.start.x, y);
+                        let to_index = self.matrix.cell_index(rect.end.x+1, y);
+                        for index in from_index..to_index {
+                            // TODO: Preserve color
+                            self.matrix.cells[index as usize] = cell;
+                        }
+                    }
+                }
+                Event::Ignore
+            }
 
-            Action::FillArea(_, _) |
             Action::CopyArea(_, _, _, _) |
             Action::InsertColumns(_) |
             Action::DeleteColumns(_) |

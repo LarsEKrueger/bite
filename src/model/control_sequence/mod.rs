@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-mod types;
+pub mod types;
 pub mod action;
 pub mod parser;
 pub mod parameter;
