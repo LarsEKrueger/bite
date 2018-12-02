@@ -242,6 +242,7 @@ non-GUI program.
 # TODOs
 * [ ] Bug: Bash source $() does not work correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
+* [ ] Bug: screen: Handle make_room for fixed_size = false correctly
 * [ ] Merge history during save
 * [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
@@ -266,6 +267,8 @@ non-GUI program.
 * Syntax highlighting for output
 * Image preview in ls
 * Integrate auto jump functionality.
+* Allow hyperlinks in output
+* Draw errors / hyperlinks as QR code
 
 # References
 * utf8 input from https://gist.github.com/baines/5a49f1334281b2685af5dcae81a6fa8a
