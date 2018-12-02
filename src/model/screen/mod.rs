@@ -186,6 +186,7 @@ bitflags! {
 /// A matrix is a rectangular area of cells.
 ///
 /// A matrix is meant to be stored, but not modified.
+#[derive(Clone)]
 pub struct Matrix {
     /// The cells of the screen, stored in a row-major ordering.
     cells: Vec<Cell>,
@@ -267,7 +268,7 @@ impl Matrix {
     }
 
     pub fn rectangle(&self) -> Rectangle {
-        Rectangle::new_isize(0,0,self.width-1,self.height-1)
+        Rectangle::new_isize(0, 0, self.width - 1, self.height - 1)
     }
 }
 
@@ -1127,9 +1128,9 @@ impl Screen {
                     cell.code_point = unsafe { std::char::from_u32_unchecked(c as u32) };
                     cell.attributes = self.attributes;
                     cell.attributes.insert(Attributes::CHARDRAWN);
-                    for y in rect.start.y..(rect.end.y+1) {
+                    for y in rect.start.y..(rect.end.y + 1) {
                         let from_index = self.matrix.cell_index(rect.start.x, y);
-                        let to_index = self.matrix.cell_index(rect.end.x+1, y);
+                        let to_index = self.matrix.cell_index(rect.end.x + 1, y);
                         for index in from_index..to_index {
                             // TODO: Preserve color
                             self.matrix.cells[index as usize] = cell;
@@ -1138,8 +1139,31 @@ impl Screen {
                 }
                 Event::Ignore
             }
+            Action::CopyArea(rect, _from_page, p, _to_page) => {
+                // This mirrors the implementation in xterm in that it ignore pages and handles
+                // overlap by copying the screen.
+                self.make_room();
+                let src_rect = rect.clipped(&self.matrix.rectangle());
+                let displace = p - src_rect.start;
+                let dst_rect = (src_rect.clone() + displace).clipped(&self.matrix.rectangle());
 
-            Action::CopyArea(_, _, _, _) |
+                let old_matrix = self.matrix.clone();
+                let dst_width = dst_rect.end.x - dst_rect.start.x + 1;
+
+                // Iterate over the dst_rect as this might be smaller.
+                for dst_y in dst_rect.start.y..(dst_rect.end.y + 1) {
+                    let src_y = dst_y - displace.y;
+                    let src_from = self.matrix.cell_index(src_rect.start.x, src_y);
+                    let dst_from = self.matrix.cell_index(dst_rect.start.x, dst_y);
+                    for i in 0..dst_width {
+                        self.matrix.cells[(dst_from + i) as usize] =
+                            old_matrix.cells[(src_from + i) as usize];
+                    }
+                }
+
+                Event::Ignore
+            }
+
             Action::InsertColumns(_) |
             Action::DeleteColumns(_) |
             Action::EraseArea(_, _) |

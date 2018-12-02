@@ -654,7 +654,7 @@ impl Parser {
         // No parameters is ScrollDown(1)
         if self.parameter.count() == 0 {
             Action::ScrollDown(1)
-        }else {
+        } else {
             // One non-zero parameter is scroll down. Everything else is mouse tracking.
             let func = self.parameter.zero_if_default(0);
             if self.parameter.count() == 1 && func != 0 {
@@ -667,7 +667,7 @@ impl Parser {
                     p.zero_if_default(2),
                     p.zero_if_default(3),
                     p.zero_if_default(4),
-                    )
+                )
             }
         }
     }

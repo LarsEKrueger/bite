@@ -49,6 +49,7 @@
 /// authorization.
 
 use std::cmp;
+use std::ops::{Add, Sub};
 
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -236,7 +237,7 @@ pub type ActionParameter = u16;
 /// Point on the character grid
 ///
 /// Zero based index, relative to the top left of the grid.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Point {
     /// Horizontal position
     pub x: isize,
@@ -249,7 +250,7 @@ pub struct Point {
 /// The invariant is that the top left (start) point is always smaller than the bottom right (end)
 /// point. The range is inclusive. Therefore, the smallest rectangle that can be represented is 1x1
 /// cells.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Rectangle {
     /// Start point
     pub start: Point,
@@ -259,11 +260,35 @@ pub struct Rectangle {
 
 impl Point {
     pub fn new(y: ActionParameter, x: ActionParameter) -> Self {
-        Self { x:x as isize, y:y as isize }
+        Self {
+            x: x as isize,
+            y: y as isize,
+        }
     }
-    pub fn clipped( &self, other:&Rectangle) -> Self {
-        Self { x : cmp::min(cmp::max(self.x,other.start.x),other.end.x),
-        y: cmp::min(cmp::max(self.y,other.start.y),other.end.y)
+    pub fn clipped(&self, other: &Rectangle) -> Self {
+        Self {
+            x: cmp::min(cmp::max(self.x, other.start.x), other.end.x),
+            y: cmp::min(cmp::max(self.y, other.start.y), other.end.y),
+        }
+    }
+}
+
+impl Sub for Point {
+    type Output = Point;
+    fn sub(self, other: Self) -> Self {
+        Point {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
+impl Add for Point {
+    type Output = Point;
+    fn add(self, other: Self) -> Self {
+        Point {
+            x: self.x + other.x,
+            y: self.y + other.y,
         }
     }
 }
@@ -280,13 +305,26 @@ impl Rectangle {
             end: Point::new(bottom, right),
         }
     }
-    pub fn new_isize(x0:isize, y0:isize, x1:isize, y1:isize)->Self {
-        Self { start : Point { x:x0,y:y0},
-        end: Point { x:x1,y:y1 } } }
+    pub fn new_isize(x0: isize, y0: isize, x1: isize, y1: isize) -> Self {
+        Self {
+            start: Point { x: x0, y: y0 },
+            end: Point { x: x1, y: y1 },
+        }
+    }
 
-    pub fn clipped(&self, other: &Rectangle ) -> Self {
+    pub fn clipped(&self, other: &Rectangle) -> Self {
         let start = self.start.clipped(other);
         let end = self.end.clipped(other);
         Self { start, end }
+    }
+}
+
+impl Add<Point> for Rectangle {
+    type Output = Rectangle;
+    fn add(self, other: Point) -> Self {
+        Rectangle {
+            start: self.start + other.clone(),
+            end: self.end + other,
+        }
     }
 }
