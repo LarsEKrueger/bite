@@ -229,6 +229,7 @@ impl Matrix {
         self.cells[self.cell_index(x, y) as usize]
     }
 
+    #[allow(dead_code)]
     fn cell_at_mut(&mut self, x: isize, y: isize) -> &mut Cell {
         let index = self.cell_index(x, y) as usize;
         &mut self.cells[index]
@@ -535,29 +536,35 @@ impl Screen {
     }
 
     /// Scroll the character matrix left by n columns and fill the last rows with fresh cells.
-    fn scroll_left(&mut self, scroll_cols: isize) {
+    /// Everything right of column at_col is scrolled left
+    fn scroll_left(&mut self, at_col: isize, scroll_cols: isize) {
         let scroll_cols = cmp::min(scroll_cols, self.width());
-        if scroll_cols >= 1 {
-            // Scroll left
-            let mut offset = 0;
-            let src_index = scroll_cols as usize;
-            let n = (self.width() * self.height() - scroll_cols) as usize;
-            while offset < n {
-                self.matrix.cells[offset] = self.matrix.cells[offset + src_index];
-                offset += 1;
-            }
-            // Clear last cols
-            let c0 = self.width() - scroll_cols;
-            let c1 = self.width();
+        let at_col = cmp::max(at_col, 0);
+        if scroll_cols >= 1 && at_col < self.width() {
             for row in 0..self.height() {
-                for col in c0..c1 {
-                    *self.matrix.cell_at_mut(col, row) = Cell::new(self.colors);
+                // Scroll left
+                let row_index = self.matrix.cell_index(0, row);
+                let mut dst_index = row_index + at_col;
+                let mut n_to_move = self.width() - scroll_cols - at_col;
+                while n_to_move > 0 {
+                    self.matrix.cells[dst_index as usize] =
+                        self.matrix.cells[(dst_index + scroll_cols) as usize];
+                    dst_index += 1;
+                    n_to_move -= 1;
+                }
+                // Clear last cols
+                let mut n_to_clear = scroll_cols;
+                while n_to_clear > 0 {
+                    self.matrix.cells[dst_index as usize] = Cell::new(self.colors);
+                    dst_index += 1;
+                    n_to_clear -= 1;
                 }
             }
         }
     }
 
     /// Scroll the character matrix down by n rows and fill the first rows with fresh cells.
+    /// Every right of at_col is scrolled to the left.
     fn scroll_down(&mut self, scroll_rows: isize) {
         let scroll_rows = cmp::min(scroll_rows, self.height());
         if scroll_rows >= 1 {
@@ -582,16 +589,17 @@ impl Screen {
     /// All columns, including at_col are moved to the right
     fn scroll_right(&mut self, at_col: isize, scroll_cols: isize) {
         let scroll_cols = cmp::min(scroll_cols, self.height());
-        let at_col = cmp::max(at_col,0);
+        let at_col = cmp::max(at_col, 0);
         if scroll_cols >= 1 && at_col < self.width() {
             for row in 0..self.height() {
                 // Scroll right
-                let row_index = self.matrix.cell_index( 0, row);
+                let row_index = self.matrix.cell_index(0, row);
                 let mut n_to_move = self.width() - at_col - scroll_cols;
                 let mut dst_index = row_index + self.width();
                 while n_to_move > 0 {
                     dst_index -= 1;
-                    self.matrix.cells[dst_index as usize] = self.matrix.cells[(dst_index - scroll_cols) as usize];
+                    self.matrix.cells[dst_index as usize] =
+                        self.matrix.cells[(dst_index - scroll_cols) as usize];
                     n_to_move -= 1;
                 }
                 // Clear first columns
@@ -1087,7 +1095,7 @@ impl Screen {
                 Event::Ignore
             }
             Action::ScrollLeft(n) => {
-                self.scroll_left(n as isize);
+                self.scroll_left(0, n as isize);
                 Event::Ignore
             }
             Action::ScrollRight(n) => {
@@ -1115,7 +1123,7 @@ impl Screen {
             Action::DecForwardIndex => {
                 if self.fixed_size {
                     if self.cursor.x + 1 == self.width() {
-                        self.scroll_left(1);
+                        self.scroll_left(0, 1);
                     } else {
                         self.move_right(1);
                     }
@@ -1172,9 +1180,13 @@ impl Screen {
                self.scroll_right( c.x, n as isize);
                Event::Ignore
             }
+            Action::DeleteColumns(n) => {
+                let c =self.cursor;
+               self.scroll_left( c.x, n as isize);
+               Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
-            Action::DeleteColumns(_) |
             Action::EraseArea(_, _) |
             Action::RepeatCharacter(_) |
             Action::EraseCharacters(_) |
