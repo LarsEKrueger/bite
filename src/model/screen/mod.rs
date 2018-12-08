@@ -1164,10 +1164,10 @@ impl Screen {
                 Event::Ignore
             }
 
+            // Category: Common change screen operations, Prio 1
             Action::InsertColumns(_) |
             Action::DeleteColumns(_) |
             Action::EraseArea(_, _) |
-            Action::MediaCopy(_) |
             Action::RepeatCharacter(_) |
             Action::EraseCharacters(_) |
             Action::EraseDisplay(_, _) |
@@ -1176,6 +1176,16 @@ impl Screen {
             Action::InsertLines(_) |
             Action::DeleteLines(_) |
             Action::DeleteCharacters(_) |
+            Action::LinesPerScreen(_) |
+            Action::ColumnsPerPage(_) |
+            // Category: Less common operations, Prio 2
+            Action::PopVideoAttributes |
+            Action::PushVideoAttributes(_) |
+            Action::ChangeAttributesArea(_, _) |
+            Action::ReverseAttributesArea(_, _) |
+            Action::SoftReset |
+            Action::FullReset |
+            // Category: Tabulators and Margins, Prio 3
             Action::TabSet |
             Action::Tabulator |
             Action::TabClear(_) |
@@ -1185,6 +1195,9 @@ impl Screen {
             Action::StartGuardedArea |
             Action::EndGuardedArea |
             Action::EnableFilterArea(_) |
+            Action::ScrollRegion(_, _) |
+            Action::AttributeChangeExtent(_) |
+            // Category: Reports, Prio 4
             Action::TerminalUnitId |
             Action::TerminalEnquire |
             Action::RequestLocatorPosition |
@@ -1204,62 +1217,58 @@ impl Screen {
             Action::MultiSessionReport |
             Action::StatusReport |
             Action::ReportCursorPosition |
-            Action::SingleShift(_) |
-            Action::StartOfString(_) |
-            Action::PrivacyMessage(_) |
-            Action::SetTextParameter(_, _) |
-            Action::LinesPerScreen(_) |
-            Action::ColumnsPerPage(_) |
-            Action::PopVideoAttributes |
-            Action::PushVideoAttributes(_) |
-            Action::SelectLocatorEvents(_, _) |
             Action::LocatorReport(_, _) |
-            Action::AttributeChangeExtent(_) |
             Action::ChecksumArea(_, _, _) |
+            Action::DA1(_) |
+            Action::DA2(_) |
+            // Category: Bells and whistles, Prio 5
             Action::SetMarginBellVolume(_) |
             Action::SetWarningBellVolume(_) |
-            Action::ChangeAttributesArea(_, _) |
-            Action::ReverseAttributesArea(_, _) |
-            Action::ScrollRegion(_, _) |
-            Action::CharacterProtection(_) |
             Action::CursorStyle(_) |
             Action::LoadLeds(_, _) |
-            Action::PointerMode(_) |
-            Action::SoftReset |
-            Action::ConformanceLevel(_, _) |
-            Action::SetModFKeys(_, _) |
-            Action::DisableModFKeys(_) |
             Action::ForegroundColorRgb(_, _, _) |
             Action::ForegroundColorIndex(_) |
             Action::BackgroundColorRgb(_, _, _) |
             Action::BackgroundColorIndex(_) |
+            Action::SetTitleModes(_) |
+            Action::ResetTitleModes(_) |
+            Action::WindowOp(_) |
+            Action::LockMemory(_) |
+            Action::GraphicRegister(_, _) |
+            Action::MediaCopy(_) |
+            // Category: Mode switches, Prio 6
+            Action::DecUserDefinedKeys(_) |
+            Action::SetTextParameter(_, _) |
+            Action::SetModFKeys(_, _) |
+            Action::DisableModFKeys(_) |
+            Action::CharacterProtection(_) |
+            Action::ConformanceLevel(_, _) |
+            Action::Show8BitControl(_) |
+            Action::AnsiConformanceLevel(_) |
+            Action::DecApplicationKeypad(_) |
+            Action::DecAlignmentTest |
+            Action::DecDoubleHeight(_) |
+            Action::DecDoubleWidth(_) |
             Action::SetMode(_) |
             Action::ResetMode(_) |
-            Action::RequestAnsiMode(_) |
             Action::SetPrivateMode(_) |
             Action::ResetPrivateMode(_) |
             Action::RequestPrivateMode(_) |
             Action::RestorePrivateMode(_) |
             Action::SavePrivateMode(_) |
-            Action::DA1(_) |
-            Action::DA2(_) |
-            Action::SetTitleModes(_) |
-            Action::ResetTitleModes(_) |
+            Action::RequestAnsiMode(_) |
+            // Category: Mouse handling, Prio 8
+            Action::SelectLocatorEvents(_, _) |
+            Action::PointerMode(_) |
             Action::MouseTracking(_, _, _, _, _) |
-            Action::DecUserDefinedKeys(_) |
-            Action::ApplicationProgramCommand(_) |
-            Action::LockMemory(_) |
-            Action::FullReset |
+            // Category: Non-UTF-8 language support: Prio 9
+            Action::SingleShift(_) |
             Action::DesignateCharacterSet(_, _) |
             Action::InvokeCharSet(_, _) |
-            Action::WindowOp(_) |
-            Action::Show8BitControl(_) |
-            Action::AnsiConformanceLevel(_) |
-            Action::GraphicRegister(_, _) |
-            Action::DecApplicationKeypad(_) |
-            Action::DecAlignmentTest |
-            Action::DecDoubleHeight(_) |
-            Action::DecDoubleWidth(_) => {
+            // Category: String message, Prio 10
+            Action::ApplicationProgramCommand(_) |
+            Action::PrivacyMessage(_) |
+            Action::StartOfString(_) => {
                 // TODO: Convert to event
                 Event::Ignore
             }
