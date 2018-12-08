@@ -563,6 +563,13 @@ fn cursor_motion() {
         .cr(1, "0123456789")
         .cr(2, "                 llo")
         .cr(3, "                 234");
+
+    // Insert Column
+    Test::s(80,25, b"Hello World\n0123456789\n     \x1b[4'}Stuff")
+        .cp(10,2)
+        .cr(0,"Hello     World")
+        .cr(1,"01234    56789")
+        .cr(2,"     Stuff");
 }
 
 // TODO: Test for protected
