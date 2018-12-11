@@ -1125,7 +1125,6 @@ impl Screen {
                 self.move_left(1);
                 Event::Ignore
             }
-
             Action::DecBackIndex => {
                 if self.fixed_size {
                     if self.cursor.x == 0 {
@@ -1210,9 +1209,24 @@ impl Screen {
                 }
                 Event::Ignore
             }
+            Action::EraseCharacters(n) => {
+                // Overwrite the next n characters with fresh cells
+                self.make_room();
+                let n = if self.fixed_size {
+                    cmp::max(0,cmp::min(n as isize,self.width()-self.cursor.x))
+                } else {
+                    n as isize
+                };
+                let c = self.cursor;
+                let row_index = self.matrix.cell_index(c.x, c.y);
+                let cell = Cell::new(self.colors);
+                for offset in 0 .. n {
+                    self.matrix.cells[(row_index+offset) as usize] = cell;
+                }
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
-            Action::EraseCharacters(_) |
             Action::EraseDisplay(_, _) |
             Action::EraseLine(_, _) |
             Action::InsertCharacters(_) |

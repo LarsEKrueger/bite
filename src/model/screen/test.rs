@@ -586,14 +586,19 @@ fn cursor_motion() {
         .cr(2, "01");
 
     // RepeatCharacter
-    Test::s(20,25, b"Hello World!\x1b[70b")
-        .cp(2,4)
-        .cr(0,"Hello World!!!!!!!!!")
-        .cr(1,"!!!!!!!!!!!!!!!!!!!!")
-        .cr(2,"!!!!!!!!!!!!!!!!!!!!")
-        .cr(3,"!!!!!!!!!!!!!!!!!!!!")
-        .cr(4,"!!")
-        .cr(5,"");
+    Test::s(20, 25, b"Hello World!\x1b[70b")
+        .cp(2, 4)
+        .cr(0, "Hello World!!!!!!!!!")
+        .cr(1, "!!!!!!!!!!!!!!!!!!!!")
+        .cr(2, "!!!!!!!!!!!!!!!!!!!!")
+        .cr(3, "!!!!!!!!!!!!!!!!!!!!")
+        .cr(4, "!!")
+        .cr(5, "");
+
+    // Erase Characters
+    Test::s(80, 25, b"Hello_World.\r\x1b[2C\x1b[3X\n")
+        .cp(0, 1)
+        .cr(0, "He   _World.");
 }
 
 // TODO: Test for protected
