@@ -578,6 +578,13 @@ fn cursor_motion() {
         .cr(1, "012349")
         .cr(2, "     Stuff");
 
+    // EraseArea
+    Test::s(80, 25, b"Hello World\n0123456789\n01234\n\x1b[2;3;4;9$z")
+        .cp(0, 3)
+        .cr(0, "Hello World")
+        .cr(1, "01       9")
+        .cr(2, "01");
+
 }
 
 // TODO: Test for protected

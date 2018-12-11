@@ -916,6 +916,20 @@ impl Screen {
         }
     }
 
+    /// Fill a rectangle with a the same cells.
+    ///
+    /// rect is assumed to be valid
+    fn fill_rect(&mut self, rect: Rectangle, cell: Cell) {
+        for y in rect.start.y..(rect.end.y + 1) {
+            let from_index = self.matrix.cell_index(rect.start.x, y);
+            let to_index = self.matrix.cell_index(rect.end.x + 1, y);
+            for index in from_index..to_index {
+                // TODO: Preserve color
+                self.matrix.cells[index as usize] = cell;
+            }
+        }
+    }
+
     /// Convert the screen to a Matrix that cannot be changed anymore
     pub fn freeze(self) -> Matrix {
         self.matrix
@@ -1140,14 +1154,7 @@ impl Screen {
                     cell.code_point = unsafe { std::char::from_u32_unchecked(c as u32) };
                     cell.attributes = self.attributes;
                     cell.attributes.insert(Attributes::CHARDRAWN);
-                    for y in rect.start.y..(rect.end.y + 1) {
-                        let from_index = self.matrix.cell_index(rect.start.x, y);
-                        let to_index = self.matrix.cell_index(rect.end.x + 1, y);
-                        for index in from_index..to_index {
-                            // TODO: Preserve color
-                            self.matrix.cells[index as usize] = cell;
-                        }
-                    }
+                    self.fill_rect(rect,cell);
                 }
                 Event::Ignore
             }
@@ -1185,9 +1192,14 @@ impl Screen {
                self.scroll_left( c.x, n as isize);
                Event::Ignore
             }
+            Action::EraseArea(rect, _) => {
+                let rect = rect.clipped(&self.matrix.rectangle());
+                let c =self.colors;
+                self.fill_rect(rect,Cell::new(c));
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
-            Action::EraseArea(_, _) |
             Action::RepeatCharacter(_) |
             Action::EraseCharacters(_) |
             Action::EraseDisplay(_, _) |
