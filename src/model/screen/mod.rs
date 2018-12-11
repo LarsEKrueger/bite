@@ -24,7 +24,7 @@
 use std::cmp;
 use std::hash::{Hash, Hasher};
 
-use super::control_sequence::action::{Action, CharacterAttribute, Color};
+use super::control_sequence::action::{Action, CharacterAttribute, Color, EraseDisplay};
 use super::control_sequence::types::Rectangle;
 use super::control_sequence::parser::Parser;
 
@@ -1225,9 +1225,26 @@ impl Screen {
                 }
                 Event::Ignore
             }
+            Action::EraseDisplay(what, _) => {
+                self.make_room();
+                let c = self.cursor;
+                let (start_row, end_row) = match what {
+                    EraseDisplay::Above => ( 0, c.y+1 ),
+                    EraseDisplay::Below => (c.y, self.height()),
+                    EraseDisplay::All | EraseDisplay::Saved => (0, self.height()),
+                };
+                let width = self.width() as usize;
+                let cell = Cell::new( self.colors);
+                for row in start_row .. end_row {
+                    let row_index = self.matrix.cell_index(0,row) as usize;
+                    for col in 0 .. width {
+                        self.matrix.cells[row_index+col] = cell;
+                    }
+                }
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
-            Action::EraseDisplay(_, _) |
             Action::EraseLine(_, _) |
             Action::InsertCharacters(_) |
             Action::InsertLines(_) |

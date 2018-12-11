@@ -599,6 +599,37 @@ fn cursor_motion() {
     Test::s(80, 25, b"Hello_World.\r\x1b[2C\x1b[3X\n")
         .cp(0, 1)
         .cr(0, "He   _World.");
+
+    // Erase Display
+    // Below
+    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[0J")
+        .cp(0,2)
+        .cr(0,"Hello World.")
+        .cr(1,"0123456789")
+        .cr(2,"")
+        .cr(3,"");
+    // Above
+    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[1J")
+        .cp(0,2)
+        .cr(0,"")
+        .cr(1,"")
+        .cr(2,"")
+        .cr(3,"jklmnopqrstuvwxyz");
+    // All
+    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[2J")
+        .cp(0,2)
+        .cr(0,"")
+        .cr(1,"")
+        .cr(2,"")
+        .cr(3,"");
+    // Saved
+    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[3J")
+        .cp(0,2)
+        .cr(0,"")
+        .cr(1,"")
+        .cr(2,"")
+        .cr(3,"");
+
 }
 
 // TODO: Test for protected
