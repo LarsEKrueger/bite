@@ -337,6 +337,9 @@ pub struct Screen {
 
     /// Shall the screen keep it size?
     fixed_size: bool,
+
+    /// Last printed character
+    last_char: char,
 }
 
 const INITIAL_COLORS: Colors = Colors {
@@ -361,6 +364,7 @@ impl Screen {
             colors: INITIAL_COLORS,
             parser: Parser::new(),
             fixed_size: false,
+            last_char: ' ',
         }
     }
 
@@ -959,6 +963,7 @@ impl Screen {
                 Event::NewLine
             }
             Action::Char(c) => {
+                self.last_char = c;
                 self.place_char(c);
                 Event::Ignore
             }
@@ -1133,7 +1138,6 @@ impl Screen {
                 }
                 Event::Ignore
             }
-
             Action::DecForwardIndex => {
                 if self.fixed_size {
                     if self.cursor.x + 1 == self.width() {
@@ -1193,14 +1197,21 @@ impl Screen {
                Event::Ignore
             }
             Action::EraseArea(rect, _) => {
+                // TODO: handle protection
                 let rect = rect.clipped(&self.matrix.rectangle());
                 let c =self.colors;
                 self.fill_rect(rect,Cell::new(c));
                 Event::Ignore
             }
+            Action::RepeatCharacter(n) => {
+                let c = self.last_char;
+                for _i in 0..n {
+                    self.place_char( c);
+                }
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
-            Action::RepeatCharacter(_) |
             Action::EraseCharacters(_) |
             Action::EraseDisplay(_, _) |
             Action::EraseLine(_, _) |

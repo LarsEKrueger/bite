@@ -585,6 +585,15 @@ fn cursor_motion() {
         .cr(1, "01       9")
         .cr(2, "01");
 
+    // RepeatCharacter
+    Test::s(20,25, b"Hello World!\x1b[70b")
+        .cp(2,4)
+        .cr(0,"Hello World!!!!!!!!!")
+        .cr(1,"!!!!!!!!!!!!!!!!!!!!")
+        .cr(2,"!!!!!!!!!!!!!!!!!!!!")
+        .cr(3,"!!!!!!!!!!!!!!!!!!!!")
+        .cr(4,"!!")
+        .cr(5,"");
 }
 
 // TODO: Test for protected
