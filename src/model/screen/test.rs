@@ -664,6 +664,13 @@ fn cursor_motion() {
         0,
         "Hello     World.",
     );
+
+    // DeleteCharacters
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[2P").cp(6, 0).cr(
+        0,
+        "Hello rld.",
+    );
+
 }
 
 // TODO: Test for protected

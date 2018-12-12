@@ -539,30 +539,37 @@ impl Screen {
         }
     }
 
-    /// Scroll the character matrix left by n columns and fill the last rows with fresh cells.
+    /// Scroll the line left by n columns and fill the last columns with fresh cells.
+    /// Everything right of column at_col is scrolled left
+    ///
+    /// We assume the parameters are valid.
+    fn scroll_left_line(&mut self, at_row: isize, at_col: isize, scroll_cols: isize) {
+        let row_index = self.matrix.cell_index(0, at_row);
+        let mut dst_index = row_index + at_col;
+        let mut n_to_move = self.width() - scroll_cols - at_col;
+        while n_to_move > 0 {
+            self.matrix.cells[dst_index as usize] = self.matrix.cells[(dst_index + scroll_cols) as
+                                                                          usize];
+            dst_index += 1;
+            n_to_move -= 1;
+        }
+        // Clear last cols
+        let mut n_to_clear = scroll_cols;
+        while n_to_clear > 0 {
+            self.matrix.cells[dst_index as usize] = Cell::new(self.colors);
+            dst_index += 1;
+            n_to_clear -= 1;
+        }
+    }
+
+    /// Scroll the character matrix left by n columns and fill the last columns with fresh cells.
     /// Everything right of column at_col is scrolled left
     fn scroll_left(&mut self, at_col: isize, scroll_cols: isize) {
         let scroll_cols = cmp::min(scroll_cols, self.width());
         let at_col = cmp::max(at_col, 0);
         if scroll_cols >= 1 && at_col < self.width() {
             for row in 0..self.height() {
-                // Scroll left
-                let row_index = self.matrix.cell_index(0, row);
-                let mut dst_index = row_index + at_col;
-                let mut n_to_move = self.width() - scroll_cols - at_col;
-                while n_to_move > 0 {
-                    self.matrix.cells[dst_index as usize] =
-                        self.matrix.cells[(dst_index + scroll_cols) as usize];
-                    dst_index += 1;
-                    n_to_move -= 1;
-                }
-                // Clear last cols
-                let mut n_to_clear = scroll_cols;
-                while n_to_clear > 0 {
-                    self.matrix.cells[dst_index as usize] = Cell::new(self.colors);
-                    dst_index += 1;
-                    n_to_clear -= 1;
-                }
+                self.scroll_left_line(row, at_col, scroll_cols);
             }
         }
     }
@@ -1272,11 +1279,16 @@ impl Screen {
                 self.scroll_right_line( c.y, c.x, n as isize);
                 Event::Ignore
             }
+            Action::DeleteCharacters(n) => {
+                self.make_room();
+                let c=self.cursor;
+                self.scroll_left_line( c.y, c.x, n as isize);
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
             Action::InsertLines(_) |
             Action::DeleteLines(_) |
-            Action::DeleteCharacters(_) |
             Action::LinesPerScreen(_) |
             Action::ColumnsPerPage(_) |
             // Category: Less common operations, Prio 2
