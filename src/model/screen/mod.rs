@@ -575,14 +575,16 @@ impl Screen {
     }
 
     /// Scroll the character matrix down by n rows and fill the first rows with fresh cells.
-    /// Every right of at_col is scrolled to the left.
-    fn scroll_down(&mut self, scroll_rows: isize) {
+    /// Every below of and including at_row is scrolled down.
+    fn scroll_down(&mut self, at_row: isize, scroll_rows: isize) {
         let scroll_rows = cmp::min(scroll_rows, self.height());
+        debug_assert!(0<=at_row && at_row < self.height());
         if scroll_rows >= 1 {
             // Scroll down
             let dst_index = (self.width() * scroll_rows) as usize;
             let mut offset = (self.width() * (self.height() - scroll_rows)) as usize;
-            while offset > 0 {
+            let gap_index = (self.width() * at_row) as usize;
+            while offset > gap_index {
                 offset -= 1;
                 self.matrix.cells[dst_index + offset] = self.matrix.cells[offset];
             }
@@ -590,7 +592,7 @@ impl Screen {
             let mut offset = 0;
             let n = (self.width() * scroll_rows) as usize;
             while offset < n {
-                self.matrix.cells[offset] = Cell::new(self.colors);
+                self.matrix.cells[gap_index + offset] = Cell::new(self.colors);
                 offset += 1;
             }
         }
@@ -768,7 +770,7 @@ impl Screen {
             } else {
                 // We need to scroll
                 let scroll_lines = n - c.y;
-                self.scroll_down(scroll_lines);
+                self.scroll_down(0,scroll_lines);
                 self.cursor.y = 0;
             }
         } else {
@@ -1119,7 +1121,7 @@ impl Screen {
                 Event::Ignore
             }
             Action::ScrollDown(n) => {
-                self.scroll_down(n as isize);
+                self.scroll_down(0,n as isize);
                 Event::Ignore
             }
             Action::ScrollUp(n) => {
@@ -1285,9 +1287,14 @@ impl Screen {
                 self.scroll_left_line( c.y, c.x, n as isize);
                 Event::Ignore
             }
+            Action::InsertLines(n) => {
+                self.make_room();
+                let c=self.cursor;
+                self.scroll_down(c.y, n as isize);
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
-            Action::InsertLines(_) |
             Action::DeleteLines(_) |
             Action::LinesPerScreen(_) |
             Action::ColumnsPerPage(_) |
