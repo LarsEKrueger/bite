@@ -520,17 +520,18 @@ impl Screen {
 
     /// Scroll the character matrix up by n rows and fill the last rows with fresh cells.
     /// Everything below and including at_row will scroll up.
-    fn scroll_up(&mut self, at_row:isize, scroll_rows: isize) {
+    fn scroll_up(&mut self, at_row: isize, scroll_rows: isize) {
         let scroll_rows = cmp::min(scroll_rows, self.height());
-        debug_assert!(0<=at_row && at_row < self.height());
+        debug_assert!(0 <= at_row && at_row < self.height());
         if scroll_rows >= 1 {
             // Scroll up
-            let gap_index = self.matrix.cell_index(0,at_row) as usize;
+            let gap_index = self.matrix.cell_index(0, at_row) as usize;
             let mut offset = 0;
             let src_index = (scroll_rows * self.width()) as usize;
             let n = (self.width() * (self.height() - at_row - scroll_rows)) as usize;
             while offset < n {
-                self.matrix.cells[gap_index + offset] = self.matrix.cells[gap_index + offset + src_index];
+                self.matrix.cells[gap_index + offset] = self.matrix.cells[gap_index + offset +
+                                                                              src_index];
                 offset += 1;
             }
             // Clear last rows
@@ -581,7 +582,7 @@ impl Screen {
     /// Every below of and including at_row is scrolled down.
     fn scroll_down(&mut self, at_row: isize, scroll_rows: isize) {
         let scroll_rows = cmp::min(scroll_rows, self.height());
-        debug_assert!(0<=at_row && at_row < self.height());
+        debug_assert!(0 <= at_row && at_row < self.height());
         if scroll_rows >= 1 {
             // Scroll down
             let dst_index = (self.width() * scroll_rows) as usize;
@@ -756,7 +757,7 @@ impl Screen {
             } else {
                 // We need to scroll
                 let scroll_lines = c.y + n - self.height() + 1;
-                self.scroll_up(0,scroll_lines);
+                self.scroll_up(0, scroll_lines);
                 self.cursor.y = self.height() - 1;
             }
         } else {
@@ -773,7 +774,7 @@ impl Screen {
             } else {
                 // We need to scroll
                 let scroll_lines = n - c.y;
-                self.scroll_down(0,scroll_lines);
+                self.scroll_down(0, scroll_lines);
                 self.cursor.y = 0;
             }
         } else {
@@ -785,7 +786,7 @@ impl Screen {
         self.cursor.y += 1;
         if self.fixed_size {
             if self.cursor.y == self.height() {
-                self.scroll_up(0,1);
+                self.scroll_up(0, 1);
                 self.cursor.y -= 1;
             }
         }

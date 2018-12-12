@@ -672,26 +672,32 @@ fn cursor_motion() {
     );
 
     // InsertLines
-    Test::s(80,25, b"\x1b[2J\x1b[1d1\n2\n3\n4\n5\n6\n7\n8\n9\n\x1b[3d\x1b[4L")
-        .cp(0,2)
-        .cr(0,"1")
-        .cr(1,"2")
-        .cr(2,"")
-        .cr(3,"")
-        .cr(4,"")
-        .cr(5,"")
-        .cr(6,"3")
-        .cr(12,"9");
+    Test::s(
+        80,
+        25,
+        b"\x1b[2J\x1b[1d1\n2\n3\n4\n5\n6\n7\n8\n9\n\x1b[3d\x1b[4L",
+    ).cp(0, 2)
+        .cr(0, "1")
+        .cr(1, "2")
+        .cr(2, "")
+        .cr(3, "")
+        .cr(4, "")
+        .cr(5, "")
+        .cr(6, "3")
+        .cr(12, "9");
 
     // DeleteLines
-    Test::s(80,25, b"\x1b[2J\x1b[1d1\n2\n3\n4\n5\n6\n7\n8\n9\n\x1b[3d\x1b[4M")
-        .cp(0,2)
-        .cr(0,"1")
-        .cr(1,"2")
-        .cr(2,"7")
-        .cr(3,"8")
-        .cr(4,"9")
-        .cr(5,"");
+    Test::s(
+        80,
+        25,
+        b"\x1b[2J\x1b[1d1\n2\n3\n4\n5\n6\n7\n8\n9\n\x1b[3d\x1b[4M",
+    ).cp(0, 2)
+        .cr(0, "1")
+        .cr(1, "2")
+        .cr(2, "7")
+        .cr(3, "8")
+        .cr(4, "9")
+        .cr(5, "");
 }
 
 // TODO: Test for protected
