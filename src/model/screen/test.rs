@@ -602,34 +602,62 @@ fn cursor_motion() {
 
     // Erase Display
     // Below
-    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[0J")
-        .cp(0,2)
-        .cr(0,"Hello World.")
-        .cr(1,"0123456789")
-        .cr(2,"")
-        .cr(3,"");
+    Test::s(
+        80,
+        25,
+        b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[0J",
+    ).cp(0, 2)
+        .cr(0, "Hello World.")
+        .cr(1, "0123456789")
+        .cr(2, "")
+        .cr(3, "");
     // Above
-    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[1J")
-        .cp(0,2)
-        .cr(0,"")
-        .cr(1,"")
-        .cr(2,"")
-        .cr(3,"jklmnopqrstuvwxyz");
+    Test::s(
+        80,
+        25,
+        b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[1J",
+    ).cp(0, 2)
+        .cr(0, "")
+        .cr(1, "")
+        .cr(2, "")
+        .cr(3, "jklmnopqrstuvwxyz");
     // All
-    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[2J")
-        .cp(0,2)
-        .cr(0,"")
-        .cr(1,"")
-        .cr(2,"")
-        .cr(3,"");
+    Test::s(
+        80,
+        25,
+        b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[2J",
+    ).cp(0, 2)
+        .cr(0, "")
+        .cr(1, "")
+        .cr(2, "")
+        .cr(3, "");
     // Saved
-    Test::s(80,25, b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[3J")
-        .cp(0,2)
-        .cr(0,"")
-        .cr(1,"")
-        .cr(2,"")
-        .cr(3,"");
+    Test::s(
+        80,
+        25,
+        b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[3J",
+    ).cp(0, 2)
+        .cr(0, "")
+        .cr(1, "")
+        .cr(2, "")
+        .cr(3, "");
 
+    // Erase in Line
+    // Right
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[0K").cp(6, 0).cr(
+        0,
+        "Hello ",
+    );
+    // Left
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[1K").cp(6, 0).cr(
+        0,
+        "       orld.",
+    );
+    // All
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[2K").cp(6, 0).cr(
+        0,
+        "",
+    );
 }
 
 // TODO: Test for protected

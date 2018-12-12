@@ -24,7 +24,7 @@
 use std::cmp;
 use std::hash::{Hash, Hasher};
 
-use super::control_sequence::action::{Action, CharacterAttribute, Color, EraseDisplay};
+use super::control_sequence::action::{Action, CharacterAttribute, Color, EraseDisplay, EraseLine};
 use super::control_sequence::types::Rectangle;
 use super::control_sequence::parser::Parser;
 
@@ -1182,7 +1182,6 @@ impl Screen {
                             old_matrix.cells[(src_from + i) as usize];
                     }
                 }
-
                 Event::Ignore
             }
             Action::InsertColumns(n) => {
@@ -1226,6 +1225,7 @@ impl Screen {
                 Event::Ignore
             }
             Action::EraseDisplay(what, _) => {
+                // TODO: Handle selective
                 self.make_room();
                 let c = self.cursor;
                 let (start_row, end_row) = match what {
@@ -1244,8 +1244,25 @@ impl Screen {
                 Event::Ignore
             }
 
+            Action::EraseLine(what, _) => {
+                // TODO: Handle selective
+                self.make_room();
+                let c=self.cursor;
+                let width = self.width() as usize;
+                let cell = Cell::new( self.colors);
+                let (start_col, end_col) = match what {
+                    EraseLine::Left => (0,(c.x+1) as usize),
+                    EraseLine::Right => (c.x as usize, width),
+                    EraseLine::All => (0,width),
+                };
+                let row_index = self.matrix.cell_index(0,c.y) as usize;
+                for col in start_col .. end_col {
+                    self.matrix.cells[row_index+col] = cell;
+                }
+                Event::Ignore
+            }
+
             // Category: Common change screen operations, Prio 1
-            Action::EraseLine(_, _) |
             Action::InsertCharacters(_) |
             Action::InsertLines(_) |
             Action::DeleteLines(_) |
