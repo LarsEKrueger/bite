@@ -969,7 +969,8 @@ impl Screen {
     ///
     /// Indicate certain events in the return code.
     pub fn add_byte(&mut self, byte: u8) -> Event {
-        match self.parser.add_byte(byte) {
+        let action = self.parser.add_byte(byte);
+        match action {
             Action::More => Event::Ignore,
             Action::Error => Event::Ignore,
             Action::Cr => {
@@ -1398,6 +1399,7 @@ impl Screen {
             Action::ApplicationProgramCommand(_) |
             Action::PrivacyMessage(_) |
             Action::StartOfString(_) => {
+                println!( "BiTE Warning! Event »{:?}« not implemented.", action);
                 // TODO: Convert to event
                 Event::Ignore
             }
