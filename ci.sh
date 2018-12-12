@@ -8,7 +8,7 @@ inotifywait -m -e close_write $(find src -type d) c_src | while read line; do
      clear
      cargo build --color always
      if [ $? == 0 ] ; then
-       cargo test --color always | grep -v '^test .*ok$'
+       RUST_BACKTRACE=1 cargo test --color always | grep -v '^test .*ok$'
      fi
   fi
 done
