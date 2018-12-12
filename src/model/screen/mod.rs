@@ -589,29 +589,35 @@ impl Screen {
         }
     }
 
-    /// Scroll the character matrix right by n columns and fill the first columns with fresh cells.
+    /// Scroll one line of the character matrix right by n columns and fill the gap with fresh
+    /// cells.
+    ///
+    /// We assume the parameters are valid.
+    fn scroll_right_line(&mut self, at_row: isize, at_col: isize, scroll_cols: isize) {
+        let row_index = self.matrix.cell_index(0, at_row);
+        let mut n_to_move = self.width() - at_col - scroll_cols;
+        let mut dst_index = row_index + self.width();
+        while n_to_move > 0 {
+            dst_index -= 1;
+            self.matrix.cells[dst_index as usize] = self.matrix.cells[(dst_index - scroll_cols) as
+                                                                          usize];
+            n_to_move -= 1;
+        }
+        let c0 = at_col;
+        let c1 = at_col + scroll_cols;
+        for col in c0..c1 {
+            self.matrix.cells[(row_index + col) as usize] = Cell::new(self.colors);
+        }
+    }
+
+    /// Scroll the character matrix right by n columns and fill the gap with fresh cells.
     /// All columns, including at_col are moved to the right
     fn scroll_right(&mut self, at_col: isize, scroll_cols: isize) {
         let scroll_cols = cmp::min(scroll_cols, self.height());
         let at_col = cmp::max(at_col, 0);
         if scroll_cols >= 1 && at_col < self.width() {
             for row in 0..self.height() {
-                // Scroll right
-                let row_index = self.matrix.cell_index(0, row);
-                let mut n_to_move = self.width() - at_col - scroll_cols;
-                let mut dst_index = row_index + self.width();
-                while n_to_move > 0 {
-                    dst_index -= 1;
-                    self.matrix.cells[dst_index as usize] =
-                        self.matrix.cells[(dst_index - scroll_cols) as usize];
-                    n_to_move -= 1;
-                }
-                // Clear first columns
-                let c0 = at_col;
-                let c1 = at_col + scroll_cols;
-                for col in c0..c1 {
-                    self.matrix.cells[(row_index + col) as usize] = Cell::new(self.colors);
-                }
+                self.scroll_right_line(row, at_col, scroll_cols);
             }
         }
     }
@@ -1243,7 +1249,6 @@ impl Screen {
                 }
                 Event::Ignore
             }
-
             Action::EraseLine(what, _) => {
                 // TODO: Handle selective
                 self.make_room();
@@ -1261,9 +1266,14 @@ impl Screen {
                 }
                 Event::Ignore
             }
+            Action::InsertCharacters(n) => {
+                self.make_room();
+                let c=self.cursor;
+                self.scroll_right_line( c.y, c.x, n as isize);
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
-            Action::InsertCharacters(_) |
             Action::InsertLines(_) |
             Action::DeleteLines(_) |
             Action::DeleteCharacters(_) |

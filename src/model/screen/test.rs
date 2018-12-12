@@ -658,6 +658,12 @@ fn cursor_motion() {
         0,
         "",
     );
+
+    // InsertCharacters
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[4@").cp(6, 0).cr(
+        0,
+        "Hello     World.",
+    );
 }
 
 // TODO: Test for protected
