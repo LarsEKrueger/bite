@@ -1304,6 +1304,20 @@ impl Screen {
                 self.scroll_up(c.y, n as isize);
                 Event::Ignore
             }
+            Action::Tabulator => {
+                // TODO: Full tab support
+
+                // Compute to the next multiple of 8.
+                let cx=((self.cursor.x + 8) / 8 ) * 8;
+                if self.fixed_size {
+                    if cx < self.width() {
+                        self.cursor.x = cx;
+                    }
+                } else {
+                    self.cursor.x = cx;
+                }
+                Event::Ignore
+            }
 
             // Category: Common change screen operations, Prio 1
             Action::LinesPerScreen(_) |
@@ -1317,7 +1331,6 @@ impl Screen {
             Action::FullReset |
             // Category: Tabulators and Margins, Prio 3
             Action::TabSet |
-            Action::Tabulator |
             Action::TabClear(_) |
             Action::CursorForwardTab(_) |
             Action::CursorBackwardTab(_) |

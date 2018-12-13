@@ -698,6 +698,10 @@ fn cursor_motion() {
         .cr(3, "8")
         .cr(4, "9")
         .cr(5, "");
+
+    // Tabulator
+    Test::s(80, 25, b"012\t").cp(8, 0);
+    Test::s(80, 25, b"\t").cp(8, 0);
 }
 
 // TODO: Test for protected
