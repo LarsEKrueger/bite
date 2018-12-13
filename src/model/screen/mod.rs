@@ -1318,6 +1318,25 @@ impl Screen {
                 }
                 Event::Ignore
             }
+            Action::ScrollRegion(top, bottom) => {
+                // TODO: Implement scroll region
+                Event::Ignore
+            }
+            Action::DesignateCharacterSet(level, charset) => {
+                // TODO: At least handle UsAscii and DecSpecial
+
+                Event::Ignore
+            }
+
+            // Silently ignore these sequences until functionality is required
+            Action::DecApplicationKeypad(_) |
+            Action::SetMode(_) |
+            Action::ResetMode(_) |
+            Action::SetPrivateMode(_) |
+            Action::ResetPrivateMode(_) |
+            Action::WindowOp(_) => { 
+                    Event::Ignore
+                }
 
             // Category: Common change screen operations, Prio 1
             Action::LinesPerScreen(_) |
@@ -1338,7 +1357,6 @@ impl Screen {
             Action::StartGuardedArea |
             Action::EndGuardedArea |
             Action::EnableFilterArea(_) |
-            Action::ScrollRegion(_, _) |
             Action::AttributeChangeExtent(_) |
             // Category: Reports, Prio 4
             Action::TerminalUnitId |
@@ -1375,7 +1393,6 @@ impl Screen {
             Action::BackgroundColorIndex(_) |
             Action::SetTitleModes(_) |
             Action::ResetTitleModes(_) |
-            Action::WindowOp(_) |
             Action::LockMemory(_) |
             Action::GraphicRegister(_, _) |
             Action::MediaCopy(_) |
@@ -1388,14 +1405,9 @@ impl Screen {
             Action::ConformanceLevel(_, _) |
             Action::Show8BitControl(_) |
             Action::AnsiConformanceLevel(_) |
-            Action::DecApplicationKeypad(_) |
             Action::DecAlignmentTest |
             Action::DecDoubleHeight(_) |
             Action::DecDoubleWidth(_) |
-            Action::SetMode(_) |
-            Action::ResetMode(_) |
-            Action::SetPrivateMode(_) |
-            Action::ResetPrivateMode(_) |
             Action::RequestPrivateMode(_) |
             Action::RestorePrivateMode(_) |
             Action::SavePrivateMode(_) |
@@ -1406,7 +1418,6 @@ impl Screen {
             Action::MouseTracking(_, _, _, _, _) |
             // Category: Non-UTF-8 language support: Prio 9
             Action::SingleShift(_) |
-            Action::DesignateCharacterSet(_, _) |
             Action::InvokeCharSet(_, _) |
             // Category: String message, Prio 10
             Action::ApplicationProgramCommand(_) |
