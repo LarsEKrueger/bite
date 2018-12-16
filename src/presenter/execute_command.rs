@@ -100,6 +100,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 if prompt != self.commons.session.current_conversation.prompt {
                     self.commons.session.new_conversation(prompt);
                 }
+                trace!("Done executing");
                 return (ComposeCommandPresenter::new(self.commons), true);
             }
         }
