@@ -24,7 +24,8 @@
 use std::cmp;
 use std::hash::{Hash, Hasher};
 
-use super::control_sequence::action::{Action, CharacterAttribute, Color, EraseDisplay, EraseLine};
+use super::control_sequence::action::{Action, CharacterAttribute, Color, EraseDisplay, EraseLine,
+                                      ScrollRegion};
 use super::control_sequence::types::Rectangle;
 use super::control_sequence::parser::Parser;
 
@@ -340,6 +341,11 @@ pub struct Screen {
 
     /// Last printed character
     last_char: char,
+
+    /// Scroll region.
+    ///
+    /// The values will be checked every time as non-fixed_size screens might change them.
+    scroll_region: ScrollRegion,
 }
 
 const INITIAL_COLORS: Colors = Colors {
@@ -365,6 +371,7 @@ impl Screen {
             parser: Parser::new(),
             fixed_size: false,
             last_char: ' ',
+            scroll_region: None,
         }
     }
 
@@ -481,7 +488,6 @@ impl Screen {
 
     pub fn text_before_cursor(&mut self) -> String {
         self.make_room();
-
         let mut text = String::new();
         let mut current_index = self.matrix.cell_index(0, self.cursor.y) as usize;
         let cursor_index = self.cursor_index() as usize;
@@ -518,27 +524,48 @@ impl Screen {
         }
     }
 
+    /// Find start and end row of region to scroll.
+    ///
+    /// Both rows are inside the screen. We assume make_room has been called before.
+    /// Also indicate if there is a region (either due to manual request or fixed_size).
+    fn determine_scroll_region(&self) -> (isize, isize, bool) {
+        match self.scroll_region {
+            None => (0, self.height() - 1, self.fixed_size),
+            Some((start, end)) => {
+                let start = start as isize;
+                let end = end as isize;
+                if 0 <= start && start < self.height() && 0 <= end && end < self.height() &&
+                    start < end
+                {
+                    (start, end, true)
+                } else {
+                    (0, self.height() - 1, true)
+                }
+            }
+        }
+    }
+
     /// Scroll the character matrix up by n rows and fill the last rows with fresh cells.
     /// Everything below and including at_row will scroll up.
     fn scroll_up(&mut self, at_row: isize, scroll_rows: isize) {
-        let scroll_rows = cmp::min(scroll_rows, self.height());
-        debug_assert!(0 <= at_row && at_row < self.height());
+        let (start_row, end_row, _) = self.determine_scroll_region();
+        let scroll_rows = cmp::min(scroll_rows, end_row + 1 - start_row);
+        debug_assert!(start_row <= at_row && at_row <= end_row);
         if scroll_rows >= 1 {
             // Scroll up
-            let gap_index = self.matrix.cell_index(0, at_row) as usize;
-            let mut offset = 0;
-            let src_index = (scroll_rows * self.width()) as usize;
-            let n = (self.width() * (self.height() - at_row - scroll_rows)) as usize;
-            while offset < n {
-                self.matrix.cells[gap_index + offset] = self.matrix.cells[gap_index + offset +
-                                                                              src_index];
-                offset += 1;
+            let w = self.width() as usize;
+            for src_row in (at_row + scroll_rows)..(end_row + 1) {
+                let dst_index = self.matrix.cell_index(0, src_row - scroll_rows) as usize;
+                let src_index = self.matrix.cell_index(0, src_row) as usize;
+                for col in 0..w {
+                    self.matrix.cells[dst_index + col] = self.matrix.cells[src_index + col];
+                }
             }
-            // Clear last rows
-            let n = (self.width() * self.height()) as usize;
-            while offset < n {
-                self.matrix.cells[offset] = Cell::new(self.colors);
-                offset += 1;
+            for dst_row in (end_row + 1 - scroll_rows)..(end_row + 1) {
+                let dst_index = self.matrix.cell_index(0, dst_row) as usize;
+                for col in 0..w {
+                    self.matrix.cells[dst_index + col] = Cell::new(self.colors);
+                }
             }
         }
     }
@@ -572,7 +599,8 @@ impl Screen {
         let scroll_cols = cmp::min(scroll_cols, self.width());
         let at_col = cmp::max(at_col, 0);
         if scroll_cols >= 1 && at_col < self.width() {
-            for row in 0..self.height() {
+            let (start_row, end_row, _) = self.determine_scroll_region();
+            for row in start_row..(end_row + 1) {
                 self.scroll_left_line(row, at_col, scroll_cols);
             }
         }
@@ -581,23 +609,26 @@ impl Screen {
     /// Scroll the character matrix down by n rows and fill the first rows with fresh cells.
     /// Every below of and including at_row is scrolled down.
     fn scroll_down(&mut self, at_row: isize, scroll_rows: isize) {
-        let scroll_rows = cmp::min(scroll_rows, self.height());
-        debug_assert!(0 <= at_row && at_row < self.height());
+        let (start_row, end_row, _) = self.determine_scroll_region();
+        let scroll_rows = cmp::min(scroll_rows, end_row + 1 - start_row);
+        debug_assert!(start_row <= at_row && at_row <= end_row);
         if scroll_rows >= 1 {
             // Scroll down
-            let dst_index = (self.width() * scroll_rows) as usize;
-            let mut offset = (self.width() * (self.height() - scroll_rows)) as usize;
-            let gap_index = (self.width() * at_row) as usize;
-            while offset > gap_index {
-                offset -= 1;
-                self.matrix.cells[dst_index + offset] = self.matrix.cells[offset];
+            let w = self.width() as usize;
+            let mut dst_row = end_row;
+            while dst_row >= at_row + scroll_rows {
+                let src_index = self.matrix.cell_index(0, dst_row - scroll_rows) as usize;
+                let dst_index = self.matrix.cell_index(0, dst_row) as usize;
+                for col in 0..w {
+                    self.matrix.cells[dst_index + col] = self.matrix.cells[src_index + col];
+                }
+                dst_row -= 1;
             }
-            // Clear first rows
-            let mut offset = 0;
-            let n = (self.width() * scroll_rows) as usize;
-            while offset < n {
-                self.matrix.cells[gap_index + offset] = Cell::new(self.colors);
-                offset += 1;
+            for dst_row in at_row..(at_row + scroll_rows) {
+                let dst_index = self.matrix.cell_index(0, dst_row) as usize;
+                for col in 0..w {
+                    self.matrix.cells[dst_index + col] = Cell::new(self.colors);
+                }
             }
         }
     }
@@ -626,10 +657,11 @@ impl Screen {
     /// Scroll the character matrix right by n columns and fill the gap with fresh cells.
     /// All columns, including at_col are moved to the right
     fn scroll_right(&mut self, at_col: isize, scroll_cols: isize) {
-        let scroll_cols = cmp::min(scroll_cols, self.height());
+        let scroll_cols = cmp::min(scroll_cols, self.width());
         let at_col = cmp::max(at_col, 0);
         if scroll_cols >= 1 && at_col < self.width() {
-            for row in 0..self.height() {
+            let (start_row, end_row, _) = self.determine_scroll_region();
+            for row in start_row..(end_row + 1) {
                 self.scroll_right_line(row, at_col, scroll_cols);
             }
         }
@@ -750,46 +782,39 @@ impl Screen {
 
     /// Move the cursor down n lines and scroll up if necessary
     pub fn move_down_and_scroll(&mut self, n: isize) {
-        let c = self.cursor;
-        if self.fixed_size {
-            if c.y + n < self.height() {
-                self.cursor.y += n;
-            } else {
-                // We need to scroll
-                let scroll_lines = c.y + n - self.height() + 1;
-                self.scroll_up(0, scroll_lines);
-                self.cursor.y = self.height() - 1;
+        // If we are outside an existing scroll region, do not scroll
+        if let Some((start_row, end_row)) = self.scroll_region {
+            let start_row = start_row as isize;
+            let end_row = end_row as isize;
+            if self.cursor.y < start_row || self.cursor.y > end_row {
+                self.cursor.y = cmp::min(self.cursor.y + n, self.height());
+                return;
             }
-        } else {
-            self.cursor.y += n;
+        }
+        // Either we're inside a scroll region or there is none
+        self.cursor.y += n;
+        let (start_row, end_row, limited) = self.determine_scroll_region();
+        if limited && self.cursor.y > end_row {
+            let n = self.cursor.y - end_row;
+            self.scroll_up(start_row, n);
+            self.cursor.y -= n;
         }
     }
 
     /// Move the cursor up n lines and scroll down if necessary
     pub fn move_up_and_scroll(&mut self, n: isize) {
-        let c = self.cursor;
-        if self.fixed_size {
-            if n <= c.y {
-                self.cursor.y -= n;
-            } else {
-                // We need to scroll
-                let scroll_lines = n - c.y;
-                self.scroll_down(0, scroll_lines);
-                self.cursor.y = 0;
-            }
-        } else {
-            self.cursor.y -= n;
+        self.cursor.y -= n;
+        let (start_row, _, limited) = self.determine_scroll_region();
+        if limited && self.cursor.y < start_row {
+            let n = start_row - self.cursor.y;
+            self.scroll_down(start_row, n);
+            self.cursor.y += n;
         }
     }
+
     pub fn new_line(&mut self) {
         self.move_left_edge();
-        self.cursor.y += 1;
-        if self.fixed_size {
-            if self.cursor.y == self.height() {
-                self.scroll_up(0, 1);
-                self.cursor.y -= 1;
-            }
-        }
+        self.move_down_and_scroll(1);
     }
 
     /// Insert a character at the current cursor position.
@@ -1118,27 +1143,45 @@ impl Screen {
                 Event::Ignore
             }
             Action::Index => {
+                self.make_room();
                 self.move_down_and_scroll(1);
                 Event::Ignore
             }
             Action::ReverseIndex => {
+                self.make_room();
                 self.move_up_and_scroll(1);
                 Event::Ignore
             }
             Action::ScrollDown(n) => {
-                self.scroll_down(0,n as isize);
+                self.make_room();
+                let (start_row, _, limited) = self.determine_scroll_region();
+                if limited {
+                    self.scroll_down(start_row,n as isize);
+                }
                 Event::Ignore
             }
             Action::ScrollUp(n) => {
-                self.scroll_up(0, n as isize);
+                self.make_room();
+                let (start_row, _, limited) = self.determine_scroll_region();
+                if limited {
+                    self.scroll_up(start_row, n as isize);
+                }
                 Event::Ignore
             }
             Action::ScrollLeft(n) => {
-                self.scroll_left(0, n as isize);
+                self.make_room();
+                let (start_row, end_row, _) = self.determine_scroll_region();
+                if start_row <= self.cursor.y && self.cursor.y <= end_row {
+                    self.scroll_left(0, n as isize);
+                }
                 Event::Ignore
             }
             Action::ScrollRight(n) => {
+                self.make_room();
+                let (start_row, end_row, _) = self.determine_scroll_region();
+                if start_row <= self.cursor.y && self.cursor.y <= end_row {
                 self.scroll_right(0, n as isize);
+                }
                 Event::Ignore
             }
             Action::Backspace => {
@@ -1301,7 +1344,10 @@ impl Screen {
             Action::DeleteLines(n) => {
                 self.make_room();
                 let c=self.cursor;
-                self.scroll_up(c.y, n as isize);
+                let (start_row, end_row, limited) = self.determine_scroll_region();
+                if start_row <= c.y && c.y<= end_row || !limited {
+                    self.scroll_up(c.y, n as isize);
+                }
                 Event::Ignore
             }
             Action::Tabulator => {
@@ -1318,11 +1364,22 @@ impl Screen {
                 }
                 Event::Ignore
             }
-            Action::ScrollRegion(top, bottom) => {
-                // TODO: Implement scroll region
+            Action::ScrollRegion(region) => {
+                // If cursor is now outside the scroll region, move it to the
+                // scroll region
+                self.make_room();
+                let c=self.cursor;
+                self.scroll_region = region;
+                if let Some((start_row,end_row)) = region {
+                    let start_row = start_row as isize;
+                    let end_row = end_row as isize;
+                    if c.y < start_row || c.y > end_row {
+                        self.cursor.y = start_row;
+                    }
+                }
                 Event::Ignore
             }
-            Action::DesignateCharacterSet(level, charset) => {
+            Action::DesignateCharacterSet(_level, _charset) => {
                 // TODO: At least handle UsAscii and DecSpecial
 
                 Event::Ignore
@@ -1334,7 +1391,7 @@ impl Screen {
             Action::ResetMode(_) |
             Action::SetPrivateMode(_) |
             Action::ResetPrivateMode(_) |
-            Action::WindowOp(_) => { 
+            Action::WindowOp(_) => {
                     Event::Ignore
                 }
 

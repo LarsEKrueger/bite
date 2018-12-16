@@ -223,10 +223,11 @@ pub enum Action {
 
     /// Scroll region.
     ///
-    /// top, bottom. Scroll region is exclusive, i.e. if bottom is one more than top, the region is
-    /// one line.
-    /// (0,0) means region is the full window.
-    ScrollRegion(ActionParameter, ActionParameter),
+    /// top, bottom. Scroll region is inclusive, i.e. if bottom is one more than top, the region is
+    /// two lines. Identical values (i.e. 1 line height is not allowed).
+    ///
+    /// None means region is the full window.
+    ScrollRegion(ScrollRegion),
 
     ChangeAttributesArea(Rectangle, CharacterAttribute),
     ReverseAttributesArea(Rectangle, CharacterAttribute),
@@ -610,6 +611,8 @@ pub enum LocatorReportUnit {
     Character,
     Device,
 }
+
+pub type ScrollRegion = Option<(ActionParameter,ActionParameter)>;
 
 bitflags! {
     pub struct LocatorEvents: u8 {

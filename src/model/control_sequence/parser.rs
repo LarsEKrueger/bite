@@ -788,9 +788,9 @@ impl Parser {
         let p0 = self.parameter.zero_if_default(0);
         let p1 = self.parameter.zero_if_default(1);
         if p0 != 0 && p1 != 0 && p1 > p0 {
-            Action::ScrollRegion(p0 - 1, p1 - 1)
+            Action::ScrollRegion(Some((p0 - 1, p1 - 1)))
         } else if p0 == 0 && p1 == 0 {
-            Action::ScrollRegion(0, 0)
+            Action::ScrollRegion(None)
         } else {
             Action::More
         }
@@ -2348,9 +2348,9 @@ mod test {
         pt!(b"a\x1b[1\"qx", c'a' m m m m CharacterProtection(CharacterProtection::NoErase) c'x');
         pt!(b"a\x1b[2\"qx", c'a' m m m m CharacterProtection(CharacterProtection::CanErase) c'x');
         pt!(b"a\x1b[3\"qx", c'a' m m m m m c'x');
-        pt!(b"a\x1b[12;13rx", c'a' m m m m m m m ScrollRegion(11,12) c'x');
+        pt!(b"a\x1b[12;13rx", c'a' m m m m m m m ScrollRegion(Some((11,12))) c'x');
         pt!(b"a\x1b[14;13rx", c'a' m m m m m m m m c'x');
-        pt!(b"a\x1b[rx", c'a' m m ScrollRegion(0,0) c'x');
+        pt!(b"a\x1b[rx", c'a' m m ScrollRegion(None) c'x');
         pt!(b"a\x1b[?1041rz", c'a' m m m m m m m RestorePrivateMode(SetPrivateMode::UseClipboard)
             c'z');
         pt!(b"a\x1b[1;2;3;4;0$rx", c'a' m m m m m m m m m m m m
