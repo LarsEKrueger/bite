@@ -56,6 +56,10 @@ extern crate pretty_assertions;
 #[macro_use]
 extern crate bitflags;
 
+#[macro_use]
+extern crate log;
+extern crate flexi_logger;
+
 use std::panic::PanicInfo;
 
 pub mod tools;
@@ -70,6 +74,11 @@ extern crate backtrace;
 fn panic_hook(info: &PanicInfo) {
     let msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
         (Some(msg), Some(loc)) => {
+            error!("Panic at {}:{}:{} with '{}'",
+                   loc.file(),
+                   loc.line(),
+                   loc.column(),
+                   msg);
             format!(
                 "bite panicked at {}:{}:{} with '{}'\n",
                 loc.file(),
@@ -79,6 +88,11 @@ fn panic_hook(info: &PanicInfo) {
             )
         }
         (None, Some(loc)) => {
+            error!("Panic at {}:{}:{}",
+                   loc.file(),
+                   loc.line(),
+                   loc.column()
+                   );
             format!(
                 "bite panicked at {}:{}:{}\n",
                 loc.file(),
@@ -95,10 +109,18 @@ fn panic_hook(info: &PanicInfo) {
     let mut msg = String::new();
     let _ = write!(msg, "{:?}", bt);
     bite_write_output(msg.as_str());
+    error!("Stack Trace:\n{}", msg);
 }
 
 /// Main function that starts the program.
 pub fn main() {
+    // Initialise env_logger first
+    let _ = std::env::var("BITE_LOG").and_then( |bite_log| {
+        let _ = flexi_logger::Logger::with_str(bite_log).format(flexi_logger::with_thread). log_to_file().start();
+        info!("Logging is ready");
+        Ok(())
+    });
+
     let EMPTY = cstr!("");
     unsafe {
         ::libc::setlocale(::libc::LC_ALL, EMPTY.as_ptr());
@@ -107,10 +129,11 @@ pub fn main() {
     let params = ::tools::commandline::CommandLine::parse();
 
     #[cfg(debug_assertions)]
-    println!("Command Line\n{:?}", params);
+    info!("{:?}", params);
 
     let (receiver, reader_barrier, bash_barrier) = match model::bash::start() {
         Err(err) => {
+            error!("Can't start integrated bash: {}", err);
             println!("Can't start integrated bash: {}", err);
             ::std::process::exit(1);
         }
@@ -119,6 +142,7 @@ pub fn main() {
 
     let mut gui = match ::view::Gui::new(receiver) {
         Err(err) => {
+            error!("Can't init GUI: {}", err);
             println!("Can't init GUI: {}", err);
             ::std::process::exit(1);
         }
@@ -145,4 +169,5 @@ pub fn main() {
     model::bash::stop();
 
     let _ = std::panic::take_hook();
+    info!("Exiting bite normally");
 }

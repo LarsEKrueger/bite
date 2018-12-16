@@ -430,7 +430,7 @@ pub fn start() -> Result<(Receiver<BashOutput>, Arc<Barrier>, Arc<Barrier>), Str
     unsafe { pts_handles = Some(handles) };
 
     // If we got here, we can print stuff through the backup handles.
-    bite_write_output("bite: Pseudo terminals correctly set up.\n");
+    info!("Pseudo terminals correctly set up.");
 
     Ok((receiver, reader_barrier, bash_barrier))
 }
