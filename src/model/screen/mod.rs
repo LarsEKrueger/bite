@@ -387,7 +387,7 @@ impl Screen {
     /// Direct conversion to one-line matrix
     pub fn one_line_matrix(bytes: &[u8]) -> Matrix {
         let mut s = Screen::new();
-        s.add_bytes(bytes);
+        let _ = s.add_bytes(bytes);
         s.freeze()
     }
 
@@ -984,10 +984,21 @@ impl Screen {
     }
 
     /// Interpret the parameter as a string of command codes and characters
-    pub fn add_bytes(&mut self, bytes: &[u8]) {
+    ///
+    /// If any other event than Ignore, Cr, or NewLine are created, return them as error.
+    /// This function is supposed to be used for known correct text only. DO NOT USE for text read
+    /// from an uncontrolled source, i.e. bash.
+    pub fn add_bytes(&mut self, bytes: &[u8]) -> Result<(),Event> {
         for c in bytes {
-            self.add_byte(*c);
+            let e = self.add_byte(*c);
+            match e {
+                Event::Ignore |
+                Event::Cr |
+                Event::NewLine => { },
+                _ => return Err(e),
+            }
         }
+        Ok(())
     }
 
     /// Process a single byte in the state machine.

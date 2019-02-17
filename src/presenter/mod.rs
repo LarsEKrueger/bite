@@ -204,7 +204,7 @@ impl PresenterCommons {
     pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
         let mut prompt = Screen::new();
-        prompt.add_bytes(b"System");
+        let _ = prompt.add_bytes(b"System");
         let mut text_input = Screen::new();
         text_input.make_room();
         Ok(PresenterCommons {
