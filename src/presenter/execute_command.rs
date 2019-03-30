@@ -66,15 +66,39 @@ impl SubPresenter for ExecuteCommandPresenter {
 
     fn poll_interaction(mut self: Box<Self>) -> (Box<SubPresenter>, bool) {
         let mut needs_marking = false;
-        if let Ok(line) = self.commons_mut().receiver.try_recv() {
+        if let Ok(output) = self.commons_mut().receiver.try_recv() {
             needs_marking = true;
-            match line {
-                BashOutput::FromOutput(line) => {
-                    self.current_interaction.add_output(&line);
+            match output {
+                BashOutput::FromOutput(full_line) => {
+                    let mut line = &full_line[..];
+                    while line.len() != 0 {
+                        match self.current_interaction.add_output(&line) {
+                            AddBytesResult::ShowStream(rest) |
+                            AddBytesResult::StartTui(rest) |
+                            AddBytesResult::StopTui(rest) => {
+                                self.current_interaction.show_output();
+                                line = rest;
+                            }
+                            AddBytesResult::AllDone => {
+                                line = b"";
+                            }
+                        }
+                    }
                 }
-                BashOutput::FromError(line) => {
-                    if self.current_interaction.add_error(&line) {
-                        self.current_interaction.show_errors();
+                BashOutput::FromError(full_line) => {
+                    let mut line = &full_line[..];
+                    while line.len() != 0 {
+                        match self.current_interaction.add_error(&line) {
+                            AddBytesResult::ShowStream(rest) |
+                            AddBytesResult::StartTui(rest) |
+                            AddBytesResult::StopTui(rest) => {
+                                self.current_interaction.show_errors();
+                                line = rest;
+                            }
+                            AddBytesResult::AllDone => {
+                                line = b"";
+                            }
+                        }
                     }
                 }
                 BashOutput::Terminated(exit_code) => {

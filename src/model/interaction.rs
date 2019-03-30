@@ -24,7 +24,7 @@ use std::process::ExitStatus;
 
 use super::iterators::*;
 use super::response::*;
-use super::screen::{Matrix, Screen, Cell};
+use super::screen::{Matrix, Screen, Cell, AddBytesResult};
 use model::screen;
 
 /// Which output is visible.
@@ -144,6 +144,12 @@ impl ArchivedInteraction {
         self.output.visible = false;
     }
 
+    /// Make the output lines visible
+    pub fn show_output(&mut self) {
+        self.output.visible = true;
+        self.errors.visible = false;
+    }
+
     /// If there are errors, show them.
     ///
     /// This is to be called before archiving the interaction, i.e. after a program has finished
@@ -179,9 +185,12 @@ impl CurrentInteraction {
     /// Add a stream of bytes to the screen and possibly to the archive.
     ///
     /// Return true if there is progress bar activity going on.
-    fn add_bytes_to_screen(screen: &mut Screen, response: &mut Response, bytes: &[u8]) -> bool {
-        let mut res = false;
-        for b in bytes {
+    fn add_bytes_to_screen<'a>(
+        screen: &mut Screen,
+        response: &mut Response,
+        bytes: &'a [u8],
+    ) -> AddBytesResult<'a> {
+        for (i, b) in bytes.iter().enumerate() {
             match screen.add_byte(*b) {
                 screen::Event::NewLine => {
                     // Add all the lines on screen to the response
@@ -191,24 +200,24 @@ impl CurrentInteraction {
                     screen.reset();
                 }
                 screen::Event::Cr => {
-                    res = true;
+                    return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
                 }
                 _ => {}
 
             };
         }
-        res
+        AddBytesResult::AllDone
     }
 
 
-    pub fn add_output(&mut self, bytes: &[u8]) {
-        Self::add_bytes_to_screen(&mut self.output_screen, &mut self.archive.output, bytes);
+    pub fn add_output<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
+        Self::add_bytes_to_screen(&mut self.output_screen, &mut self.archive.output, bytes)
     }
 
     /// Add a stream of bytes to the screen and possibly to the archive.
     ///
     /// Return true if there is progress bar activity going on.
-    pub fn add_error(&mut self, bytes: &[u8]) -> bool {
+    pub fn add_error<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
         Self::add_bytes_to_screen(&mut self.error_screen, &mut self.archive.errors, bytes)
     }
 
@@ -289,6 +298,11 @@ impl CurrentInteraction {
     /// Make the error lines visible
     pub fn show_errors(&mut self) {
         self.archive.show_errors();
+    }
+
+    /// Make the output lines visible
+    pub fn show_output(&mut self) {
+        self.archive.show_output();
     }
 }
 

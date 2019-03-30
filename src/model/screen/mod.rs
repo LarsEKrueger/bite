@@ -312,6 +312,21 @@ struct Cursor {
     y: isize,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum AddBytesResult<'a> {
+    /// All bytes have been added
+    AllDone,
+
+    /// This stream needs to be shown before the rest of the bytes can be processed.
+    ShowStream(&'a [u8]),
+
+    /// Switch to TUI mode before the rest of the bytes can be processed.
+    StartTui(&'a [u8]),
+
+    /// Switch back to normal mode before the rest of the bytes can be processed.
+    StopTui(&'a [u8]),
+}
+
 /// A screen is rectangular area of cells and the position of the cursor.
 ///
 /// The cursor can be outside the allocated screen. If a visible character is inserted there, the
@@ -988,13 +1003,11 @@ impl Screen {
     /// If any other event than Ignore, Cr, or NewLine are created, return them as error.
     /// This function is supposed to be used for known correct text only. DO NOT USE for text read
     /// from an uncontrolled source, i.e. bash.
-    pub fn add_bytes(&mut self, bytes: &[u8]) -> Result<(),Event> {
+    pub fn add_bytes(&mut self, bytes: &[u8]) -> Result<(), Event> {
         for c in bytes {
             let e = self.add_byte(*c);
             match e {
-                Event::Ignore |
-                Event::Cr |
-                Event::NewLine => { },
+                Event::Ignore | Event::Cr | Event::NewLine => {}
                 _ => return Err(e),
             }
         }
