@@ -194,7 +194,7 @@ fn empty_cell_vec() {
 #[test]
 fn delete_char() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     // Delete the e
     s.cursor.x = 1;
@@ -209,7 +209,7 @@ fn delete_char() {
 #[test]
 fn insert_char() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     // Insert before the e
     s.cursor.x = 1;
@@ -224,7 +224,7 @@ fn insert_char() {
 #[test]
 fn delete_row_0() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     assert_eq!(s.height(), 2);
     s.delete_row();
@@ -244,7 +244,7 @@ fn delete_row_0() {
 #[test]
 fn delete_row_1() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     // Delete the first row
     s.cursor.x = 1;
@@ -258,7 +258,7 @@ fn delete_row_1() {
 #[test]
 fn insert_row() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     // Insert a row between the two
     s.cursor.x = 1;
@@ -274,7 +274,7 @@ fn insert_row() {
 #[test]
 fn insert_row_one_line() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello"), Ok(()));
     s.insert_row();
 
     assert_eq!(s.height(), 2);
@@ -285,7 +285,7 @@ fn insert_row_one_line() {
 #[test]
 fn break_line() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     // Break the first line between the l
     s.cursor.x = 3;
@@ -304,7 +304,7 @@ fn break_line() {
 #[test]
 fn break_line_at_end() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello"), Ok(()));
     s.break_line();
 
     assert_eq!(s.cursor.x, 0);
@@ -318,7 +318,7 @@ fn break_line_at_end() {
 #[test]
 fn text_before_cursor() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     // Get hell
     s.cursor.x = 4;
@@ -330,7 +330,7 @@ fn text_before_cursor() {
 #[test]
 fn join_next_line() {
     let mut s = Screen::new();
-    assert_eq!( s.add_bytes(b"hello\nworld\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"hello\nworld\n"), Ok(()));
 
     // Get hell
     s.cursor.x = 5;
@@ -345,9 +345,9 @@ fn empty_screen_iter() {
     let mut s = Screen::new();
     assert_eq!(s.line_iter().count(), 0);
 
-    assert_eq!( s.add_bytes(b"stuff\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"stuff\n"), Ok(()));
     assert_eq!(s.line_iter().count(), 1);
-    assert_eq!( s.add_bytes(b"stuff\nstuff\n"), Ok(()));
+    assert_eq!(s.add_bytes(b"stuff\nstuff\n"), Ok(()));
     assert_eq!(s.line_iter().count(), 3);
 }
 

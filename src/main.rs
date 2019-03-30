@@ -74,11 +74,13 @@ extern crate backtrace;
 fn panic_hook(info: &PanicInfo) {
     let msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
         (Some(msg), Some(loc)) => {
-            error!("Panic at {}:{}:{} with '{}'",
-                   loc.file(),
-                   loc.line(),
-                   loc.column(),
-                   msg);
+            error!(
+                "Panic at {}:{}:{} with '{}'",
+                loc.file(),
+                loc.line(),
+                loc.column(),
+                msg
+            );
             format!(
                 "bite panicked at {}:{}:{} with '{}'\n",
                 loc.file(),
@@ -88,11 +90,7 @@ fn panic_hook(info: &PanicInfo) {
             )
         }
         (None, Some(loc)) => {
-            error!("Panic at {}:{}:{}",
-                   loc.file(),
-                   loc.line(),
-                   loc.column()
-                   );
+            error!("Panic at {}:{}:{}", loc.file(), loc.line(), loc.column());
             format!(
                 "bite panicked at {}:{}:{}\n",
                 loc.file(),
@@ -115,8 +113,11 @@ fn panic_hook(info: &PanicInfo) {
 /// Main function that starts the program.
 pub fn main() {
     // Initialise env_logger first
-    let _ = std::env::var("BITE_LOG").and_then( |bite_log| {
-        let _ = flexi_logger::Logger::with_str(bite_log).format(flexi_logger::with_thread). log_to_file().start();
+    let _ = std::env::var("BITE_LOG").and_then(|bite_log| {
+        let _ = flexi_logger::Logger::with_str(bite_log)
+            .format(flexi_logger::with_thread)
+            .log_to_file()
+            .start();
         info!("Logging is ready");
         Ok(())
     });

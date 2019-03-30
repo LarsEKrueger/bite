@@ -612,7 +612,7 @@ pub enum LocatorReportUnit {
     Device,
 }
 
-pub type ScrollRegion = Option<(ActionParameter,ActionParameter)>;
+pub type ScrollRegion = Option<(ActionParameter, ActionParameter)>;
 
 bitflags! {
     pub struct LocatorEvents: u8 {
