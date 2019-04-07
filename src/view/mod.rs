@@ -418,6 +418,7 @@ impl Gui {
             LineType::MenuDecoration => None,
             LineType::SelectedMenuItem(_) => None,
             LineType::MenuItem(_) => None,
+            LineType::Tui => None,
         };
 
         if let Some(w) = w {

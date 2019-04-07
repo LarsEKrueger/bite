@@ -23,9 +23,11 @@
 
 use std::fmt::{Display, Formatter};
 use std::sync::mpsc::Receiver;
+use std::process::ExitStatus;
 
 mod compose_command;
 mod execute_command;
+mod tui;
 mod history;
 pub mod display_line;
 
@@ -96,10 +98,11 @@ trait SubPresenter {
     /// Provide write access to the data that is common to the presenter in all modi.
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons>;
 
-    /// Poll anything that needs polling.
-    ///
-    /// Return true if there was new data.
-    fn poll_interaction(self: Box<Self>) -> (Box<SubPresenter>, bool);
+    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]);
+    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]);
+    fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
+    fn set_next_prompt(self: &mut Self, bytes: &[u8]);
+    fn end_polling(self: Box<Self>, needs_marking:bool) -> Box<SubPresenter>;
 
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a>;
@@ -306,7 +309,40 @@ impl Presenter {
     /// Tell the view that is should it redraw itself soon.
     pub fn poll_interaction(&mut self) -> NeedRedraw {
         let last_line_visible_pre = self.last_line_visible();
-        let needs_redraw = self.dispatch_res(|sp| sp.poll_interaction());
+        let needs_redraw = self.dispatch_res(|sp| {
+            let mut needs_marking = false;
+            let mut presenter = sp;
+            if let Ok(output) = presenter.commons_mut().receiver.try_recv() {
+                needs_marking = true;
+                match output {
+                    BashOutput::FromOutput(full_line) => {
+                        let mut line = &full_line[..];
+                        while line.len() != 0 {
+                            let (pres, rest) = presenter.add_output(line);
+                            presenter = pres;
+                            line = rest;
+                        }
+                    }
+                    BashOutput::FromError(full_line) => {
+                        let mut line = &full_line[..];
+                        while line.len() != 0 {
+                            let (pres, rest) = presenter.add_error(line);
+                            presenter = pres;
+                            line = rest;
+                        }
+                    }
+                    BashOutput::Terminated(exit_code) => {
+                        presenter.set_exit_status(exit_code);
+                    }
+                    BashOutput::Prompt(prompt) => {
+                        presenter.set_next_prompt(&prompt);
+                    }
+                }
+            }
+
+            presenter = presenter.end_polling( needs_marking);
+            (presenter, needs_marking)
+        });
         if last_line_visible_pre {
             self.to_last_line();
         }

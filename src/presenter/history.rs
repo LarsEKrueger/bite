@@ -91,8 +91,37 @@ impl SubPresenter for HistoryPresenter {
         &mut self.commons
     }
 
-    fn poll_interaction(self: Box<Self>) -> (Box<SubPresenter>, bool) {
-        (self, false)
+    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+        (self, b"")
+    }
+
+    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+        (self, b"")
+    }
+
+    fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+    }
+
+    fn set_next_prompt(self: &mut Self, _bytes: &[u8]) {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+    }
+
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<SubPresenter> {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+        self
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {

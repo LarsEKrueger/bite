@@ -52,6 +52,7 @@ lazy_static!{
     static ref OUTPUT_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "O» ".as_bytes());
     static ref ERROR_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "E» ".as_bytes());
 
+    static ref TUI_PREFIX : Vec<Cell> = Vec::new();
     static ref INPUT_PREFIX : Vec<Cell> = Vec::new();
     static ref MENU_DECO_PREFIX : Vec<Cell> = Vec::new();
     static ref MENU_SELECT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec(b"==> ");
@@ -105,6 +106,7 @@ impl<'a> DisplayLine<'a> {
             LineType::MenuDecoration => &*MENU_DECO_PREFIX,
             LineType::SelectedMenuItem(_) => &*MENU_SELECT_PREFIX,
             LineType::MenuItem(_) => &*MENU_ITEM_PREFIX,
+            LineType::Tui => &*TUI_PREFIX,
         };
         // TODO: Fix cursor_col to account for prefix
         DisplayLine::new(

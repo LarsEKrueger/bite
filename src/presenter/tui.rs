@@ -1,0 +1,137 @@
+/*
+    BiTE - Bash-integrated Terminal Emulator
+    Copyright (C) 2019  Lars Krüger
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+//! Sub presenter for TUIs
+//!
+//! Same functionality as ExecuteCommandPresenter, but maintains a single, non-resizable screen and
+//! does not archive its output.
+
+use super::*;
+use super::execute_command::ExecuteCommandPresenter;
+
+/// Presenter to run commands and send input to their stdin.
+pub struct TuiExecuteCommandPresenter {
+    /// Common data.
+    commons: Box<PresenterCommons>,
+
+    /// Terminal screen
+    screen: Screen,
+
+    /// Prompt to set. If None, we didn't receive one yet
+    next_prompt: Option<Matrix>,
+}
+
+impl TuiExecuteCommandPresenter {
+    pub fn new(commons: Box<PresenterCommons>) -> Box<Self> {
+        let presenter = TuiExecuteCommandPresenter {
+            commons,
+            screen: Screen::new(),
+            next_prompt: None,
+        };
+
+        Box::new(presenter)
+    }
+}
+
+impl SubPresenter for TuiExecuteCommandPresenter {
+    /// Provide read access to the data that is common to the presenter in all modi.
+    fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
+        &self.commons
+    }
+
+    /// Provide write access to the data that is common to the presenter in all modi.
+    fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons> {
+        &mut self.commons
+    }
+
+    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        // TODO: Do some real work here.
+        (self, b"")
+    }
+
+    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        // TODO: Do some real work here.
+        (self, b"")
+    }
+
+    fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {
+        // TODO: How do we communicate this to poll_interaction
+    }
+    fn set_next_prompt(self: &mut Self, _bytes: &[u8]) {
+        // TODO: How do we communicate this to poll_interaction
+    }
+
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<SubPresenter> {
+        // TODO: Do some real work here.
+        self
+    }
+
+    /// Return the lines to be presented.
+    fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+        let ref s = self.screen;
+        Box::new(s.line_iter().zip(0..).map(move |(line, nr)| {
+            let cursor_x = if s.cursor_y() == nr {
+                Some(s.cursor_x() as usize)
+            } else {
+                None
+            };
+            LineItem::new(line, LineType::Tui, cursor_x, 0)
+        }))
+    }
+
+    /// Handle the event when a modifier and a special key is pressed.
+    fn event_special_key(
+        self: Box<Self>,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> (Box<SubPresenter>, PresenterCommand) {
+        match (mod_state.as_tuple(), key) {
+
+            _ => (self, PresenterCommand::Unknown),
+        }
+    }
+
+    /// Handle the event when a modifier and a letter/number is pressed.
+    fn event_normal_key(
+        self: Box<Self>,
+        mod_state: &ModifierState,
+        letter: u8,
+    ) -> (Box<SubPresenter>, PresenterCommand) {
+        match (mod_state.as_tuple(), letter) {
+
+            _ => (self, PresenterCommand::Unknown),
+        }
+    }
+
+    /// Handle the event when the input string was changed.
+    fn event_update_line(self: Box<Self>) -> Box<SubPresenter> {
+        self
+    }
+
+    /// Handle the event when the mouse was pushed and released at the same position.
+    fn handle_click(
+        mut self: Box<Self>,
+        button: usize,
+        _x: usize,
+        y: usize,
+    ) -> (Box<SubPresenter>, NeedRedraw) {
+        match (clicked_line_type(&mut *self, y), button) {
+            _ => (self, NeedRedraw::No),
+        }
+    }
+}

@@ -42,6 +42,8 @@ pub enum LineType {
     MenuItem(usize),
     /// Non-interactive lines in a menu
     MenuDecoration,
+    /// Line of a TUI
+    Tui,
 }
 
 /// A line to be displayed.

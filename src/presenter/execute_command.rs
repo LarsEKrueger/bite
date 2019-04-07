@@ -22,6 +22,7 @@ use super::*;
 use model::interaction::{CurrentInteraction, CommandPosition};
 use std::str::from_utf8_unchecked;
 use model::bash::{bash_kill_last, is_bash_waiting};
+use super::tui::TuiExecuteCommandPresenter;
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -64,71 +65,64 @@ impl SubPresenter for ExecuteCommandPresenter {
         &mut self.commons
     }
 
-    fn poll_interaction(mut self: Box<Self>) -> (Box<SubPresenter>, bool) {
-        let mut needs_marking = false;
-        if let Ok(output) = self.commons_mut().receiver.try_recv() {
-            needs_marking = true;
-            match output {
-                BashOutput::FromOutput(full_line) => {
-                    let mut line = &full_line[..];
-                    while line.len() != 0 {
-                        match self.current_interaction.add_output(&line) {
-                            AddBytesResult::ShowStream(rest) |
-                            AddBytesResult::StartTui(rest) |
-                            AddBytesResult::StopTui(rest) => {
-                                self.current_interaction.show_output();
-                                line = rest;
-                            }
-                            AddBytesResult::AllDone => {
-                                line = b"";
-                            }
-                        }
-                    }
-                }
-                BashOutput::FromError(full_line) => {
-                    let mut line = &full_line[..];
-                    while line.len() != 0 {
-                        match self.current_interaction.add_error(&line) {
-                            AddBytesResult::ShowStream(rest) |
-                            AddBytesResult::StartTui(rest) |
-                            AddBytesResult::StopTui(rest) => {
-                                self.current_interaction.show_errors();
-                                line = rest;
-                            }
-                            AddBytesResult::AllDone => {
-                                line = b"";
-                            }
-                        }
-                    }
-                }
-                BashOutput::Terminated(exit_code) => {
-                    self.current_interaction.set_exit_status(exit_code);
-                }
-                BashOutput::Prompt(prompt) => {
-                    self.next_prompt = Some(Screen::one_line_matrix(&prompt));
-                }
+    fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        match self.current_interaction.add_output(&bytes) {
+            AddBytesResult::ShowStream(rest) |
+            AddBytesResult::StopTui(rest) => {
+                self.current_interaction.show_output();
+                (self, rest)
+            }
+            AddBytesResult::AllDone => (self, b""),
+            AddBytesResult::StartTui(rest) => {
+                let mut presenter = TuiExecuteCommandPresenter::new(self.commons);
+                (presenter, rest)
             }
         }
+    }
 
+    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        match self.current_interaction.add_error(&bytes) {
+            AddBytesResult::ShowStream(rest) |
+            AddBytesResult::StopTui(rest) => {
+                self.current_interaction.show_errors();
+                (self, rest)
+            }
+            AddBytesResult::AllDone => (self, b""),
+            AddBytesResult::StartTui(rest) => {
+                let presenter = TuiExecuteCommandPresenter::new(self.commons);
+                (presenter, rest)
+            }
+        }
+    }
+
+    fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
+        self.current_interaction.set_exit_status(exit_status);
+    }
+
+    fn set_next_prompt(self: &mut Self, bytes: &[u8]) {
+        self.next_prompt = Some(Screen::one_line_matrix(bytes));
+    }
+
+    fn end_polling(mut self: Box<Self>, needs_marking:bool) -> Box<SubPresenter> {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
                 let ci = ::std::mem::replace(
                     &mut self.current_interaction,
                     CurrentInteraction::new(Matrix::new()),
-                );
+                    );
                 self.commons.session.archive_interaction(
                     ci.prepare_archiving(),
-                );
+                    );
 
                 if prompt != self.commons.session.current_conversation.prompt {
                     self.commons.session.new_conversation(prompt);
                 }
                 trace!("Done executing");
-                return (ComposeCommandPresenter::new(self.commons), true);
+                return ComposeCommandPresenter::new(self.commons);
             }
         }
-        (self, needs_marking)
+        self
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
