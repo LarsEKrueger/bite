@@ -49,10 +49,28 @@ impl ExecuteCommandPresenter {
         Box::new(presenter)
     }
 
+    pub fn new_with_interaction(
+        commons: Box<PresenterCommons>,
+        current_interaction: CurrentInteraction,
+        next_prompt: Option<Matrix>,
+    ) -> Box<Self> {
+        let mut presenter = ExecuteCommandPresenter {
+            commons,
+            current_interaction,
+            next_prompt,
+        };
+        presenter.to_last_line();
+        Box::new(presenter)
+    }
+
     /// Ensure that the last line is visible, even if the number of lines was changed.
     fn to_last_line(&mut self) {
         let len = self.line_iter().count();
         self.commons.last_line_shown = len;
+    }
+
+    fn deconstruct(self) -> (Box<PresenterCommons>, CurrentInteraction) {
+        (self.commons, self.current_interaction)
     }
 }
 
@@ -65,6 +83,10 @@ impl SubPresenter for ExecuteCommandPresenter {
         &mut self.commons
     }
 
+    fn to_commons(self) -> Box<PresenterCommons> {
+        self.commons
+    }
+
     fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         match self.current_interaction.add_output(&bytes) {
             AddBytesResult::ShowStream(rest) |
@@ -74,7 +96,8 @@ impl SubPresenter for ExecuteCommandPresenter {
             }
             AddBytesResult::AllDone => (self, b""),
             AddBytesResult::StartTui(rest) => {
-                let mut presenter = TuiExecuteCommandPresenter::new(self.commons);
+                let (c, i) = self.deconstruct();
+                let mut presenter = TuiExecuteCommandPresenter::new(c, i);
                 (presenter, rest)
             }
         }
@@ -89,7 +112,8 @@ impl SubPresenter for ExecuteCommandPresenter {
             }
             AddBytesResult::AllDone => (self, b""),
             AddBytesResult::StartTui(rest) => {
-                let presenter = TuiExecuteCommandPresenter::new(self.commons);
+                let (c, i) = self.deconstruct();
+                let presenter = TuiExecuteCommandPresenter::new(c, i);
                 (presenter, rest)
             }
         }
@@ -103,17 +127,17 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(mut self: Box<Self>, needs_marking:bool) -> Box<SubPresenter> {
+    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> Box<SubPresenter> {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
                 let ci = ::std::mem::replace(
                     &mut self.current_interaction,
                     CurrentInteraction::new(Matrix::new()),
-                    );
+                );
                 self.commons.session.archive_interaction(
                     ci.prepare_archiving(),
-                    );
+                );
 
                 if prompt != self.commons.session.current_conversation.prompt {
                     self.commons.session.new_conversation(prompt);

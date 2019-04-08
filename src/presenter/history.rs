@@ -91,6 +91,10 @@ impl SubPresenter for HistoryPresenter {
         &mut self.commons
     }
 
+    fn to_commons(self) -> Box<PresenterCommons> {
+        self.commons
+    }
+
     fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.

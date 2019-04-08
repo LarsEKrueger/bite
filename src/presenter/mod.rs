@@ -98,11 +98,14 @@ trait SubPresenter {
     /// Provide write access to the data that is common to the presenter in all modi.
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons>;
 
+    /// Extract the commons and forget the presenter
+    fn to_commons(self) -> Box<PresenterCommons>;
+
     fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]);
     fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]);
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
-    fn end_polling(self: Box<Self>, needs_marking:bool) -> Box<SubPresenter>;
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<SubPresenter>;
 
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a>;
@@ -340,7 +343,7 @@ impl Presenter {
                 }
             }
 
-            presenter = presenter.end_polling( needs_marking);
+            presenter = presenter.end_polling(needs_marking);
             (presenter, needs_marking)
         });
         if last_line_visible_pre {

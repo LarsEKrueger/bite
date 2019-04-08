@@ -22,7 +22,8 @@
 //! does not archive its output.
 
 use super::*;
-use super::execute_command::ExecuteCommandPresenter;
+use model::bash::is_bash_waiting;
+use model::interaction::CurrentInteraction;
 
 /// Presenter to run commands and send input to their stdin.
 pub struct TuiExecuteCommandPresenter {
@@ -32,19 +33,30 @@ pub struct TuiExecuteCommandPresenter {
     /// Terminal screen
     screen: Screen,
 
+    /// Current interaction
+    current_interaction: CurrentInteraction,
+
     /// Prompt to set. If None, we didn't receive one yet
     next_prompt: Option<Matrix>,
 }
 
 impl TuiExecuteCommandPresenter {
-    pub fn new(commons: Box<PresenterCommons>) -> Box<Self> {
+    pub fn new(
+        commons: Box<PresenterCommons>,
+        current_interaction: CurrentInteraction,
+    ) -> Box<Self> {
         let presenter = TuiExecuteCommandPresenter {
             commons,
             screen: Screen::new(),
+            current_interaction,
             next_prompt: None,
         };
 
         Box::new(presenter)
+    }
+
+    fn deconstruct(self) -> (Box<PresenterCommons>, CurrentInteraction, Option<Matrix>) {
+        (self.commons, self.current_interaction, self.next_prompt)
     }
 }
 
@@ -59,6 +71,10 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         &mut self.commons
     }
 
+    fn to_commons(self) -> Box<PresenterCommons> {
+        self.commons
+    }
+
     fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         // TODO: Do some real work here.
         (self, b"")
@@ -69,15 +85,27 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         (self, b"")
     }
 
-    fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {
-        // TODO: How do we communicate this to poll_interaction
+    fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
+        self.current_interaction.set_exit_status(exit_status);
     }
-    fn set_next_prompt(self: &mut Self, _bytes: &[u8]) {
-        // TODO: How do we communicate this to poll_interaction
+    fn set_next_prompt(self: &mut Self, bytes: &[u8]) {
+        self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<SubPresenter> {
-        // TODO: Do some real work here.
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<SubPresenter> {
+        if !needs_marking && is_bash_waiting() {
+            let (mut commons, current_interaction, next_prompt) = self.deconstruct();
+            if let Some(prompt) = next_prompt {
+                commons.session.archive_interaction(
+                    current_interaction.prepare_archiving(),
+                );
+
+                if prompt != commons.session.current_conversation.prompt {
+                    commons.session.new_conversation(prompt);
+                }
+            }
+            return ComposeCommandPresenter::new(commons);
+        }
         self
     }
 
