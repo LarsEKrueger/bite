@@ -58,6 +58,17 @@ impl TuiExecuteCommandPresenter {
     fn deconstruct(self) -> (Box<PresenterCommons>, CurrentInteraction, Option<Matrix>) {
         (self.commons, self.current_interaction, self.next_prompt)
     }
+
+    fn add_bytes_to_screen(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        for (i, b) in bytes.iter().enumerate() {
+            match self.screen.add_byte(*b) {
+                // TODO: Handle TUI Switch
+                _ => {}
+
+            };
+        }
+        (self, b"")
+    }
 }
 
 impl SubPresenter for TuiExecuteCommandPresenter {
@@ -75,14 +86,12 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.commons
     }
 
-    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
-        // TODO: Do some real work here.
-        (self, b"")
+    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        self.add_bytes_to_screen(bytes)
     }
 
-    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
-        // TODO: Do some real work here.
-        (self, b"")
+    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        self.add_bytes_to_screen(bytes)
     }
 
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {

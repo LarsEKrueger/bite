@@ -192,6 +192,7 @@ impl CurrentInteraction {
     ) -> AddBytesResult<'a> {
         for (i, b) in bytes.iter().enumerate() {
             match screen.add_byte(*b) {
+                // TODO: Handle TUI Switch
                 screen::Event::NewLine => {
                     // Add all the lines on screen to the response
                     for l in screen.line_iter() {
