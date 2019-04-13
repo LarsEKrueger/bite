@@ -98,33 +98,33 @@ impl SubPresenter for HistoryPresenter {
     fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
-        // TODO: Log this occurance.
+        error!("HistoryPresenter::add_output called. Internal error.");
         (self, b"")
     }
 
     fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
-        // TODO: Log this occurance.
+        error!("HistoryPresenter::add_error called. Internal error.");
         (self, b"")
     }
 
     fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
-        // TODO: Log this occurance.
+        error!("HistoryPresenter::set_exit_status called. Internal error.");
     }
 
     fn set_next_prompt(self: &mut Self, _bytes: &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
-        // TODO: Log this occurance.
+        error!("HistoryPresenter::set_next_prompt called. Internal error.");
     }
 
     fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<SubPresenter> {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
-        // TODO: Log this occurance.
+        error!("HistoryPresenter::end_polling called. Internal error.");
         self
     }
 

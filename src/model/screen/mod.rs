@@ -301,6 +301,9 @@ pub enum Event {
 
     /// Ring the bell (or make the screen flash)
     Bell,
+
+    /// Start TUI mode
+    StartTui,
 }
 
 #[derive(Copy, Clone)]
@@ -1412,14 +1415,15 @@ impl Screen {
                 Event::Ignore
             }
 
-            // Silently ignore these sequences until functionality is required
+            // Silently ignore these sequences until functionality is required.
+            // Enter TUI mode.
             Action::DecApplicationKeypad(_) |
             Action::SetMode(_) |
             Action::ResetMode(_) |
             Action::SetPrivateMode(_) |
             Action::ResetPrivateMode(_) |
             Action::WindowOp(_) => {
-                    Event::Ignore
+                    Event::StartTui
                 }
 
             // Category: Common change screen operations, Prio 1

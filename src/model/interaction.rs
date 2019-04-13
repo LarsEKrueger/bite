@@ -203,6 +203,9 @@ impl CurrentInteraction {
                 screen::Event::Cr => {
                     return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
                 }
+                screen::Event::StartTui => {
+                    return AddBytesResult::StartTui(&bytes[(i + 1)..]);
+                }
                 _ => {}
 
             };

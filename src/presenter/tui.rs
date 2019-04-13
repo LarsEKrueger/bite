@@ -60,9 +60,9 @@ impl TuiExecuteCommandPresenter {
     }
 
     fn add_bytes_to_screen(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
-        for (i, b) in bytes.iter().enumerate() {
+        for (_i, b) in bytes.iter().enumerate() {
             match self.screen.add_byte(*b) {
-                // TODO: Handle TUI Switch
+                // TODO: Handle end of TUI mode
                 _ => {}
 
             };
