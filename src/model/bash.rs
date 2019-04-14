@@ -178,7 +178,7 @@ fn create_terminal(termios: Termios) -> Result<(RawFd, RawFd), String> {
     let sname = unsafe { ptsname(&ptsm).map_err(as_description) }?;
     let sfd = open(
         Path::new(&sname),
-        OFlag::O_RDWR | OFlag::O_NONBLOCK,
+        OFlag::O_RDWR,
         Mode::empty(),
     ).map_err(as_description)?;
 
@@ -199,6 +199,11 @@ fn fallback_termios() -> Termios {
     let mut termios: Termios = unsafe { mem::zeroed() };
     termios.c_iflag = ICRNL | IXON;
     termios.c_oflag = TAB3 | ONLCR | OPOST;
+    fix_termios_cc(&mut termios);
+    termios
+}
+
+fn fix_termios_cc(termios: &mut Termios) {
     termios.c_cc[VINTR] = control('C');
     termios.c_cc[VQUIT] = control('\\');
     termios.c_cc[VERASE] = 0o177;
@@ -213,7 +218,6 @@ fn fallback_termios() -> Termios {
     termios.c_cc[VWERASE] = control('W');
     termios.c_cc[VLNEXT] = control('V');
     termios.c_cc[VEOL2] = 0;
-    termios
 }
 
 /// Create a default termios struct either from /dev/tty or from built-in values.
@@ -257,6 +261,16 @@ fn create_terminals() -> Result<PtsHandles, String> {
     termios.c_lflag |= ECHOKE | IEXTEN;
     termios.c_lflag |= ECHOCTL | IEXTEN;
     termios.c_cflag |= CS8;
+    termios.c_cflag |= B38400;
+    trace!(
+        "ttySetAttr: c_iflag={:x}, c_oflag={:x}, c_cflag={:x}, c_lflag={:x}\n",
+        termios.c_iflag,
+        termios.c_oflag,
+        termios.c_cflag,
+        termios.c_lflag
+    );
+    // c_iflag=4500, c_oflag=5, c_cflag=bf, c_lflag=8a3b
+    fix_termios_cc(&mut termios);
 
     // Create the pts pairs
     let (stdin_m, stdin_s) = create_terminal(termios)?;
