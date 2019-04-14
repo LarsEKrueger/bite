@@ -325,9 +325,6 @@ pub enum AddBytesResult<'a> {
 
     /// Switch to TUI mode before the rest of the bytes can be processed.
     StartTui(&'a [u8]),
-
-    /// Switch back to normal mode before the rest of the bytes can be processed.
-    StopTui(&'a [u8]),
 }
 
 /// A screen is rectangular area of cells and the position of the cursor.

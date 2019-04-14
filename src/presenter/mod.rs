@@ -76,6 +76,7 @@ pub enum NeedRedraw {
 /// This is used to check if we clicked the prefix.
 const COMMAND_PREFIX_LEN: usize = 4;
 
+#[derive(Debug)]
 pub enum PresenterCommand {
     /// Unknown key combination, not handled
     Unknown,

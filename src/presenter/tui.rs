@@ -90,8 +90,14 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.add_bytes_to_screen(bytes)
     }
 
-    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
-        self.add_bytes_to_screen(bytes)
+    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+        match self.current_interaction.add_error(&bytes) {
+            AddBytesResult::StartTui(rest) |
+            AddBytesResult::ShowStream(rest) => {
+                (self, rest)
+            }
+            AddBytesResult::AllDone => (self, b""),
+        }
     }
 
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {

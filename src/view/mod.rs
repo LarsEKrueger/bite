@@ -365,7 +365,7 @@ impl Gui {
                 needs_redraw: true,
                 redraw_time: SystemTime::now(),
 
-                gate: polling::Gate::new(::std::time::Duration::from_millis(10)),
+                gate: polling::Gate::new(::std::time::Duration::from_millis(1)),
 
                 colors,
                 prompt_colors,
@@ -678,7 +678,9 @@ impl Gui {
                             if status == XLookupKeySym || status == XLookupBoth {
                                 match KEYSYM2KEY.get(&keysym) {
                                     Some(key) => {
+                                        trace!("before event_special_key");
                                         cmd = self.presenter.event_special_key(&mod_state, key);
+                                        trace!("after event_special_key: {:?}", cmd);
                                     }
                                     None => {
                                         let maybe_letter = keysym;

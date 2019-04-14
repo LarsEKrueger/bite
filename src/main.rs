@@ -60,6 +60,8 @@ extern crate bitflags;
 extern crate log;
 extern crate flexi_logger;
 
+extern crate termios;
+
 use std::panic::PanicInfo;
 
 pub mod tools;

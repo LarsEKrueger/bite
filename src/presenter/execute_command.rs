@@ -89,8 +89,7 @@ impl SubPresenter for ExecuteCommandPresenter {
 
     fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         match self.current_interaction.add_output(&bytes) {
-            AddBytesResult::ShowStream(rest) |
-            AddBytesResult::StopTui(rest) => {
+            AddBytesResult::ShowStream(rest) => {
                 self.current_interaction.show_output();
                 (self, rest)
             }
@@ -105,8 +104,7 @@ impl SubPresenter for ExecuteCommandPresenter {
 
     fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         match self.current_interaction.add_error(&bytes) {
-            AddBytesResult::ShowStream(rest) |
-            AddBytesResult::StopTui(rest) => {
+            AddBytesResult::ShowStream(rest) => {
                 self.current_interaction.show_errors();
                 (self, rest)
             }

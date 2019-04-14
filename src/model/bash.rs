@@ -32,6 +32,9 @@ use std::process::ExitStatus;
 use std::fs::File;
 use std::ffi::CStr;
 use std::io::Write;
+use termios::*;
+use termios::os::target::*;
+use std::mem;
 
 use nix::pty::{SessionId, posix_openpt, grantpt, unlockpt, ptsname};
 use nix::unistd::{dup, dup2, read, write, Pid, close};
@@ -41,7 +44,7 @@ use nix::sys::time::{TimeVal, TimeValLike};
 use nix::sys::stat::Mode;
 use nix::sys::signal::{kill, Signal};
 
-use libc::{c_char, c_int, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
+use libc::{c_uchar, c_char, c_int, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
 
 /// Line buffer to parse from
 lazy_static!{
@@ -167,7 +170,7 @@ struct PtsHandles {
 /// Create a single pts master/slave pair.
 ///
 /// Returns: (master, slave)
-fn create_terminal() -> Result<(RawFd, RawFd), String> {
+fn create_terminal(termios: Termios) -> Result<(RawFd, RawFd), String> {
     let ptsm = posix_openpt(OFlag::O_RDWR | OFlag::O_EXCL | OFlag::O_NONBLOCK)
         .map_err(as_description)?;
     grantpt(&ptsm).map_err(as_description)?;
@@ -179,7 +182,57 @@ fn create_terminal() -> Result<(RawFd, RawFd), String> {
         Mode::empty(),
     ).map_err(as_description)?;
 
-    Ok((ptsm.into_raw_fd(), sfd))
+    let ptsm = ptsm.into_raw_fd();
+    tcsetattr(sfd, TCSANOW, &termios).map_err(as_description)?;
+    tcflush(sfd, TCOFLUSH).map_err(as_description)?;
+
+    Ok((ptsm, sfd))
+}
+
+/// Compute the matching control character of a letter
+const fn control(x: char) -> c_uchar {
+    ((x as u32) & 0x1f) as c_uchar
+}
+
+/// Define a fallback termios value
+fn fallback_termios() -> Termios {
+    let mut termios: Termios = unsafe { mem::zeroed() };
+    termios.c_iflag = ICRNL | IXON;
+    termios.c_oflag = TAB3 | ONLCR | OPOST;
+    termios.c_cc[VINTR] = control('C');
+    termios.c_cc[VQUIT] = control('\\');
+    termios.c_cc[VERASE] = 0o177;
+    termios.c_cc[VKILL] = control('U');
+    termios.c_cc[VEOF] = control('D');
+    termios.c_cc[VEOL] = 0xff;
+    termios.c_cc[VSTART] = control('Q');
+    termios.c_cc[VSTOP] = control('S');
+    termios.c_cc[VSUSP] = control('Z');
+    termios.c_cc[VREPRINT] = control('R');
+    termios.c_cc[VDISCARD] = control('O');
+    termios.c_cc[VWERASE] = control('W');
+    termios.c_cc[VLNEXT] = control('V');
+    termios.c_cc[VEOL2] = 0;
+    termios
+}
+
+/// Create a default termios struct either from /dev/tty or from built-in values.
+fn default_termios() -> Termios {
+    if let Ok(ttyfd) = open(Path::new("/dev/tty"), OFlag::O_RDWR, Mode::empty()) {
+        info!("Could open /dev/tty for termios");
+        let termios = Termios::from_fd(ttyfd);
+        let _ = close(ttyfd);
+        if let Ok(termios) = termios {
+            info!("Got termios from /dev/tty: {:?}", termios);
+            termios
+        } else {
+            warn!("Could not get termios from /dev/tty");
+            fallback_termios()
+        }
+    } else {
+        warn!("Could not open /dev/tty for termios");
+        fallback_termios()
+    }
 }
 
 /// Reassign stdin, stdout, stderr to pseudo terminals.
@@ -190,10 +243,25 @@ fn create_terminal() -> Result<(RawFd, RawFd), String> {
 ///
 /// If this fails, we fail with an error message.
 fn create_terminals() -> Result<PtsHandles, String> {
+
+    // Create an initial termios struct
+    let mut termios = default_termios();
+
+    // Fix termios struct
+    termios.c_iflag &= !(INLCR | IGNCR);
+    termios.c_iflag |= ICRNL;
+    termios.c_iflag |= IUTF8;
+    termios.c_oflag |= OPOST | ONLCR;
+    termios.c_cflag &= !CBAUD;
+    termios.c_lflag |= ISIG | ICANON | ECHO | ECHOE | ECHOK;
+    termios.c_lflag |= ECHOKE | IEXTEN;
+    termios.c_lflag |= ECHOCTL | IEXTEN;
+    termios.c_cflag |= CS8;
+
     // Create the pts pairs
-    let (stdin_m, stdin_s) = create_terminal()?;
-    let (stdout_m, stdout_s) = create_terminal()?;
-    let (stderr_m, stderr_s) = create_terminal()?;
+    let (stdin_m, stdin_s) = create_terminal(termios)?;
+    let (stdout_m, stdout_s) = create_terminal(termios)?;
+    let (stderr_m, stderr_s) = create_terminal(termios)?;
 
     // Backup handles 0,1,2
     let save_stdin = dup(STDIN_FILENO).map_err(as_description)?;

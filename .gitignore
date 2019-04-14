@@ -11,5 +11,5 @@
 .atom-dbg.cson
 # End of https://www.gitignore.io/api/rust
 
-# bite log files
-bite_*.log
+# log files
+*.log
