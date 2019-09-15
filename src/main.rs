@@ -61,6 +61,7 @@ extern crate log;
 extern crate flexi_logger;
 
 extern crate termios;
+extern crate term;
 
 use std::panic::PanicInfo;
 
@@ -124,16 +125,20 @@ pub fn main() {
         Ok(())
     });
 
-    let EMPTY = cstr!("");
-    unsafe {
-        ::libc::setlocale(::libc::LC_ALL, EMPTY.as_ptr());
-    };
+    // Set up locale
+    {
+        let EMPTY = cstr!("");
+        unsafe {
+            ::libc::setlocale(::libc::LC_ALL, EMPTY.as_ptr());
+        };
+    }
 
     let params = ::tools::commandline::CommandLine::parse();
 
     #[cfg(debug_assertions)]
     info!("{:?}", params);
 
+    // Start bash in a thread
     let (receiver, reader_barrier, bash_barrier) = match model::bash::start() {
         Err(err) => {
             error!("Can't start integrated bash: {}", err);
@@ -143,6 +148,7 @@ pub fn main() {
         Ok(r) => r,
     };
 
+    // Start the gui
     let mut gui = match ::view::Gui::new(receiver) {
         Err(err) => {
             error!("Can't init GUI: {}", err);
@@ -157,18 +163,25 @@ pub fn main() {
     //       spawned = Some(execute::spawn_command(&params.single_program));
     //   }
 
+    // Write any panic messages to both log and the term bite was started from. Needs to be called
+    // after bash::start.
     std::panic::set_hook(Box::new(&panic_hook));
 
+    // Wait for bash thread to be ready to accept commands
     reader_barrier.wait();
     bash_barrier.wait();
 
+    // Make bash pretend it's running inside xterm
+    bash_add_input("export TERM=xterm\n");
+
+    // Run the gui loop until the program is closed
     gui.main_loop();
     gui.finish();
 
     // Make bash shutdown cleanly by killing a potentially running program and then telling bash to
     // exit, which will make it terminate its thread.
     // bash_kill_last();
-    bash_add_input("exit 0");
+    bash_add_input("exit 0\n");
     model::bash::stop();
 
     let _ = std::panic::take_hook();

@@ -38,6 +38,8 @@ use model::bash;
 use model::screen::Cell;
 use model::iterators::LineType;
 
+use term::terminfo::TermInfo;
+
 /// Initial width of the window in pixels
 const WIDTH: i32 = 400;
 
@@ -202,9 +204,13 @@ impl Gui {
         let EMPTY = cstr!("");
         let IMNONE = cstr!("@im=none");
 
-        let presenter = Presenter::new(receiver).or_else(|e| {
+        // Create initial presenter
+        let presenter = {
+            // Only the presenter needs to know the term info for TUI applications.
+            let term_info = TermInfo::from_name( "xterm").map_err(|e| format!("{}", e) )?;
+            Presenter::new(receiver, term_info).or_else(|e| {
             Err(e.readable("during initialisation"))
-        })?;
+        })}?;
 
         unsafe {
             let display = XOpenDisplay(null());

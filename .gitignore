@@ -13,3 +13,6 @@
 
 # log files
 *.log
+
+# test scripts
+/tui.sh

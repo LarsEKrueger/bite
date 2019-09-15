@@ -25,6 +25,8 @@ use std::fmt::{Display, Formatter};
 use std::sync::mpsc::Receiver;
 use std::process::ExitStatus;
 
+use term::terminfo::TermInfo;
+
 mod compose_command;
 mod execute_command;
 mod tui;
@@ -42,6 +44,7 @@ use self::execute_command::*;
 use self::display_line::*;
 
 /// GUI agnostic representation of the modifier keys
+#[derive(Debug)]
 pub struct ModifierState {
     pub shift_pressed: bool,
     pub control_pressed: bool,
@@ -49,6 +52,7 @@ pub struct ModifierState {
 }
 
 /// GUI agnostic representation of special keys, e.g. function, cursor
+#[derive(Debug)]
 pub enum SpecialKey {
     Escape,
     Enter,
@@ -164,7 +168,12 @@ pub struct PresenterCommons {
 
     // List of all lines we have successfully parsed.
     // pub history: History,
+
+    /// Channel from Bash
     receiver: Receiver<BashOutput>,
+
+    /// TermInfo entry for xterm
+    term_info : TermInfo,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -176,7 +185,7 @@ impl ModifierState {
         !(self.shift_pressed || self.control_pressed || self.meta_pressed)
     }
 
-    /// Return the modifier flags as a tuple for pattern matching
+    /// Return the modifier flags as a tuple (shift,control,meta) for pattern matching
     fn as_tuple(&self) -> (bool, bool, bool) {
         (self.shift_pressed, self.control_pressed, self.meta_pressed)
     }
@@ -208,7 +217,7 @@ impl PresenterCommons {
     /// Allocate a new data struct.
     ///
     /// This will be passed from sub-presenter to sub-presenter on state changes.
-    pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
+    pub fn new(receiver: Receiver<BashOutput>, term_info: TermInfo) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
         let mut prompt = Screen::new();
         let _ = prompt.add_bytes(b"System");
@@ -223,6 +232,7 @@ impl PresenterCommons {
             last_line_shown: 0,
             // history,
             receiver,
+            term_info
         })
     }
 
@@ -251,9 +261,9 @@ impl PresenterCommons {
 
 impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
-    pub fn new(receiver: Receiver<BashOutput>) -> Result<Self> {
+    pub fn new(receiver: Receiver<BashOutput>, term_info:TermInfo) -> Result<Self> {
         Ok(Presenter(Some(ExecuteCommandPresenter::new(
-            Box::new(PresenterCommons::new(receiver)?),
+            Box::new(PresenterCommons::new(receiver, term_info)?),
             Screen::one_line_matrix(b"Startup"),
         ))))
     }

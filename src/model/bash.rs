@@ -21,7 +21,7 @@
 //! Be aware that bash is full of global variables and must not be started more than once.
 
 use std::sync::{Arc, Mutex, Condvar, MutexGuard, PoisonError};
-use std::sync::atomic::{AtomicBool, ATOMIC_BOOL_INIT, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::os::unix::io::{RawFd, IntoRawFd, FromRawFd};
 use std::path::Path;
 use std::error::Error;
@@ -57,7 +57,7 @@ static ref bite_input_added: Condvar = Condvar::new();
 }
 
 /// Marker that bash is waiting for input
-static bash_is_waiting: AtomicBool = ATOMIC_BOOL_INIT;
+static bash_is_waiting: AtomicBool = AtomicBool::new(false);
 
 /// Check if bash is waiting for input
 pub fn is_bash_waiting() -> bool {
@@ -73,6 +73,7 @@ pub fn bash_add_input(text: &str) {
         .lock()
         .map(|mut line| {
             line.push_str(text);
+            info!("bash_add_input: {} remaining", line.len());
             Ok(())
         })
         .and_then(|_: Result<(), PoisonError<MutexGuard<String>>>| {
@@ -125,6 +126,7 @@ pub extern "C" fn bite_getch() -> c_int {
         line = bite_input_added.wait(line).unwrap();
     }
     bash_is_waiting.store(false, Ordering::SeqCst);
+    info!("bite_getch: {} remaining", line.len());
     line.remove(0) as c_int
 }
 
@@ -398,10 +400,10 @@ pub enum BashOutput {
     Prompt(Vec<u8>),
 }
 
-static mut read_lines_quit: AtomicBool = ATOMIC_BOOL_INIT;
+static mut read_lines_quit: AtomicBool = AtomicBool::new(false);
 
-static mut bash_out_blocked: AtomicBool = ATOMIC_BOOL_INIT;
-static mut bash_err_blocked: AtomicBool = ATOMIC_BOOL_INIT;
+static mut bash_out_blocked: AtomicBool = AtomicBool::new(false);
+static mut bash_err_blocked: AtomicBool = AtomicBool::new(false);
 
 pub fn read_lines_running() -> bool {
     !unsafe { read_lines_quit.load(Ordering::Relaxed) }
@@ -522,7 +524,7 @@ pub fn stop() {
     // Make bash shutdown cleanly by killing a potentially running program and then telling bash to
     // exit, which will make it terminate its thread.
     bash_kill_last();
-    bash_add_input("exit 0");
+    bash_add_input("exit 0\n");
 
     // Then close all handles
     unsafe {

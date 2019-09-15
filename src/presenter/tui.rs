@@ -22,8 +22,8 @@
 //! does not archive its output.
 
 use super::*;
-use model::bash::is_bash_waiting;
 use model::interaction::CurrentInteraction;
+use model::bash::{bash_add_input, is_bash_waiting};
 
 /// Presenter to run commands and send input to their stdin.
 pub struct TuiExecuteCommandPresenter {
@@ -45,6 +45,7 @@ impl TuiExecuteCommandPresenter {
         commons: Box<PresenterCommons>,
         current_interaction: CurrentInteraction,
     ) -> Box<Self> {
+        info!("TuiExecuteCommandPresenter::new");
         let presenter = TuiExecuteCommandPresenter {
             commons,
             screen: Screen::new(),
@@ -68,6 +69,25 @@ impl TuiExecuteCommandPresenter {
             };
         }
         (self, b"")
+    }
+
+    fn send_term_info( &self, cap_name: &str) -> PresenterCommand {
+        if let Some(cap_str) = self.commons.term_info.strings.get(cap_name) {
+            bash_add_input(&String::from_utf8_lossy(cap_str));
+            info!("send_term_info('{}') -> ok ({:?})", cap_name, cap_str);
+            PresenterCommand::Redraw
+        }else{
+            info!("send_term_info('{}') -> failed", cap_name);
+            PresenterCommand::Unknown
+        }
+    }
+
+    fn send_term_info_shift( &self, shifted:bool, cap_normal: &str, cap_shifted:&str) -> PresenterCommand {
+        if shifted {
+            self.send_term_info( cap_shifted)
+        } else {
+            self.send_term_info( cap_normal)
+        }
     }
 }
 
@@ -143,10 +163,25 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> (Box<SubPresenter>, PresenterCommand) {
-        match (mod_state.as_tuple(), key) {
-
-            _ => (self, PresenterCommand::Unknown),
-        }
+        info!("TuiExecuteCommandPresenter::event_special_key( {:?}, {:?})", mod_state, key);
+        let cmd = match (mod_state.as_tuple(), key) {
+            ((_,_,_), SpecialKey::Escape) => {
+                bash_add_input("\x1b");
+                PresenterCommand::Redraw
+            },
+            ((_,_,_), SpecialKey::Enter) => self.send_term_info( "kent"),
+            ((shifted,_,_), SpecialKey::Left) => self.send_term_info_shift( shifted, "kcub1", "kLFT"),
+            ((shifted,_,_), SpecialKey::Right) => self.send_term_info_shift( shifted, "kcuf1", "kRIT"),
+            ((_,_,_), SpecialKey::Up) => self.send_term_info( "kcuu1"),
+            ((_,_,_), SpecialKey::Down) => self.send_term_info( "kcud1"),
+            ((shifted,_,_), SpecialKey::Home) => self.send_term_info_shift( shifted, "khome", "kHOM"),
+            ((shifted,_,_), SpecialKey::End) => self.send_term_info_shift( shifted, "kend", "kEND"),
+            ((_,_,_), SpecialKey::PageUp) => self.send_term_info( "kpp"),
+            ((_,_,_), SpecialKey::PageDown) => self.send_term_info( "knp"),
+            ((shifted,_,_), SpecialKey::Delete) => self.send_term_info_shift( shifted, "kdch1", "kDC"),
+            ((_,_,_), SpecialKey::Backspace) => self.send_term_info( "kbs"),
+        };
+        (self,cmd)
     }
 
     /// Handle the event when a modifier and a letter/number is pressed.
@@ -155,8 +190,8 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, PresenterCommand) {
+        info!("TuiExecuteCommandPresenter::event_normal_key( {:?}, {:?})", mod_state, letter);
         match (mod_state.as_tuple(), letter) {
-
             _ => (self, PresenterCommand::Unknown),
         }
     }
