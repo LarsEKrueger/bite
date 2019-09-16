@@ -23,7 +23,7 @@
 
 use super::*;
 use model::interaction::CurrentInteraction;
-use model::bash::{bash_add_input, is_bash_waiting};
+use model::bash::{program_add_input, is_bash_waiting};
 
 /// Presenter to run commands and send input to their stdin.
 pub struct TuiExecuteCommandPresenter {
@@ -73,7 +73,7 @@ impl TuiExecuteCommandPresenter {
 
     fn send_term_info( &self, cap_name: &str) -> PresenterCommand {
         if let Some(cap_str) = self.commons.term_info.strings.get(cap_name) {
-            bash_add_input(&String::from_utf8_lossy(cap_str));
+            program_add_input(&String::from_utf8_lossy(cap_str));
             info!("send_term_info('{}') -> ok ({:?})", cap_name, cap_str);
             PresenterCommand::Redraw
         }else{
@@ -166,7 +166,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         info!("TuiExecuteCommandPresenter::event_special_key( {:?}, {:?})", mod_state, key);
         let cmd = match (mod_state.as_tuple(), key) {
             ((_,_,_), SpecialKey::Escape) => {
-                bash_add_input("\x1b");
+                program_add_input("\x1b");
                 PresenterCommand::Redraw
             },
             ((_,_,_), SpecialKey::Enter) => self.send_term_info( "kent"),
