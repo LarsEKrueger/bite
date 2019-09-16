@@ -173,7 +173,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 self.commons.text_input.make_room();
                 // TODO: disable write-back in bash and mark this line as input
                 // self.current_interaction.add_output(line.clone());
-                ::model::bash::programm_add_input(line.as_str());
+                ::model::bash::program_add_input(line.as_str());
                 (self, PresenterCommand::Redraw)
             }
 
@@ -248,7 +248,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     b'd' => {
                         // ODO: Exit bite only if input line is empty.
                         let letter = [0x04; 1];
-                        ::model::bash::programm_add_input(unsafe { from_utf8_unchecked(&letter) });
+                        ::model::bash::program_add_input(unsafe { from_utf8_unchecked(&letter) });
                         return (self, PresenterCommand::Redraw);
                     }
                     _ => {}

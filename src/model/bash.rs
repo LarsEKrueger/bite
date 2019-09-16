@@ -358,7 +358,7 @@ pub fn bite_write_output(line: &str) {
 }
 
 /// Send input to the foreground program running in bash.
-pub fn programm_add_input(line: &str) {
+pub fn program_add_input(line: &str) {
     unsafe {
         pts_handles.as_ref().map(|h| {
             write(h.prg_stdin, line.as_bytes()).map_err(|e| {
