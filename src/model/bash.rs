@@ -273,6 +273,7 @@ fn create_terminals() -> Result<PtsHandles, String> {
     );
     // c_iflag=4500, c_oflag=5, c_cflag=bf, c_lflag=8a3b
     fix_termios_cc(&mut termios);
+    cfmakeraw(&mut termios);
 
     // Create the pts pairs
     let (stdin_m, stdin_s) = create_terminal(termios)?;
