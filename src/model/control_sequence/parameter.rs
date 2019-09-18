@@ -18,8 +18,8 @@
 
 //! Control sequence parameters
 
+use super::types::{ActionParameter, Point, Rectangle};
 use std::cmp;
-use super::types::{Point, ActionParameter, Rectangle};
 
 /// Maximal number of parameters
 const NUM_PARAMETERS: usize = 30;

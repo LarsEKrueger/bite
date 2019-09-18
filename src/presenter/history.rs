@@ -57,8 +57,7 @@ impl HistoryPresenter {
     /// If the selection is already visible, do nothing. Otherwise, center it on the screen.
     fn show_selection(&mut self) -> NeedRedraw {
         let start_line = self.commons.start_line();
-        if start_line <= self.search.item_ind &&
-            self.search.item_ind < self.commons.last_line_shown
+        if start_line <= self.search.item_ind && self.search.item_ind < self.commons.last_line_shown
         {
             NeedRedraw::No
         } else {
@@ -156,7 +155,6 @@ impl SubPresenter for HistoryPresenter {
         key: &SpecialKey,
     ) -> (Box<SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
-
             ((false, false, false), SpecialKey::Enter) => {
                 let propagate = self.replace_text_input();
                 let next = ComposeCommandPresenter::new(self.commons);
@@ -167,9 +165,9 @@ impl SubPresenter for HistoryPresenter {
                 }
             }
 
-            ((false, false, false), SpecialKey::Left) |
-            ((false, false, false), SpecialKey::Right) |
-            ((true, false, false), SpecialKey::Enter) => {
+            ((false, false, false), SpecialKey::Left)
+            | ((false, false, false), SpecialKey::Right)
+            | ((true, false, false), SpecialKey::Enter) => {
                 self.replace_text_input();
                 (
                     ComposeCommandPresenter::new(self.commons),
@@ -236,7 +234,11 @@ impl SubPresenter for HistoryPresenter {
         // Find the index into matching_items that is closest to search.item_ind to move the
         // highlight only a litte.
         fn abs_diff(a: usize, b: usize) -> usize {
-            if a < b { b - a } else { a - b }
+            if a < b {
+                b - a
+            } else {
+                a - b
+            }
         }
 
         let last_history_ind = if self.search.item_ind < self.search.matching_items.len() {
@@ -284,7 +286,6 @@ impl SubPresenter for HistoryPresenter {
         _x: usize,
         _y: usize,
     ) -> (Box<SubPresenter>, NeedRedraw) {
-
         (self, NeedRedraw::No)
     }
 }

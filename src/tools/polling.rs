@@ -28,8 +28,8 @@
 //! If the polling reads from a limited buffer and that fills up (e.g. due to a too long polling
 //! cycle), the sender might block.
 
-use std::time::Duration;
 use std::thread::sleep;
+use std::time::Duration;
 
 /// State and parameters of the rate-limiting mechanism.
 pub struct Gate {

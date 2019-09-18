@@ -16,13 +16,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 //! One line to be displayed.
 //!
 //! Each line consists of segments that have the same color.
 
-use model::interaction::OutputVisibility;
 use super::*;
+use model::interaction::OutputVisibility;
 use std::borrow::Cow;
 
 /// Item for the output iterator to be shown by the GUI.
@@ -36,7 +35,7 @@ pub struct DisplayLine<'a> {
     pub is_a: LineType,
 }
 
-lazy_static!{
+lazy_static! {
     static ref OUTPUT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( b"   ");
     static ref PROMPT_PREFIX: Vec<Cell> = Vec::new();
 
@@ -86,21 +85,19 @@ impl<'a> DisplayLine<'a> {
         let deco = match line.is_a {
             LineType::Output => &*OUTPUT_PREFIX,
             LineType::Prompt => &*PROMPT_PREFIX,
-            LineType::Command(ref ov, _, es) => {
-                match (ov, es.map(|es| es.success())) {
-                    (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
-                    (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
-                    (OutputVisibility::Error, None) => &*ERROR_RUNNING_PREFIX,
+            LineType::Command(ref ov, _, es) => match (ov, es.map(|es| es.success())) {
+                (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
+                (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
+                (OutputVisibility::Error, None) => &*ERROR_RUNNING_PREFIX,
 
-                    (OutputVisibility::None, Some(true)) => &*NONE_OK_PREFIX,
-                    (OutputVisibility::Output, Some(true)) => &*OUTPUT_OK_PREFIX,
-                    (OutputVisibility::Error, Some(true)) => &*ERROR_OK_PREFIX,
+                (OutputVisibility::None, Some(true)) => &*NONE_OK_PREFIX,
+                (OutputVisibility::Output, Some(true)) => &*OUTPUT_OK_PREFIX,
+                (OutputVisibility::Error, Some(true)) => &*ERROR_OK_PREFIX,
 
-                    (OutputVisibility::None, Some(false)) => &*NONE_FAIL_PREFIX,
-                    (OutputVisibility::Output, Some(false)) => &*OUTPUT_FAIL_PREFIX,
-                    (OutputVisibility::Error, Some(false)) => &*ERROR_FAIL_PREFIX,
-                }
-            }
+                (OutputVisibility::None, Some(false)) => &*NONE_FAIL_PREFIX,
+                (OutputVisibility::Output, Some(false)) => &*OUTPUT_FAIL_PREFIX,
+                (OutputVisibility::Error, Some(false)) => &*ERROR_FAIL_PREFIX,
+            },
 
             LineType::Input => &*INPUT_PREFIX,
             LineType::MenuDecoration => &*MENU_DECO_PREFIX,

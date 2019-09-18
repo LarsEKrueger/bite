@@ -16,8 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-pub mod types;
 pub mod action;
-pub mod parser;
 pub mod parameter;
+pub mod parser;
+pub mod types;
 mod vt_parse_table;

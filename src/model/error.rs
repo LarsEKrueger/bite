@@ -52,22 +52,14 @@ impl Error {
 
     pub fn cause(self, prefix: &str, suffix: &str) -> String {
         match self {
-            Error::VariableIsReadOnly(name) => {
-                format!(
-                    "{}tried to modify a read-only variable '{}' {}",
-                    prefix,
-                    name,
-                    suffix
-                )
-            }
-            Error::UnknownVariable(name) => {
-                format!(
-                    "{}tried to access unknown variable '{}' {}",
-                    prefix,
-                    name,
-                    suffix
-                )
-            }
+            Error::VariableIsReadOnly(name) => format!(
+                "{}tried to modify a read-only variable '{}' {}",
+                prefix, name, suffix
+            ),
+            Error::UnknownVariable(name) => format!(
+                "{}tried to access unknown variable '{}' {}",
+                prefix, name, suffix
+            ),
             Error::CouldNotSetVariable(name) => {
                 format!("{}failed to change variable '{}' {}", prefix, name, suffix)
             }
@@ -78,26 +70,17 @@ impl Error {
             Error::CouldNotCreatePipe(msg) => {
                 format!("{}could not create pipe {} {}", prefix, msg, suffix)
             }
-            Error::CouldNotLock(msg) => {
-                format!(
-                    "{}could not get exclusive access to internal state {} {}",
-                    prefix,
-                    msg,
-                    suffix
-                )
-            }
-            Error::InternalError(file, line, msg) => {
-                format!(
-                    concat!(
-                        "{}Internal error '{}' in {}:{}\n",
-                        "Report at https://github.com/LarsEKrueger/bite/issues"
-                    ),
-                    prefix,
-                    msg,
-                    file,
-                    line
-                )
-            }
+            Error::CouldNotLock(msg) => format!(
+                "{}could not get exclusive access to internal state {} {}",
+                prefix, msg, suffix
+            ),
+            Error::InternalError(file, line, msg) => format!(
+                concat!(
+                    "{}Internal error '{}' in {}:{}\n",
+                    "Report at https://github.com/LarsEKrueger/bite/issues"
+                ),
+                prefix, msg, file, line
+            ),
         }
     }
 }

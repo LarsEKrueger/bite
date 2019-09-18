@@ -18,10 +18,10 @@
 
 //! Sub presenter for composing commands.
 
-use super::*;
-use super::history::*;
-use model::history::*;
 use super::execute_command::ExecuteCommandPresenter;
+use super::history::*;
+use super::*;
+use model::history::*;
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -113,9 +113,12 @@ impl SubPresenter for ComposeCommandPresenter {
     }
 
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
-        Box::new(self.commons.session.line_iter().chain(
-            self.commons.input_line_iter(),
-        ))
+        Box::new(
+            self.commons
+                .session
+                .line_iter()
+                .chain(self.commons.input_line_iter()),
+        )
     }
 
     fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {

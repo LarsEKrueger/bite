@@ -21,8 +21,8 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use super::iterators::*;
 use super::interaction::{ArchivedInteraction, CommandPosition};
+use super::iterators::*;
 use super::screen::Matrix;
 
 /// A number of commands that are executed with the same prompt string.
@@ -64,9 +64,11 @@ impl Conversation {
             .iter()
             .zip(pos.conv_iter())
             .flat_map(move |(inter, index)| inter.line_iter(index, prompt_hash))
-            .chain(self.prompt.line_iter().map(move |r| {
-                LineItem::new(r, LineType::Prompt, None, prompt_hash)
-            }))
+            .chain(
+                self.prompt
+                    .line_iter()
+                    .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash)),
+            )
     }
 
     /// Return the hash value of the prompt
@@ -77,11 +79,11 @@ impl Conversation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::response::tests::check;
-    use model::interaction::OutputVisibility;
-    use model::interaction::tests::{test_add_output, test_add_error};
     use super::super::screen::Screen;
+    use super::*;
+    use model::interaction::tests::{test_add_error, test_add_output};
+    use model::interaction::OutputVisibility;
 
     #[test]
     fn line_iter() {

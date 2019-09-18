@@ -1389,7 +1389,6 @@ Case::GROUND_STATE,
 Case::IGNORE,
 ];
 
-
 pub static csi_dollar_table:CaseTable =	/* CSI ... $ */
 [
 /*	NUL		SOH		STX		ETX	*/

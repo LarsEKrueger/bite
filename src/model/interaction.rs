@@ -24,7 +24,7 @@ use std::process::ExitStatus;
 
 use super::iterators::*;
 use super::response::*;
-use super::screen::{Matrix, Screen, Cell, AddBytesResult};
+use super::screen::{AddBytesResult, Cell, Matrix, Screen};
 use model::screen;
 
 /// Which output is visible.
@@ -114,7 +114,8 @@ impl ArchivedInteraction {
         prompt_hash: u64,
     ) -> impl Iterator<Item = LineItem<'a>> {
         // We always have the command, regardless if there is any output to show.
-        let resp_lines = self.visible_response()
+        let resp_lines = self
+            .visible_response()
             .map(|r| r.line_iter(prompt_hash))
             .into_iter()
             .flat_map(|i| i);
@@ -172,7 +173,6 @@ impl ArchivedInteraction {
     }
 }
 
-
 impl CurrentInteraction {
     pub fn new(command: Matrix) -> Self {
         Self {
@@ -207,12 +207,10 @@ impl CurrentInteraction {
                     return AddBytesResult::StartTui(&bytes[(i + 1)..]);
                 }
                 _ => {}
-
             };
         }
         AddBytesResult::AllDone
     }
-
 
     pub fn add_output<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
         Self::add_bytes_to_screen(&mut self.output_screen, &mut self.archive.output, bytes)
@@ -237,20 +235,23 @@ impl CurrentInteraction {
             _ => None,
         };
 
-        let resp_lines = resp.map(|(r, _)| r.line_iter(prompt_hash))
+        let resp_lines = resp
+            .map(|(r, _)| r.line_iter(prompt_hash))
             .into_iter()
             .flat_map(|i| i);
 
-        let screen_lines = resp.map(|(_, s)| {
-            s.line_iter().zip(0..).map(move |(line, nr)| {
-                let cursor_x = if s.cursor_y() == nr {
-                    Some(s.cursor_x() as usize)
-                } else {
-                    None
-                };
-                LineItem::new(&line[..], LineType::Output, cursor_x, prompt_hash)
+        let screen_lines = resp
+            .map(|(_, s)| {
+                s.line_iter().zip(0..).map(move |(line, nr)| {
+                    let cursor_x = if s.cursor_y() == nr {
+                        Some(s.cursor_x() as usize)
+                    } else {
+                        None
+                    };
+                    LineItem::new(&line[..], LineType::Output, cursor_x, prompt_hash)
+                })
             })
-        }).into_iter()
+            .into_iter()
             .flat_map(|i| i);
 
         let ov = match (self.archive.output.visible, self.archive.errors.visible) {
@@ -279,7 +280,8 @@ impl CurrentInteraction {
         for sr in [
             (&mut self.output_screen, &mut self.archive.output),
             (&mut self.error_screen, &mut self.archive.errors),
-        ].iter_mut()
+        ]
+        .iter_mut()
         {
             let (ref mut screen, ref mut response) = sr;
             for l in screen.line_iter() {
@@ -319,15 +321,17 @@ impl CommandPosition {
 
     /// Iterator to create CommandPostion elements starting at a given command position.
     pub fn conv_iter(&self) -> CpConvIter {
-        CpConvIter { this: (*self).clone() }
+        CpConvIter {
+            this: (*self).clone(),
+        }
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
     use super::super::response::tests::check;
     use super::super::screen::Screen;
+    use super::*;
 
     pub fn test_add_output(inter: &mut ArchivedInteraction, bytes: &[u8]) {
         let m = Screen::one_line_matrix(bytes);

@@ -22,8 +22,8 @@
 //! does not archive its output.
 
 use super::*;
+use model::bash::{is_bash_waiting, program_add_input};
 use model::interaction::CurrentInteraction;
-use model::bash::{program_add_input, is_bash_waiting};
 
 /// Presenter to run commands and send input to their stdin.
 pub struct TuiExecuteCommandPresenter {
@@ -65,28 +65,37 @@ impl TuiExecuteCommandPresenter {
             match self.screen.add_byte(*b) {
                 // TODO: Handle end of TUI mode
                 _ => {}
-
             };
         }
         (self, b"")
     }
 
-    fn send_term_info( &self, cap_name: &str) -> PresenterCommand {
+    fn send_string(&self, send:&str) -> PresenterCommand {
+        program_add_input(send);
+        PresenterCommand::Redraw
+    }
+
+    fn send_term_info(&self, cap_name: &str) -> PresenterCommand {
         if let Some(cap_str) = self.commons.term_info.strings.get(cap_name) {
             program_add_input(&String::from_utf8_lossy(cap_str));
             info!("send_term_info('{}') -> ok ({:?})", cap_name, cap_str);
             PresenterCommand::Redraw
-        }else{
+        } else {
             info!("send_term_info('{}') -> failed", cap_name);
             PresenterCommand::Unknown
         }
     }
 
-    fn send_term_info_shift( &self, shifted:bool, cap_normal: &str, cap_shifted:&str) -> PresenterCommand {
+    fn send_term_info_shift(
+        &self,
+        shifted: bool,
+        cap_normal: &str,
+        cap_shifted: &str,
+    ) -> PresenterCommand {
         if shifted {
-            self.send_term_info( cap_shifted)
+            self.send_term_info(cap_shifted)
         } else {
-            self.send_term_info( cap_normal)
+            self.send_term_info(cap_normal)
         }
     }
 }
@@ -112,10 +121,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
 
     fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
         match self.current_interaction.add_error(&bytes) {
-            AddBytesResult::StartTui(rest) |
-            AddBytesResult::ShowStream(rest) => {
-                (self, rest)
-            }
+            AddBytesResult::StartTui(rest) | AddBytesResult::ShowStream(rest) => (self, rest),
             AddBytesResult::AllDone => (self, b""),
         }
     }
@@ -131,9 +137,9 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         if !needs_marking && is_bash_waiting() {
             let (mut commons, current_interaction, next_prompt) = self.deconstruct();
             if let Some(prompt) = next_prompt {
-                commons.session.archive_interaction(
-                    current_interaction.prepare_archiving(),
-                );
+                commons
+                    .session
+                    .archive_interaction(current_interaction.prepare_archiving());
 
                 if prompt != commons.session.current_conversation.prompt {
                     commons.session.new_conversation(prompt);
@@ -163,25 +169,39 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> (Box<SubPresenter>, PresenterCommand) {
-        info!("TuiExecuteCommandPresenter::event_special_key( {:?}, {:?})", mod_state, key);
+        info!(
+            "TuiExecuteCommandPresenter::event_special_key( {:?}, {:?})",
+            mod_state, key
+        );
         let cmd = match (mod_state.as_tuple(), key) {
-            ((_,_,_), SpecialKey::Escape) => {
+            ((_, _, _), SpecialKey::Escape) => {
                 program_add_input("\x1b");
                 PresenterCommand::Redraw
-            },
-            ((_,_,_), SpecialKey::Enter) => self.send_term_info( "kent"),
-            ((shifted,_,_), SpecialKey::Left) => self.send_term_info_shift( shifted, "kcub1", "kLFT"),
-            ((shifted,_,_), SpecialKey::Right) => self.send_term_info_shift( shifted, "kcuf1", "kRIT"),
-            ((_,_,_), SpecialKey::Up) => self.send_term_info( "kcuu1"),
-            ((_,_,_), SpecialKey::Down) => self.send_term_info( "kcud1"),
-            ((shifted,_,_), SpecialKey::Home) => self.send_term_info_shift( shifted, "khome", "kHOM"),
-            ((shifted,_,_), SpecialKey::End) => self.send_term_info_shift( shifted, "kend", "kEND"),
-            ((_,_,_), SpecialKey::PageUp) => self.send_term_info( "kpp"),
-            ((_,_,_), SpecialKey::PageDown) => self.send_term_info( "knp"),
-            ((shifted,_,_), SpecialKey::Delete) => self.send_term_info_shift( shifted, "kdch1", "kDC"),
-            ((_,_,_), SpecialKey::Backspace) => self.send_term_info( "kbs"),
+            }
+            ((_, _, _), SpecialKey::Enter) => self.send_term_info("kent"),
+            ((shifted, _, _), SpecialKey::Left) => {
+                self.send_term_info_shift(shifted, "kcub1", "kLFT")
+            }
+            ((shifted, _, _), SpecialKey::Right) => {
+                self.send_term_info_shift(shifted, "kcuf1", "kRIT")
+            }
+            ((_, _, _), SpecialKey::Up) => self.send_term_info("kcuu1"),
+            ((_, _, _), SpecialKey::Down) => self.send_term_info("kcud1"),
+            ((shifted, _, _), SpecialKey::Home) => {
+                self.send_term_info_shift(shifted, "khome", "kHOM")
+            }
+            ((shifted, _, _), SpecialKey::End) => {
+                self.send_term_info_shift(shifted, "kend", "kEND")
+            }
+            ((_, _, _), SpecialKey::PageUp) => self.send_term_info("kpp"),
+            ((_, _, _), SpecialKey::PageDown) => self.send_term_info("knp"),
+            ((shifted, _, _), SpecialKey::Delete) => {
+                self.send_term_info_shift(shifted, "kdch1", "kDC")
+            }
+            ((_, _, _), SpecialKey::Backspace) => self.send_term_info("kbs"),
+            ((_, _, _), SpecialKey::Tab) => self.send_string("\x08"),
         };
-        (self,cmd)
+        (self, cmd)
     }
 
     /// Handle the event when a modifier and a letter/number is pressed.
@@ -190,7 +210,10 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, PresenterCommand) {
-        info!("TuiExecuteCommandPresenter::event_normal_key( {:?}, {:?})", mod_state, letter);
+        info!(
+            "TuiExecuteCommandPresenter::event_normal_key( {:?}, {:?})",
+            mod_state, letter
+        );
         match (mod_state.as_tuple(), letter) {
             _ => (self, PresenterCommand::Unknown),
         }

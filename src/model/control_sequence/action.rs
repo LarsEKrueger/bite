@@ -18,8 +18,8 @@
 
 //! Parsing result, action to be taken from seeing this sequence.
 
+use super::types::{ActionParameter, Point, Rectangle};
 use std::char;
-use super::types::{Point, Rectangle, ActionParameter};
 
 /// Actions to be taken after processing a byte
 #[derive(PartialEq, Debug)]
@@ -157,7 +157,7 @@ pub enum Action {
         ActionParameter,
         ActionParameter,
         ActionParameter,
-        ActionParameter
+        ActionParameter,
     ),
 
     SetTitleModes(TitleModes),

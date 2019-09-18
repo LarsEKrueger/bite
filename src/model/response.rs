@@ -49,9 +49,9 @@ impl Response {
 
     /// Iterate over the lines
     pub fn line_iter<'a>(&'a self, prompt_hash: u64) -> impl Iterator<Item = LineItem<'a>> {
-        self.lines.iter().map(move |l| {
-            LineItem::new(&l[..], LineType::Output, None, prompt_hash)
-        })
+        self.lines
+            .iter()
+            .map(move |l| LineItem::new(&l[..], LineType::Output, None, prompt_hash))
     }
 
     /// Return a correctly typed iterator without any data in it.

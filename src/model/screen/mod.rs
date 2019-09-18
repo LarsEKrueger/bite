@@ -20,14 +20,14 @@
 //!
 //! This stores a matrix of cells, which are colored characters.
 
-
 use std::cmp;
 use std::hash::{Hash, Hasher};
 
-use super::control_sequence::action::{Action, CharacterAttribute, Color, EraseDisplay, EraseLine,
-                                      ScrollRegion};
-use super::control_sequence::types::Rectangle;
+use super::control_sequence::action::{
+    Action, CharacterAttribute, Color, EraseDisplay, EraseLine, ScrollRegion,
+};
 use super::control_sequence::parser::Parser;
+use super::control_sequence::types::Rectangle;
 
 mod test;
 
@@ -549,8 +549,11 @@ impl Screen {
             Some((start, end)) => {
                 let start = start as isize;
                 let end = end as isize;
-                if 0 <= start && start < self.height() && 0 <= end && end < self.height() &&
-                    start < end
+                if 0 <= start
+                    && start < self.height()
+                    && 0 <= end
+                    && end < self.height()
+                    && start < end
                 {
                     (start, end, true)
                 } else {
@@ -594,8 +597,8 @@ impl Screen {
         let mut dst_index = row_index + at_col;
         let mut n_to_move = self.width() - scroll_cols - at_col;
         while n_to_move > 0 {
-            self.matrix.cells[dst_index as usize] = self.matrix.cells[(dst_index + scroll_cols) as
-                                                                          usize];
+            self.matrix.cells[dst_index as usize] =
+                self.matrix.cells[(dst_index + scroll_cols) as usize];
             dst_index += 1;
             n_to_move -= 1;
         }
@@ -658,8 +661,8 @@ impl Screen {
         let mut dst_index = row_index + self.width();
         while n_to_move > 0 {
             dst_index -= 1;
-            self.matrix.cells[dst_index as usize] = self.matrix.cells[(dst_index - scroll_cols) as
-                                                                          usize];
+            self.matrix.cells[dst_index as usize] =
+                self.matrix.cells[(dst_index - scroll_cols) as usize];
             n_to_move -= 1;
         }
         let c0 = at_col;
@@ -722,10 +725,8 @@ impl Screen {
                 let new_end = new_start + self.width() as usize;
                 let old_start = (self.width() * y) as usize;
                 let old_end = old_start + self.width() as usize;
-                new_matrix[new_start..new_end].copy_from_slice(
-                    &self.matrix.cells
-                        [old_start..old_end],
-                );
+                new_matrix[new_start..new_end]
+                    .copy_from_slice(&self.matrix.cells[old_start..old_end]);
             }
             self.matrix.cells = new_matrix;
 
@@ -887,10 +888,9 @@ impl Screen {
 
         // Make room in the array
         let old_len = self.matrix.cells.len();
-        self.matrix.cells.resize(
-            old_len + w,
-            Cell::new(self.colors),
-        );
+        self.matrix
+            .cells
+            .resize(old_len + w, Cell::new(self.colors));
 
         self.matrix.height += 1;
 

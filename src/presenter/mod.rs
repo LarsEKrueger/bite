@@ -22,26 +22,26 @@
 //! composition or history browsing.
 
 use std::fmt::{Display, Formatter};
-use std::sync::mpsc::Receiver;
 use std::process::ExitStatus;
+use std::sync::mpsc::Receiver;
 
 use term::terminfo::TermInfo;
 
 mod compose_command;
-mod execute_command;
-mod tui;
-mod history;
 pub mod display_line;
+mod execute_command;
+mod history;
+mod tui;
 
-use model::session::*;
-use model::iterators::*;
-use model::error::*;
-use model::screen::*;
 use model::bash::BashOutput;
+use model::error::*;
+use model::iterators::*;
+use model::screen::*;
+use model::session::*;
 
 use self::compose_command::*;
-use self::execute_command::*;
 use self::display_line::*;
+use self::execute_command::*;
 
 /// GUI agnostic representation of the modifier keys
 #[derive(Debug)]
@@ -66,6 +66,7 @@ pub enum SpecialKey {
     PageDown,
     Delete,
     Backspace,
+    Tab,
 }
 
 /// Represent a boolean with the semantics 'does the GUI need to be redrawn'.
@@ -168,12 +169,11 @@ pub struct PresenterCommons {
 
     // List of all lines we have successfully parsed.
     // pub history: History,
-
     /// Channel from Bash
     receiver: Receiver<BashOutput>,
 
     /// TermInfo entry for xterm
-    term_info : TermInfo,
+    term_info: TermInfo,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -200,7 +200,11 @@ impl Display for ModifierState {
     /// Show the modifier state as a prefix for a key.
     fn fmt(&self, f: &mut Formatter) -> ::std::result::Result<(), ::std::fmt::Error> {
         fn b2s(b: bool, s: &str) -> &str {
-            if b { s } else { "" }
+            if b {
+                s
+            } else {
+                ""
+            }
         }
 
         write!(
@@ -232,7 +236,7 @@ impl PresenterCommons {
             last_line_shown: 0,
             // history,
             receiver,
-            term_info
+            term_info,
         })
     }
 
@@ -246,22 +250,23 @@ impl PresenterCommons {
     }
 
     pub fn input_line_iter(&self) -> impl Iterator<Item = LineItem> {
-        self.text_input.line_iter().zip(0..).map(
-            move |(cells, row)| {
+        self.text_input
+            .line_iter()
+            .zip(0..)
+            .map(move |(cells, row)| {
                 let cursor_col = if row == self.text_input.cursor_y() {
                     Some(self.text_input.cursor_x() as usize)
                 } else {
                     None
                 };
                 LineItem::new(cells, LineType::Input, cursor_col, 0)
-            },
-        )
+            })
     }
 }
 
 impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
-    pub fn new(receiver: Receiver<BashOutput>, term_info:TermInfo) -> Result<Self> {
+    pub fn new(receiver: Receiver<BashOutput>, term_info: TermInfo) -> Result<Self> {
         Ok(Presenter(Some(ExecuteCommandPresenter::new(
             Box::new(PresenterCommons::new(receiver, term_info)?),
             Screen::one_line_matrix(b"Startup"),

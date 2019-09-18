@@ -21,13 +21,13 @@
 //! All modules deal with the bash script interpreter, either interactively or non-interactively.
 
 pub mod bash;
+pub mod control_sequence;
 pub mod conversation;
+pub mod error;
+pub mod history;
 pub mod interaction;
 pub mod iterators;
 pub mod response;
+pub mod screen;
 pub mod session;
 pub mod types;
-pub mod error;
-pub mod history;
-pub mod screen;
-pub mod control_sequence;

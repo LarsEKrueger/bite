@@ -86,7 +86,6 @@ impl Test {
     }
 }
 
-
 #[test]
 fn start_screen() {
     let mut s = Screen::new();
@@ -376,10 +375,9 @@ fn cursor_motion() {
         .cr(24, "World!")
         .cp(6, 24);
     // Scroll up due to newline in last row
-    Test::s(80, 25, b"Hello\x1bFWorld!\n").cp(0, 24).cr(
-        23,
-        "World!",
-    );
+    Test::s(80, 25, b"Hello\x1bFWorld!\n")
+        .cp(0, 24)
+        .cr(23, "World!");
 
     // CursorAbsoluteColumn
     Test::s(80, 25, b"Hello World!\x1b[5Gxxxx")
@@ -414,14 +412,13 @@ fn cursor_motion() {
         .cr(2, "      xxxx");
 
     // CursorDown
-    Test::s(80, 25, b"Hello\x1b[5BWorld").cr(0, "Hello").cr(
-        5,
-        "     World",
-    );
-    Test::e(b"Hello\x1b[5BWorld").height(6).cr(0, "Hello").cr(
-        5,
-        "     World",
-    );
+    Test::s(80, 25, b"Hello\x1b[5BWorld")
+        .cr(0, "Hello")
+        .cr(5, "     World");
+    Test::e(b"Hello\x1b[5BWorld")
+        .height(6)
+        .cr(0, "Hello")
+        .cr(5, "     World");
 
     // CursorUp
     Test::s(80, 25, b"\x1b[5BHello\x1b[2AWorld")
@@ -501,10 +498,9 @@ fn cursor_motion() {
         .cr(5, "     Test");
 
     // Scroll down
-    Test::s(80, 25, b"Hello World\n\x1b[1TTest ").cp(5, 1).cr(
-        1,
-        "Test  World",
-    );
+    Test::s(80, 25, b"Hello World\n\x1b[1TTest ")
+        .cp(5, 1)
+        .cr(1, "Test  World");
 
     // Scroll Left
     Test::s(10, 25, b"Hello\n0123456789World\x1b[4 @")
@@ -521,10 +517,9 @@ fn cursor_motion() {
         .cr(2, "    World");
 
     // Backspace
-    Test::s(80, 25, b"Hello\x08\x08\x08art").cp(5, 0).cr(
-        0,
-        "Heart",
-    );
+    Test::s(80, 25, b"Hello\x08\x08\x08art")
+        .cp(5, 0)
+        .cr(0, "Heart");
 
     // DEC Back Index
     Test::s(80, 25, b"Hello\x1b6\x1b6\x1b6\x1b6a\x1b6\x1b6\x1b6_")
@@ -606,98 +601,99 @@ fn cursor_motion() {
         80,
         25,
         b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[0J",
-    ).cp(0, 2)
-        .cr(0, "Hello World.")
-        .cr(1, "0123456789")
-        .cr(2, "")
-        .cr(3, "");
+    )
+    .cp(0, 2)
+    .cr(0, "Hello World.")
+    .cr(1, "0123456789")
+    .cr(2, "")
+    .cr(3, "");
     // Above
     Test::s(
         80,
         25,
         b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[1J",
-    ).cp(0, 2)
-        .cr(0, "")
-        .cr(1, "")
-        .cr(2, "")
-        .cr(3, "jklmnopqrstuvwxyz");
+    )
+    .cp(0, 2)
+    .cr(0, "")
+    .cr(1, "")
+    .cr(2, "")
+    .cr(3, "jklmnopqrstuvwxyz");
     // All
     Test::s(
         80,
         25,
         b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[2J",
-    ).cp(0, 2)
-        .cr(0, "")
-        .cr(1, "")
-        .cr(2, "")
-        .cr(3, "");
+    )
+    .cp(0, 2)
+    .cr(0, "")
+    .cr(1, "")
+    .cr(2, "")
+    .cr(3, "");
     // Saved
     Test::s(
         80,
         25,
         b"Hello World.\n0123456789\nabcdefghi\njklmnopqrstuvwxyz\n\x1b[2A\x1b[3J",
-    ).cp(0, 2)
-        .cr(0, "")
-        .cr(1, "")
-        .cr(2, "")
-        .cr(3, "");
+    )
+    .cp(0, 2)
+    .cr(0, "")
+    .cr(1, "")
+    .cr(2, "")
+    .cr(3, "");
 
     // Erase in Line
     // Right
-    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[0K").cp(6, 0).cr(
-        0,
-        "Hello ",
-    );
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[0K")
+        .cp(6, 0)
+        .cr(0, "Hello ");
     // Left
-    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[1K").cp(6, 0).cr(
-        0,
-        "       orld.",
-    );
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[1K")
+        .cp(6, 0)
+        .cr(0, "       orld.");
     // All
-    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[2K").cp(6, 0).cr(
-        0,
-        "",
-    );
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[2K")
+        .cp(6, 0)
+        .cr(0, "");
 
     // InsertCharacters
-    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[4@").cp(6, 0).cr(
-        0,
-        "Hello     World.",
-    );
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[4@")
+        .cp(6, 0)
+        .cr(0, "Hello     World.");
 
     // DeleteCharacters
-    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[2P").cp(6, 0).cr(
-        0,
-        "Hello rld.",
-    );
+    Test::s(80, 25, b"Hello World.\x1b[6D\x1b[2P")
+        .cp(6, 0)
+        .cr(0, "Hello rld.");
 
     // InsertLines
     Test::s(
         80,
         25,
         b"\x1b[2J\x1b[1d1\n2\n3\n4\n5\n6\n7\n8\n9\n\x1b[3d\x1b[4L",
-    ).cp(0, 2)
-        .cr(0, "1")
-        .cr(1, "2")
-        .cr(2, "")
-        .cr(3, "")
-        .cr(4, "")
-        .cr(5, "")
-        .cr(6, "3")
-        .cr(12, "9");
+    )
+    .cp(0, 2)
+    .cr(0, "1")
+    .cr(1, "2")
+    .cr(2, "")
+    .cr(3, "")
+    .cr(4, "")
+    .cr(5, "")
+    .cr(6, "3")
+    .cr(12, "9");
 
     // DeleteLines
     Test::s(
         80,
         25,
         b"\x1b[2J\x1b[1d1\n2\n3\n4\n5\n6\n7\n8\n9\n\x1b[3d\x1b[4M",
-    ).cp(0, 2)
-        .cr(0, "1")
-        .cr(1, "2")
-        .cr(2, "7")
-        .cr(3, "8")
-        .cr(4, "9")
-        .cr(5, "");
+    )
+    .cp(0, 2)
+    .cr(0, "1")
+    .cr(1, "2")
+    .cr(2, "7")
+    .cr(3, "8")
+    .cr(4, "9")
+    .cr(5, "");
 
     // Tabulator
     Test::s(80, 25, b"012\t").cp(8, 0);
@@ -709,174 +705,191 @@ fn cursor_motion() {
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\n",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "02")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "02")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor inside, index
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1bD",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "02")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "02")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor inside, down
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[1T",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "")
-        .cr(2, "01")
-        .cr(7, "06")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "")
+    .cr(2, "01")
+    .cr(7, "06")
+    .cr(8, "08");
     // Cursor inside, downall
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[10T",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "")
-        .cr(2, "")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "")
+    .cr(2, "")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor inside, up
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[1S",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "02")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "02")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor inside, upall
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[10S",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor inside, left
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[1 @",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "1")
-        .cr(7, "7")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "1")
+    .cr(7, "7")
+    .cr(8, "08");
     // Cursor inside, leftall
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[80 @",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor inside, right
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[1 A",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, " 01")
-        .cr(7, " 07")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, " 01")
+    .cr(7, " 07")
+    .cr(8, "08");
     // Cursor inside, rightall
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[8d\x1b[80 A",
-    ).cp(0, 7)
-        .cr(0, "00")
-        .cr(1, "")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 7)
+    .cr(0, "00")
+    .cr(1, "")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor outside, nl
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\n",
-    ).cp(0, 2)
-        .cr(0, "00")
-        .cr(1, "01")
-        .cr(7, "07")
-        .cr(8, "08");
+    )
+    .cp(0, 2)
+    .cr(0, "00")
+    .cr(1, "01")
+    .cr(7, "07")
+    .cr(8, "08");
     // Cursor outside force, nl
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[11d\n",
-    ).cp(0, 11)
-        .cr(0, "00")
-        .cr(1, "01")
-        .cr(7, "07")
-        .cr(8, "08");
+    )
+    .cp(0, 11)
+    .cr(0, "00")
+    .cr(1, "01")
+    .cr(7, "07")
+    .cr(8, "08");
     // Cursor outside force, index
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[11d\x1bD",
-    ).cp(0, 11)
-        .cr(0, "00")
-        .cr(1, "01")
-        .cr(7, "07")
-        .cr(8, "08");
+    )
+    .cp(0, 11)
+    .cr(0, "00")
+    .cr(1, "01")
+    .cr(7, "07")
+    .cr(8, "08");
     // Cursor outside force, down
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[11d\x1b[1T",
-    ).cp(0, 10)
-        .cr(0, "00")
-        .cr(1, "")
-        .cr(2, "01")
-        .cr(7, "06")
-        .cr(8, "08");
+    )
+    .cp(0, 10)
+    .cr(0, "00")
+    .cr(1, "")
+    .cr(2, "01")
+    .cr(7, "06")
+    .cr(8, "08");
     // Cursor outside force, up
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[11d\x1b[1S",
-    ).cp(0, 10)
-        .cr(0, "00")
-        .cr(1, "02")
-        .cr(7, "")
-        .cr(8, "08");
+    )
+    .cp(0, 10)
+    .cr(0, "00")
+    .cr(1, "02")
+    .cr(7, "")
+    .cr(8, "08");
     // Cursor outside force, left
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[11d\x1b[1 @",
-    ).cp(0, 10)
-        .cr(0, "00")
-        .cr(1, "01")
-        .cr(7, "07")
-        .cr(8, "08");
+    )
+    .cp(0, 10)
+    .cr(0, "00")
+    .cr(1, "01")
+    .cr(7, "07")
+    .cr(8, "08");
     // Cursor outside force, right
     Test::s(
         80,
         25,
         b"00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n\x1b[2;8r\x1b[11d\x1b[1 A",
-    ).cp(0, 10)
-        .cr(0, "00")
-        .cr(1, "01")
-        .cr(7, "07")
-        .cr(8, "08");
+    )
+    .cp(0, 10)
+    .cr(0, "00")
+    .cr(1, "01")
+    .cr(7, "07")
+    .cr(8, "08");
 }
 
 // TODO: Test for protected

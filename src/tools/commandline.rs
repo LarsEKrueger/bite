@@ -31,7 +31,9 @@ pub struct CommandLine {
 impl CommandLine {
     /// Parse the command line arguments and fill a CommandLine struct.
     pub fn parse() -> CommandLine {
-        let mut result = CommandLine { single_program: vec![] };
+        let mut result = CommandLine {
+            single_program: vec![],
+        };
         {
             let mut ap = ArgumentParser::new();
             ap.set_description("BiTE - Bash-Integrated Terminal Emulator");

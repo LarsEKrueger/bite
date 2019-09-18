@@ -21,8 +21,8 @@
 use super::interaction::*;
 use super::screen::*;
 
-use std::process::ExitStatus;
 use std::borrow::Cow;
+use std::process::ExitStatus;
 
 /// Type of a line for internal processing.
 #[derive(Debug, PartialEq, Clone)]
@@ -73,7 +73,6 @@ pub struct CpConvIter {
     /// The index of the current conversation.
     pub this: CommandPosition,
 }
-
 
 impl<'a> LineItem<'a> {
     /// Create a new line item.

@@ -20,23 +20,23 @@
 //!
 //! Currently only available for X11.
 
-use x11::xlib::*;
-use x11::keysym::*;
-use std::os::raw::{c_char, c_int, c_long, c_ulong};
-use std::time::{Duration, SystemTime};
-use std::ffi::CStr;
 use std::cmp;
+use std::collections::HashMap;
+use std::ffi::CStr;
+use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::ptr::{null, null_mut};
 use std::sync::mpsc::Receiver;
-use std::collections::HashMap;
+use std::time::{Duration, SystemTime};
+use x11::keysym::*;
+use x11::xlib::*;
 
-use tools::polling;
-use presenter::*;
-use presenter::display_line::*;
-use model::bash::BashOutput;
 use model::bash;
-use model::screen::Cell;
+use model::bash::BashOutput;
 use model::iterators::LineType;
+use model::screen::Cell;
+use presenter::display_line::*;
+use presenter::*;
+use tools::polling;
 
 use term::terminfo::TermInfo;
 
@@ -162,20 +162,21 @@ pub fn modifier_state_from_event(info_state: u32) -> ModifierState {
 }
 
 lazy_static! {
-    static ref KEYSYM2KEY : HashMap<KeySym,SpecialKey> = {
+    static ref KEYSYM2KEY: HashMap<KeySym, SpecialKey> = {
         let mut m = HashMap::new();
-        m.insert( XK_Escape as KeySym,    SpecialKey::Escape);
-        m.insert( XK_Return as KeySym,    SpecialKey::Enter);
-        m.insert( XK_Left as KeySym,      SpecialKey::Left);
-        m.insert( XK_Right as KeySym,     SpecialKey::Right);
-        m.insert( XK_Up as KeySym,        SpecialKey::Up);
-        m.insert( XK_Down as KeySym,      SpecialKey::Down);
-        m.insert( XK_Home as KeySym,      SpecialKey::Home);
-        m.insert( XK_End as KeySym,       SpecialKey::End);
-        m.insert( XK_Page_Up as KeySym,   SpecialKey::PageUp);
-        m.insert( XK_Page_Down as KeySym, SpecialKey::PageDown);
-        m.insert( XK_Delete as KeySym,    SpecialKey::Delete);
-        m.insert( XK_BackSpace as KeySym, SpecialKey::Backspace);
+        m.insert(XK_Escape as KeySym, SpecialKey::Escape);
+        m.insert(XK_Return as KeySym, SpecialKey::Enter);
+        m.insert(XK_Left as KeySym, SpecialKey::Left);
+        m.insert(XK_Right as KeySym, SpecialKey::Right);
+        m.insert(XK_Up as KeySym, SpecialKey::Up);
+        m.insert(XK_Down as KeySym, SpecialKey::Down);
+        m.insert(XK_Home as KeySym, SpecialKey::Home);
+        m.insert(XK_End as KeySym, SpecialKey::End);
+        m.insert(XK_Page_Up as KeySym, SpecialKey::PageUp);
+        m.insert(XK_Page_Down as KeySym, SpecialKey::PageDown);
+        m.insert(XK_Delete as KeySym, SpecialKey::Delete);
+        m.insert(XK_BackSpace as KeySym, SpecialKey::Backspace);
+        m.insert(XK_Tab as KeySym, SpecialKey::Tab);
         m
     };
 }
@@ -207,10 +208,10 @@ impl Gui {
         // Create initial presenter
         let presenter = {
             // Only the presenter needs to know the term info for TUI applications.
-            let term_info = TermInfo::from_name( "xterm").map_err(|e| format!("{}", e) )?;
-            Presenter::new(receiver, term_info).or_else(|e| {
-            Err(e.readable("during initialisation"))
-        })}?;
+            let term_info = TermInfo::from_name("xterm").map_err(|e| format!("{}", e))?;
+            Presenter::new(receiver, term_info)
+                .or_else(|e| Err(e.readable("during initialisation")))
+        }?;
 
         unsafe {
             let display = XOpenDisplay(null());
@@ -229,7 +230,7 @@ impl Gui {
                 1, /* y */
                 WIDTH as u32,
                 HEIGHT as u32,
-                0, /* border width */
+                0,           /* border width */
                 black_pixel, /* border pixel */
                 white_pixel, /* background */
             );
@@ -237,9 +238,12 @@ impl Gui {
             let mut wm_delete_window = XInternAtom(display, WM_DELETE_WINDOW.as_ptr(), 0);
             XSetWMProtocols(display, window, &mut wm_delete_window, 1);
 
-            let event_mask = ExposureMask | KeyPressMask | ButtonPressMask | ButtonReleaseMask |
-                StructureNotifyMask |
-                FocusChangeMask;
+            let event_mask = ExposureMask
+                | KeyPressMask
+                | ButtonPressMask
+                | ButtonReleaseMask
+                | StructureNotifyMask
+                | FocusChangeMask;
             XSelectInput(display, window, event_mask);
             XMapWindow(display, window);
 
@@ -323,26 +327,9 @@ impl Gui {
             colors[7] = 0xffffff; // White.
 
             let prompt_colors: [u32; NUM_PROMPT_COLORS] = [
-                0xFF1313,
-                0xFF6C6C,
-                0xFF4242,
-                0xD40000,
-                0xA90000,
-                0xFF9C13,
-                0xFFC16C,
-                0xFFB042,
-                0xD47B00,
-                0xA96200,
-                0x1766A7,
-                0x5992C2,
-                0x3779B0,
-                0x094F89,
-                0x063E6D,
-                0x0FCD0F,
-                0x5DDC5D,
-                0x37D237,
-                0x00AA00,
-                0x008700,
+                0xFF1313, 0xFF6C6C, 0xFF4242, 0xD40000, 0xA90000, 0xFF9C13, 0xFFC16C, 0xFFB042,
+                0xD47B00, 0xA96200, 0x1766A7, 0x5992C2, 0x3779B0, 0x094F89, 0x063E6D, 0x0FCD0F,
+                0x5DDC5D, 0x37D237, 0x00AA00, 0x008700,
             ];
 
             let gui = Gui {
@@ -399,8 +386,8 @@ impl Gui {
                 }
             } else {
                 if XCheckTypedWindowEvent(self.display, self.window, ClientMessage, &mut e) != 0 {
-                    if e.client_message.message_type == self.wm_protocols &&
-                        e.client_message.data.get_long(0) as Atom == self.wm_delete_window
+                    if e.client_message.message_type == self.wm_protocols
+                        && e.client_message.data.get_long(0) as Atom == self.wm_delete_window
                     {
                         return Some(e);
                     }
@@ -466,14 +453,12 @@ impl Gui {
 
         // TODO: Cache colors
         // TODO: Configure default colors
-        let fg_color = cell.foreground_color().map_or(
-            0x000000,
-            |c| self.colors[c as usize],
-        );
-        let bg_color = cell.background_color().map_or(
-            0xffffff,
-            |c| self.colors[c as usize],
-        );
+        let fg_color = cell
+            .foreground_color()
+            .map_or(0x000000, |c| self.colors[c as usize]);
+        let bg_color = cell
+            .background_color()
+            .map_or(0xffffff, |c| self.colors[c as usize]);
 
         unsafe {
             XSetForeground(self.display, self.gc, bg_color as u64);
@@ -690,28 +675,27 @@ impl Gui {
                                     }
                                     None => {
                                         let maybe_letter = keysym;
-                                        if (('a' as c_ulong <= maybe_letter &&
-                                                 maybe_letter <= 'z' as c_ulong) ||
-                                                ('A' as c_ulong <= maybe_letter &&
-                                                     maybe_letter <= 'Z' as c_ulong)) &&
-                                            mod_state.not_only_shift()
+                                        if (('a' as c_ulong <= maybe_letter
+                                            && maybe_letter <= 'z' as c_ulong)
+                                            || ('A' as c_ulong <= maybe_letter
+                                                && maybe_letter <= 'Z' as c_ulong))
+                                            && mod_state.not_only_shift()
                                         {
                                             // A letter and not only shift was pressed. Might
                                             // be a control key we're interested in.
 
                                             // Normalize to lower case
-                                            let letter = if 'A' as c_ulong <= maybe_letter &&
-                                                maybe_letter <= 'Z' as c_ulong
+                                            let letter = if 'A' as c_ulong <= maybe_letter
+                                                && maybe_letter <= 'Z' as c_ulong
                                             {
                                                 maybe_letter + 32
                                             } else {
                                                 maybe_letter
                                             };
 
-                                            cmd = self.presenter.event_normal_key(
-                                                &mod_state,
-                                                letter as u8,
-                                            );
+                                            cmd = self
+                                                .presenter
+                                                .event_normal_key(&mod_state, letter as u8);
                                         }
                                     }
                                 }
@@ -739,15 +723,17 @@ impl Gui {
                             let mod_state = modifier_state_from_event(info.state);
                             match info.button {
                                 1 | 2 | 3 => {
-                                    if 0 <= info.y && info.y < self.window_height && 0 <= info.x &&
-                                        info.x < self.window_width
+                                    if 0 <= info.y
+                                        && info.y < self.window_height
+                                        && 0 <= info.x
+                                        && info.x < self.window_width
                                     {
-                                        if NeedRedraw::Yes ==
-                                            self.presenter.event_button_down(
+                                        if NeedRedraw::Yes
+                                            == self.presenter.event_button_down(
                                                 mod_state,
                                                 info.button as usize,
-                                                ((info.x - COLOR_SEAM_WIDTH) / self.font_width) as
-                                                    usize,
+                                                ((info.x - COLOR_SEAM_WIDTH) / self.font_width)
+                                                    as usize,
                                                 (info.y / self.line_height) as usize,
                                             )
                                         {
@@ -756,15 +742,14 @@ impl Gui {
                                     }
                                 }
                                 5 => {
-                                    if NeedRedraw::Yes ==
-                                        self.presenter.event_scroll_down(mod_state)
+                                    if NeedRedraw::Yes
+                                        == self.presenter.event_scroll_down(mod_state)
                                     {
                                         self.mark_redraw();
                                     }
                                 }
                                 4 => {
-                                    if NeedRedraw::Yes ==
-                                        self.presenter.event_scroll_up(mod_state)
+                                    if NeedRedraw::Yes == self.presenter.event_scroll_up(mod_state)
                                     {
                                         self.mark_redraw();
                                     }
@@ -777,15 +762,17 @@ impl Gui {
                             let mod_state = modifier_state_from_event(info.state);
                             match info.button {
                                 1 | 2 | 3 => {
-                                    if 0 <= info.y && info.y < self.window_height && 0 <= info.x &&
-                                        info.x < self.window_width
+                                    if 0 <= info.y
+                                        && info.y < self.window_height
+                                        && 0 <= info.x
+                                        && info.x < self.window_width
                                     {
-                                        if NeedRedraw::Yes ==
-                                            self.presenter.event_button_up(
+                                        if NeedRedraw::Yes
+                                            == self.presenter.event_button_up(
                                                 mod_state,
                                                 info.button as usize,
-                                                ((info.x - COLOR_SEAM_WIDTH) / self.font_width) as
-                                                    usize,
+                                                ((info.x - COLOR_SEAM_WIDTH) / self.font_width)
+                                                    as usize,
                                                 (info.y / self.line_height) as usize,
                                             )
                                         {

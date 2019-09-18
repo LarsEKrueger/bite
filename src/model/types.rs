@@ -92,7 +92,6 @@ pub struct Assignment {
     pub name: String,
     /// Value to be assigned
     pub value: String,
-
     // TODO: Assignment operation (assign or add)
 }
 
@@ -127,9 +126,9 @@ impl ParsedCommand {
     ) -> Self {
         if let Some(last_reaction) = last_reaction {
             logic.last_mut().map(|exp| {
-                exp.pipelines.last_mut().map(
-                    |pi| pi.set_reaction(last_reaction),
-                )
+                exp.pipelines
+                    .last_mut()
+                    .map(|pi| pi.set_reaction(last_reaction))
             });
         };
         ParsedCommand::CommandSequence(logic)
@@ -149,9 +148,9 @@ impl CommandLogic {
 
     //./ Set the reaction of the last CommandInfo.
     pub fn set_reaction(&mut self, reaction: CommandReaction) {
-        self.pipelines.last_mut().map(
-            |pi| pi.set_reaction(reaction),
-        );
+        self.pipelines
+            .last_mut()
+            .map(|pi| pi.set_reaction(reaction));
     }
 }
 
@@ -182,7 +181,6 @@ impl Command {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,44 +189,32 @@ mod tests {
     fn sequence() {
         assert_eq!(
             ParsedCommand::new_sequence(
-                vec![CommandLogic::new(
-                    vec![
-                    Pipeline::new(
-                        vec![
-                        Command::new(vec![String::from("ab")])
-                        ]),
-                    Pipeline::new(
-                        vec![
-                        Command::new( vec![String::from("bc")])
-                        ])
-                    ]
-                    )
-                ],
+                vec![CommandLogic::new(vec![
+                    Pipeline::new(vec![Command::new(vec![String::from("ab")])]),
+                    Pipeline::new(vec![Command::new(vec![String::from("bc")])])
+                ])],
                 Some(CommandReaction::Background)
-                ),
-            ParsedCommand::CommandSequence(
-                vec![CommandLogic {
-                    pipelines:vec![Pipeline {
-                        commands : vec![
-                            Command {
-                                words: vec![String::from("ab")],
-                                mode: PipelineMode::Nothing
-                            },
-                        ],
+            ),
+            ParsedCommand::CommandSequence(vec![CommandLogic {
+                pipelines: vec![
+                    Pipeline {
+                        commands: vec![Command {
+                            words: vec![String::from("ab")],
+                            mode: PipelineMode::Nothing
+                        },],
                         reaction: CommandReaction::Normal,
-                        invert : false
-                    }, Pipeline {
-                        commands : vec![
-                            Command {
-                                words: vec![String::from("bc")],
-                                mode: PipelineMode::Nothing
-                             },
-                        ],
+                        invert: false
+                    },
+                    Pipeline {
+                        commands: vec![Command {
+                            words: vec![String::from("bc")],
+                            mode: PipelineMode::Nothing
+                        },],
                         reaction: CommandReaction::Background,
-                        invert : false
+                        invert: false
                     }
-                    ],
-                }]),
+                ],
+            }]),
         );
     }
 }

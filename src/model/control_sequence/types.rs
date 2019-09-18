@@ -47,7 +47,6 @@
 /// holders shall not be used in advertising or otherwise to promote the
 /// sale, use or other dealings in this Software without prior written
 /// authorization.
-
 use std::cmp;
 use std::ops::{Add, Sub};
 

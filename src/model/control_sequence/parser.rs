@@ -18,18 +18,18 @@
 
 //! Terminal Control Sequences Parser
 
-
 use std::char;
 use std::mem;
 
-use super::vt_parse_table::*;
-use super::types::{ActionParameter, Case, CaseTable};
-use super::action::{Action, CharSet, StringMode, EraseDisplay, EraseLine, GraReg, GraOp,
-                    TitleModes, TabClear, SetMode, SetPrivateMode, MediaCopy, CharacterAttribute,
-                    Color, FKeys, PointerMode, Terminal, LoadLeds, CursorStyle,
-                    CharacterProtection, WindowOp, AttributeChangeExtent, LocatorReportEnable,
-                    LocatorReportUnit, LocatorEvents, VideoAttributes, TextParameter};
+use super::action::{
+    Action, AttributeChangeExtent, CharSet, CharacterAttribute, CharacterProtection, Color,
+    CursorStyle, EraseDisplay, EraseLine, FKeys, GraOp, GraReg, LoadLeds, LocatorEvents,
+    LocatorReportEnable, LocatorReportUnit, MediaCopy, PointerMode, SetMode, SetPrivateMode,
+    StringMode, TabClear, Terminal, TextParameter, TitleModes, VideoAttributes, WindowOp,
+};
 use super::parameter::Parameters;
+use super::types::{ActionParameter, Case, CaseTable};
+use super::vt_parse_table::*;
 
 /// Parser for control sequences
 #[allow(dead_code)]
@@ -69,22 +69,22 @@ pub struct Parser {
 
 // https://tools.ietf.org/html/rfc3629
 static UTF8_CHAR_WIDTH: [u8; 256] = [
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x1F
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x3F
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x5F
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 0x7F
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x9F
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xBF
-0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // 0xDF
-3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3, // 0xEF
-4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0, // 0xFF
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, // 0x1F
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, // 0x3F
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, // 0x5F
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, // 0x7F
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, // 0x9F
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, // 0xBF
+    0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, // 0xDF
+    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // 0xEF
+    4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0xFF
 ];
 
 /// Given a first byte, determines how many bytes are in this UTF-8 character.
@@ -129,85 +129,95 @@ mod action {
 
     macro_rules! action_reset {
         ($name:ident,$action:ident) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action { p.reset(); Action::$action }
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::$action
+            }
         };
         ($name:ident,$action:ident,zero) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.reset();
-                Action::$action( p.parameter.zero_if_default(0))
+                Action::$action(p.parameter.zero_if_default(0))
             }
         };
         ($name:ident,$action:ident,one) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.reset();
-                Action::$action( p.parameter.one_if_default(0))
+                Action::$action(p.parameter.one_if_default(0))
             }
         };
         ($name:ident,$action:ident,one_minus) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.reset();
-                Action::$action( p.parameter.one_if_default(0)-1)
+                Action::$action(p.parameter.one_if_default(0) - 1)
             }
         };
         ($name:ident,$action:ident,one_minus, one_minus) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.reset();
-                Action::$action( p.parameter.one_if_default(0)-1, p.parameter.one_if_default(1)-1)
+                Action::$action(
+                    p.parameter.one_if_default(0) - 1,
+                    p.parameter.one_if_default(1) - 1,
+                )
             }
         };
         ($name:ident,$action:ident,$const:tt) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.reset();
-                Action::$action( $const)
+                Action::$action($const)
             }
         };
         ($name:ident,$action:ident,$c1:tt,$c2:tt) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.reset();
-                Action::$action( $c1, $c2)
+                Action::$action($c1, $c2)
             }
         };
     }
 
     macro_rules! action_simple {
         ($i:ident,$a:ident) => {
-            pub fn $i(_p:&mut Parser, _byte: u8) -> Action { Action::$a }
-        }
+            pub fn $i(_p: &mut Parser, _byte: u8) -> Action {
+                Action::$a
+            }
+        };
     }
 
     macro_rules! action_expr {
         ($i:ident,$a:expr) => {
-            pub fn $i(_p:&mut Parser, _byte: u8) -> Action { $a }
-        }
+            pub fn $i(_p: &mut Parser, _byte: u8) -> Action {
+                $a
+            }
+        };
     }
 
     macro_rules! action_state {
         ($i:ident,$a:ident) => {
-            pub fn $i(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $i(p: &mut Parser, _byte: u8) -> Action {
                 p.parsestate = &$a;
                 Action::More
             }
-        }
+        };
     }
 
     macro_rules! action_string {
         ($i:ident,$a:ident) => {
-            pub fn $i(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $i(p: &mut Parser, _byte: u8) -> Action {
                 p.string_mode = StringMode::$a;
                 p.parsestate = &sos_table;
                 Action::More
             }
-        }
+        };
     }
 
     macro_rules! action_scs {
         ($name:ident,$table:ident, $const:tt) => {
-            pub fn $name(p:&mut Parser, _byte: u8) -> Action {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.scstype = $const;
                 p.parsestate = &$table;
                 Action::More
             }
-        }
+        };
     }
 
     macro_rules! action_switch_param {
@@ -418,10 +428,10 @@ mod action {
         1047 => UseAlternateScreen, 1048 => SaveCursor, 1049 => SaveCursorAndUseAlternateScreen,
         1050 => TerminfoFnMode, 1051 => SunFnMode, 1052 => HpFnMode, 1053 => ScoFnMode,
         1060 => LegacyKeyboard, 1061 => Vt220Keyboard, 2004 => BracketedPaste});
-    action_switch_param!(DECSET,SetPrivateMode,param_set_private_mode);
-    action_switch_param!(DECRESET,ResetPrivateMode,param_set_private_mode);
-    action_switch_param!(XTERM_RESTORE,RestorePrivateMode,param_set_private_mode);
-    action_switch_param!(XTERM_SAVE,SavePrivateMode,param_set_private_mode);
+    action_switch_param!(DECSET, SetPrivateMode, param_set_private_mode);
+    action_switch_param!(DECRESET, ResetPrivateMode, param_set_private_mode);
+    action_switch_param!(XTERM_RESTORE, RestorePrivateMode, param_set_private_mode);
+    action_switch_param!(XTERM_SAVE, SavePrivateMode, param_set_private_mode);
     action_switch_param!(MC,MediaCopy, [ 0 => PrintScreen, 4 => PrinterCtrlOff, 5 => PrinterCtrlOn,
                          10 => HtmlScreenDump, 11 => SvgScreenDump]);
     action_switch_param!(DECMC,MediaCopy, [ 1 => PrintCursorLine, 4 => AutoPrintOff,
@@ -484,9 +494,8 @@ impl Parser {
         // This should always be 8-bit characters.
         // TODO: Support utf-8 characters
         if self.parsestate as *const CaseTable == &sos_table as *const CaseTable {
-            self.string_area.push(unsafe {
-                char::from_u32_unchecked(byte as u32)
-            });
+            self.string_area
+                .push(unsafe { char::from_u32_unchecked(byte as u32) });
         } else if self.parsestate as *const CaseTable != &esc_table as *const CaseTable {
             /* if we were accumulating, we're not any more */
             self.string_mode = StringMode::None;
@@ -497,11 +506,11 @@ impl Parser {
         // reject any controls that do not accept subparameters.
         if self.parameter.has_subparams() {
             match self.nextstate {
-                Case::GROUND_STATE |
-                Case::CSI_IGNORE |
-                Case::ESC_DIGIT |
-                Case::ESC_SEMI |
-                Case::ESC_COLON => {
+                Case::GROUND_STATE
+                | Case::CSI_IGNORE
+                | Case::ESC_DIGIT
+                | Case::ESC_SEMI
+                | Case::ESC_COLON => {
                     // these states are required to parse parameter lists
                 }
 
@@ -509,16 +518,16 @@ impl Parser {
                     // ...possible subparam usage
                 }
 
-                Case::CSI_DEC_DOLLAR_STATE |
-                Case::CSI_DOLLAR_STATE |
-                Case::CSI_EX_STATE |
-                Case::CSI_QUOTE_STATE |
-                Case::CSI_SPACE_STATE |
-                Case::CSI_STAR_STATE |
-                Case::CSI_TICK_STATE |
-                Case::DEC2_STATE |
-                Case::DEC3_STATE |
-                Case::DEC_STATE => {
+                Case::CSI_DEC_DOLLAR_STATE
+                | Case::CSI_DOLLAR_STATE
+                | Case::CSI_EX_STATE
+                | Case::CSI_QUOTE_STATE
+                | Case::CSI_SPACE_STATE
+                | Case::CSI_STAR_STATE
+                | Case::CSI_TICK_STATE
+                | Case::DEC2_STATE
+                | Case::DEC3_STATE
+                | Case::DEC_STATE => {
                     // use this branch when we do not yet have the final character
                     // ...unexpected subparam usage
                     self.parameter.reset();
@@ -597,7 +606,6 @@ impl Parser {
         self.code_bytes = 0;
         self.parsestate = &ansi_table;
     }
-
 
     fn parse_osc(&mut self, mut s: String) -> Action {
         if s.len() >= 2 {
@@ -718,7 +726,8 @@ impl Parser {
                 }
             }
             _ => {
-                let attrs: Vec<CharacterAttribute> = self.parameters()
+                let attrs: Vec<CharacterAttribute> = self
+                    .parameters()
                     .filter_map(|attr| match attr {
                         0 => Some(CharacterAttribute::Normal),
                         1 => Some(CharacterAttribute::Bold),
@@ -873,23 +882,19 @@ impl Parser {
                 self.parameter.maybe(1),
                 self.parameter.maybe(2),
             )),
-            9 => {
-                match self.parameter.zero_if_default(1) {
-                    0 => Action::WindowOp(WindowOp::RestoreMaximized),
-                    1 => Action::WindowOp(WindowOp::MaximizeWindow),
-                    2 => Action::WindowOp(WindowOp::MaximizeVertically),
-                    3 => Action::WindowOp(WindowOp::MaximizeHorizontally),
-                    _ => Action::More,
-                }
-            }
-            10 => {
-                match self.parameter.zero_if_default(1) {
-                    0 => Action::WindowOp(WindowOp::UndoFullscreen),
-                    1 => Action::WindowOp(WindowOp::Fullscreen),
-                    2 => Action::WindowOp(WindowOp::ToggleFullscreen),
-                    _ => Action::More,
-                }
-            }
+            9 => match self.parameter.zero_if_default(1) {
+                0 => Action::WindowOp(WindowOp::RestoreMaximized),
+                1 => Action::WindowOp(WindowOp::MaximizeWindow),
+                2 => Action::WindowOp(WindowOp::MaximizeVertically),
+                3 => Action::WindowOp(WindowOp::MaximizeHorizontally),
+                _ => Action::More,
+            },
+            10 => match self.parameter.zero_if_default(1) {
+                0 => Action::WindowOp(WindowOp::UndoFullscreen),
+                1 => Action::WindowOp(WindowOp::Fullscreen),
+                2 => Action::WindowOp(WindowOp::ToggleFullscreen),
+                _ => Action::More,
+            },
             11 => Action::WindowOp(WindowOp::ReportWindowState),
             12 => Action::More,
             13 => {
@@ -917,22 +922,18 @@ impl Parser {
             19 => Action::WindowOp(WindowOp::ReportScreenSizeChar),
             20 => Action::WindowOp(WindowOp::ReportIconLabel),
             21 => Action::WindowOp(WindowOp::ReportWindowTitle),
-            22 => {
-                match self.parameter.zero_if_default(1) {
-                    0 => Action::WindowOp(WindowOp::PushIconAndWindowTitle),
-                    1 => Action::WindowOp(WindowOp::PushIconTitle),
-                    2 => Action::WindowOp(WindowOp::PushWindowTitle),
-                    _ => Action::More,
-                }
-            }
-            23 => {
-                match self.parameter.zero_if_default(1) {
-                    0 => Action::WindowOp(WindowOp::PopIconAndWindowTitle),
-                    1 => Action::WindowOp(WindowOp::PopIconTitle),
-                    2 => Action::WindowOp(WindowOp::PopWindowTitle),
-                    _ => Action::More,
-                }
-            }
+            22 => match self.parameter.zero_if_default(1) {
+                0 => Action::WindowOp(WindowOp::PushIconAndWindowTitle),
+                1 => Action::WindowOp(WindowOp::PushIconTitle),
+                2 => Action::WindowOp(WindowOp::PushWindowTitle),
+                _ => Action::More,
+            },
+            23 => match self.parameter.zero_if_default(1) {
+                0 => Action::WindowOp(WindowOp::PopIconAndWindowTitle),
+                1 => Action::WindowOp(WindowOp::PopIconTitle),
+                2 => Action::WindowOp(WindowOp::PopWindowTitle),
+                _ => Action::More,
+            },
             _ => Action::WindowOp(WindowOp::ResizeLines(p0)),
         }
     }
@@ -1464,11 +1465,10 @@ static dispatch_case: [CaseDispatch; Case::NUM_CASES as usize] = [
     Parser::action_DECSNLS,
 ];
 
-
 #[cfg(test)]
 mod test {
+    use super::super::types::{Point, Rectangle};
     use super::*;
-    use super::super::types::{Rectangle, Point};
 
     /// Helper function to map a string to the vector of actions that were returned after each byte
     fn emu(bytes: &[u8]) -> Vec<Action> {
@@ -1560,8 +1560,11 @@ mod test {
     macro_rules! rect {
         ($top:expr,$left:expr,$bottom:expr,$right:expr) => {
             Rectangle {
-                start : Point { x : $left, y : $top },
-                end : Point { x : $right, y :  $bottom }
+                start: Point { x: $left, y: $top },
+                end: Point {
+                    x: $right,
+                    y: $bottom,
+                },
             }
         };
     }
@@ -1602,9 +1605,7 @@ mod test {
         pt!("Hä".as_bytes(), c'H' m c'ä');
 
         assert_eq!(
-            emu2(
-                &["Hä".as_bytes(), b"\xC2l", "ä".as_bytes(), b"\xC2e\xFFe"],
-            ),
+            emu2(&["Hä".as_bytes(), b"\xC2l", "ä".as_bytes(), b"\xC2e\xFFe"],),
             [
                 c('H'),
                 m(),
@@ -1723,7 +1724,9 @@ mod test {
                         m(),
                         m(),
                         m(),
-                        Action::CharacterAttributes(vec![CharacterAttribute::Foreground(Color::Green)]),
+                        Action::CharacterAttributes(vec![CharacterAttribute::Foreground(
+                            Color::Green
+                        )]),
                     ]
                 );
                 assert_eq!(e.parameter.count(), (2));
@@ -1743,7 +1746,9 @@ mod test {
                         m(),
                         m(),
                         m(),
-                        Action::CharacterAttributes(vec![CharacterAttribute::Background(Color::Magenta)]),
+                        Action::CharacterAttributes(vec![CharacterAttribute::Background(
+                            Color::Magenta
+                        )]),
                     ]
                 );
                 assert_eq!(e.parameter.count(), (1));

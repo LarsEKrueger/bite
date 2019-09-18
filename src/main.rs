@@ -29,13 +29,13 @@
 
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 
 extern crate argparse;
+extern crate boolinator;
 extern crate libc;
 extern crate time;
 extern crate x11;
-extern crate boolinator;
 
 #[macro_use]
 extern crate cstr;
@@ -60,14 +60,14 @@ extern crate bitflags;
 extern crate log;
 extern crate flexi_logger;
 
-extern crate termios;
 extern crate term;
+extern crate termios;
 
 use std::panic::PanicInfo;
 
-pub mod tools;
 pub mod model;
 pub mod presenter;
+pub mod tools;
 pub mod view;
 
 use model::bash::{bash_add_input, bite_write_output};

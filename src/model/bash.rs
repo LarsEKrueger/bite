@@ -20,40 +20,40 @@
 //!
 //! Be aware that bash is full of global variables and must not be started more than once.
 
-use std::sync::{Arc, Mutex, Condvar, MutexGuard, PoisonError};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::os::unix::io::{RawFd, IntoRawFd, FromRawFd};
-use std::path::Path;
 use std::error::Error;
-use std::sync::mpsc::{Sender, Receiver, channel};
-use std::sync::Barrier;
-use std::thread::spawn;
-use std::process::ExitStatus;
-use std::fs::File;
 use std::ffi::CStr;
+use std::fs::File;
 use std::io::Write;
-use termios::*;
-use termios::os::target::*;
 use std::mem;
+use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
+use std::path::Path;
+use std::process::ExitStatus;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Barrier;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::thread::spawn;
+use termios::os::target::*;
+use termios::*;
 
-use nix::pty::{SessionId, posix_openpt, grantpt, unlockpt, ptsname};
-use nix::unistd::{dup, dup2, read, write, Pid, close};
-use nix::fcntl::{OFlag, open};
-use nix::sys::select::{FdSet, select};
-use nix::sys::time::{TimeVal, TimeValLike};
-use nix::sys::stat::Mode;
+use nix::fcntl::{open, OFlag};
+use nix::pty::{grantpt, posix_openpt, ptsname, unlockpt, SessionId};
+use nix::sys::select::{select, FdSet};
 use nix::sys::signal::{kill, Signal};
+use nix::sys::stat::Mode;
+use nix::sys::time::{TimeVal, TimeValLike};
+use nix::unistd::{close, dup, dup2, read, write, Pid};
 
-use libc::{c_uchar, c_char, c_int, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};
+use libc::{c_char, c_int, c_uchar, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
 /// Line buffer to parse from
-lazy_static!{
-static ref bite_input_buffer: Mutex<String> = Mutex::new(String::new());
+lazy_static! {
+    static ref bite_input_buffer: Mutex<String> = Mutex::new(String::new());
 }
 
 /// Condition variable to wait on if bite_input_buffer is empty
-lazy_static!{
-static ref bite_input_added: Condvar = Condvar::new();
+lazy_static! {
+    static ref bite_input_added: Condvar = Condvar::new();
 }
 
 /// Marker that bash is waiting for input
@@ -62,8 +62,9 @@ static bash_is_waiting: AtomicBool = AtomicBool::new(false);
 /// Check if bash is waiting for input
 pub fn is_bash_waiting() -> bool {
     unsafe {
-        bash_is_waiting.load(Ordering::SeqCst) && bash_out_blocked.load(Ordering::SeqCst) &&
-            bash_err_blocked.load(Ordering::SeqCst)
+        bash_is_waiting.load(Ordering::SeqCst)
+            && bash_out_blocked.load(Ordering::SeqCst)
+            && bash_err_blocked.load(Ordering::SeqCst)
     }
 }
 
@@ -110,9 +111,10 @@ pub extern "C" fn bite_set_exit_status(exit_status: c_int) {
     unsafe {
         if let Some(ref mut sender) = bash_sender {
             use std::os::unix::process::ExitStatusExt;
-            let _ = sender.lock().unwrap().send(BashOutput::Terminated(
-                ExitStatusExt::from_raw(exit_status),
-            ));
+            let _ = sender
+                .lock()
+                .unwrap()
+                .send(BashOutput::Terminated(ExitStatusExt::from_raw(exit_status)));
         }
     }
 }
@@ -132,9 +134,9 @@ pub extern "C" fn bite_getch() -> c_int {
 
 #[no_mangle]
 pub extern "C" fn bite_ungetch(ch: c_int) -> c_int {
-    let _ = bite_input_buffer.lock().map(|mut line| {
-        line.insert(0, (ch & 255) as u8 as char)
-    });
+    let _ = bite_input_buffer
+        .lock()
+        .map(|mut line| line.insert(0, (ch & 255) as u8 as char));
     ch
 }
 
@@ -173,16 +175,12 @@ struct PtsHandles {
 ///
 /// Returns: (master, slave)
 fn create_terminal(termios: Termios) -> Result<(RawFd, RawFd), String> {
-    let ptsm = posix_openpt(OFlag::O_RDWR | OFlag::O_EXCL | OFlag::O_NONBLOCK)
-        .map_err(as_description)?;
+    let ptsm =
+        posix_openpt(OFlag::O_RDWR | OFlag::O_EXCL | OFlag::O_NONBLOCK).map_err(as_description)?;
     grantpt(&ptsm).map_err(as_description)?;
     unlockpt(&ptsm).map_err(as_description)?;
     let sname = unsafe { ptsname(&ptsm).map_err(as_description) }?;
-    let sfd = open(
-        Path::new(&sname),
-        OFlag::O_RDWR,
-        Mode::empty(),
-    ).map_err(as_description)?;
+    let sfd = open(Path::new(&sname), OFlag::O_RDWR, Mode::empty()).map_err(as_description)?;
 
     let ptsm = ptsm.into_raw_fd();
     tcsetattr(sfd, TCSANOW, &termios).map_err(as_description)?;
@@ -249,7 +247,6 @@ fn default_termios() -> Termios {
 ///
 /// If this fails, we fail with an error message.
 fn create_terminals() -> Result<PtsHandles, String> {
-
     // Create an initial termios struct
     let mut termios = default_termios();
 
@@ -352,9 +349,9 @@ static mut pts_handles: Option<PtsHandles> = None;
 
 pub fn bite_write_output(line: &str) {
     unsafe {
-        pts_handles.as_ref().map(|h| {
-            h.bite_stdout.lock().map(|mut f| f.write(line.as_bytes()))
-        })
+        pts_handles
+            .as_ref()
+            .map(|h| h.bite_stdout.lock().map(|mut f| f.write(line.as_bytes())))
     };
 }
 
@@ -363,9 +360,9 @@ pub fn program_add_input(line: &str) {
     unsafe {
         pts_handles.as_ref().map(|h| {
             write(h.prg_stdin, line.as_bytes()).map_err(|e| {
-                h.bite_stdout.lock().map(|mut f| {
-                    write!(f, "write to {}: {}\n", h.prg_stdin, e.description())
-                })
+                h.bite_stdout
+                    .lock()
+                    .map(|mut f| write!(f, "write to {}: {}\n", h.prg_stdin, e.description()))
             })
         })
     };
@@ -441,8 +438,7 @@ fn read_data(
                 let _ = write!(
                     s,
                     "Read failed from handle {} (data_available={:?})\nExiting thread.\n",
-                    fd,
-                    data_available
+                    fd, data_available
                 );
                 bite_write_output(s.as_str());
                 // There was some serious error reading from bash, so drop everything and leave.

@@ -18,11 +18,11 @@
 
 //! Sub presenter for executing programs.
 
-use super::*;
-use model::interaction::{CurrentInteraction, CommandPosition};
-use std::str::from_utf8_unchecked;
-use model::bash::{bash_kill_last, is_bash_waiting};
 use super::tui::TuiExecuteCommandPresenter;
+use super::*;
+use model::bash::{bash_kill_last, is_bash_waiting};
+use model::interaction::{CommandPosition, CurrentInteraction};
+use std::str::from_utf8_unchecked;
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -133,9 +133,9 @@ impl SubPresenter for ExecuteCommandPresenter {
                     &mut self.current_interaction,
                     CurrentInteraction::new(Matrix::new()),
                 );
-                self.commons.session.archive_interaction(
-                    ci.prepare_archiving(),
-                );
+                self.commons
+                    .session
+                    .archive_interaction(ci.prepare_archiving());
 
                 if prompt != self.commons.session.current_conversation.prompt {
                     self.commons.session.new_conversation(prompt);
@@ -152,10 +152,10 @@ impl SubPresenter for ExecuteCommandPresenter {
             self.commons
                 .session
                 .line_iter()
-                .chain(self.current_interaction.line_iter(
-                    CommandPosition::CurrentInteraction,
-                    0,
-                ))
+                .chain(
+                    self.current_interaction
+                        .line_iter(CommandPosition::CurrentInteraction, 0),
+                )
                 .chain(self.commons.input_line_iter()),
         )
     }
@@ -228,7 +228,6 @@ impl SubPresenter for ExecuteCommandPresenter {
 
             _ => (self, PresenterCommand::Unknown),
         }
-
     }
 
     fn event_normal_key(
@@ -273,12 +272,12 @@ impl SubPresenter for ExecuteCommandPresenter {
             (Some(LineType::Command(_, pos, _)), 1) => {
                 if x < COMMAND_PREFIX_LEN {
                     match pos {
-                        CommandPosition::CurrentInteraction => Some(
-                            self.current_interaction
-                                .get_archive(),
-                        ),
+                        CommandPosition::CurrentInteraction => {
+                            Some(self.current_interaction.get_archive())
+                        }
                         p => self.commons_mut().session.find_interaction_from_command(p),
-                    }.map(|i| i.cycle_visibility());
+                    }
+                    .map(|i| i.cycle_visibility());
                     return (self, NeedRedraw::Yes);
                 }
             }

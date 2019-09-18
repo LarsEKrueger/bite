@@ -70,15 +70,17 @@ pub fn search(mode: HistorySearchMode, reverse: bool) -> HistorySearchCursor {
 
         (0..)
             .take_while(|&ind| !(*hist_list.offset(ind as isize)).is_null())
-            .filter(|&ind| {
-                mode.matches((*(*hist_list.offset(ind as isize))).line_as_str())
-            })
+            .filter(|&ind| mode.matches((*(*hist_list.offset(ind as isize))).line_as_str()))
             .collect()
     };
 
     let item_ind = if reverse {
         let l = matching_items.len();
-        if l == 0 { 0 } else { l - 1 }
+        if l == 0 {
+            0
+        } else {
+            l - 1
+        }
     } else {
         0
     };

@@ -23,15 +23,15 @@
 extern crate gcc;
 extern crate rustc_version;
 
-use std::io;
-use std::io::Write;
+use rustc_version::{version, Version};
 use std::env;
 use std::ffi::OsString;
 use std::fs;
+use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{self, Child, Command, Stdio};
 use std::str;
-use rustc_version::{version, Version};
 
 fn main() {
     // Check the rust version first
@@ -49,9 +49,9 @@ fn main() {
     }
 
     // Internal C code
-    gcc::Build::new().file("c_src/myCreateIC.c").compile(
-        "mystuff",
-    );
+    gcc::Build::new()
+        .file("c_src/myCreateIC.c")
+        .compile("mystuff");
 
     // Bash-as-a-library
 
@@ -60,18 +60,11 @@ fn main() {
         run(Command::new("git").args(&["submodule", "update", "--init"]));
 
         // Patch source
-        run(Command::new("git").args(
-            &[
-                "apply",
-                "c_src/bash.patch",
-                "--directory=c_src/bash",
-            ],
-        ));
+        run(Command::new("git").args(&["apply", "c_src/bash.patch", "--directory=c_src/bash"]));
     }
 
     // Build bash
     if let Some(_build) = try_build() {
-
         return;
     }
 
@@ -96,9 +89,8 @@ fn run(cmd: &mut Command) -> bool {
                 if !status.success() {
                     println!(
                         "command did not execute successfully: {:?}\n\
-                     expected success, got: {}",
-                        cmd,
-                        status
+                         expected success, got: {}",
+                        cmd, status
                     );
                 } else {
                     return true;
@@ -134,36 +126,30 @@ fn try_build() -> Option<PathBuf> {
 
     // Run configure if required
     if !build.clone().join("Makefile").exists() {
-        if !run(
-            Command::new("sh")
-                .current_dir(&build)
-                .env("CC", compiler.path())
-                .env("CFLAGS", &cflags)
-                .arg(src.join("configure"))
-                .args(
-                    &[
-                        "--build",
-                        &gnu_target(&host),
-                        "--host",
-                        &gnu_target(&target),
-                        &format!("--prefix={}", msys_compatible(&dst)),
-                        "--without-bash-malloc",
-                        "--disable-readline",
-                    ],
-                ),
-        )
+        if !run(Command::new("sh")
+            .current_dir(&build)
+            .env("CC", compiler.path())
+            .env("CFLAGS", &cflags)
+            .arg(src.join("configure"))
+            .args(&[
+                "--build",
+                &gnu_target(&host),
+                "--host",
+                &gnu_target(&target),
+                &format!("--prefix={}", msys_compatible(&dst)),
+                "--without-bash-malloc",
+                "--disable-readline",
+            ]))
         {
             return None;
         }
     }
 
-    if !run(
-        Command::new("make")
-            .current_dir(&build)
-            .arg("-j")
-            .arg(env::var("NUM_JOBS").unwrap())
-            .arg("libBash.a"),
-    )
+    if !run(Command::new("make")
+        .current_dir(&build)
+        .arg("-j")
+        .arg(env::var("NUM_JOBS").unwrap())
+        .arg("libBash.a"))
     {
         return None;
     }
@@ -175,7 +161,6 @@ fn try_build() -> Option<PathBuf> {
 }
 
 fn msys_compatible<P: AsRef<Path>>(path: P) -> String {
-
     let mut path = path.as_ref().to_string_lossy().into_owned();
     if !cfg!(windows) || Path::new(&path).is_relative() {
         return path;

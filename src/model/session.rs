@@ -78,18 +78,18 @@ impl Session {
             .iter()
             .zip(CommandPosition::archive_iter())
             .flat_map(|(c, pos)| c.line_iter(pos))
-            .chain(self.current_conversation.line_iter(
-                CommandPosition::CurrentConversation(0),
-            ))
+            .chain(
+                self.current_conversation
+                    .line_iter(CommandPosition::CurrentConversation(0)),
+            )
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::response::tests::check;
     use super::super::screen::Screen;
+    use super::*;
     use model::interaction::tests::test_add_output;
 
     fn new_test_session(prompt: &[u8]) -> Session {
