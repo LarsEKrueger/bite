@@ -70,7 +70,7 @@ impl TuiExecuteCommandPresenter {
         (self, b"")
     }
 
-    fn send_string(&self, send:&str) -> PresenterCommand {
+    fn send_string(&self, send: &str) -> PresenterCommand {
         program_add_input(send);
         PresenterCommand::Redraw
     }
@@ -219,11 +219,6 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         }
     }
 
-    /// Handle the event when the input string was changed.
-    fn event_update_line(self: Box<Self>) -> Box<SubPresenter> {
-        self
-    }
-
     /// Handle the event when the mouse was pushed and released at the same position.
     fn handle_click(
         mut self: Box<Self>,
@@ -234,5 +229,10 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         match (clicked_line_type(&mut *self, y), button) {
             _ => (self, NeedRedraw::No),
         }
+    }
+
+    fn event_text(self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+        self.send_string(s);
+        (self, PresenterCommand::Redraw)
     }
 }

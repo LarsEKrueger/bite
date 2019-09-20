@@ -705,11 +705,16 @@ impl Gui {
                                     if status == XLookupChars || status == XLookupBoth {
                                         // Insert text
                                         match unsafe { CStr::from_ptr(&buf[0]).to_str() } {
-                                            Ok(s) => self.presenter.event_text(s),
+                                            Ok(s) => match self.presenter.event_text(s) {
+                                                PresenterCommand::Unknown => {}
+                                                PresenterCommand::Redraw => {
+                                                    self.cursor_now(true);
+                                                    self.mark_redraw();
+                                                }
+                                                PresenterCommand::Exit => return,
+                                            },
                                             _ => {}
                                         }
-                                        self.cursor_now(true);
-                                        self.mark_redraw();
                                     }
                                 }
                                 PresenterCommand::Redraw => {

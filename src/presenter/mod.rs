@@ -130,8 +130,8 @@ trait SubPresenter {
         letter: u8,
     ) -> (Box<SubPresenter>, PresenterCommand);
 
-    /// Handle the event when the input string was changed.
-    fn event_update_line(self: Box<Self>) -> Box<SubPresenter>;
+    /// Handle input of normal text
+    fn event_text(self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand);
 
     /// Handle the event when the mouse was pushed and released at the same position.
     fn handle_click(
@@ -262,6 +262,14 @@ impl PresenterCommons {
                 LineItem::new(cells, LineType::Input, cursor_col, 0)
             })
     }
+
+    fn text_input_add_characters(&mut self, s: &str) {
+        let ref mut screen = self.text_input;
+        for c in s.chars() {
+            screen.insert_character();
+            screen.place_char(c);
+        }
+    }
 }
 
 impl Presenter {
@@ -293,14 +301,14 @@ impl Presenter {
         self.dm().commons_mut().as_mut()
     }
 
-    /// Call an event handler in the sub-presenter.
-    ///
-    /// Update the sub-presenter if it was changed.
-    fn dispatch<T: Fn(Box<SubPresenter>) -> Box<SubPresenter>>(&mut self, f: T) {
-        let sp = ::std::mem::replace(&mut self.0, None);
-        let new_sp = f(sp.unwrap());
-        self.0 = Some(new_sp);
-    }
+    // /// Call an event handler in the sub-presenter.
+    // ///
+    // /// Update the sub-presenter if it was changed.
+    // fn dispatch<T: Fn(Box<SubPresenter>) -> Box<SubPresenter>>(&mut self, f: T) {
+    //     let sp = ::std::mem::replace(&mut self.0, None);
+    //     let new_sp = f(sp.unwrap());
+    //     self.0 = Some(new_sp);
+    // }
 
     /// Call an event handler with an additional return value in the sub-presenter.
     ///
@@ -372,11 +380,6 @@ impl Presenter {
         }
     }
 
-    /// Dispatch the event when the input was changed.
-    fn event_update_line(&mut self) {
-        self.dispatch(|sp| sp.event_update_line());
-    }
-
     /// Handle the View event when the window size changes.
     pub fn event_window_resize(&mut self, width: usize, height: usize) {
         let commons = self.cm();
@@ -433,15 +436,11 @@ impl Presenter {
     /// Handle the event that some text was entered.
     ///
     /// TODO: Handle escape sequences
-    pub fn event_text(&mut self, s: &str) {
-        {
-            let ref mut screen = self.cm().text_input;
-            for c in s.chars() {
-                screen.insert_character();
-                screen.place_char(c);
-            }
-        }
-        self.event_update_line();
+    pub fn event_text(&mut self, s: &str) -> PresenterCommand {
+        self.dispatch_res(|sp| sp.event_text(s))
+        //       {
+        //       }
+        //       self.event_update_line();
     }
 
     /// Handle the event that a mouse button was pressed.

@@ -224,10 +224,28 @@ impl SubPresenter for HistoryPresenter {
         }
     }
 
+    fn event_normal_key(
+        self: Box<Self>,
+        _mod_state: &ModifierState,
+        _letter: u8,
+    ) -> (Box<SubPresenter>, PresenterCommand) {
+        (self, PresenterCommand::Unknown)
+    }
+
+    fn handle_click(
+        self: Box<Self>,
+        _button: usize,
+        _x: usize,
+        _y: usize,
+    ) -> (Box<SubPresenter>, NeedRedraw) {
+        (self, NeedRedraw::No)
+    }
+
     /// Handle changes to the input.
     ///
     /// If we are searching, update the search string and try to scroll as little as possible.
-    fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
+    fn event_text(mut self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+        self.commons_mut().text_input_add_characters(s);
         let prefix = String::from(self.commons.text_input.extract_text());
         let mut search = history::search(HistorySearchMode::Contained(prefix), false);
 
@@ -269,23 +287,6 @@ impl SubPresenter for HistoryPresenter {
         search.item_ind = ind_item;
         self.search = search;
         self.show_selection();
-        self
-    }
-
-    fn event_normal_key(
-        self: Box<Self>,
-        _mod_state: &ModifierState,
-        _letter: u8,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
-        (self, PresenterCommand::Unknown)
-    }
-
-    fn handle_click(
-        self: Box<Self>,
-        _button: usize,
-        _x: usize,
-        _y: usize,
-    ) -> (Box<SubPresenter>, NeedRedraw) {
-        (self, NeedRedraw::No)
+        (self, PresenterCommand::Redraw)
     }
 }

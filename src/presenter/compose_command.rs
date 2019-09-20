@@ -121,11 +121,6 @@ impl SubPresenter for ComposeCommandPresenter {
         )
     }
 
-    fn event_update_line(mut self: Box<Self>) -> Box<SubPresenter> {
-        self.to_last_line();
-        self
-    }
-
     /// Handle a click.
     ///
     /// If a command was clicked, cycle through the visibility of output and error.
@@ -313,5 +308,11 @@ impl SubPresenter for ComposeCommandPresenter {
             }
             _ => (self, PresenterCommand::Unknown),
         }
+    }
+
+    fn event_text(mut self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+        self.commons_mut().text_input_add_characters(s);
+        self.to_last_line();
+        (self, PresenterCommand::Redraw)
     }
 }

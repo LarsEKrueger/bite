@@ -258,10 +258,6 @@ impl SubPresenter for ExecuteCommandPresenter {
         (self, PresenterCommand::Unknown)
     }
 
-    fn event_update_line(self: Box<Self>) -> Box<SubPresenter> {
-        self
-    }
-
     fn handle_click(
         mut self: Box<Self>,
         button: usize,
@@ -286,5 +282,10 @@ impl SubPresenter for ExecuteCommandPresenter {
             }
         }
         return (self, NeedRedraw::No);
+    }
+
+    fn event_text(mut self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+        self.commons_mut().text_input_add_characters(s);
+        (self, PresenterCommand::Redraw)
     }
 }
