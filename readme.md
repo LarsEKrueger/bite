@@ -198,13 +198,6 @@ non-GUI program.
 * [X] 0.4 pipelines
 * [X] 0.5 use original bash source for foreground operations
 * [X] 0.6 use bash history
-    * [X] activate history presenter again, read history from bash
-    * [X] End history search mode on cursor left / right. Keep the selected line for edit.
-    * [X] End history search mode on Shift-Return. Keep the selected line for edit
-    * [X] Handle End/Home.
-    * [X] Bug: Backspace/Delete
-    * [X] Bug: errors of built-in commands
-    * [X] Bug: Click out/error selector during execution
 * [ ] 0.7 Foreground TUIs
     * [X] Handle colors in output, error, and prompt
     * [X] Check for minimal rust version in build.rs
@@ -214,21 +207,21 @@ non-GUI program.
     * [X] Allow multi-line input
     * [X] Display multi-line commands correctly
     * [X] Draw progress bar style line (terminated with \r) correctly
-    * [ ] Switch to TUI mode and back
+    * [X] Switch to TUI mode and back
         * [X] Add xterm state machine without characters >= 128
-        * [ ] Test screen module to match xterm functionality
-            * [ ] Implement test screen initialization
-            * [ ] Implement test for simple case
-            * [ ] Implement code generator and port simple case to it
-            * [ ] Extend code generator to test XTerm
-            * [ ] Add remaining test cases
-        * [ ] Add TUI detection
-        * [ ] Add TUI presenter
-    * [ ] Handle keys in TUI mode
+        * [X] Test screen module to match xterm functionality
+            * [X] Implement test screen initialization
+            * [X] Implement test for simple case
+            * [X] Add remaining test cases
+        * [X] Add TUI detection
+        * [X] Add TUI presenter
+    * [X] Handle keys in TUI mode
+    * [ ] Handle support for UsAscii and DecSpecial in DesignateCharacterSet
 * [ ] 0.8 Completion
 * [ ] 0.9 Tabs for background programs
 * [ ] 0.10 Tabs for TUIs (automatic backgrounding)
 * [ ] 0.11 Draw GUI using Xft
+* [ ] 0.12 Implement all Screen Actions
 * [ ] 1.0 Full bash integration
 * [ ] 1.3 Basic compose / inspect interface
 * [ ] 1.4 Configure fonts and colors
