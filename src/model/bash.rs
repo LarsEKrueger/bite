@@ -74,7 +74,6 @@ pub fn bash_add_input(text: &str) {
         .lock()
         .map(|mut line| {
             line.push_str(text);
-            info!("bash_add_input: {} remaining", line.len());
             Ok(())
         })
         .and_then(|_: Result<(), PoisonError<MutexGuard<String>>>| {
@@ -128,7 +127,6 @@ pub extern "C" fn bite_getch() -> c_int {
         line = bite_input_added.wait(line).unwrap();
     }
     bash_is_waiting.store(false, Ordering::SeqCst);
-    info!("bite_getch: {} remaining", line.len());
     line.remove(0) as c_int
 }
 

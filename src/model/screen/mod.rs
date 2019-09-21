@@ -95,6 +95,14 @@ impl Cell {
         }
     }
 
+    pub fn with_attr(colors: Colors, attributes: Attributes) -> Self {
+        Self {
+            code_point: ' ',
+            attributes,
+            colors,
+        }
+    }
+
     pub fn foreground_color(&self) -> Option<u8> {
         if self.attributes.contains(Attributes::FG_COLOR) {
             Some(self.colors.foreground)
@@ -146,7 +154,7 @@ impl PartialEq for Cell {
 
 /// Attributes as bitflags
 bitflags! {
-    struct Attributes: u16 {
+    pub struct Attributes: u16 {
         const INVERSE       = 0b0000000000001;
         const UNDERLINE     = 0b0000000000010;
         const BOLD          = 0b0000000000100;
@@ -255,12 +263,25 @@ impl Matrix {
         &self.cells[row_start..row_end]
     }
 
+    pub fn row_slice(&self, row: isize) -> &[Cell] {
+        let row_start = self.cell_index(0, row);
+        let row_end = self.cell_index(self.width - 1, row);
+        let row_start = row_start as usize;
+        let row_end = row_end as usize;
+
+        &self.cells[row_start..row_end]
+    }
+
     pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
         self.compacted_row_slice(row).to_vec()
     }
 
     pub fn line_iter(&self) -> impl Iterator<Item = &[Cell]> {
         (0..self.height).map(move |r| self.compacted_row_slice(r))
+    }
+
+    pub fn line_iter_full(&self) -> impl Iterator<Item = &[Cell]> {
+        (0..self.height).map(move |r| self.row_slice(r))
     }
 
     pub fn reset(&mut self) {
@@ -456,6 +477,9 @@ impl Screen {
         self.matrix.line_iter()
     }
 
+    pub fn line_iter_full(&self) -> impl Iterator<Item = &[Cell]> {
+        self.matrix.line_iter_full()
+    }
     /// Check if the cursor is at the end of the line
     pub fn cursor_at_end_of_line(&self) -> bool {
         if 0 <= self.cursor.y && self.cursor.y < self.height() {
@@ -536,6 +560,15 @@ impl Screen {
             if self.cursor.x == self.width() {
                 self.new_line();
             }
+        }
+    }
+
+    /// Return a new cell with current colors and attributes
+    fn clone_cell(&self, c: char) -> Cell {
+        Cell {
+            code_point: c,
+            colors: self.colors,
+            attributes: self.attributes,
         }
     }
 
@@ -705,7 +738,7 @@ impl Screen {
         }
     }
 
-    fn make_room_for(&mut self, x: isize, y: isize) -> (isize, isize) {
+    pub fn make_room_for(&mut self, x: isize, y: isize) -> (isize, isize) {
         if x < 0 || x >= self.width() || y < 0 || y >= self.height() {
             // Compute the new size and allocate
             let add_left = -cmp::min(x, 0);
@@ -1248,6 +1281,8 @@ impl Screen {
                     cell.attributes = self.attributes;
                     cell.attributes.insert(Attributes::CHARDRAWN);
                     self.fill_rect(rect,cell);
+                } else {
+                    warn!("FillArea called for non-ascii character {}", c as u32);
                 }
                 Event::Ignore
             }
@@ -1287,8 +1322,8 @@ impl Screen {
             Action::EraseArea(rect, _) => {
                 // TODO: handle protection
                 let rect = rect.clipped(&self.matrix.rectangle());
-                let c =self.colors;
-                self.fill_rect(rect,Cell::new(c));
+                let c = self.clone_cell(' ');
+                self.fill_rect(rect,c);
                 Event::Ignore
             }
             Action::RepeatCharacter(n) => {
@@ -1308,7 +1343,7 @@ impl Screen {
                 };
                 let c = self.cursor;
                 let row_index = self.matrix.cell_index(c.x, c.y);
-                let cell = Cell::new(self.colors);
+                let cell = self.clone_cell(' ');
                 for offset in 0 .. n {
                     self.matrix.cells[(row_index+offset) as usize] = cell;
                 }
@@ -1324,7 +1359,8 @@ impl Screen {
                     EraseDisplay::All | EraseDisplay::Saved => (0, self.height()),
                 };
                 let width = self.width() as usize;
-                let cell = Cell::new( self.colors);
+                let cell = self.clone_cell(' ');
+                trace!("EraseDisplay with {:?}", cell);
                 for row in start_row .. end_row {
                     let row_index = self.matrix.cell_index(0,row) as usize;
                     for col in 0 .. width {
@@ -1338,7 +1374,7 @@ impl Screen {
                 self.make_room();
                 let c=self.cursor;
                 let width = self.width() as usize;
-                let cell = Cell::new( self.colors);
+                let cell = self.clone_cell(' ');
                 let (start_col, end_col) = match what {
                     EraseLine::Left => (0,(c.x+1) as usize),
                     EraseLine::Right => (c.x as usize, width),
@@ -1408,6 +1444,7 @@ impl Screen {
             }
             Action::DesignateCharacterSet(_level, _charset) => {
                 // TODO: At least handle UsAscii and DecSpecial
+                warn!("DesignateCharacterSet not implemented");
 
                 Event::Ignore
             }
@@ -1420,6 +1457,7 @@ impl Screen {
             Action::SetPrivateMode(_) |
             Action::ResetPrivateMode(_) |
             Action::WindowOp(_) => {
+                warn!("StartTui Actions not fully implemented");
                     Event::StartTui
                 }
 

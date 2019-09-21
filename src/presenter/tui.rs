@@ -24,6 +24,7 @@
 use super::*;
 use model::bash::{is_bash_waiting, program_add_input};
 use model::interaction::CurrentInteraction;
+use std::cmp;
 
 /// Presenter to run commands and send input to their stdin.
 pub struct TuiExecuteCommandPresenter {
@@ -45,10 +46,15 @@ impl TuiExecuteCommandPresenter {
         commons: Box<PresenterCommons>,
         current_interaction: CurrentInteraction,
     ) -> Box<Self> {
-        info!("TuiExecuteCommandPresenter::new");
+        let mut s = Screen::new();
+        s.make_room_for(
+            (cmp::max(commons.window_width, 1) - 1) as isize,
+            (cmp::max(commons.window_height, 1) - 1) as isize,
+        );
+        s.fixed_size();
         let presenter = TuiExecuteCommandPresenter {
             commons,
-            screen: Screen::new(),
+            screen: s,
             current_interaction,
             next_prompt: None,
         };
@@ -78,10 +84,8 @@ impl TuiExecuteCommandPresenter {
     fn send_term_info(&self, cap_name: &str) -> PresenterCommand {
         if let Some(cap_str) = self.commons.term_info.strings.get(cap_name) {
             program_add_input(&String::from_utf8_lossy(cap_str));
-            info!("send_term_info('{}') -> ok ({:?})", cap_name, cap_str);
             PresenterCommand::Redraw
         } else {
-            info!("send_term_info('{}') -> failed", cap_name);
             PresenterCommand::Unknown
         }
     }
@@ -153,7 +157,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
         let ref s = self.screen;
-        Box::new(s.line_iter().zip(0..).map(move |(line, nr)| {
+        Box::new(s.line_iter_full().zip(0..).map(move |(line, nr)| {
             let cursor_x = if s.cursor_y() == nr {
                 Some(s.cursor_x() as usize)
             } else {
@@ -169,10 +173,6 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> (Box<SubPresenter>, PresenterCommand) {
-        info!(
-            "TuiExecuteCommandPresenter::event_special_key( {:?}, {:?})",
-            mod_state, key
-        );
         let cmd = match (mod_state.as_tuple(), key) {
             ((_, _, _), SpecialKey::Escape) => {
                 program_add_input("\x1b");
@@ -210,10 +210,6 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<SubPresenter>, PresenterCommand) {
-        info!(
-            "TuiExecuteCommandPresenter::event_normal_key( {:?}, {:?})",
-            mod_state, letter
-        );
         match (mod_state.as_tuple(), letter) {
             _ => (self, PresenterCommand::Unknown),
         }
