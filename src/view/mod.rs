@@ -467,9 +467,9 @@ impl Gui {
                 self.window,
                 self.gc,
                 x,
-                y + LINE_PADDING,
+                y,
                 self.font_width as u32,
-                self.font_height as u32,
+                self.line_height as u32,
             );
 
             XSetForeground(self.display, self.gc, fg_color as u64);
@@ -669,9 +669,7 @@ impl Gui {
                             if status == XLookupKeySym || status == XLookupBoth {
                                 match KEYSYM2KEY.get(&keysym) {
                                     Some(key) => {
-                                        trace!("before event_special_key");
                                         cmd = self.presenter.event_special_key(&mod_state, key);
-                                        trace!("after event_special_key: {:?}", cmd);
                                     }
                                     None => {
                                         let maybe_letter = keysym;
