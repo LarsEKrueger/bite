@@ -73,11 +73,6 @@
 
 use super::types::{Case, CaseTable};
 
-/*
- * Stupid Apollo C preprocessor can't handle long lines.  So... To keep
- * it happy, we put each onto a separate line....  Sigh...
- */
-
 pub static ansi_table: CaseTable = [
     /*	NUL		SOH		STX		ETX	*/
     Case::IGNORE,

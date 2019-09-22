@@ -78,8 +78,7 @@ pub enum Action {
 
     DecAlignmentTest,
 
-    /// Charset(level,CharSet)
-    DesignateCharacterSet(u8, CharSet),
+    DesignateCharacterSet(ScsType, CharSet),
 
     DecBackIndex,
     DecForwardIndex,
@@ -116,12 +115,10 @@ pub enum Action {
     LockMemory(bool),
 
     /// (level, is_gr)
-    /// level = 1 -> G1
     /// is_gr = true -> invoke as GR
-    InvokeCharSet(u8, bool),
+    InvokeCharSet(ScsType, bool),
 
-    /// level = 1 -> G1
-    SingleShift(u8),
+    SingleShift(ScsType),
 
     StartOfString(String),
     PrivacyMessage(String),
@@ -283,17 +280,30 @@ pub enum Action {
     PopVideoAttributes,
 }
 
+/// SCS type
+#[derive(PartialEq, Debug, Clone)]
+pub enum ScsType {
+    G0 = 0,
+    G1,
+    G2,
+    G3,
+    NUM,
+}
+
 /// Character set
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum CharSet {
-    DefaultSet,
-    Utf8,
+    /// ASCII characters (<128)
+    UsAscii = 0,
     DecSpecial,
+    /// ASCII characters + box drawing (<128)
     DecSupplemental,
+    /// ASCII characters + box drawing (<128)
     DecSupplementalGraphics,
+    /// Dec Technical
     DecTechnical,
-    Uk,
-    UsAscii,
+    /// extended Latin (ISO 8859-1) characters (>=128)
+    Latin1,
     Dutch,
     Finnish,
     Finnish2,
@@ -311,6 +321,7 @@ pub enum CharSet {
     Swedish,
     Swedish2,
     Swiss,
+    NUM,
 }
 
 #[derive(Debug, PartialEq)]
@@ -616,25 +627,25 @@ pub type ScrollRegion = Option<(ActionParameter, ActionParameter)>;
 
 bitflags! {
     pub struct LocatorEvents: u8 {
-        const HostRequest  = 0b0001;
-        const ButtonDown  = 0b0010;
-        const ButtonUp = 0b0100;
+        const HostRequest   = 0b0001;
+        const ButtonDown    = 0b0010;
+        const ButtonUp      = 0b0100;
     }
 }
 
 bitflags! {
     pub struct VideoAttributes: u16 {
-        const Bold          = 0b00000000001;
-        const Faint         = 0b00000000001;
-        const Italicized            = 0b00000000001;
-        const Underlined            = 0b00000000001;
-        const Blink         = 0b00000000001;
-        const Inverse           = 0b00000000001;
-        const Invisible         = 0b00000000001;
-        const CrossedOut            = 0b00000000001;
-        const DoublyUnderlined          = 0b00000000001;
-        const Foreground          = 0b00000000001;
-        const Background          = 0b00000000001;
+        const Bold              = 0b00000000001;
+        const Faint             = 0b00000000010;
+        const Italicized        = 0b00000000100;
+        const Underlined        = 0b00000001000;
+        const Blink             = 0b00000010000;
+        const Inverse           = 0b00000100000;
+        const Invisible         = 0b00001000000;
+        const CrossedOut        = 0b00010000000;
+        const DoublyUnderlined  = 0b00100000000;
+        const Foreground        = 0b01000000000;
+        const Background        = 0b10000000000;
     }
 }
 

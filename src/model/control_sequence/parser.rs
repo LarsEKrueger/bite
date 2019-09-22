@@ -24,8 +24,9 @@ use std::mem;
 use super::action::{
     Action, AttributeChangeExtent, CharSet, CharacterAttribute, CharacterProtection, Color,
     CursorStyle, EraseDisplay, EraseLine, FKeys, GraOp, GraReg, LoadLeds, LocatorEvents,
-    LocatorReportEnable, LocatorReportUnit, MediaCopy, PointerMode, SetMode, SetPrivateMode,
-    StringMode, TabClear, Terminal, TextParameter, TitleModes, VideoAttributes, WindowOp,
+    LocatorReportEnable, LocatorReportUnit, MediaCopy, PointerMode, ScsType, SetMode,
+    SetPrivateMode, StringMode, TabClear, Terminal, TextParameter, TitleModes, VideoAttributes,
+    WindowOp,
 };
 use super::parameter::Parameters;
 use super::types::{ActionParameter, Case, CaseTable};
@@ -54,7 +55,7 @@ pub struct Parser {
     lastchar: i32,
     nextstate: Case,
 
-    scstype: u8,
+    scstype: ScsType,
 
     print_area: String,
 
@@ -161,10 +162,22 @@ mod action {
                 )
             }
         };
+        ($name:ident,SingleShift,$const:tt) => {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::SingleShift(ScsType::$const)
+            }
+        };
         ($name:ident,$action:ident,$const:tt) => {
             pub fn $name(p: &mut Parser, _byte: u8) -> Action {
                 p.reset();
                 Action::$action($const)
+            }
+        };
+        ($name:ident,InvokeCharSet,$c1:tt,$c2:tt) => {
+            pub fn $name(p: &mut Parser, _byte: u8) -> Action {
+                p.reset();
+                Action::InvokeCharSet(ScsType::$c1, $c2)
             }
         };
         ($name:ident,$action:ident,$c1:tt,$c2:tt) => {
@@ -213,7 +226,7 @@ mod action {
     macro_rules! action_scs {
         ($name:ident,$table:ident, $const:tt) => {
             pub fn $name(p: &mut Parser, _byte: u8) -> Action {
-                p.scstype = $const;
+                p.scstype = ScsType::$const;
                 p.parsestate = &$table;
                 Action::More
             }
@@ -291,8 +304,8 @@ mod action {
     action_simple!(BS, Backspace);
     action_simple!(TAB, Tabulator);
 
-    action_expr!(SI, Action::InvokeCharSet(1, false));
-    action_expr!(SO, Action::InvokeCharSet(0, false));
+    action_expr!(SI, Action::InvokeCharSet(ScsType::G1, false));
+    action_expr!(SO, Action::InvokeCharSet(ScsType::G0, false));
 
     action_reset!(Illegal, More);
     action_reset!(ANSI_LEVEL_1, AnsiConformanceLevel, 1);
@@ -323,11 +336,11 @@ mod action {
     action_reset!(HP_MEM_LOCK, LockMemory, true);
     action_reset!(HP_MEM_UNLOCK, LockMemory, false);
     action_reset!(ICH, InsertCharacters, one);
-    action_reset!(LS1R, InvokeCharSet, 1, true);
-    action_reset!(LS2, InvokeCharSet, 2, false);
-    action_reset!(LS2R, InvokeCharSet, 2, true);
-    action_reset!(LS3, InvokeCharSet, 3, false);
-    action_reset!(LS3R, InvokeCharSet, 3, true);
+    action_reset!(LS1R, InvokeCharSet, G1, true);
+    action_reset!(LS2, InvokeCharSet, G2, false);
+    action_reset!(LS2R, InvokeCharSet, G2, true);
+    action_reset!(LS3, InvokeCharSet, G3, false);
+    action_reset!(LS3R, InvokeCharSet, G3, true);
     action_reset!(RIS, FullReset);
     action_reset!(S7C1T, Show8BitControl, false);
     action_reset!(S8C1T, Show8BitControl, true);
@@ -349,8 +362,8 @@ mod action {
     action_reset!(NEL, NextLine);
     action_reset!(HTS, TabSet);
     action_reset!(RI, ReverseIndex);
-    action_reset!(SS2, SingleShift, 2);
-    action_reset!(SS3, SingleShift, 3);
+    action_reset!(SS2, SingleShift, G2);
+    action_reset!(SS3, SingleShift, G3);
     action_reset!(SPA, StartGuardedArea);
     action_reset!(EPA, EndGuardedArea);
     action_reset!(DECID, DA1, 0);
@@ -362,13 +375,13 @@ mod action {
     action_reset!(SL, ScrollLeft, one);
     action_reset!(SR, ScrollRight, one);
 
-    action_scs!(SCS0_STATE, scstable, 0);
-    action_scs!(SCS1A_STATE, scs96table, 1);
-    action_scs!(SCS1_STATE, scstable, 1);
-    action_scs!(SCS2A_STATE, scs96table, 2);
-    action_scs!(SCS2_STATE, scstable, 2);
-    action_scs!(SCS3A_STATE, scs96table, 3);
-    action_scs!(SCS3_STATE, scstable, 3);
+    action_scs!(SCS0_STATE, scstable, G0);
+    action_scs!(SCS1A_STATE, scs96table, G1);
+    action_scs!(SCS1_STATE, scstable, G1);
+    action_scs!(SCS2A_STATE, scs96table, G2);
+    action_scs!(SCS2_STATE, scstable, G2);
+    action_scs!(SCS3A_STATE, scs96table, G3);
+    action_scs!(SCS3_STATE, scstable, G3);
 
     action_state!(CSI_DOLLAR_STATE, csi_dollar_table);
     action_state!(CSI_IGNORE, cigtable);
@@ -470,7 +483,7 @@ impl Parser {
             nextstate: Case::Illegal,
             print_area: String::new(),
 
-            scstype: 0,
+            scstype: ScsType::G0,
 
             string_mode: StringMode::None,
             string_area: String::new(),
@@ -806,37 +819,35 @@ impl Parser {
     }
     fn action_GSETS(&mut self, byte: u8) -> Action {
         let cs = match byte {
-            b'B' => CharSet::UsAscii,
-            b'A' => CharSet::Uk,
-            b'0' => CharSet::DecSpecial,
-            b'1' => CharSet::DecSupplemental,
-            b'2' => CharSet::DecSupplementalGraphics,
-            b'<' => CharSet::DecSupplemental,
-            b'4' => CharSet::Dutch,
-            b'5' => CharSet::Finnish,
-            b'C' => CharSet::Finnish2,
-            b'R' => CharSet::French,
-            b'f' => CharSet::French2,
-            b'Q' => CharSet::FrenchCanadian,
-            b'K' => CharSet::German,
-            b'Y' => CharSet::Italian,
-            b'E' => CharSet::Norwegian2,
-            b'6' => CharSet::Norwegian3,
-            b'Z' => CharSet::Spanish,
-            b'7' => CharSet::Swedish,
-            b'H' => CharSet::Swedish2,
-            b'=' => CharSet::Swiss,
-            b'>' => CharSet::DecTechnical,
-            b'9' => CharSet::FrenchCanadian2,
-            b'`' => CharSet::Norwegian,
-            _ => CharSet::DefaultSet,
+            b'B' => Some(CharSet::UsAscii),
+            b'A' => Some(CharSet::Latin1),
+            b'0' => Some(CharSet::DecSpecial),
+            b'1' => Some(CharSet::DecSupplemental),
+            b'2' => Some(CharSet::DecSupplementalGraphics),
+            b'<' => Some(CharSet::DecSupplemental),
+            b'4' => Some(CharSet::Dutch),
+            b'5' => Some(CharSet::Finnish),
+            b'C' => Some(CharSet::Finnish2),
+            b'R' => Some(CharSet::French),
+            b'f' => Some(CharSet::French2),
+            b'Q' => Some(CharSet::FrenchCanadian),
+            b'K' => Some(CharSet::German),
+            b'Y' => Some(CharSet::Italian),
+            b'E' => Some(CharSet::Norwegian2),
+            b'6' => Some(CharSet::Norwegian3),
+            b'Z' => Some(CharSet::Spanish),
+            b'7' => Some(CharSet::Swedish),
+            b'H' => Some(CharSet::Swedish2),
+            b'=' => Some(CharSet::Swiss),
+            b'>' => Some(CharSet::DecTechnical),
+            b'9' => Some(CharSet::FrenchCanadian2),
+            b'`' => Some(CharSet::Norwegian),
+            _ => None,
         };
         self.reset();
-        if cs != CharSet::DefaultSet {
-            Action::DesignateCharacterSet(self.scstype, cs)
-        } else {
-            Action::More
-        }
+        cs.map_or(Action::More, |cs| {
+            Action::DesignateCharacterSet(self.scstype.clone(), cs)
+        })
     }
     fn action_ANSI_SC(&mut self, _byte: u8) -> Action {
         self.reset();
@@ -990,8 +1001,8 @@ impl Parser {
     fn action_UTF8(&mut self, byte: u8) -> Action {
         self.reset();
         match byte {
-            b'@' => Action::DesignateCharacterSet(0, CharSet::DefaultSet),
-            b'G' => Action::DesignateCharacterSet(0, CharSet::Utf8),
+            b'@' => Action::More,// DesignateCharacterSet(ScsType::G0, CharSet::UsAscii),
+            b'G' => Action::More,// DesignateCharacterSet(ScsType::G0, CharSet::Utf8),
             _ => Action::More,
         }
     }
@@ -1209,16 +1220,14 @@ impl Parser {
     }
     fn action_GSETS_PERCENT(&mut self, byte: u8) -> Action {
         let cs = match byte {
-            b'5' => CharSet::DecSupplementalGraphics,
-            b'6' => CharSet::Portugese,
-            _ => CharSet::DefaultSet,
+            b'5' => Some(CharSet::DecSupplementalGraphics),
+            b'6' => Some(CharSet::Portugese),
+            _ => None,
         };
         self.reset();
-        if cs != CharSet::DefaultSet {
-            Action::DesignateCharacterSet(self.scstype, cs)
-        } else {
-            Action::More
-        }
+        cs.map_or(Action::More, |cs| {
+            Action::DesignateCharacterSet(self.scstype.clone(), cs)
+        })
     }
     fn action_GRAPHICS_ATTRIBUTES(&mut self, _byte: u8) -> Action {
         let register = match self.parameter.zero_if_default(0) {
@@ -1522,7 +1531,7 @@ mod test {
         };
         (@accu $str:tt, (DCS $n:tt $i:ident $($rest:tt)*) -> ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) ->
-                ($($body)* Action::DesignateCharacterSet($n,CharSet::$i),))
+                ($($body)* Action::DesignateCharacterSet(ScsType::$n,CharSet::$i),))
         };
         (@accu $str:tt, ($i:ident ($v1:expr ) $($rest:tt)*) -> ($($body:tt)*)) => {
             pt!(@accu $str, ($($rest)*) -> ($($body)* Action::$i($v1),));
@@ -1632,72 +1641,72 @@ mod test {
 
     #[test]
     fn character_sets() {
-        pt!(b"\x1b(f", m m DCS 0 French2);
+        pt!(b"\x1b(f", m m DCS G0 French2);
 
         pt!(b"\x1b(0 \x1b(< \x1b(%5 \x1b(> \x1b(A \x1b(B \x1b(4 \x1b(C \x1b(5 \x1b(R \
             \x1b(f \x1b(Q \x1b(9 \x1b(K \x1b(Y \x1b(` \x1b(E \x1b(6 \x1b(%6 \x1b(Z \
             \x1b(H \x1b(7 \x1b(=",
-            m m DCS 0 DecSpecial s m m DCS 0 DecSupplemental s m m m DCS 0 DecSupplementalGraphics
-            s m m DCS 0 DecTechnical s m m DCS 0 Uk s m m DCS 0 UsAscii s m m DCS 0 Dutch s m m DCS
-            0 Finnish2 s m m DCS 0 Finnish s m m DCS 0 French s m m DCS 0 French2 s m m DCS 0
-            FrenchCanadian s m m DCS 0 FrenchCanadian2 s m m DCS 0 German s m m DCS 0 Italian s m m
-            DCS 0 Norwegian s m m DCS 0 Norwegian2 s m m DCS 0 Norwegian3 s m m m DCS 0 Portugese s
-            m m DCS 0 Spanish s m m DCS 0 Swedish2 s m m DCS 0 Swedish s m m DCS 0 Swiss);
+            m m DCS G0 DecSpecial s m m DCS G0 DecSupplemental s m m m DCS G0 DecSupplementalGraphics
+            s m m DCS G0 DecTechnical s m m DCS G0 Latin1 s m m DCS G0 UsAscii s m m DCS G0 Dutch s m m DCS
+            G0 Finnish2 s m m DCS G0 Finnish s m m DCS G0 French s m m DCS G0 French2 s m m DCS G0
+            FrenchCanadian s m m DCS G0 FrenchCanadian2 s m m DCS G0 German s m m DCS G0 Italian s m m
+            DCS G0 Norwegian s m m DCS G0 Norwegian2 s m m DCS G0 Norwegian3 s m m m DCS G0 Portugese s
+            m m DCS G0 Spanish s m m DCS G0 Swedish2 s m m DCS G0 Swedish s m m DCS G0 Swiss);
 
         pt!( b"\x1b)0 \x1b)< \x1b)%5 \x1b)> \x1b)A \x1b)B \x1b)4 \x1b)C \x1b)5 \x1b)R \
             \x1b)f \x1b)Q \x1b)9 \x1b)K \x1b)Y \x1b)` \x1b)E \x1b)6 \x1b)%6 \x1b)Z \
             \x1b)H \x1b)7 \x1b)=",
-            m m DCS 1 DecSpecial s m m DCS 1 DecSupplemental s m m m DCS 1 DecSupplementalGraphics
-            s m m DCS 1 DecTechnical s m m DCS 1 Uk s m m DCS 1 UsAscii s m m DCS 1 Dutch s m m DCS
-            1 Finnish2 s m m DCS 1 Finnish s m m DCS 1 French s m m DCS 1 French2 s m m DCS 1
-            FrenchCanadian s m m DCS 1 FrenchCanadian2 s m m DCS 1 German s m m DCS 1 Italian s m m
-            DCS 1 Norwegian s m m DCS 1 Norwegian2 s m m DCS 1 Norwegian3 s m m m DCS 1 Portugese s
-            m m DCS 1 Spanish s m m DCS 1 Swedish2 s m m DCS 1 Swedish s m m DCS 1 Swiss);
+            m m DCS G1 DecSpecial s m m DCS G1 DecSupplemental s m m m DCS G1 DecSupplementalGraphics
+            s m m DCS G1 DecTechnical s m m DCS G1 Latin1 s m m DCS G1 UsAscii s m m DCS G1 Dutch s m m DCS
+            G1 Finnish2 s m m DCS G1 Finnish s m m DCS G1 French s m m DCS G1 French2 s m m DCS G1
+            FrenchCanadian s m m DCS G1 FrenchCanadian2 s m m DCS G1 German s m m DCS G1 Italian s m m
+            DCS G1 Norwegian s m m DCS G1 Norwegian2 s m m DCS G1 Norwegian3 s m m m DCS G1 Portugese s
+            m m DCS G1 Spanish s m m DCS G1 Swedish2 s m m DCS G1 Swedish s m m DCS G1 Swiss);
 
         pt!( b"\x1b*0 \x1b*< \x1b*%5 \x1b*> \x1b*A \x1b*B \x1b*4 \x1b*C \x1b*5 \x1b*R \
             \x1b*f \x1b*Q \x1b*9 \x1b*K \x1b*Y \x1b*` \x1b*E \x1b*6 \x1b*%6 \x1b*Z \
             \x1b*H \x1b*7 \x1b*=",
-            m m DCS 2 DecSpecial s m m DCS 2 DecSupplemental s m m m DCS 2 DecSupplementalGraphics
-            s m m DCS 2 DecTechnical s m m DCS 2 Uk s m m DCS 2 UsAscii s m m DCS 2 Dutch s m m DCS
-            2 Finnish2 s m m DCS 2 Finnish s m m DCS 2 French s m m DCS 2 French2 s m m DCS 2
-            FrenchCanadian s m m DCS 2 FrenchCanadian2 s m m DCS 2 German s m m DCS 2 Italian s m m
-            DCS 2 Norwegian s m m DCS 2 Norwegian2 s m m DCS 2 Norwegian3 s m m m DCS 2 Portugese s
-            m m DCS 2 Spanish s m m DCS 2 Swedish2 s m m DCS 2 Swedish s m m DCS 2 Swiss);
+            m m DCS G2 DecSpecial s m m DCS G2 DecSupplemental s m m m DCS G2 DecSupplementalGraphics
+            s m m DCS G2 DecTechnical s m m DCS G2 Latin1 s m m DCS G2 UsAscii s m m DCS G2 Dutch s m m DCS
+            G2 Finnish2 s m m DCS G2 Finnish s m m DCS G2 French s m m DCS G2 French2 s m m DCS G2
+            FrenchCanadian s m m DCS G2 FrenchCanadian2 s m m DCS G2 German s m m DCS G2 Italian s m m
+            DCS G2 Norwegian s m m DCS G2 Norwegian2 s m m DCS G2 Norwegian3 s m m m DCS G2 Portugese s
+            m m DCS G2 Spanish s m m DCS G2 Swedish2 s m m DCS G2 Swedish s m m DCS G2 Swiss);
 
         pt!( b"\x1b+0 \x1b+< \x1b+%5 \x1b+> \x1b+A \x1b+B \x1b+4 \x1b+C \x1b+5 \x1b+R \
             \x1b+f \x1b+Q \x1b+9 \x1b+K \x1b+Y \x1b+` \x1b+E \x1b+6 \x1b+%6 \x1b+Z \
             \x1b+H \x1b+7 \x1b+=",
-            m m DCS 3 DecSpecial s m m DCS 3 DecSupplemental s m m m DCS 3 DecSupplementalGraphics
-            s m m DCS 3 DecTechnical s m m DCS 3 Uk s m m DCS 3 UsAscii s m m DCS 3 Dutch s m m DCS
-            3 Finnish2 s m m DCS 3 Finnish s m m DCS 3 French s m m DCS 3 French2 s m m DCS 3
-            FrenchCanadian s m m DCS 3 FrenchCanadian2 s m m DCS 3 German s m m DCS 3 Italian s m m
-            DCS 3 Norwegian s m m DCS 3 Norwegian2 s m m DCS 3 Norwegian3 s m m m DCS 3 Portugese s
-            m m DCS 3 Spanish s m m DCS 3 Swedish2 s m m DCS 3 Swedish s m m DCS 3 Swiss);
+            m m DCS G3 DecSpecial s m m DCS G3 DecSupplemental s m m m DCS G3 DecSupplementalGraphics
+            s m m DCS G3 DecTechnical s m m DCS G3 Latin1 s m m DCS G3 UsAscii s m m DCS G3 Dutch s m m DCS
+            G3 Finnish2 s m m DCS G3 Finnish s m m DCS G3 French s m m DCS G3 French2 s m m DCS G3
+            FrenchCanadian s m m DCS G3 FrenchCanadian2 s m m DCS G3 German s m m DCS G3 Italian s m m
+            DCS G3 Norwegian s m m DCS G3 Norwegian2 s m m DCS G3 Norwegian3 s m m m DCS G3 Portugese s
+            m m DCS G3 Spanish s m m DCS G3 Swedish2 s m m DCS G3 Swedish s m m DCS G3 Swiss);
 
         // For the next three block, the specification of XTerm 335 is misleading. We test for
         // identical implementation with XTerm.
         pt!(b"\x1b-0 \x1b-< \x1b-%5 \x1b-> \x1b-A \x1b-B \x1b-4 \x1b-C \x1b-5 \x1b-R \
             \x1b-f \x1b-Q \x1b-9 \x1b-K \x1b-Y \x1b-` \x1b-E \x1b-6 \x1b-%6 \x1b-Z \
             \x1b-H \x1b-7 \x1b-=",
-            m m m s m m m s m m m m s m m m s m m DCS 1 Uk s m m m s m m m s m m m s m m m s m m m
+            m m m s m m m s m m m m s m m m s m m DCS G1 Latin1 s m m m s m m m s m m m s m m m s m m m
             s m m m s m m m s m m m s m m m s m m m s m m m s m m m s m m m s m m m m s m m m s m m
             m s m m m s m m m);
 
         pt!(b"\x1b.0 \x1b.< \x1b.%5 \x1b.> \x1b.A \x1b.B \x1b.4 \x1b.C \x1b.5 \x1b.R \
             \x1b.f \x1b.Q \x1b.9 \x1b.K \x1b.Y \x1b.` \x1b.E \x1b.6 \x1b.%6 \x1b.Z \
             \x1b.H \x1b.7 \x1b.=",
-            m m m s m m m s m m m m s m m m s m m DCS 2 Uk s m m m s m m m s m m m s m m m s m m m
+            m m m s m m m s m m m m s m m m s m m DCS G2 Latin1 s m m m s m m m s m m m s m m m s m m m
             s m m m s m m m s m m m s m m m s m m m s m m m s m m m s m m m s m m m m s m m m s m m
             m s m m m s m m m);
 
         pt!(b"\x1b/0 \x1b/< \x1b/%5 \x1b/> \x1b/A \x1b/B \x1b/4 \x1b/C \x1b/5 \x1b/R \
             \x1b/f \x1b/Q \x1b/9 \x1b/K \x1b/Y \x1b/` \x1b/E \x1b/6 \x1b/%6 \x1b/Z \
             \x1b/H \x1b/7 \x1b/=",
-            m m m s m m m s m m m m s m m m s m m DCS 3 Uk s m m m s m m m s m m m s m m m s m m m
+            m m m s m m m s m m m m s m m m s m m DCS G3 Latin1 s m m m s m m m s m m m s m m m s m m m
             s m m m s m m m s m m m s m m m s m m m s m m m s m m m s m m m s m m m m s m m m s m m
             m s m m m s m m m);
 
-        pt!(b"\x1b%@\x1b%G", m m DCS 0 DefaultSet m m DCS 0 Utf8);
+        // pt!(b"\x1b%@\x1b%G", m m DCS G0 UsAscii m m DCS G0 Utf8);
     }
 
     #[test]
@@ -1776,10 +1785,10 @@ mod test {
         pt!(b"a\x1bFc", c'a' m CursorLowerLeft c'c');
         pt!(b"a\x1bcc", c'a' m FullReset c'c');
         pt!(b"a\x1blb\x1bmc", c'a' m LockMemory(true) c'b' m LockMemory(false) c'c');
-        pt!(b"a\x1bn\x1bo\x1b|\x1b}\x1b~b", c'a' m InvokeCharSet(2, false) m
-            InvokeCharSet(3, false) m InvokeCharSet(3, true) m InvokeCharSet(2, true) m
-            InvokeCharSet(1, true) c'b');
-        pt!(b"a\x0ex\x0fz", c'a' InvokeCharSet(0,false) c'x' InvokeCharSet(1,false) c 'z');
+        pt!(b"a\x1bn\x1bo\x1b|\x1b}\x1b~b", c'a' m InvokeCharSet(ScsType::G2, false) m
+            InvokeCharSet(ScsType::G3, false) m InvokeCharSet(ScsType::G3, true) m InvokeCharSet(ScsType::G2, true) m
+            InvokeCharSet(ScsType::G1, true) c'b');
+        pt!(b"a\x0ex\x0fz", c'a' InvokeCharSet(ScsType::G0,false) c'x' InvokeCharSet(ScsType::G1,false) c 'z');
         pt!(b"a\x1b_stuff\x1b\\b", c'a' m m m m m m m m
             ApplicationProgramCommand("stuff".to_string()) c'b');
         pt!(b"a\x1bP0;0|17/17;15/15\x1b\\b", c'a' m m m m m m m m m m m m m m m m m m
@@ -2531,8 +2540,8 @@ mod test {
         pt!(b"a\x1bEx", c'a' m NextLine c'x');
         pt!(b"a\x1bHx", c'a' m TabSet c'x');
         pt!(b"a\x1bMx", c'a' m ReverseIndex c'x');
-        pt!(b"a\x1bNx", c'a' m SingleShift(2) c'x');
-        pt!(b"a\x1bOx", c'a' m SingleShift(3) c'x');
+        pt!(b"a\x1bNx", c'a' m SingleShift(ScsType::G2) c'x');
+        pt!(b"a\x1bOx", c'a' m SingleShift(ScsType::G3) c'x');
         pt!(b"a\x1bVx", c'a' m StartGuardedArea c'x');
         pt!(b"a\x1bWx", c'a' m EndGuardedArea c'x');
         pt!(b"a\x1bXStuff\x1b\\x", c'a' m m m m m m m m StartOfString("Stuff".to_string()) c'x');

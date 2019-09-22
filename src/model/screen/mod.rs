@@ -24,11 +24,12 @@ use std::cmp;
 use std::hash::{Hash, Hasher};
 
 use super::control_sequence::action::{
-    Action, CharacterAttribute, Color, EraseDisplay, EraseLine, ScrollRegion,
+    Action, CharSet, CharacterAttribute, Color, EraseDisplay, EraseLine, ScrollRegion, ScsType,
 };
 use super::control_sequence::parser::Parser;
 use super::control_sequence::types::Rectangle;
 
+mod charset;
 mod test;
 
 /// Colors are pairs of foreground/background indices into the same palette.
@@ -103,9 +104,16 @@ impl Cell {
         }
     }
 
+    /// Return the color index of the foreground color of the cell.
+    ///
+    /// If the cell is bold and the color is < 8, return the brighter version.
     pub fn foreground_color(&self) -> Option<u8> {
         if self.attributes.contains(Attributes::FG_COLOR) {
-            Some(self.colors.foreground)
+            if self.attributes.contains( Attributes::BOLD) && self.colors.foreground < 8 {
+                Some(self.colors.foreground + 8)
+            }else {
+                Some(self.colors.foreground)
+            }
         } else {
             None
         }
@@ -168,7 +176,6 @@ bitflags! {
         /// a character has been drawn here on the screen.  Used to distinguish blanks from empty
         /// parts of the screen when selecting
         const CHARDRAWN     = 0b0000010000000;
-
 
         const ATR_FAINT     = 0b0000100000000;
         const ATR_ITALIC    = 0b0001000000000;
@@ -382,6 +389,15 @@ pub struct Screen {
     ///
     /// The values will be checked every time as non-fixed_size screens might change them.
     scroll_region: ScrollRegion,
+
+    /// Character set for G0 - G3
+    gsets: [CharSet; ScsType::NUM as usize],
+
+    /// Character set for characters < 128
+    curgl: ScsType,
+
+    /// Character set for characters >= 128
+    curgr: ScsType,
 }
 
 const INITIAL_COLORS: Colors = Colors {
@@ -408,6 +424,14 @@ impl Screen {
             fixed_size: false,
             last_char: ' ',
             scroll_region: None,
+            gsets: [
+                CharSet::UsAscii,
+                CharSet::UsAscii,
+                CharSet::Latin1,
+                CharSet::UsAscii,
+            ],
+            curgl: ScsType::G0,
+            curgr: ScsType::G2,
         }
     }
 
@@ -1068,8 +1092,16 @@ impl Screen {
                 Event::NewLine
             }
             Action::Char(c) => {
-                self.last_char = c;
-                self.place_char(c);
+                // Character set handling only happens here. At the moment, the UTF-8 handling is
+                // slightly different from xterm, possibly incorrect in subtle ways, but otherwise
+                // functional.
+                let display_c = if (c as u32) < 128 {
+                    charset::map_byte( self.gsets[self.curgl.clone() as usize].clone(), c as u8)
+                } else if (c as u32) < 256 {
+                    charset::map_byte( self.gsets[self.curgr.clone() as usize].clone(), ((c as u32) - 128) as u8)
+                } else { c };
+                self.last_char = display_c;
+                self.place_char(display_c);
                 Event::Ignore
             }
             Action::CharacterAttributes(attrs) => {
@@ -1442,10 +1474,8 @@ impl Screen {
                 }
                 Event::Ignore
             }
-            Action::DesignateCharacterSet(_level, _charset) => {
-                // TODO: At least handle UsAscii and DecSpecial
-                warn!("DesignateCharacterSet not implemented");
-
+            Action::DesignateCharacterSet(level, charset) => {
+                self.gsets[level as usize]=charset;
                 Event::Ignore
             }
 

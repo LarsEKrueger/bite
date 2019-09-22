@@ -40,6 +40,8 @@ use tools::polling;
 
 use term::terminfo::TermInfo;
 
+mod colors;
+
 /// Initial width of the window in pixels
 const WIDTH: i32 = 400;
 
@@ -98,7 +100,7 @@ pub struct Gui {
     font_ascent: i32,
     /// Width of one character in pixels
     font_width: i32,
-    /// Total height of the font in pixel
+    /// Total height of the font in pixels
     font_height: i32,
 
     /// Total height of a line in pixel
@@ -317,14 +319,7 @@ impl Gui {
 
             let mut colors: [u32; 256] = ::std::mem::uninitialized();
 
-            colors[0] = 0x000000; // Black.
-            colors[1] = 0xff0000; // Red.
-            colors[2] = 0x00ff00; // Green.
-            colors[3] = 0xffff00; // Yellow.
-            colors[4] = 0x0000ff; // Blue.
-            colors[5] = 0xff00ff; // Magenta.
-            colors[6] = 0x00ffff; // Cyan.
-            colors[7] = 0xffffff; // White.
+            colors::setupColors( &mut colors);
 
             let prompt_colors: [u32; NUM_PROMPT_COLORS] = [
                 0xFF1313, 0xFF6C6C, 0xFF4242, 0xD40000, 0xA90000, 0xFF9C13, 0xFFC16C, 0xFFB042,
