@@ -216,7 +216,7 @@ non-GUI program.
         * [X] Add TUI detection
         * [X] Add TUI presenter
     * [X] Handle keys in TUI mode
-    * [ ] Handle support for UsAscii and DecSpecial in DesignateCharacterSet
+    * [X] Handle support for UsAscii and DecSpecial in DesignateCharacterSet
 * [ ] 0.8 Completion
 * [ ] 0.9 Tabs for background programs
 * [ ] 0.10 Tabs for TUIs (automatic backgrounding)
