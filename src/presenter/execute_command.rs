@@ -87,7 +87,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.commons
     }
 
-    fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         match self.current_interaction.add_output(&bytes) {
             AddBytesResult::ShowStream(rest) => {
                 self.current_interaction.show_output();
@@ -96,13 +96,13 @@ impl SubPresenter for ExecuteCommandPresenter {
             AddBytesResult::AllDone => (self, b""),
             AddBytesResult::StartTui(rest) => {
                 let (c, i) = self.deconstruct();
-                let mut presenter = TuiExecuteCommandPresenter::new(c, i);
+                let presenter = TuiExecuteCommandPresenter::new(c, i);
                 (presenter, rest)
             }
         }
     }
 
-    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         match self.current_interaction.add_error(&bytes) {
             AddBytesResult::ShowStream(rest) => {
                 self.current_interaction.show_errors();
@@ -125,7 +125,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> Box<SubPresenter> {
+    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
@@ -147,7 +147,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         self
     }
 
-    fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
             self.commons
                 .session
@@ -165,7 +165,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         mut self: Box<Self>,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
                 let line = self.commons.text_input.extract_text();
@@ -234,7 +234,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match mod_state.as_tuple() {
             (false, true, false) => {
                 // Control-only
@@ -263,7 +263,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         button: usize,
         x: usize,
         y: usize,
-    ) -> (Box<SubPresenter>, NeedRedraw) {
+    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
         match (clicked_line_type(&mut *self, y), button) {
             (Some(LineType::Command(_, pos, _)), 1) => {
                 if x < COMMAND_PREFIX_LEN {
@@ -284,7 +284,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         return (self, NeedRedraw::No);
     }
 
-    fn event_text(mut self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+    fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
         self.commons_mut().text_input_add_characters(s);
         (self, PresenterCommand::Redraw)
     }

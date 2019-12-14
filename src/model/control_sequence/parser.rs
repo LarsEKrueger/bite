@@ -570,7 +570,7 @@ impl Parser {
     /// This function is the byte-by-byte version of core::str::next_code_point.
     pub fn add_byte(&mut self, byte: u8) -> Action {
         match (self.code_byte, self.code_bytes, self.first_byte, byte) {
-            (0, _, _, 0...TAG_CONT_U8_1) => return self.single_byte(byte),
+            (0, _, _, 0..=TAG_CONT_U8_1) => return self.single_byte(byte),
             (0, _, _, _) => {
                 self.first_byte = byte;
                 self.code_bytes = self::utf8_char_width(byte);
@@ -582,13 +582,13 @@ impl Parser {
             }
 
             // RUST CODE BEGIN
-            (1, 3, 0xE0, 0xA0...0xBF) |
-            (1, 3, 0xE1...0xEC, 0x80...0xBF) |
-            (1, 3, 0xED, 0x80...0x9F) |
-            (1, 3, 0xEE...0xEF, 0x80...0xBF) |
-            (1, 4, 0xF0, 0x90...0xBF) |
-            (1, 4, 0xF1...0xF3, 0x80...0xBF) |
-            (1, 4, 0xF4, 0x80...0x8F) |
+            (1, 3, 0xE0, 0xA0..=0xBF) |
+            (1, 3, 0xE1..=0xEC, 0x80..=0xBF) |
+            (1, 3, 0xED, 0x80..=0x9F) |
+            (1, 3, 0xEE..=0xEF, 0x80..=0xBF) |
+            (1, 4, 0xF0, 0x90..=0xBF) |
+            (1, 4, 0xF1..=0xF3, 0x80..=0xBF) |
+            (1, 4, 0xF4, 0x80..=0x8F) |
             // RUST CODE END
             (2, 4, _, _) => {
                 if utf8_is_cont_byte(byte) {
@@ -1176,7 +1176,7 @@ impl Parser {
         self.reset();
         let p0 = self.parameter.zero_if_default(0);
         match p0 {
-            0...8 => Action::SetMarginBellVolume(p0 as u8),
+            0..=8 => Action::SetMarginBellVolume(p0 as u8),
             _ => Action::More,
         }
     }
@@ -1184,7 +1184,7 @@ impl Parser {
         self.reset();
         let p0 = self.parameter.zero_if_default(0);
         match p0 {
-            0...8 => Action::SetWarningBellVolume(p0 as u8),
+            0..=8 => Action::SetWarningBellVolume(p0 as u8),
             _ => Action::More,
         }
     }

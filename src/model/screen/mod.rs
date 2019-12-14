@@ -160,7 +160,7 @@ impl PartialEq for Cell {
     }
 }
 
-/// Attributes as bitflags
+// Attributes as bitflags
 bitflags! {
     pub struct Attributes: u16 {
         const INVERSE       = 0b0000000000001;

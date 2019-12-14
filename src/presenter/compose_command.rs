@@ -51,7 +51,7 @@ impl ComposeCommandPresenter {
         &mut self.commons.text_input
     }
 
-    fn execute_input(mut self) -> (Box<SubPresenter>, PresenterCommand) {
+    fn execute_input(mut self) -> (Box<dyn SubPresenter>, PresenterCommand) {
         let line = self.commons.text_input.extract_text_without_last_nl();
         self.commons.text_input.reset();
         self.commons.text_input.make_room();
@@ -79,14 +79,14 @@ impl SubPresenter for ComposeCommandPresenter {
         self.commons
     }
 
-    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         // TODO: Log this occurance.
         (self, b"")
     }
 
-    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         // TODO: Log this occurance.
@@ -105,14 +105,14 @@ impl SubPresenter for ComposeCommandPresenter {
         // TODO: Log this occurance.
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<SubPresenter> {
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<dyn SubPresenter> {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         // TODO: Log this occurance.
         self
     }
 
-    fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
             self.commons
                 .session
@@ -129,7 +129,7 @@ impl SubPresenter for ComposeCommandPresenter {
         button: usize,
         x: usize,
         y: usize,
-    ) -> (Box<SubPresenter>, NeedRedraw) {
+    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
         let redraw = if check_response_clicked(&mut *self, button, x, y) {
             NeedRedraw::Yes
         } else {
@@ -142,7 +142,7 @@ impl SubPresenter for ComposeCommandPresenter {
         mut self: Box<Self>,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
                 if self.is_multi_line() {
@@ -289,7 +289,7 @@ impl SubPresenter for ComposeCommandPresenter {
         mut self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), letter) {
             ((false, true, false), b'd') => (self, PresenterCommand::Exit),
             ((false, true, false), b'r') => {
@@ -310,7 +310,7 @@ impl SubPresenter for ComposeCommandPresenter {
         }
     }
 
-    fn event_text(mut self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+    fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
         self.commons_mut().text_input_add_characters(s);
         self.to_last_line();
         (self, PresenterCommand::Redraw)

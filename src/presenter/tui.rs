@@ -66,7 +66,7 @@ impl TuiExecuteCommandPresenter {
         (self.commons, self.current_interaction, self.next_prompt)
     }
 
-    fn add_bytes_to_screen(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_bytes_to_screen(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         for (_i, b) in bytes.iter().enumerate() {
             match self.screen.add_byte(*b) {
                 // TODO: Handle end of TUI mode
@@ -119,11 +119,11 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.commons
     }
 
-    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         self.add_bytes_to_screen(bytes)
     }
 
-    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         match self.current_interaction.add_error(&bytes) {
             AddBytesResult::StartTui(rest) | AddBytesResult::ShowStream(rest) => (self, rest),
             AddBytesResult::AllDone => (self, b""),
@@ -137,7 +137,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<SubPresenter> {
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
         if !needs_marking && is_bash_waiting() {
             let (mut commons, current_interaction, next_prompt) = self.deconstruct();
             if let Some(prompt) = next_prompt {
@@ -155,7 +155,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     }
 
     /// Return the lines to be presented.
-    fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         let ref s = self.screen;
         Box::new(s.line_iter_full().zip(0..).map(move |(line, nr)| {
             let cursor_x = if s.cursor_y() == nr {
@@ -172,7 +172,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self: Box<Self>,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         let cmd = match (mod_state.as_tuple(), key) {
             ((_, _, _), SpecialKey::Escape) => {
                 program_add_input("\x1b");
@@ -209,7 +209,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), letter) {
             _ => (self, PresenterCommand::Unknown),
         }
@@ -221,13 +221,13 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         button: usize,
         _x: usize,
         y: usize,
-    ) -> (Box<SubPresenter>, NeedRedraw) {
+    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
         match (clicked_line_type(&mut *self, y), button) {
             _ => (self, NeedRedraw::No),
         }
     }
 
-    fn event_text(self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+    fn event_text(self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
         self.send_string(s);
         (self, PresenterCommand::Redraw)
     }

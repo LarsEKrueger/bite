@@ -101,6 +101,7 @@ pub struct Gui {
     /// Width of one character in pixels
     font_width: i32,
     /// Total height of the font in pixels
+    #[allow(dead_code)]
     font_height: i32,
 
     /// Total height of a line in pixel

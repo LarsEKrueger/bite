@@ -46,12 +46,12 @@ use nix::unistd::{close, dup, dup2, read, write, Pid};
 
 use libc::{c_char, c_int, c_uchar, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 
-/// Line buffer to parse from
+// Line buffer to parse from
 lazy_static! {
     static ref bite_input_buffer: Mutex<String> = Mutex::new(String::new());
 }
 
-/// Condition variable to wait on if bite_input_buffer is empty
+// Condition variable to wait on if bite_input_buffer is empty
 lazy_static! {
     static ref bite_input_added: Condvar = Condvar::new();
 }
@@ -410,7 +410,7 @@ fn read_data(
     fd: RawFd,
     sender: Sender<BashOutput>,
     fd_blocked: &mut AtomicBool,
-    construct: &Fn(Vec<u8>) -> BashOutput,
+    construct: &dyn Fn(Vec<u8>) -> BashOutput,
     _error: Arc<Mutex<File>>,
 ) {
     // Is it time to quit the threat?

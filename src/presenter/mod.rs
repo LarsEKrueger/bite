@@ -107,31 +107,31 @@ trait SubPresenter {
     /// Extract the commons and forget the presenter
     fn to_commons(self) -> Box<PresenterCommons>;
 
-    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]);
-    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<SubPresenter>, &[u8]);
+    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]);
+    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]);
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<SubPresenter>;
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter>;
 
     /// Return the lines to be presented.
-    fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a>;
+    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a>;
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
         self: Box<Self>,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<SubPresenter>, PresenterCommand);
+    ) -> (Box<dyn SubPresenter>, PresenterCommand);
 
     /// Handle the event when a modifier and a letter/number is pressed.
     fn event_normal_key(
         self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
-    ) -> (Box<SubPresenter>, PresenterCommand);
+    ) -> (Box<dyn SubPresenter>, PresenterCommand);
 
     /// Handle input of normal text
-    fn event_text(self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand);
+    fn event_text(self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand);
 
     /// Handle the event when the mouse was pushed and released at the same position.
     fn handle_click(
@@ -139,7 +139,7 @@ trait SubPresenter {
         button: usize,
         x: usize,
         y: usize,
-    ) -> (Box<SubPresenter>, NeedRedraw);
+    ) -> (Box<dyn SubPresenter>, NeedRedraw);
 }
 
 /// Data that is common to all presenter views.
@@ -177,7 +177,7 @@ pub struct PresenterCommons {
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
-pub struct Presenter(Option<Box<SubPresenter>>);
+pub struct Presenter(Option<Box<dyn SubPresenter>>);
 
 impl ModifierState {
     /// Returns true if no modifier key is pressed.
@@ -282,12 +282,12 @@ impl Presenter {
     }
 
     /// Access sub-presenter read-only for dynamic dispatch
-    fn d(&self) -> &Box<SubPresenter> {
+    fn d(&self) -> &Box<dyn SubPresenter> {
         self.0.as_ref().unwrap()
     }
 
     /// Access sub-presenter read-write for dynamic dispatch
-    fn dm(&mut self) -> &mut Box<SubPresenter> {
+    fn dm(&mut self) -> &mut Box<dyn SubPresenter> {
         self.0.as_mut().unwrap()
     }
 
@@ -313,7 +313,7 @@ impl Presenter {
     /// Call an event handler with an additional return value in the sub-presenter.
     ///
     /// Update the sub-presenter if it was changed.
-    fn dispatch_res<R, T: Fn(Box<SubPresenter>) -> (Box<SubPresenter>, R)>(&mut self, f: T) -> R {
+    fn dispatch_res<R, T: Fn(Box<dyn SubPresenter>) -> (Box<dyn SubPresenter>, R)>(&mut self, f: T) -> R {
         let sp = ::std::mem::replace(&mut self.0, None);
         let (new_sp, res) = f(sp.unwrap());
         self.0 = Some(new_sp);

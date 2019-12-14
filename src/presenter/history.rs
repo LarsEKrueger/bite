@@ -94,14 +94,14 @@ impl SubPresenter for HistoryPresenter {
         self.commons
     }
 
-    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         error!("HistoryPresenter::add_output called. Internal error.");
         (self, b"")
     }
 
-    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<SubPresenter>, &[u8]) {
+    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         error!("HistoryPresenter::add_error called. Internal error.");
@@ -120,14 +120,14 @@ impl SubPresenter for HistoryPresenter {
         error!("HistoryPresenter::set_next_prompt called. Internal error.");
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<SubPresenter> {
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<dyn SubPresenter> {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         error!("HistoryPresenter::end_polling called. Internal error.");
         self
     }
 
-    fn line_iter<'a>(&'a self) -> Box<Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
             self.search
                 .matching_items
@@ -153,7 +153,7 @@ impl SubPresenter for HistoryPresenter {
         mut self: Box<Self>,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
                 let propagate = self.replace_text_input();
@@ -228,7 +228,7 @@ impl SubPresenter for HistoryPresenter {
         self: Box<Self>,
         _mod_state: &ModifierState,
         _letter: u8,
-    ) -> (Box<SubPresenter>, PresenterCommand) {
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         (self, PresenterCommand::Unknown)
     }
 
@@ -237,14 +237,14 @@ impl SubPresenter for HistoryPresenter {
         _button: usize,
         _x: usize,
         _y: usize,
-    ) -> (Box<SubPresenter>, NeedRedraw) {
+    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
         (self, NeedRedraw::No)
     }
 
     /// Handle changes to the input.
     ///
     /// If we are searching, update the search string and try to scroll as little as possible.
-    fn event_text(mut self: Box<Self>, s: &str) -> (Box<SubPresenter>, PresenterCommand) {
+    fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
         self.commons_mut().text_input_add_characters(s);
         let prefix = String::from(self.commons.text_input.extract_text());
         let mut search = history::search(HistorySearchMode::Contained(prefix), false);
