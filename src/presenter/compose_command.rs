@@ -18,6 +18,7 @@
 
 //! Sub presenter for composing commands.
 
+use super::completion::CompleteCommandPresenter;
 use super::execute_command::ExecuteCommandPresenter;
 use super::history::*;
 use super::*;
@@ -275,6 +276,14 @@ impl SubPresenter for ComposeCommandPresenter {
                     self.commons.text_input.delete_left();
                 }
                 (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::Tab) => {
+                info!("Tab Key in ComposeCommandPresenter");
+                (
+                    CompleteCommandPresenter::new(self.commons),
+                    PresenterCommand::Redraw,
+                )
             }
 
             _ => (self, PresenterCommand::Unknown),

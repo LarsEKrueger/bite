@@ -27,6 +27,7 @@ use std::sync::mpsc::Receiver;
 
 use term::terminfo::TermInfo;
 
+mod completion;
 mod compose_command;
 pub mod display_line;
 mod execute_command;
