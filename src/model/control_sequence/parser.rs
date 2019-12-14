@@ -1001,8 +1001,8 @@ impl Parser {
     fn action_UTF8(&mut self, byte: u8) -> Action {
         self.reset();
         match byte {
-            b'@' => Action::More,// DesignateCharacterSet(ScsType::G0, CharSet::UsAscii),
-            b'G' => Action::More,// DesignateCharacterSet(ScsType::G0, CharSet::Utf8),
+            b'@' => Action::More, // DesignateCharacterSet(ScsType::G0, CharSet::UsAscii),
+            b'G' => Action::More, // DesignateCharacterSet(ScsType::G0, CharSet::Utf8),
             _ => Action::More,
         }
     }

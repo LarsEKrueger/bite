@@ -313,7 +313,10 @@ impl Presenter {
     /// Call an event handler with an additional return value in the sub-presenter.
     ///
     /// Update the sub-presenter if it was changed.
-    fn dispatch_res<R, T: Fn(Box<dyn SubPresenter>) -> (Box<dyn SubPresenter>, R)>(&mut self, f: T) -> R {
+    fn dispatch_res<R, T: Fn(Box<dyn SubPresenter>) -> (Box<dyn SubPresenter>, R)>(
+        &mut self,
+        f: T,
+    ) -> R {
         let sp = ::std::mem::replace(&mut self.0, None);
         let (new_sp, res) = f(sp.unwrap());
         self.0 = Some(new_sp);

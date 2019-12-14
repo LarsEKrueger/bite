@@ -18,21 +18,21 @@
 
 //! Color table handling
 
-pub fn setupColors( col: &mut [u32;256]) {
-    col[0]=  0x000000; // black
-    col[1]=  0xcd0000; // red3
-    col[2]=  0x00cd00; // green3
-    col[3]=  0xcdcd00; // yellow3
-    col[4]=  0x0000ee; // blue2
-    col[5]=  0xcd00cd; // magenta3
-    col[6]=  0x00cdcd; // cyan3
-    col[7]=  0xe5e5e5; // gray90
-    col[8]=  0x7f7f7f; // gray50
-    col[9]=  0xff0000; // red
-    col[10]= 0x00ff00; // green
-    col[11]= 0xffff00; // yellow
-    col[12]= 0x5c5cff; // rgb:5c/5c/ff
-    col[13]= 0xff00ff; // magenta
-    col[14]= 0x00ffff; // cyan
-    col[15]= 0xffffff; // white
+pub fn setupColors(col: &mut [u32; 256]) {
+    col[0] = 0x000000; // black
+    col[1] = 0xcd0000; // red3
+    col[2] = 0x00cd00; // green3
+    col[3] = 0xcdcd00; // yellow3
+    col[4] = 0x0000ee; // blue2
+    col[5] = 0xcd00cd; // magenta3
+    col[6] = 0x00cdcd; // cyan3
+    col[7] = 0xe5e5e5; // gray90
+    col[8] = 0x7f7f7f; // gray50
+    col[9] = 0xff0000; // red
+    col[10] = 0x00ff00; // green
+    col[11] = 0xffff00; // yellow
+    col[12] = 0x5c5cff; // rgb:5c/5c/ff
+    col[13] = 0xff00ff; // magenta
+    col[14] = 0x00ffff; // cyan
+    col[15] = 0xffffff; // white
 }

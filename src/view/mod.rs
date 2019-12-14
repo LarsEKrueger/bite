@@ -320,7 +320,7 @@ impl Gui {
 
             let mut colors: [u32; 256] = ::std::mem::uninitialized();
 
-            colors::setupColors( &mut colors);
+            colors::setupColors(&mut colors);
 
             let prompt_colors: [u32; NUM_PROMPT_COLORS] = [
                 0xFF1313, 0xFF6C6C, 0xFF4242, 0xD40000, 0xA90000, 0xFF9C13, 0xFFC16C, 0xFFB042,

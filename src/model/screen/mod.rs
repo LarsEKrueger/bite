@@ -109,9 +109,9 @@ impl Cell {
     /// If the cell is bold and the color is < 8, return the brighter version.
     pub fn foreground_color(&self) -> Option<u8> {
         if self.attributes.contains(Attributes::FG_COLOR) {
-            if self.attributes.contains( Attributes::BOLD) && self.colors.foreground < 8 {
+            if self.attributes.contains(Attributes::BOLD) && self.colors.foreground < 8 {
                 Some(self.colors.foreground + 8)
-            }else {
+            } else {
                 Some(self.colors.foreground)
             }
         } else {
