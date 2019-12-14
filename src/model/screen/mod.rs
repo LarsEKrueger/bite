@@ -440,7 +440,12 @@ impl Screen {
         if line.is_empty() {
             Vec::new()
         } else {
-            Self::one_line_matrix(line).compacted_row(0)
+            let m = Self::one_line_matrix(line);
+            if m.height == 0 {
+                Vec::new()
+            } else {
+                m.compacted_row(0)
+            }
         }
     }
 
