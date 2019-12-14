@@ -27,7 +27,9 @@ use super::super::control_sequence::action::CharSet;
 /// The values have been taken from xterm-337/charsets.c, and fontutils.c.
 ///
 /// All non-printable characters are replaced with ␦
-
+///
+/// Also, rustfmt must not format this to keep the same format as the original tables.
+#[rustfmt::skip]
 static char_maps : [ [char;128]; CharSet::NUM as usize] = [
     // UsAscii,
     [ '\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}','\u{2426}',
@@ -261,6 +263,6 @@ static char_maps : [ [char;128]; CharSet::NUM as usize] = [
     ],
     ];
 
-pub fn map_byte( cs:CharSet, byte: u8) -> char {
-  char_maps[cs as usize][byte as usize]
+pub fn map_byte(cs: CharSet, byte: u8) -> char {
+    char_maps[cs as usize][byte as usize]
 }
