@@ -26,26 +26,32 @@ pub struct CompleteCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
 
+    /// Number of characters in prefix
+    prefix_chars: usize,
+
     /// List of completions
     completions: Vec<String>,
 
     /// Currently selected completion
-    current : usize,
+    current: usize,
 }
 
 impl CompleteCommandPresenter {
-    pub fn new(commons: Box<PresenterCommons>) -> Box<Self> {
-
-        // TODO: Collect the completion result
-        let mut completions = Vec::new();
-        completions.push( "one".to_string());
-        completions.push( "two".to_string());
-        completions.push( "three".to_string());
-
+    pub fn new(
+        commons: Box<PresenterCommons>,
+        prefix: String,
+        completions: Vec<String>,
+    ) -> Box<Self> {
         // Select current completion
         let current = 0;
 
-        let mut presenter = CompleteCommandPresenter { commons, completions, current };
+        let prefix_chars = prefix.chars().count();
+        let mut presenter = CompleteCommandPresenter {
+            commons,
+            prefix_chars,
+            completions,
+            current,
+        };
 
         presenter.to_last_line();
         Box::new(presenter)
@@ -62,8 +68,7 @@ impl CompleteCommandPresenter {
     /// If the selection is already visible, do nothing. Otherwise, center it on the screen.
     fn show_selection(&mut self) -> NeedRedraw {
         let start_line = self.commons.start_line();
-        if start_line <= self.current && self.current < self.commons.last_line_shown
-        {
+        if start_line <= self.current && self.current < self.commons.last_line_shown {
             NeedRedraw::No
         } else {
             let middle = self.commons.window_height / 2;
@@ -122,18 +127,21 @@ impl SubPresenter for CompleteCommandPresenter {
 
     fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
-            self.completions.iter().enumerate().map( move |(item_ind, s)| {
-                LineItem::new_owned(
-                    Screen::one_line_cell_vec(s.as_bytes()),
-                    if item_ind == self.current {
-                        LineType::SelectedMenuItem( item_ind)
-                    }else {
-                        LineType::MenuItem(item_ind)
-                    },
-                    None,
-                    0,
+            self.completions
+                .iter()
+                .enumerate()
+                .map(move |(item_ind, s)| {
+                    LineItem::new_owned(
+                        Screen::one_line_cell_vec(s.as_bytes()),
+                        if item_ind == self.current {
+                            LineType::SelectedMenuItem(item_ind)
+                        } else {
+                            LineType::MenuItem(item_ind)
+                        },
+                        Some(self.prefix_chars),
+                        0,
                     )
-            })
+                }),
         )
     }
 
@@ -159,7 +167,21 @@ impl SubPresenter for CompleteCommandPresenter {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
                 // TODO: Use this completion
-                (ComposeCommandPresenter::new(self.commons), PresenterCommand::Redraw)
+                // Delete the beginning
+                self.commons
+                    .text_input
+                    .move_left(self.prefix_chars as isize);
+                for _i in 0..self.prefix_chars {
+                    self.commons.text_input.delete_character();
+                }
+                self.commons
+                    .text_input
+                    .place_str(&self.completions[self.current]);
+
+                (
+                    ComposeCommandPresenter::new(self.commons),
+                    PresenterCommand::Redraw,
+                )
             }
             ((false, false, false), SpecialKey::Up) => {
                 if self.current > 0 {
@@ -169,7 +191,7 @@ impl SubPresenter for CompleteCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
             ((false, false, false), SpecialKey::Down) => {
-                if self.current +1 < self.completions.len() {
+                if self.current + 1 < self.completions.len() {
                     self.current += 1;
                 }
                 self.show_selection();
@@ -185,6 +207,12 @@ impl SubPresenter for CompleteCommandPresenter {
                 self.current = self.completions.len() - 1;
                 (self, PresenterCommand::Redraw)
             }
+
+            ((false, false, false), SpecialKey::Escape) => (
+                ComposeCommandPresenter::new(self.commons),
+                PresenterCommand::Redraw,
+            ),
+
             _ => (self, PresenterCommand::Unknown),
         }
     }

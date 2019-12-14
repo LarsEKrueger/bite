@@ -60,6 +60,15 @@ impl Test {
         self
     }
 
+    fn check_mut<T: PartialEq + std::fmt::Debug>(
+        mut self,
+        gt: T,
+        map: fn(&mut Screen) -> T,
+    ) -> Test {
+        assert_eq!(map(&mut self.0), gt);
+        self
+    }
+
     /// Check that a compacted row matches the ground truth
     fn cr(self, row: isize, gt: &str) -> Test {
         check_compacted_row(&self.0, row, gt);
@@ -890,6 +899,14 @@ fn cursor_motion() {
     .cr(1, "01")
     .cr(7, "07")
     .cr(8, "08");
+}
+
+#[test]
+fn word_before_cursor() {
+    // Fill the screen with some text, then move cursor behind *som*
+    Test::e(b"Hello World\nIt is some text\x1b[6D")
+        .cp(9, 1)
+        .check_mut("som".to_string(), |s| s.word_before_cursor());
 }
 
 // TODO: Test for protected

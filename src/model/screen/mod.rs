@@ -300,6 +300,14 @@ impl Matrix {
     pub fn rectangle(&self) -> Rectangle {
         Rectangle::new_isize(0, 0, self.width - 1, self.height - 1)
     }
+
+    pub fn first_row_cell_vec(&self) -> Vec<Cell> {
+        if self.height == 0 {
+            Vec::new()
+        } else {
+            self.compacted_row(0)
+        }
+    }
 }
 
 impl PartialEq for Matrix {
@@ -440,12 +448,7 @@ impl Screen {
         if line.is_empty() {
             Vec::new()
         } else {
-            let m = Self::one_line_matrix(line);
-            if m.height == 0 {
-                Vec::new()
-            } else {
-                m.compacted_row(0)
-            }
+            Self::one_line_matrix(line).first_row_cell_vec()
         }
     }
 
@@ -554,16 +557,45 @@ impl Screen {
         text
     }
 
-    pub fn text_before_cursor(&mut self) -> String {
-        self.make_room();
+    fn collect_text(&self, start_index: usize, end_index: usize) -> String {
         let mut text = String::new();
-        let mut current_index = self.matrix.cell_index(0, self.cursor.y) as usize;
-        let cursor_index = self.cursor_index() as usize;
-        while current_index < cursor_index {
+        let mut current_index = start_index;
+        while current_index < end_index {
             text.push(self.matrix.cells[current_index].code_point);
             current_index += 1;
         }
         text
+    }
+
+    pub fn text_before_cursor(&mut self) -> String {
+        self.make_room();
+        self.collect_text(
+            self.matrix.cell_index(0, self.cursor.y) as usize,
+            self.cursor_index() as usize,
+        )
+    }
+
+    /// Scan backwards from cursor to the first whitespace
+    pub fn word_before_cursor(&mut self) -> String {
+        self.make_room();
+        // End at the beginning of the line
+        let start_index = self.matrix.cell_index(0, self.cursor.y) as usize;
+        // Start at the cursor
+        let cursor_index = self.cursor_index() as usize;
+        let mut current_index = cursor_index;
+        // If we can move one character backwards
+        while current_index > start_index {
+            current_index -= 1;
+            if self.matrix.cells[current_index]
+                .code_point
+                .is_ascii_whitespace()
+            {
+                // White space found, go to the character after that, then leave
+                current_index += 1;
+                break;
+            }
+        }
+        self.collect_text(current_index, cursor_index)
     }
 
     pub fn replace(&mut self, s: &str, stay_there: bool) {

@@ -279,11 +279,39 @@ impl SubPresenter for ComposeCommandPresenter {
             }
 
             ((false, false, false), SpecialKey::Tab) => {
-                info!("Tab Key in ComposeCommandPresenter");
-                (
-                    CompleteCommandPresenter::new(self.commons),
-                    PresenterCommand::Redraw,
-                )
+                // TODO: This needs to be cleaned up.
+                let word = self.text_input().word_before_cursor();
+                let word_chars = word.chars().count();
+
+                // Find all files and folders that match '<word>*'
+                match glob::glob(&(word.clone() + "*")) {
+                    Err(_) => (self, PresenterCommand::Unknown),
+                    Ok(g) => {
+                        // Get the matches after word
+                        let matches: Vec<String> = g
+                            .filter_map(std::result::Result::ok)
+                            .map(|path| path.display().to_string())
+                            .collect();
+
+                        // If there is only one match, insert that
+                        if matches.len() == 1 {
+                            // Delete the beginning
+                            self.text_input().move_left(word_chars as isize);
+                            for _i in 0..word_chars {
+                                self.text_input().delete_character();
+                            }
+                            // Put the match there
+                            self.text_input().place_str(&matches[0]);
+                            (self, PresenterCommand::Redraw)
+                        } else {
+                            // Otherwise make the user pick
+                            (
+                                CompleteCommandPresenter::new(self.commons, word, matches),
+                                PresenterCommand::Redraw,
+                            )
+                        }
+                    }
+                }
             }
 
             _ => (self, PresenterCommand::Unknown),
