@@ -262,6 +262,9 @@ non-GUI program.
 * Integrate auto jump functionality.
 * Allow hyperlinks in output
 * Draw errors / hyperlinks as QR code
+* Display history / completion as Overlays
+* No keypress for history/completion. Pick the right overlay automatically, depending on the situation.
+* Automatically update prompt above command input (e.g. run interpreter on already-parsed string)
 
 # References
 * utf8 input from https://gist.github.com/baines/5a49f1334281b2685af5dcae81a6fa8a
