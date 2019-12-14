@@ -191,6 +191,10 @@ non-GUI program.
 
 # Roadmap / Release Planning
 
+The *0.x* versions are prototypes to gain experience with various UX concepts.
+
+The *1.x* versions will provide an improved UX while working towards the progress/general GUI interface protocol.
+
 * [X] 0.0.0 Basic GUI application. Get xcb working
 * [X] 0.1 error handling
 * [X] 0.2 Commands from history (up/down,page up/down,search)
@@ -198,7 +202,7 @@ non-GUI program.
 * [X] 0.4 pipelines
 * [X] 0.5 use original bash source for foreground operations
 * [X] 0.6 use bash history
-* [ ] 0.7 Foreground TUIs
+* [X] 0.7 Foreground TUIs
     * [X] Handle colors in output, error, and prompt
     * [X] Check for minimal rust version in build.rs
     * [X] Fix prompt to look like plain bash
@@ -217,20 +221,14 @@ non-GUI program.
         * [X] Add TUI presenter
     * [X] Handle keys in TUI mode
     * [X] Handle support for UsAscii and DecSpecial in DesignateCharacterSet
-* [ ] 0.8 Completion
+* [X] 0.8 Completion
 * [ ] 0.9 Tabs for background programs
 * [ ] 0.10 Tabs for TUIs (automatic backgrounding)
 * [ ] 0.11 Draw GUI using Xft
 * [ ] 0.12 Implement all Screen Actions
-* [ ] 1.0 Full bash integration
-* [ ] 1.3 Basic compose / inspect interface
-* [ ] 1.4 Configure fonts and colors
-* [ ] 1.5 Single output operations (search, save)
-* [ ] 1.6 Multi-output operations (compare)
-* [ ] 1.7 progress interface protocol
-* [ ] 1.8 general interface protocol
-* [ ] 2.0 complete configuration of keys (like shell)
-* [ ] 2.1 shell program editor with preview
+* [ ] 0.13 Redesign user interface
+* [ ] 0.14 Redesign SW architecture
+* [ ] 1.x progress and general UI interface protocol
 
 # TODOs
 * [ ] Bug: Bash source $() does not work correctly
