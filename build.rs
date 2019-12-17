@@ -169,7 +169,7 @@ fn msys_compatible<P: AsRef<Path>>(path: P) -> String {
     let mut is_letter = false;
     if let Some(c) = path.as_bytes().first() {
         match c {
-            b'a'...b'z' | b'A'...b'Z' => {
+            b'a'..=b'z' | b'A'..=b'Z' => {
                 is_letter = true;
             }
             _ => {}
