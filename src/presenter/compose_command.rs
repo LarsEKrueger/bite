@@ -283,6 +283,9 @@ impl SubPresenter for ComposeCommandPresenter {
                 let word = self.text_input().word_before_cursor();
                 let word_chars = word.chars().count();
 
+                // Remember if the word started with ./ because glob removes that.
+                let dot_slash = if word.starts_with("./") { "./" } else { "" };
+
                 // Find all files and folders that match '<word>*'
                 match glob::glob(&(word.clone() + "*")) {
                     Err(_) => (self, PresenterCommand::Unknown),
@@ -290,7 +293,15 @@ impl SubPresenter for ComposeCommandPresenter {
                         // Get the matches after word
                         let matches: Vec<String> = g
                             .filter_map(std::result::Result::ok)
-                            .map(|path| path.display().to_string())
+                            .map(|path| {
+                                let mut p = dot_slash.to_string();
+                                p.push_str(&path.display().to_string());
+                                // If the path is a directory, add a slash.
+                                if path.is_dir() {
+                                    p.push_str("/");
+                                }
+                                p
+                            })
                             .collect();
 
                         // If there is only one match, insert that
