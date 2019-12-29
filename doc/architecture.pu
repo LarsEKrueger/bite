@@ -1,0 +1,189 @@
+@startuml
+
+title Class Diagram
+
+class Bite
+class View
+class Session
+class Jobs {
+ - foregroundJob
+}
+class Presenter
+class Interpreter
+
+class ComposePresenter
+class ExecutePresenter
+
+Presenter <|-- ComposePresenter
+Presenter <|-- ExecutePresenter
+
+Bite *--> View
+Bite *-- Interpreter
+Bite *-- Jobs
+
+View *--> Presenter
+Presenter *--> Session
+ComposePresenter --> Interpreter
+
+Interpreter --> Jobs
+
+Jobs --> Session
+
+@enduml
+
+=====================
+
+@startuml
+title Thread Allocation
+
+component Session
+
+component Interpreter
+
+[Presenter] *-- [Session]
+[Bite] *-- [Interpreter]
+[Bite] *-- [Jobs]
+[Jobs] *---> [Job]
+[Job] *--- Job_Thread
+[Bite] *--> [View]
+[View] *--> [Presenter]
+
+Job --> Interpreter
+Job --> Session
+Interpreter --> Jobs
+Presenter --> Session
+
+node "Main Thread" as Main_Thread {
+  [Presenter]
+  [Interpreter]
+  interface "Session\n::view()" as Session_view
+  interface "Interpreter\n::execute()" as Interpreter_execute
+}
+
+Presenter -( Session_view
+
+component ComposePresenter
+Presenter <|-- ComposePresenter
+
+ComposePresenter - Interpreter_execute
+ComposePresenter --> Interpreter
+
+node "Job Thread" as Job_Thread {
+  interface "Session\n::add()" as Session_add
+
+  interface "Interpreter\n::set_exit_code()" as Interpreter_set_exit_code
+}
+
+Session_view -- Session
+Session --( Session_add
+
+[Job] -- Session_add
+[Job] -- Interpreter_set_exit_code
+
+Interpreter --( Interpreter_set_exit_code
+Interpreter_execute )-- Interpreter
+
+Interpreter --> Session
+
+@enduml
+
+=====================
+
+@startuml
+title Drawing
+
+View -> Presenter : display_line_iter()
+Presenter -> Session : line_iter()
+Session -> Presenter
+hnote over Presenter : convert\nlines
+Presenter -> View
+hnote over View : draw\nlines
+@enduml
+
+=====================
+
+@startuml
+title Run Foreground Command
+
+View -> Presenter : event_XXX()
+Presenter -> Session : create_interaction()
+activate Session
+Session -> Presenter : id
+
+Presenter -> Interpreter : run_command()
+Interpreter -> Jobs : create_job()
+Jobs -> Job : set_interaction_id(id)
+Job -> Jobs
+Jobs -> Job : create_thread()
+activate Job
+Job -> Jobs
+Jobs -> Interpreter
+Interpreter -> Presenter
+Presenter -> Presenter : Switch to\nExecuteCommandPresenter\nwith id
+Presenter -> View
+
+group Command runs
+  ... Command produces no output ...
+  group Next redraw
+    Presenter -> Session : get_exit_code(id)
+    Session -> Presenter : None
+  end
+  ... Command produces no output, then it does ...
+  Job --> Session : add_line(id, text)
+end
+
+Job --> Interpreter : set_exit_code(id)
+deactivate Job
+Interpreter --> Session : set_exit_code(id)
+deactivate Session
+
+group Next redraw
+  Presenter -> Session : get_exit_code(id)
+  Session -> Presenter : Some(code)
+  Presenter -> Presenter : Switch to\nComposeCommandPresenter
+end
+
+@enduml
+
+=====================
+
+@startuml
+title Run Background Command
+
+View -> Presenter : event_XXX()
+Presenter -> Session : create_interaction()
+activate Session
+Session -> Presenter : id
+
+Presenter -> Interpreter : run_command()
+Interpreter -> Jobs : create_job()
+Jobs -> Job : set_interaction_id(id)
+Job -> Jobs
+Jobs -> Job : create_thread()
+activate Job
+Job -> Jobs
+Jobs -> Interpreter
+Interpreter -> Presenter
+Presenter -> View
+
+group Command runs
+  ... Command produces no output ...
+  group Next redraw
+    Presenter -> Session : get_exit_code(id)
+    Session -> Presenter : None
+  end
+  ... Command produces no output, then it does ...
+  Job --> Session : add_line(id, text)
+end
+
+Job --> Interpreter : set_exit_code(id)
+deactivate Job
+Interpreter --> Session : set_exit_code(id)
+deactivate Session
+
+group Next redraw
+  Presenter -> Session : get_exit_code(id)
+  Session -> Presenter : Some(code)
+end
+
+@enduml
