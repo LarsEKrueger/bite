@@ -224,7 +224,6 @@ impl Gui {
             let screen = XDefaultScreen(display);
             let root = XRootWindow(display, screen);
             let black_pixel = XBlackPixel(display, screen);
-            let white_pixel = XWhitePixel(display, screen);
 
             let window = XCreateSimpleWindow(
                 display,
@@ -235,7 +234,7 @@ impl Gui {
                 HEIGHT as u32,
                 0,           /* border width */
                 black_pixel, /* border pixel */
-                white_pixel, /* background */
+                black_pixel, /* background */
             );
             let wm_protocols = XInternAtom(display, WM_PROTOCOLS.as_ptr(), 0);
             let mut wm_delete_window = XInternAtom(display, WM_DELETE_WINDOW.as_ptr(), 0);
@@ -280,8 +279,8 @@ impl Gui {
             XSetICFocus(xic);
 
             let gc = XCreateGC(display, window, 0, null_mut());
-            XSetBackground(display, gc, white_pixel);
-            XSetForeground(display, gc, black_pixel);
+            XSetBackground(display, gc, black_pixel);
+            XSetForeground(display, gc, 0xFFD700);
 
             let mut missing_charset_list_return: *mut *mut c_char = null_mut();
             let mut missing_charset_count_return: c_int = 0;
@@ -451,10 +450,10 @@ impl Gui {
         // TODO: Configure default colors
         let fg_color = cell
             .foreground_color()
-            .map_or(0x000000, |c| self.colors[c as usize]);
+            .map_or(0xFFD700, |c| self.colors[c as usize]);
         let bg_color = cell
             .background_color()
-            .map_or(0xffffff, |c| self.colors[c as usize]);
+            .map_or(0x000000, |c| self.colors[c as usize]);
 
         unsafe {
             XSetForeground(self.display, self.gc, bg_color as u64);
