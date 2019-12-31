@@ -243,24 +243,6 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [X] 0.5 use original bash source for foreground operations
 * [X] 0.6 use bash history
 * [X] 0.7 Foreground TUIs
-    * [X] Handle colors in output, error, and prompt
-    * [X] Check for minimal rust version in build.rs
-    * [X] Fix prompt to look like plain bash
-    * [X] Visually group by prompt
-    * [X] Allow multi-line prompts
-    * [X] Allow multi-line input
-    * [X] Display multi-line commands correctly
-    * [X] Draw progress bar style line (terminated with \r) correctly
-    * [X] Switch to TUI mode and back
-        * [X] Add xterm state machine without characters >= 128
-        * [X] Test screen module to match xterm functionality
-            * [X] Implement test screen initialization
-            * [X] Implement test for simple case
-            * [X] Add remaining test cases
-        * [X] Add TUI detection
-        * [X] Add TUI presenter
-    * [X] Handle keys in TUI mode
-    * [X] Handle support for UsAscii and DecSpecial in DesignateCharacterSet
 * [X] 0.8 Completion
 * [ ] 0.9 Display output of (non-interactive) background programs
     * [ ] Allow Session to collect output into non-current interactions
