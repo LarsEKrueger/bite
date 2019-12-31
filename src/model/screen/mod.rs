@@ -351,7 +351,7 @@ struct Cursor {
     y: isize,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum AddBytesResult<'a> {
     /// All bytes have been added
     AllDone,

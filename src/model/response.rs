@@ -26,32 +26,62 @@ use super::screen::*;
 /// The full output of a program
 #[derive(PartialEq)]
 pub struct Response {
-    /// Is it to be shown in the GUI?
-    pub visible: bool,
-
     /// Lines to be shown. Each line in a normal response is just a sequence of cells.
     pub lines: Vec<Vec<Cell>>,
+
+    /// A temporary screen we add data to until they can be archived in *lines*.
+    screen: Screen,
 }
 
 impl Response {
     /// Create an empty response with the given visibility.
-    pub fn new(visible: bool) -> Response {
+    pub fn new() -> Response {
         Response {
-            visible,
             lines: vec![],
+            screen: Screen::new(),
         }
     }
 
-    /// Add a line.
-    pub fn add_data(&mut self, data: Vec<Cell>) {
-        self.lines.push(data);
+    /// Add a stream of bytes to the screen and possibly to the archive.
+    ///
+    /// Return true if there is progress bar activity going on.
+    pub fn add_bytes<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
+        for (i, b) in bytes.iter().enumerate() {
+            match self.screen.add_byte(*b) {
+                Event::NewLine => {
+                    self.archive_screen();
+                    // Keep going
+                }
+                Event::Cr => {
+                    return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
+                }
+                Event::StartTui => {
+                    return AddBytesResult::StartTui(&bytes[(i + 1)..]);
+                }
+                _ => {}
+            };
+        }
+        AddBytesResult::AllDone
+    }
+
+    /// Add all the lines on the screen to the archived lines
+    pub fn archive_screen(&mut self) {
+        for l in self.screen.line_iter() {
+            self.lines.push(l.to_vec());
+        }
+        self.screen.reset();
     }
 
     /// Iterate over the lines
     pub fn line_iter<'a>(&'a self, prompt_hash: u64) -> impl Iterator<Item = LineItem<'a>> {
+        let screen_lines = self.screen.line_iter().map(move |line| {
+            LineItem::new(&line[..], LineType::Output, None, prompt_hash)
+        });
+
         self.lines
             .iter()
             .map(move |l| LineItem::new(&l[..], LineType::Output, None, prompt_hash))
+            .chain(screen_lines)
     }
 
     /// Return a correctly typed iterator without any data in it.
@@ -81,21 +111,27 @@ pub mod tests {
     }
 
     #[test]
-    fn line_iter() {
-        let mut resp = Response::new(true);
+    fn line_iter_non_archived() {
+        let mut resp = Response::new();
 
-        let mut s = Screen::new();
-        s.place_str("line 1");
-        s.new_line();
-        s.place_str("line 2");
-        s.new_line();
-        s.new_line();
-        s.place_str("line 4");
+        let abr = resp.add_bytes( b"line 1\nline 2\n\nline 4");
+        assert!( abr == AddBytesResult::AllDone);
 
-        let m = s.freeze();
-        for l in m.line_iter() {
-            resp.add_data(l.to_vec());
-        }
+        let mut li = resp.line_iter(0);
+
+        check(li.next(), LineType::Output, None, "line 1");
+        check(li.next(), LineType::Output, None, "line 2");
+        check(li.next(), LineType::Output, None, "");
+        check(li.next(), LineType::Output, None, "line 4");
+        assert_eq!(li.next(), None);
+    }
+
+    #[test]
+    fn line_iter_archived() {
+        let mut resp = Response::new();
+
+        let abr = resp.add_bytes( b"line 1\nline 2\n\nline 4\n");
+        assert!( abr == AddBytesResult::AllDone);
 
         let mut li = resp.line_iter(0);
 
@@ -108,20 +144,8 @@ pub mod tests {
 
     #[test]
     fn empty_line_iter() {
-        let mut resp = Response::new(true);
-        let mut s = Screen::new();
-        s.place_str("line 1");
-        s.new_line();
-        s.place_str("line 2");
-        s.new_line();
-        s.new_line();
-        s.place_str("line 4");
-
-        let m = s.freeze();
-        for l in m.line_iter() {
-            resp.add_data(l.to_vec());
-        }
-
+        let mut resp = Response::new();
+        resp.add_bytes( b"line 1\nline 2\n\nline 4\n");
         let mut li = resp.empty_line_iter(0);
         assert_eq!(li.next(), None);
     }

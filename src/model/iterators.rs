@@ -30,7 +30,7 @@ pub enum LineType {
     /// A command prompt.
     Prompt,
     /// A command with its visibility and position for changing that.
-    Command(OutputVisibility, CommandPosition, Option<ExitStatus>),
+    Command(OutputVisibility, Option<ExitStatus>),
     /// Output from a program (error or normal).
     Output,
     /// The input line.
@@ -62,18 +62,6 @@ pub struct LineItem<'a> {
     pub prompt_hash: u64,
 }
 
-/// Iterator to generate CommandPosition elements over the archived elements of a session.
-pub struct CpArchiveIter {
-    /// The index of the current archived conversation.
-    pub this: usize,
-}
-
-/// Iterator to generate CommandPosition elements over the elements of a conversation.
-pub struct CpConvIter {
-    /// The index of the current conversation.
-    pub this: CommandPosition,
-}
-
 impl<'a> LineItem<'a> {
     /// Create a new line item.
     pub fn new(l: &'a [Cell], is_a: LineType, cursor_col: Option<usize>, prompt_hash: u64) -> Self {
@@ -97,38 +85,6 @@ impl<'a> LineItem<'a> {
             is_a,
             cursor_col,
             prompt_hash,
-        }
-    }
-}
-
-impl Iterator for CpArchiveIter {
-    type Item = CommandPosition;
-
-    /// Return the next CommandPosition for an archived conversation.
-    fn next(&mut self) -> Option<Self::Item> {
-        let this = self.this;
-        self.this += 1;
-        Some(CommandPosition::Archived(this, 0))
-    }
-}
-
-impl Iterator for CpConvIter {
-    type Item = CommandPosition;
-
-    /// Return the next CommandPosition for an interaction inside a conversation.
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.this {
-            CommandPosition::CurrentInteraction => None,
-            CommandPosition::Archived(conv_ind, ref mut this_inter) => {
-                let next = Some(CommandPosition::Archived(conv_ind, *this_inter));
-                *this_inter += 1;
-                next
-            }
-            CommandPosition::CurrentConversation(ref mut this_inter) => {
-                let next = Some(CommandPosition::CurrentConversation(*this_inter));
-                *this_inter += 1;
-                next
-            }
         }
     }
 }

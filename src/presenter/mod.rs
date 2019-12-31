@@ -506,6 +506,7 @@ fn check_response_clicked<T: SubPresenter>(
 ) -> bool {
     let is_a = clicked_line_type(pres, y);
     match (is_a, button) {
+        /* TODO
         (Some(LineType::Command(_, pos, _)), 1) => {
             if x < COMMAND_PREFIX_LEN {
                 // Click on a command
@@ -516,6 +517,7 @@ fn check_response_clicked<T: SubPresenter>(
                 return true;
             }
         }
+        */
         _ => {
             // Unhandled combination, ignore
         }

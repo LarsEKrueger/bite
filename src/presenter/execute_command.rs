@@ -21,7 +21,7 @@
 use super::tui::TuiExecuteCommandPresenter;
 use super::*;
 use model::bash::{bash_kill_last, is_bash_waiting};
-use model::interaction::{CommandPosition, CurrentInteraction};
+use model::session::InteractionHandle;
 use std::str::from_utf8_unchecked;
 
 /// Presenter to run commands and send input to their stdin.
@@ -31,7 +31,7 @@ pub struct ExecuteCommandPresenter {
     commons: Box<PresenterCommons>,
 
     /// Current interaction
-    current_interaction: CurrentInteraction,
+    current_interaction: InteractionHandle,
 
     /// Prompt to set. If None, we didn't receive one yet
     next_prompt: Option<Matrix>,
@@ -39,10 +39,11 @@ pub struct ExecuteCommandPresenter {
 
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
-    pub fn new(commons: Box<PresenterCommons>, prompt: Matrix) -> Box<Self> {
+    pub fn new(mut commons: Box<PresenterCommons>, prompt: Matrix) -> Box<Self> {
+        let current_interaction = commons.session.add_interaction(prompt);
         let mut presenter = ExecuteCommandPresenter {
             commons,
-            current_interaction: CurrentInteraction::new(prompt),
+            current_interaction,
             next_prompt: None,
         };
         presenter.to_last_line();
@@ -51,7 +52,7 @@ impl ExecuteCommandPresenter {
 
     pub fn new_with_interaction(
         commons: Box<PresenterCommons>,
-        current_interaction: CurrentInteraction,
+        current_interaction: InteractionHandle,
         next_prompt: Option<Matrix>,
     ) -> Box<Self> {
         let mut presenter = ExecuteCommandPresenter {
@@ -69,7 +70,7 @@ impl ExecuteCommandPresenter {
         self.commons.last_line_shown = len;
     }
 
-    fn deconstruct(self) -> (Box<PresenterCommons>, CurrentInteraction) {
+    fn deconstruct(self) -> (Box<PresenterCommons>, InteractionHandle) {
         (self.commons, self.current_interaction)
     }
 }
@@ -88,9 +89,13 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        match self.current_interaction.add_output(&bytes) {
+        match self
+            .commons
+            .session
+            .add_output(self.current_interaction, bytes)
+        {
             AddBytesResult::ShowStream(rest) => {
-                self.current_interaction.show_output();
+                self.commons.session.show_output(self.current_interaction);
                 (self, rest)
             }
             AddBytesResult::AllDone => (self, b""),
@@ -103,9 +108,13 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        match self.current_interaction.add_error(&bytes) {
+        match self
+            .commons
+            .session
+            .add_error(self.current_interaction, bytes)
+        {
             AddBytesResult::ShowStream(rest) => {
-                self.current_interaction.show_errors();
+                self.commons.session.show_errors(self.current_interaction);
                 (self, rest)
             }
             AddBytesResult::AllDone => (self, b""),
@@ -118,33 +127,24 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
-        self.current_interaction.set_exit_status(exit_status);
+        self.commons
+            .session
+            .set_exit_status(self.current_interaction, exit_status);
     }
 
     fn set_next_prompt(self: &mut Self, bytes: &[u8]) {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
+    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
-                let ci = ::std::mem::replace(
-                    &mut self.current_interaction,
-                    CurrentInteraction::new(Matrix::new()),
-                );
-                self.commons
-                    .session
-                    .archive_interaction(ci.prepare_archiving());
-
-                if prompt != self.commons.session.current_conversation.prompt {
-                    self.commons.session.new_conversation(prompt);
-                }
-                trace!("Done executing");
-                return (ComposeCommandPresenter::new(self.commons), true);
+                self.commons.session.new_conversation(prompt);
+                return ComposeCommandPresenter::new(self.commons);
             }
         }
-        (self, needs_marking)
+        self
     }
 
     fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
@@ -152,10 +152,6 @@ impl SubPresenter for ExecuteCommandPresenter {
             self.commons
                 .session
                 .line_iter()
-                .chain(
-                    self.current_interaction
-                        .line_iter(CommandPosition::CurrentInteraction, 0),
-                )
                 .chain(self.commons.input_line_iter()),
         )
     }
@@ -226,22 +222,6 @@ impl SubPresenter for ExecuteCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
-            // Ctrl-Space: cycle current interaction's output
-            ((false, true, false), SpecialKey::Space) => {
-                trace!("Got Ctrl-Space");
-                self.current_interaction.get_archive().cycle_visibility();
-                (self, PresenterCommand::Redraw)
-            }
-            // Shift-Ctrl-Space: cycle all interaction's output
-            ((true, true, false), SpecialKey::Space) => {
-                trace!("Got Shift-Ctrl-Space");
-                self.current_interaction.get_archive().cycle_visibility();
-                let ov = self.current_interaction.get_archive().get_visibility();
-                self.commons.session.set_interaction_visibility(ov);
-
-                (self, PresenterCommand::Redraw)
-            }
-
             _ => (self, PresenterCommand::Unknown),
         }
     }
@@ -281,7 +261,8 @@ impl SubPresenter for ExecuteCommandPresenter {
         y: usize,
     ) -> (Box<dyn SubPresenter>, NeedRedraw) {
         match (clicked_line_type(&mut *self, y), button) {
-            (Some(LineType::Command(_, pos, _)), 1) => {
+            /* TODO
+            (Some(LineType::Command(_, _)), 1) => {
                 if x < COMMAND_PREFIX_LEN {
                     match pos {
                         CommandPosition::CurrentInteraction => {
@@ -293,6 +274,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     return (self, NeedRedraw::Yes);
                 }
             }
+            */
             _ => {
                 // Unhandled combination, ignore
             }

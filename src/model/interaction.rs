@@ -24,14 +24,12 @@ use std::process::ExitStatus;
 
 use super::iterators::*;
 use super::response::*;
-use super::screen::{AddBytesResult, Cell, Matrix, Screen};
-use model::screen;
+use super::screen::{AddBytesResult, Matrix};
 
 /// Which output is visible.
 ///
-/// The GUI concept dictates that at most one output (stdout or stderr) is visible. The internal
-/// state allows both of them to be visible.
-#[derive(Debug, PartialEq, Clone)]
+/// The GUI concept dictates that at most one output (stdout or stderr) is visible.
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum OutputVisibility {
     None,
     Output,
@@ -49,35 +47,32 @@ pub enum CommandPosition {
 /// A command and its output.
 ///
 /// This is just a visual representation of a command and not connected to a running process in any
-/// way. It also does only hold completed commands.
+/// way.
 #[derive(PartialEq)]
-pub struct ArchivedInteraction {
+pub struct Interaction {
+    /// Visual representation of the command that was called to create these responses
     command: Matrix,
+    /// Collected stdout lines
     pub output: Response,
+    /// Collected stderr lines
     pub errors: Response,
+    /// Which response to show
+    visible: OutputVisibility,
+    /// exit status of the command, None if command is still runinng
     exit_status: Option<ExitStatus>,
 }
 
-/// The data of a currently running command.
-pub struct CurrentInteraction {
-    /// The process output so far
-    archive: ArchivedInteraction,
-    /// What is currently printed to the terminal on stdout
-    output_screen: Screen,
-    /// What is currently printed to the terminal on stderr
-    error_screen: Screen,
-}
-
-impl ArchivedInteraction {
+impl Interaction {
     /// Create a new command without any output yet.
     ///
     /// The command is a vector of cells as to support syntax coloring later.
     pub fn new(command: Matrix) -> Self {
         Self {
             command,
+            output: Response::new(),
+            errors: Response::new(),
+            visible: OutputVisibility::Output,
             exit_status: None,
-            output: Response::new(true),
-            errors: Response::new(false),
         }
     }
 
@@ -86,33 +81,17 @@ impl ArchivedInteraction {
         self.exit_status = Some(exit_status);
     }
 
-    /// Add a block as read from stdout.
-    pub fn add_output(&mut self, data: Vec<Cell>) {
-        self.output.add_data(data);
-    }
-
-    /// Add a block as if read from stderr.
-    pub fn add_error(&mut self, data: Vec<Cell>) {
-        self.errors.add_data(data);
-    }
-
     /// Get the visible response, if any.
     fn visible_response(&self) -> Option<&Response> {
-        if self.output.visible {
-            Some(&self.output)
-        } else if self.errors.visible {
-            Some(&self.errors)
-        } else {
-            None
+        match self.visible {
+            OutputVisibility::None => None,
+            OutputVisibility::Output => Some(&self.output),
+            OutputVisibility::Error => Some(&self.errors),
         }
     }
 
     /// Get the iterator over the items in this interaction.
-    pub fn line_iter<'a>(
-        &'a self,
-        pos: CommandPosition,
-        prompt_hash: u64,
-    ) -> impl Iterator<Item = LineItem<'a>> {
+    pub fn line_iter<'a>(&'a self, prompt_hash: u64) -> impl Iterator<Item = LineItem<'a>> {
         // We always have the command, regardless if there is any output to show.
         let resp_lines = self
             .visible_response()
@@ -120,13 +99,8 @@ impl ArchivedInteraction {
             .into_iter()
             .flat_map(|i| i);
 
-        let ov = match (self.output.visible, self.errors.visible) {
-            (true, _) => OutputVisibility::Output,
-            (false, true) => OutputVisibility::Error,
-            _ => OutputVisibility::None,
-        };
-
-        let lt = LineType::Command(ov, pos, self.exit_status);
+        let visible = self.visible;
+        let lt = LineType::Command(visible, self.exit_status);
 
         self.command
             .line_iter()
@@ -141,14 +115,28 @@ impl ArchivedInteraction {
 
     /// Make the error lines visible
     pub fn show_errors(&mut self) {
-        self.errors.visible = true;
-        self.output.visible = false;
+        self.visible = OutputVisibility::Error;
     }
 
     /// Make the output lines visible
     pub fn show_output(&mut self) {
-        self.output.visible = true;
-        self.errors.visible = false;
+        self.visible = OutputVisibility::Output;
+    }
+
+    /// Add a stream of bytes to the output screen and possibly to the archive.
+    pub fn add_output<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
+        self.output.add_bytes(bytes)
+    }
+
+    /// Add a stream of bytes to the error screen and possibly to the archive.
+    pub fn add_error<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
+        self.errors.add_bytes(bytes)
+    }
+
+    /// Archive both responses
+    pub fn archive( &mut self) {
+        self.output.archive_screen();
+        self.errors.archive_screen();
     }
 
     /// If there are errors, show them.
@@ -163,87 +151,17 @@ impl ArchivedInteraction {
 
     /// Cycle through the visibility flags
     pub fn cycle_visibility(&mut self) {
-        let (ov, ev) = match (self.output.visible, self.errors.visible) {
-            (true, false) => (false, true),
-            (false, true) => (false, false),
-            _ => (true, false),
+        let v = match self.visible {
+            OutputVisibility::Output => OutputVisibility::Error,
+            OutputVisibility::Error => OutputVisibility::None,
+            OutputVisibility::None => OutputVisibility::Output,
         };
-        self.output.visible = ov;
-        self.errors.visible = ev;
-    }
-
-    /// Get output visibility
-    pub fn get_visibility(&self) -> OutputVisibility {
-        match (self.output.visible, self.errors.visible) {
-            (true, _) => OutputVisibility::Output,
-            (false, true) => OutputVisibility::Error,
-            _ => OutputVisibility::None,
-        }
-    }
-
-    /// Set the visibility
-    pub fn set_visibility(&mut self, ov: OutputVisibility) {
-        let (ov, ev) = match ov {
-            OutputVisibility::Output => (true, false),
-            OutputVisibility::Error => (false, true),
-            _ => (false, false),
-        };
-        self.output.visible = ov;
-        self.errors.visible = ev;
+        self.visible = v;
     }
 }
 
+/*
 impl CurrentInteraction {
-    pub fn new(command: Matrix) -> Self {
-        Self {
-            archive: ArchivedInteraction::new(command),
-            output_screen: Screen::new(),
-            error_screen: Screen::new(),
-        }
-    }
-
-    /// Add a stream of bytes to the screen and possibly to the archive.
-    ///
-    /// Return true if there is progress bar activity going on.
-    fn add_bytes_to_screen<'a>(
-        screen: &mut Screen,
-        response: &mut Response,
-        bytes: &'a [u8],
-    ) -> AddBytesResult<'a> {
-        for (i, b) in bytes.iter().enumerate() {
-            match screen.add_byte(*b) {
-                // TODO: Handle TUI Switch
-                screen::Event::NewLine => {
-                    // Add all the lines on screen to the response
-                    for l in screen.line_iter() {
-                        response.add_data(l.to_vec());
-                    }
-                    screen.reset();
-                    return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
-                }
-                screen::Event::Cr => {
-                    return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
-                }
-                screen::Event::StartTui => {
-                    return AddBytesResult::StartTui(&bytes[(i + 1)..]);
-                }
-                _ => {}
-            };
-        }
-        AddBytesResult::AllDone
-    }
-
-    pub fn add_output<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
-        Self::add_bytes_to_screen(&mut self.output_screen, &mut self.archive.output, bytes)
-    }
-
-    /// Add a stream of bytes to the screen and possibly to the archive.
-    ///
-    /// Return true if there is progress bar activity going on.
-    pub fn add_error<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
-        Self::add_bytes_to_screen(&mut self.error_screen, &mut self.archive.errors, bytes)
-    }
-
     /// Get the iterator over the items in this interaction.
     pub fn line_iter<'a>(
         &'a self,
@@ -275,7 +193,11 @@ impl CurrentInteraction {
             .into_iter()
             .flat_map(|i| i);
 
-        let ov = self.archive.get_visibility();
+        let ov = match (self.archive.output.visible, self.archive.errors.visible) {
+            (true, _) => OutputVisibility::Output,
+            (false, true) => OutputVisibility::Error,
+            _ => OutputVisibility::None,
+        };
 
         let lt = LineType::Command(ov, pos, self.archive.exit_status);
 
@@ -285,11 +207,6 @@ impl CurrentInteraction {
             .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
             .chain(resp_lines)
             .chain(screen_lines)
-    }
-
-    /// Set the exit status of the interaction.
-    pub fn set_exit_status(&mut self, exit_status: ExitStatus) {
-        self.archive.set_exit_status(exit_status);
     }
 
     /// Update the archive with the last state of the screen and return it.
@@ -309,40 +226,8 @@ impl CurrentInteraction {
         self.archive
     }
 
-    pub fn get_archive(&mut self) -> &mut ArchivedInteraction {
-        &mut self.archive
-    }
-
-    /// Check if there are any error lines.
-    pub fn has_errors(&self) -> bool {
-        self.archive.has_errors()
-    }
-
-    /// Make the error lines visible
-    pub fn show_errors(&mut self) {
-        self.archive.show_errors();
-    }
-
-    /// Make the output lines visible
-    pub fn show_output(&mut self) {
-        self.archive.show_output();
-    }
 }
-
-impl CommandPosition {
-    /// Iterator to create CommandPosition elements over the whole vector of archived
-    /// conversations.
-    pub fn archive_iter() -> CpArchiveIter {
-        CpArchiveIter { this: 0 }
-    }
-
-    /// Iterator to create CommandPostion elements starting at a given command position.
-    pub fn conv_iter(&self) -> CpConvIter {
-        CpConvIter {
-            this: (*self).clone(),
-        }
-    }
-}
+*/
 
 #[cfg(test)]
 pub mod tests {
@@ -350,37 +235,19 @@ pub mod tests {
     use super::super::screen::Screen;
     use super::*;
 
-    pub fn test_add_output(inter: &mut ArchivedInteraction, bytes: &[u8]) {
-        let m = Screen::one_line_matrix(bytes);
-        for l in m.line_iter() {
-            inter.add_output(l.to_vec());
-        }
-    }
-
-    pub fn test_add_error(inter: &mut ArchivedInteraction, bytes: &[u8]) {
-        let m = Screen::one_line_matrix(bytes);
-        for l in m.line_iter() {
-            inter.add_error(l.to_vec());
-        }
-    }
-
     #[test]
     fn archived_line_iter() {
-        let mut inter = ArchivedInteraction::new(Screen::one_line_matrix(b"command"));
+        let mut inter = Interaction::new(Screen::one_line_matrix(b"command"));
 
-        test_add_output(&mut inter, b"out 1\nout 2\nout3\n");
-        test_add_error(&mut inter, b"err 1\nerr 2\n");
+        inter.output.add_bytes(b"out 1\nout 2\nout3\n");
+        inter.errors.add_bytes(b"err 1\nerr 2\n");
 
         // Test the iterator for visible output
         {
-            let mut li = inter.line_iter(CommandPosition::CurrentConversation(0), 0);
+            let mut li = inter.line_iter(0);
             check(
                 li.next(),
-                LineType::Command(
-                    OutputVisibility::Output,
-                    CommandPosition::CurrentConversation(0),
-                    None,
-                ),
+                LineType::Command(OutputVisibility::Output, None),
                 None,
                 "command",
             );
@@ -390,16 +257,11 @@ pub mod tests {
 
         // Test for visible errors
         {
-            inter.output.visible = false;
-            inter.errors.visible = true;
-            let mut li = inter.line_iter(CommandPosition::Archived(1, 0), 0);
+            inter.visible = OutputVisibility::Error;
+            let mut li = inter.line_iter(0);
             check(
                 li.next(),
-                LineType::Command(
-                    OutputVisibility::Error,
-                    CommandPosition::Archived(1, 0),
-                    None,
-                ),
+                LineType::Command(OutputVisibility::Error, None),
                 None,
                 "command",
             );
@@ -409,49 +271,15 @@ pub mod tests {
 
         // Test for nothing visible
         {
-            inter.output.visible = false;
-            inter.errors.visible = false;
-            let mut li = inter.line_iter(CommandPosition::CurrentInteraction, 0);
+            inter.visible = OutputVisibility::None;
+            let mut li = inter.line_iter(0);
             check(
                 li.next(),
-                LineType::Command(
-                    OutputVisibility::None,
-                    CommandPosition::CurrentInteraction,
-                    None,
-                ),
+                LineType::Command(OutputVisibility::None, None),
                 None,
                 "command",
             );
             assert_eq!(li.next(), None);
         }
-    }
-
-    #[test]
-    fn current_line_iter() {
-        let mut inter = CurrentInteraction::new(Screen::one_line_matrix(b"command"));
-
-        assert_eq!(
-            inter
-                .line_iter(CommandPosition::CurrentInteraction, 0)
-                .count(),
-            1
-        );
-        inter.add_output(b"out 1\n");
-
-        assert_eq!(
-            inter
-                .line_iter(CommandPosition::CurrentInteraction, 0)
-                .count(),
-            2
-        );
-
-        inter.add_output(b"out 2");
-
-        assert_eq!(
-            inter
-                .line_iter(CommandPosition::CurrentInteraction, 0)
-                .count(),
-            3
-        );
     }
 }

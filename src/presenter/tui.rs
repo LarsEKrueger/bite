@@ -23,7 +23,7 @@
 
 use super::*;
 use model::bash::{is_bash_waiting, program_add_input};
-use model::interaction::CurrentInteraction;
+use model::session::InteractionHandle;
 use std::cmp;
 
 /// Presenter to run commands and send input to their stdin.
@@ -35,7 +35,7 @@ pub struct TuiExecuteCommandPresenter {
     screen: Screen,
 
     /// Current interaction
-    current_interaction: CurrentInteraction,
+    current_interaction: InteractionHandle,
 
     /// Prompt to set. If None, we didn't receive one yet
     next_prompt: Option<Matrix>,
@@ -44,7 +44,7 @@ pub struct TuiExecuteCommandPresenter {
 impl TuiExecuteCommandPresenter {
     pub fn new(
         commons: Box<PresenterCommons>,
-        current_interaction: CurrentInteraction,
+        current_interaction: InteractionHandle,
     ) -> Box<Self> {
         let mut s = Screen::new();
         s.make_room_for(
@@ -62,7 +62,7 @@ impl TuiExecuteCommandPresenter {
         Box::new(presenter)
     }
 
-    fn deconstruct(self) -> (Box<PresenterCommons>, CurrentInteraction, Option<Matrix>) {
+    fn deconstruct(self) -> (Box<PresenterCommons>, InteractionHandle, Option<Matrix>) {
         (self.commons, self.current_interaction, self.next_prompt)
     }
 
@@ -123,16 +123,16 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.add_bytes_to_screen(bytes)
     }
 
-    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        match self.current_interaction.add_error(&bytes) {
-            AddBytesResult::StartTui(rest) | AddBytesResult::ShowStream(rest) => (self, rest),
-            AddBytesResult::AllDone => (self, b""),
-        }
+    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
+        self.add_bytes_to_screen(bytes)
     }
 
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
-        self.current_interaction.set_exit_status(exit_status);
+        self.commons
+            .session
+            .set_exit_status(self.current_interaction, exit_status);
     }
+
     fn set_next_prompt(self: &mut Self, bytes: &[u8]) {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
@@ -141,13 +141,8 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         if !needs_marking && is_bash_waiting() {
             let (mut commons, current_interaction, next_prompt) = self.deconstruct();
             if let Some(prompt) = next_prompt {
-                commons
-                    .session
-                    .archive_interaction(current_interaction.prepare_archiving());
-
-                if prompt != commons.session.current_conversation.prompt {
-                    commons.session.new_conversation(prompt);
-                }
+                commons.session.archive_interaction( current_interaction);
+                commons.session.new_conversation(prompt);
             }
             return (ComposeCommandPresenter::new(commons), true);
         }
