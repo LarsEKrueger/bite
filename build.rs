@@ -36,10 +36,10 @@ use std::str;
 fn main() {
     // Check the rust version first
     if let Ok(ver) = version() {
-        if ver < Version::new(1, 26, 0) {
+        if ver < Version::new(1, 37, 0) {
             let _ = writeln!(
                 &mut io::stderr(),
-                "bite requires rustc >= 1.26.0 to compile."
+                "bite requires rustc >= 1.37.0 to compile."
             );
             process::exit(1);
         }
