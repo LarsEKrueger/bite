@@ -56,7 +56,9 @@ releases.
 
 One built-in command that is definitely missing right now, is `complete`. This
 is deactivated along with whole completion mechanism. It should be available
-with 0.8 release.
+with 1.0 release. The 0.8 release contains a rudimentary mechanism that mostly
+works on file names. The 0.11 release will investigate an alternative mechanism
+to completion. It may provide a working `complete` command.
 
 Also, `bind` is also missing as the key-mapping mechanism in bite is not yet
 implemented.
@@ -187,12 +189,18 @@ BiTE also separates the regular output and error output into separate views.
 They can be switched with Ctrl-Space (for the last command) and
 Shift-Ctrl-Space (for all programs).
 
-For interacting with text-based interfaces, BiTE automatically provides a
-separate tab for the interface to run in.
+For interacting with text-based interfaces running as foreground jobs, BiTE
+automatically provides a full-window view for the interface to run in.
 
-Finally, long-running programs are automatically managed in a separate tab as
-well. Their output is captured is a way that they do not interfere with
-foreground operations.
+Long-running programs (background jobs) will append their output to the log in
+launch order. If programs `a`, `b`, and `c` are started, with `b` being a
+background job (i.e. `b &`), the output block of `b` will grow even though `c`
+came after it.  This ensures that the output of `b` is captured is a way that
+it do not interfere with foreground operations.
+
+If a background job is a text-based interface, BiTE will fork itself to open a
+separate window in which the text-based interface is shown as if it was a
+foreground job.
 
 The regular bash functionality will be implemented by linking to the nearly
 unmodified bash source code and calling this C code from rust code. This can
@@ -254,18 +262,26 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Handle keys in TUI mode
     * [X] Handle support for UsAscii and DecSpecial in DesignateCharacterSet
 * [X] 0.8 Completion
-* [ ] 0.9 Tabs for background programs
-* [ ] 0.10 Tabs for TUIs (automatic backgrounding)
-* [ ] 0.11 Draw GUI using Xft
-* [ ] 0.12 Implement all Screen Actions
-* [ ] 0.13 Redesign user interface
-* [ ] 0.14 Redesign SW architecture
+* [ ] 0.9 Display output of (non-interactive) background programs
+    * [ ] Allow Session to collect output into non-current interactions
+    * [ ] Implement Job
+    * [ ] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
+    * [ ] Launch foreground program using Job.
+    * [ ] Implement Jobs
+    * [ ] Extend parser to backgrounding (non-pipe)
+    * [ ] Launch background program using Jobs
+    * [ ] Extend parser and Job to launch pipes
+* [ ] 0.10 Tabs for TUIs, incl. automatic backgrounding
+    * [ ] propagate window size changes to TUI
+* [ ] 0.11 Join parsing and completion
+* [ ] 0.12 Draw GUI using Xft
+* [ ] 0.13 Implement all Screen Actions
+* [ ] 0.14 Redesign user interface
+* [ ] 0.15 Redesign SW architecture
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
-* [ ] Make GUI font configurable.
 * [ ] Bug: Bash source $() does not work correctly
-* [ ] neofetch doesn't display correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
 * [ ] Merge history during save
@@ -273,11 +289,11 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
 * [ ] Make the command line arguments of a program fold out
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
-* [ ] Do not create interactions for empty lines
 * [ ] Syntax highlighting in input line
 * [ ] Implement C1 control codes
 * [ ] Implement mouse tracking sequences more cleanly
 * [ ] Handle sub parameters correctly
+* [X] Do not create interactions for empty lines
 * [X] Bug: Handle rectangular area parameters correctly, reduce copy/paste
 * [X] Indicate return code of a completed program in the GUI
 * [X] Scroll follows output during program execution
@@ -292,10 +308,12 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * Syntax highlighting for output
 * Image preview in ls
 * Integrate auto jump functionality.
+    * part of completion of `cd`
 * Allow hyperlinks in output
 * Draw errors / hyperlinks as QR code
 * Display history / completion as Overlays
 * No keypress for history/completion. Pick the right overlay automatically, depending on the situation.
+    * Use PgUp/Down for scrolling
 * Automatically update prompt above command input (e.g. run interpreter on already-parsed string)
 
 # References
