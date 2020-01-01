@@ -139,7 +139,8 @@ impl Session {
 
     /// Set the exit status of an interaction
     pub fn set_exit_status(&mut self, handle: InteractionHandle, exit_status: ExitStatus) {
-        self.interaction_mut(handle, (), |i| i.set_exit_status(exit_status))
+        self.interaction_mut(handle, (), |i| i.set_exit_status(exit_status));
+        self.interaction_mut(handle, (), Interaction::show_potential_errors);
     }
 
     /// Show the output of a given interaction

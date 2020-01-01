@@ -133,10 +133,7 @@ impl Interaction {
     }
 
     /// If there are errors, show them.
-    ///
-    /// This is to be called before archiving the interaction, i.e. after a program has finished
-    /// running.
-    pub fn prepare_archiving(&mut self) {
+    pub fn show_potential_errors(&mut self) {
         if self.has_errors() {
             self.show_errors();
         }
