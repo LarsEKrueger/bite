@@ -18,9 +18,8 @@
 
 //! Various iterators and their items as used in the model.
 
-use super::interaction::OutputVisibility;
 use super::screen::*;
-use super::session::InteractionHandle;
+use super::session::{InteractionHandle, OutputVisibility};
 
 use std::borrow::Cow;
 use std::process::ExitStatus;

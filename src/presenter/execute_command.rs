@@ -151,7 +151,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         Box::new(
             self.commons
                 .session
-                .line_iter(false)
+                .line_iter()
                 .chain(self.commons.input_line_iter()),
         )
     }

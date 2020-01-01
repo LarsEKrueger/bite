@@ -21,7 +21,7 @@
 //! Each line consists of segments that have the same color.
 
 use super::*;
-use model::interaction::OutputVisibility;
+use model::session::OutputVisibility;
 use std::borrow::Cow;
 
 /// Item for the output iterator to be shown by the GUI.

@@ -508,8 +508,7 @@ fn check_response_clicked<T: SubPresenter>(
     match (is_a, button) {
         (Some(LineType::Command(_, handle, _)), 1) => {
             if x < COMMAND_PREFIX_LEN {
-                pres.commons_mut()
-                    .session.cycle_visibility( handle);
+                pres.commons_mut().session.cycle_visibility(handle);
                 return true;
             }
         }

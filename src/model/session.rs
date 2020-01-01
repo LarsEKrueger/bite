@@ -22,16 +22,44 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::process::ExitStatus;
 
-use super::interaction::*;
 use super::iterators::*;
+use super::response::*;
 use super::screen::{AddBytesResult, Matrix};
 
+/// Which output is visible.
+///
+/// The GUI concept dictates that at most one output (stdout or stderr) is visible.
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum OutputVisibility {
+    None,
+    Output,
+    Error,
+}
+
+/// A command and its output.
+///
+/// This is just a visual representation of a command and not connected to a running process in any
+/// way.
+#[derive(PartialEq)]
+struct Interaction {
+    /// Visual representation of the command that was called to create these responses
+    command: Matrix,
+    /// Collected stdout lines
+    output: Response,
+    /// Collected stderr lines
+    errors: Response,
+    /// Which response to show
+    visible: OutputVisibility,
+    /// exit status of the command, None if command is still runinng
+    exit_status: Option<ExitStatus>,
+}
+
 /// A number of commands that are executed with the same prompt string.
-pub struct Conversation {
+struct Conversation {
     /// List of programs and their outputs for this prompt.
-    pub interactions: Vec<InteractionHandle>,
+    interactions: Vec<InteractionHandle>,
     /// The prompt for this conversation.
-    pub prompt: Matrix,
+    prompt: Matrix,
     /// Hash value of the prompt for displaying a color
     prompt_hash: u64,
 }
@@ -42,10 +70,10 @@ pub struct Conversation {
 /// indices need to be consistent.
 pub struct Session {
     /// History of conversations, oldest first.
-    pub conversations: Vec<Conversation>,
+    conversations: Vec<Conversation>,
 
     /// History of interactions, oldest first.
-    pub interactions: Vec<Interaction>,
+    interactions: Vec<Interaction>,
 }
 
 /// Index of an interaction in a session.
@@ -55,6 +83,70 @@ pub struct Session {
 /// runs out of indices.
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub struct InteractionHandle(usize);
+
+impl Interaction {
+    /// Create a new command without any output yet.
+    ///
+    /// The command is a vector of cells as to support syntax coloring later.
+    pub fn new(command: Matrix) -> Self {
+        Self {
+            command,
+            output: Response::new(),
+            errors: Response::new(),
+            visible: OutputVisibility::Output,
+            exit_status: None,
+        }
+    }
+
+    /// Get the visible response, if any.
+    fn visible_response(&self) -> Option<&Response> {
+        match self.visible {
+            OutputVisibility::None => None,
+            OutputVisibility::Output => Some(&self.output),
+            OutputVisibility::Error => Some(&self.errors),
+        }
+    }
+
+    /// Get the iterator over the items in this interaction.
+    fn line_iter<'a>(
+        &'a self,
+        handle: InteractionHandle,
+        prompt_hash: u64,
+    ) -> impl Iterator<Item = LineItem<'a>> {
+        // We always have the command, regardless if there is any output to show.
+        let resp_lines = self
+            .visible_response()
+            .map(|r| r.line_iter(prompt_hash))
+            .into_iter()
+            .flat_map(|i| i);
+
+        let visible = self.visible;
+        let lt = LineType::Command(visible, handle, self.exit_status);
+
+        self.command
+            .line_iter()
+            .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
+            .chain(resp_lines)
+    }
+
+    /// Check if there are any error lines.
+    fn has_errors(&self) -> bool {
+        !self.errors.lines.is_empty()
+    }
+
+    /// Make the error lines visible
+    pub fn show_errors(&mut self) {
+        self.visible = OutputVisibility::Error;
+    }
+
+    /// If there are errors, show them.
+    pub fn show_potential_errors(&mut self) {
+        let failure = self.exit_status.map_or(false, |e| !e.success());
+        if self.has_errors() || failure {
+            self.show_errors();
+        }
+    }
+}
 
 impl Conversation {
     /// Creates a new conversation without any interactions.
@@ -68,11 +160,6 @@ impl Conversation {
             interactions: vec![],
             prompt_hash,
         }
-    }
-
-    /// Add an interaction to the conversation.
-    pub fn add_interaction(&mut self, interaction: InteractionHandle) {
-        self.interactions.push(interaction);
     }
 }
 
@@ -148,13 +235,15 @@ impl Session {
 
     /// Set the exit status of an interaction
     pub fn set_exit_status(&mut self, handle: InteractionHandle, exit_status: ExitStatus) {
-        self.interaction_mut(handle, (), |i| i.set_exit_status(exit_status));
-        self.interaction_mut(handle, (), Interaction::show_potential_errors);
+        self.interaction_mut(handle, (), |i| {
+            i.exit_status = Some(exit_status);
+            i.show_potential_errors();
+        });
     }
 
     /// Show the output of a given interaction
     pub fn show_output(&mut self, handle: InteractionHandle) {
-        self.interaction_mut(handle, (), Interaction::show_output)
+        self.interaction_mut(handle, (), |i| i.visible = OutputVisibility::Output)
     }
 
     /// Show the errors of a given interaction
@@ -168,7 +257,9 @@ impl Session {
         handle: InteractionHandle,
         bytes: &'a [u8],
     ) -> AddBytesResult<'a> {
-        self.interaction_mut(handle, AddBytesResult::AllDone, |i| i.add_output(bytes))
+        self.interaction_mut(handle, AddBytesResult::AllDone, |i| {
+            i.output.add_bytes(bytes)
+        })
     }
 
     /// Add bytes to the errors of the given interaction
@@ -177,17 +268,29 @@ impl Session {
         handle: InteractionHandle,
         bytes: &'a [u8],
     ) -> AddBytesResult<'a> {
-        self.interaction_mut(handle, AddBytesResult::AllDone, |i| i.add_error(bytes))
+        self.interaction_mut(handle, AddBytesResult::AllDone, |i| {
+            i.errors.add_bytes(bytes)
+        })
     }
 
     /// Archive the given interaction
     pub fn archive_interaction(&mut self, handle: InteractionHandle) {
-        self.interaction_mut(handle, (), Interaction::archive)
+        self.interaction_mut(handle, (), |i| {
+            i.output.archive_screen();
+            i.errors.archive_screen();
+        })
     }
 
     /// Cycle the visibility of an interaction
     pub fn cycle_visibility(&mut self, handle: InteractionHandle) {
-        self.interaction_mut( handle, (), Interaction::cycle_visibility)
+        self.interaction_mut(handle, (), |i| {
+            let v = match i.visible {
+                OutputVisibility::Output => OutputVisibility::Error,
+                OutputVisibility::Error => OutputVisibility::None,
+                OutputVisibility::None => OutputVisibility::Output,
+            };
+            i.visible = v;
+        })
     }
 }
 
@@ -220,10 +323,10 @@ mod tests {
         assert_eq!(session.conversations[0].interactions.len(), 2);
         assert_eq!(session.conversations[1].interactions.len(), 2);
 
-        let mut li = session.line_iter();
+        let mut li = session.line_iter(true);
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, None),
+            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 0 }, None),
             None,
             "command 1.1",
         );
@@ -231,7 +334,7 @@ mod tests {
         check(li.next(), LineType::Output, None, "output 1.1.2");
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, None),
+            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 1 }, None),
             None,
             "command 1.2",
         );
@@ -241,7 +344,7 @@ mod tests {
 
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, None),
+            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 2 }, None),
             None,
             "command 2.1",
         );
@@ -249,7 +352,7 @@ mod tests {
         check(li.next(), LineType::Output, None, "output 2.1.2");
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, None),
+            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 3 }, None),
             None,
             "command 2.2",
         );
