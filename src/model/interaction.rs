@@ -134,7 +134,7 @@ impl Interaction {
     }
 
     /// Archive both responses
-    pub fn archive( &mut self) {
+    pub fn archive(&mut self) {
         self.output.archive_screen();
         self.errors.archive_screen();
     }

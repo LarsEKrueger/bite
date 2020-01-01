@@ -141,7 +141,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         if !needs_marking && is_bash_waiting() {
             let (mut commons, current_interaction, next_prompt) = self.deconstruct();
             if let Some(prompt) = next_prompt {
-                commons.session.archive_interaction( current_interaction);
+                commons.session.archive_interaction(current_interaction);
                 commons.session.new_conversation(prompt);
             }
             return (ComposeCommandPresenter::new(commons), true);

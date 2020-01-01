@@ -53,7 +53,7 @@ pub struct Session {
 /// While there will be usually less than 2^64 interactions in a session, this is a usize to avoid
 /// error handling now. Opening too many interactions will eat up all the memory before the program
 /// runs out of indices.
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub struct InteractionHandle(usize);
 
 impl Conversation {
@@ -102,7 +102,7 @@ impl Session {
             c.interactions
                 .iter()
                 .flat_map(move |interHandle| {
-                    let inter : &'a Interaction  = &(self.interactions[interHandle.0]);
+                    let inter: &'a Interaction = &(self.interactions[interHandle.0]);
                     inter.line_iter(prompt_hash)
                 })
                 .chain(
@@ -171,10 +171,9 @@ impl Session {
     }
 
     /// Archive the given interaction
-    pub fn archive_interaction( &mut self, handle: InteractionHandle) {
-        self.interaction_mut( handle, (), Interaction::archive)
+    pub fn archive_interaction(&mut self, handle: InteractionHandle) {
+        self.interaction_mut(handle, (), Interaction::archive)
     }
-
 }
 
 #[cfg(test)]
@@ -198,7 +197,7 @@ mod tests {
 
         session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
         let inter_2_1 = session.add_interaction(Screen::one_line_matrix(b"command 2.1"));
-        session.add_output( inter_2_1, b"output 2.1.1\noutput 2.1.2\n");
+        session.add_output(inter_2_1, b"output 2.1.1\noutput 2.1.2\n");
         let inter_2_2 = session.add_interaction(Screen::one_line_matrix(b"command 2.2"));
         session.add_output(inter_2_2, b"output 2.2.1\noutput 2.2.2\n");
 

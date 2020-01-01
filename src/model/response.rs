@@ -74,9 +74,10 @@ impl Response {
 
     /// Iterate over the lines
     pub fn line_iter<'a>(&'a self, prompt_hash: u64) -> impl Iterator<Item = LineItem<'a>> {
-        let screen_lines = self.screen.line_iter().map(move |line| {
-            LineItem::new(&line[..], LineType::Output, None, prompt_hash)
-        });
+        let screen_lines = self
+            .screen
+            .line_iter()
+            .map(move |line| LineItem::new(&line[..], LineType::Output, None, prompt_hash));
 
         self.lines
             .iter()
@@ -114,11 +115,12 @@ pub mod tests {
     fn line_iter_non_archived() {
         let mut resp = Response::new();
 
-        let abr = resp.add_bytes( b"line 1\nline 2\n\nline 4");
-        assert!( abr == AddBytesResult::AllDone);
+        let abr = resp.add_bytes(b"line 1\nline 2\n\nline 4");
+        assert!(abr == AddBytesResult::AllDone);
+
+        assert_eq!(resp.line_iter(0).count(), 4);
 
         let mut li = resp.line_iter(0);
-
         check(li.next(), LineType::Output, None, "line 1");
         check(li.next(), LineType::Output, None, "line 2");
         check(li.next(), LineType::Output, None, "");
@@ -130,11 +132,12 @@ pub mod tests {
     fn line_iter_archived() {
         let mut resp = Response::new();
 
-        let abr = resp.add_bytes( b"line 1\nline 2\n\nline 4\n");
-        assert!( abr == AddBytesResult::AllDone);
+        let abr = resp.add_bytes(b"line 1\nline 2\n\nline 4\n");
+        assert!(abr == AddBytesResult::AllDone);
+
+        assert_eq!(resp.line_iter(0).count(), 4);
 
         let mut li = resp.line_iter(0);
-
         check(li.next(), LineType::Output, None, "line 1");
         check(li.next(), LineType::Output, None, "line 2");
         check(li.next(), LineType::Output, None, "");
@@ -145,7 +148,7 @@ pub mod tests {
     #[test]
     fn empty_line_iter() {
         let mut resp = Response::new();
-        resp.add_bytes( b"line 1\nline 2\n\nline 4\n");
+        resp.add_bytes(b"line 1\nline 2\n\nline 4\n");
         let mut li = resp.empty_line_iter(0);
         assert_eq!(li.next(), None);
     }

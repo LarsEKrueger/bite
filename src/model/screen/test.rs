@@ -360,6 +360,11 @@ fn empty_screen_iter() {
 }
 
 #[test]
+fn one_newline() {
+    Test::e(b"\n").cp(0, 1).height(1).cr(0, "");
+}
+
+#[test]
 fn bell() {
     let mut s = Screen::new();
     assert_eq!(s.add_byte(b'\x07'), Event::Bell);
@@ -438,11 +443,15 @@ fn cursor_motion() {
         .cr(0, "      Hello")
         .cr(1, "World!");
 
-    // CursorForward
+    // CursorForward, fixed width
     Test::s(10, 25, b"\x1b[12CHello\nWorld")
         .cr(0, "         H")
         .cr(1, "ello")
         .cr(2, "World");
+    // CursorForward, auto-grow
+    // 01234567890123456789
+    // ............Hello
+    // World
     Test::e(b"\x1b[12CHello\nWorld")
         .height(2)
         .width(17)

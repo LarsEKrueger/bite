@@ -202,6 +202,9 @@ bitflags! {
 /// A matrix is a rectangular area of cells.
 ///
 /// A matrix is meant to be stored, but not modified.
+///
+/// Be aware that a matrix can have width of 0, but a non-zero height. This is caused by adding
+/// newlines to an empty screen.
 #[derive(Clone)]
 pub struct Matrix {
     /// The cells of the screen, stored in a row-major ordering.
@@ -231,6 +234,9 @@ impl Matrix {
         self.width
     }
 
+    /// Compute the index into cells given valid x and y coordinates.
+    ///
+    /// Must not be called for matrices of width==0.
     fn cell_index(&self, x: isize, y: isize) -> isize {
         debug_assert!(0 <= x);
         debug_assert!(x < self.width);
@@ -252,35 +258,50 @@ impl Matrix {
     }
 
     pub fn compacted_row_slice(&self, row: isize) -> &[Cell] {
-        let row_start = self.cell_index(0, row);
-        let mut row_end = self.cell_index(self.width - 1, row);
-        while row_end >= row_start {
-            if self.cells[row_end as usize].drawn() {
-                break;
+        if self.width == 0 {
+            // Return an empty slice
+            &self.cells[0..0]
+        } else {
+            let row_start = self.cell_index(0, row);
+            let mut row_end = self.cell_index(self.width - 1, row);
+            while row_end >= row_start {
+                if self.cells[row_end as usize].drawn() {
+                    break;
+                }
+                row_end -= 1;
             }
-            row_end -= 1;
+
+            // If we have seen an empty row, row_end < row_start. If this happens in the first row, we
+            // would underflow when casting to usize for slicing, thus we update now and then cast.
+            row_end += 1;
+            let row_start = row_start as usize;
+            let row_end = row_end as usize;
+
+            &self.cells[row_start..row_end]
         }
-
-        // If we have seen an empty row, row_end < row_start. If this happens in the first row, we
-        // would underflow when casting to usize for slicing, thus we update now and then cast.
-        row_end += 1;
-        let row_start = row_start as usize;
-        let row_end = row_end as usize;
-
-        &self.cells[row_start..row_end]
     }
 
     pub fn row_slice(&self, row: isize) -> &[Cell] {
-        let row_start = self.cell_index(0, row);
-        let row_end = self.cell_index(self.width - 1, row);
-        let row_start = row_start as usize;
-        let row_end = row_end as usize;
+        if self.width == 0 {
+            // Return an empty slice
+            &self.cells[0..0]
+        } else {
+            let row_start = self.cell_index(0, row);
+            let row_end = self.cell_index(self.width - 1, row);
+            let row_start = row_start as usize;
+            let row_end = row_end as usize;
 
-        &self.cells[row_start..row_end]
+            &self.cells[row_start..row_end]
+        }
     }
 
     pub fn compacted_row(&self, row: isize) -> Vec<Cell> {
-        self.compacted_row_slice(row).to_vec()
+        // Special case for matrix of width 0
+        if self.width == 0 {
+            Vec::new()
+        } else {
+            self.compacted_row_slice(row).to_vec()
+        }
     }
 
     pub fn line_iter(&self) -> impl Iterator<Item = &[Cell]> {
@@ -785,7 +806,7 @@ impl Screen {
         }
     }
 
-    /// Ensure that there is room for the character at the current position.
+    /// Ensure that there is room to insert a character at the current position.
     pub fn make_room(&mut self) {
         if self.fixed_size {
             self.cursor.x = cmp::max(0, cmp::min(self.width() - 1, self.cursor.x));
@@ -799,6 +820,32 @@ impl Screen {
         }
     }
 
+    /// Ensure that the height of the matrix is sufficient to include the cursor.
+    ///
+    /// Do not change the width.
+    pub fn make_vertical_room(&mut self) {
+        if !self.fixed_size {
+            if self.width() == 0 {
+                // Width is zero, no memory has been allocated. Ensure correct setting of height
+                // and cursor.y.
+                let y = self.cursor.y;
+                if y < 0 || y >= self.height() {
+                    let add_top = -cmp::min(y, 0);
+                    let add_bottom = cmp::max(y, self.height() - 1) - self.height() + 1;
+                    let new_h = self.height() + add_top + add_bottom;
+                    self.matrix.height = new_h;
+                }
+            } else {
+                // Matrix is at least one character wide. Ensure that a character could be placed
+                // in the last column of the cursor row.
+                self.make_room_for(self.matrix.width - 1, self.cursor.y);
+            }
+        }
+    }
+
+    /// Ensure that there is room to place a character at (x,y)
+    ///
+    /// Return the corrected position
     pub fn make_room_for(&mut self, x: isize, y: isize) -> (isize, isize) {
         if x < 0 || x >= self.width() || y < 0 || y >= self.height() {
             // Compute the new size and allocate
@@ -923,6 +970,12 @@ impl Screen {
     }
 
     pub fn new_line(&mut self) {
+        // Ensures a physical line to be there before we start a new one. make_room() is not
+        // appropriate here as that would allocate memory to place a character at the end of the
+        // line. As the current line ends, only height needs to be updated. width can remain the
+        // same as no character needs to be inserted here.
+        self.make_vertical_room();
+        // Place the cursor in a virtual position, but do not allocate any memory.
         self.move_left_edge();
         self.move_down_and_scroll(1);
     }
