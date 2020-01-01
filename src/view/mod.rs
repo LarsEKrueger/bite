@@ -144,7 +144,7 @@ pub struct Gui {
 }
 
 /// Default font to draw the output
-const FONTNAME: &'static str = "-*-courier-medium-r-*-*-20-*-*-*-*-*-iso10646-*\0";
+const FONTNAME: &'static str = "-*-courier-medium-r-*-*-17-*-*-*-*-*-iso10646-*\0";
 
 /// Create the input context.
 ///
