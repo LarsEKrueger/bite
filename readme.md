@@ -246,7 +246,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [X] 0.8 Completion
 * [ ] 0.9 Display output of (non-interactive) background programs
     * [X] Allow Session to collect output into non-current interactions
-    * [ ] BUG: Shows prompt in ExecuteCommandPresenter
+    * [X] BUG: Shows prompt in ExecuteCommandPresenter
     * [ ] Implement Job
     * [ ] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
     * [ ] Launch foreground program using Job.
