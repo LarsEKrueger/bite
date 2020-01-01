@@ -96,21 +96,30 @@ impl Session {
     }
 
     /// Return an iterator over the currently visible items.
-    pub fn line_iter<'a>(&'a self) -> impl Iterator<Item = LineItem<'a>> {
-        self.conversations.iter().flat_map(move |c| {
-            let prompt_hash = c.prompt_hash;
-            c.interactions
-                .iter()
-                .flat_map(move |interHandle| {
-                    let inter: &'a Interaction = &(self.interactions[interHandle.0]);
-                    inter.line_iter(*interHandle,prompt_hash)
-                })
-                .chain(
-                    c.prompt
-                        .line_iter()
-                        .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash)),
-                )
-        })
+    pub fn line_iter<'a>(&'a self, show_last_prompt: bool) -> impl Iterator<Item = LineItem<'a>> {
+        let num_conversations = self.conversations.len();
+        self.conversations
+            .iter()
+            .enumerate()
+            .flat_map(move |(conversation_index, conversation)| {
+                let prompt_hash = conversation.prompt_hash;
+                let is_last_conv = (conversation_index + 1) >= num_conversations;
+                let show_this_prompt = !is_last_conv || show_last_prompt;
+
+                conversation
+                    .interactions
+                    .iter()
+                    .flat_map(move |interHandle| {
+                        self.interactions[interHandle.0].line_iter(*interHandle, prompt_hash)
+                    })
+                    .chain(
+                        conversation
+                            .prompt
+                            .line_iter()
+                            .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash))
+                            .take_while(move |_| show_this_prompt),
+                    )
+            })
     }
 
     /// Add a new interaction to the latest conversation.

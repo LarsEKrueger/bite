@@ -117,7 +117,7 @@ impl SubPresenter for ComposeCommandPresenter {
         Box::new(
             self.commons
                 .session
-                .line_iter()
+                .line_iter(true)
                 .chain(self.commons.input_line_iter()),
         )
     }
