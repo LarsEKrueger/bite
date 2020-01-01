@@ -140,6 +140,9 @@ impl SubPresenter for ExecuteCommandPresenter {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
+                self.commons
+                    .session
+                    .archive_interaction(self.current_interaction);
                 self.commons.session.new_conversation(prompt);
                 return ComposeCommandPresenter::new(self.commons);
             }
@@ -151,7 +154,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         Box::new(
             self.commons
                 .session
-                .line_iter()
+                .line_iter(false)
                 .chain(self.commons.input_line_iter()),
         )
     }
