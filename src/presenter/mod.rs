@@ -506,18 +506,13 @@ fn check_response_clicked<T: SubPresenter>(
 ) -> bool {
     let is_a = clicked_line_type(pres, y);
     match (is_a, button) {
-        /* TODO
-        (Some(LineType::Command(_, pos, _)), 1) => {
+        (Some(LineType::Command(_, handle, _)), 1) => {
             if x < COMMAND_PREFIX_LEN {
-                // Click on a command
                 pres.commons_mut()
-                    .session
-                    .find_interaction_from_command(pos)
-                    .map(|i| i.cycle_visibility());
+                    .session.cycle_visibility( handle);
                 return true;
             }
         }
-        */
         _ => {
             // Unhandled combination, ignore
         }

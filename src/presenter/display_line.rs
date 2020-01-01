@@ -85,7 +85,7 @@ impl<'a> DisplayLine<'a> {
         let deco = match line.is_a {
             LineType::Output => &*OUTPUT_PREFIX,
             LineType::Prompt => &*PROMPT_PREFIX,
-            LineType::Command(ref ov, es) => match (ov, es.map(|es| es.success())) {
+            LineType::Command(ref ov, _, es) => match (ov, es.map(|es| es.success())) {
                 (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
                 (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
                 (OutputVisibility::Error, None) => &*ERROR_RUNNING_PREFIX,

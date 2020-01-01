@@ -18,8 +18,9 @@
 
 //! Various iterators and their items as used in the model.
 
-use super::interaction::*;
+use super::interaction::OutputVisibility;
 use super::screen::*;
+use super::session::InteractionHandle;
 
 use std::borrow::Cow;
 use std::process::ExitStatus;
@@ -30,7 +31,7 @@ pub enum LineType {
     /// A command prompt.
     Prompt,
     /// A command with its visibility and position for changing that.
-    Command(OutputVisibility, Option<ExitStatus>),
+    Command(OutputVisibility, InteractionHandle, Option<ExitStatus>),
     /// Output from a program (error or normal).
     Output,
     /// The input line.

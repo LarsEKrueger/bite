@@ -53,7 +53,7 @@ pub struct Session {
 /// While there will be usually less than 2^64 interactions in a session, this is a usize to avoid
 /// error handling now. Opening too many interactions will eat up all the memory before the program
 /// runs out of indices.
-#[derive(Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct InteractionHandle(usize);
 
 impl Conversation {
@@ -103,7 +103,7 @@ impl Session {
                 .iter()
                 .flat_map(move |interHandle| {
                     let inter: &'a Interaction = &(self.interactions[interHandle.0]);
-                    inter.line_iter(prompt_hash)
+                    inter.line_iter(*interHandle,prompt_hash)
                 })
                 .chain(
                     c.prompt
@@ -173,6 +173,11 @@ impl Session {
     /// Archive the given interaction
     pub fn archive_interaction(&mut self, handle: InteractionHandle) {
         self.interaction_mut(handle, (), Interaction::archive)
+    }
+
+    /// Cycle the visibility of an interaction
+    pub fn cycle_visibility(&mut self, handle: InteractionHandle) {
+        self.interaction_mut( handle, (), Interaction::cycle_visibility)
     }
 }
 

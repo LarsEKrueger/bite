@@ -402,7 +402,7 @@ impl Gui {
         let w = match line.is_a {
             LineType::Output => Some(OUTPUT_SEAM_WIDTH),
             LineType::Prompt => Some(PROMPT_SEAM_WIDTH),
-            LineType::Command(_, _) => Some(COMMAND_SEAM_WIDTH),
+            LineType::Command(_, _, _) => Some(COMMAND_SEAM_WIDTH),
             LineType::Input => Some(INPUT_SEAM_WIDTH),
             LineType::MenuDecoration => None,
             LineType::SelectedMenuItem(_) => None,

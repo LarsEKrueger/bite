@@ -254,32 +254,21 @@ impl SubPresenter for ExecuteCommandPresenter {
         (self, PresenterCommand::Unknown)
     }
 
+    /// Handle a click.
+    ///
+    /// If a command was clicked, cycle through the visibility of output and error.
     fn handle_click(
         mut self: Box<Self>,
         button: usize,
         x: usize,
         y: usize,
     ) -> (Box<dyn SubPresenter>, NeedRedraw) {
-        match (clicked_line_type(&mut *self, y), button) {
-            /* TODO
-            (Some(LineType::Command(_, _)), 1) => {
-                if x < COMMAND_PREFIX_LEN {
-                    match pos {
-                        CommandPosition::CurrentInteraction => {
-                            Some(self.current_interaction.get_archive())
-                        }
-                        p => self.commons_mut().session.find_interaction_from_command(p),
-                    }
-                    .map(|i| i.cycle_visibility());
-                    return (self, NeedRedraw::Yes);
-                }
-            }
-            */
-            _ => {
-                // Unhandled combination, ignore
-            }
-        }
-        return (self, NeedRedraw::No);
+        let redraw = if check_response_clicked(&mut *self, button, x, y) {
+            NeedRedraw::Yes
+        } else {
+            NeedRedraw::No
+        };
+        (self, redraw)
     }
 
     fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
