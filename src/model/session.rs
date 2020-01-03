@@ -26,6 +26,8 @@ use super::iterators::*;
 use super::response::*;
 use super::screen::{AddBytesResult, Matrix};
 
+use std::sync::{Arc, Mutex};
+
 /// Which output is visible.
 ///
 /// The GUI concept dictates that at most one output (stdout or stderr) is visible.
@@ -34,6 +36,14 @@ pub enum OutputVisibility {
     None,
     Output,
     Error,
+}
+
+/// Running status of an interaction
+#[derive(PartialEq, Debug, Clone)]
+pub enum RunningStatus {
+    Running,
+    Unknown,
+    Exited(ExitStatus),
 }
 
 /// A command and its output.
@@ -50,8 +60,8 @@ struct Interaction {
     errors: Response,
     /// Which response to show
     visible: OutputVisibility,
-    /// exit status of the command, None if command is still runinng
-    exit_status: Option<ExitStatus>,
+    /// status of the command
+    running_status: RunningStatus,
 }
 
 /// A number of commands that are executed with the same prompt string.
@@ -76,6 +86,10 @@ pub struct Session {
     interactions: Vec<Interaction>,
 }
 
+/// Session that can be shared between threads
+#[derive(Clone)]
+pub struct SharedSession(Arc<Mutex<Session>>);
+
 /// Index of an interaction in a session.
 ///
 /// While there will be usually less than 2^64 interactions in a session, this is a usize to avoid
@@ -94,7 +108,7 @@ impl Interaction {
             output: Response::new(),
             errors: Response::new(),
             visible: OutputVisibility::Output,
-            exit_status: None,
+            running_status: RunningStatus::Unknown,
         }
     }
 
@@ -121,7 +135,7 @@ impl Interaction {
             .flat_map(|i| i);
 
         let visible = self.visible;
-        let lt = LineType::Command(visible, handle, self.exit_status);
+        let lt = LineType::Command(visible, handle, self.running_status.clone());
 
         self.command
             .line_iter()
@@ -141,7 +155,10 @@ impl Interaction {
 
     /// If there are errors, show them.
     pub fn show_potential_errors(&mut self) {
-        let failure = self.exit_status.map_or(false, |e| !e.success());
+        let failure = match self.running_status {
+            RunningStatus::Exited(es) => !es.success(),
+            _ => false,
+        };
         if self.has_errors() || failure {
             self.show_errors();
         }
@@ -221,7 +238,7 @@ impl Session {
 
     /// Quick access to an interaction by handle.
     ///
-    /// Does nothing for illegal handles.
+    /// Returns the default for illegal handles.
     fn interaction_mut<F, R>(&mut self, handle: InteractionHandle, default: R, f: F) -> R
     where
         F: FnOnce(&mut Interaction) -> R,
@@ -231,14 +248,6 @@ impl Session {
         } else {
             default
         }
-    }
-
-    /// Set the exit status of an interaction
-    pub fn set_exit_status(&mut self, handle: InteractionHandle, exit_status: ExitStatus) {
-        self.interaction_mut(handle, (), |i| {
-            i.exit_status = Some(exit_status);
-            i.show_potential_errors();
-        });
     }
 
     /// Show the output of a given interaction
@@ -292,6 +301,63 @@ impl Session {
             i.visible = v;
         })
     }
+
+    /// Set the exit status of an interaction
+    ///
+    /// This is an obsolete method
+    pub fn set_exit_status(&mut self, handle: InteractionHandle, status: ExitStatus) {
+        self.interaction_mut(handle, (), |i| {
+            i.running_status = RunningStatus::Exited(status);
+            i.show_potential_errors();
+        });
+    }
+}
+
+impl SharedSession {
+    /// Quick access to an interaction by handle.
+    ///
+    /// Returns the default if something goes wrong.
+    fn interaction_mut<F, R>(&mut self, handle: InteractionHandle, default: R, f: F) -> R
+    where
+        F: FnOnce(&mut Interaction) -> R,
+    {
+        if let Ok(mut s) = self.0.lock() {
+            s.interaction_mut(handle, default, f)
+        } else {
+            default
+        }
+    }
+
+    /// Add bytes to error stream of interaction.
+    ///
+    /// Ignore the AddBytesResult and keep going.
+    pub fn add_error_raw(&mut self, handle: InteractionHandle, bytes: &[u8]) {
+        self.interaction_mut(handle, (), |i| i.errors.add_bytes_raw(bytes));
+    }
+
+    /// Add bytes to selected stream of interaction
+    ///
+    /// Ignore the AddBytesResult and keep going.
+    pub fn add_bytes_raw(
+        &mut self,
+        stream: OutputVisibility,
+        handle: InteractionHandle,
+        bytes: &[u8],
+    ) {
+        self.interaction_mut(handle, (), |i| match stream {
+            OutputVisibility::None => {}
+            OutputVisibility::Output => i.output.add_bytes_raw(bytes),
+            OutputVisibility::Error => i.errors.add_bytes_raw(bytes),
+        });
+    }
+
+    /// Set the running status of an interaction
+    pub fn set_running_status(&mut self, handle: InteractionHandle, status: RunningStatus) {
+        self.interaction_mut(handle, (), |i| {
+            i.running_status = status;
+            i.show_potential_errors();
+        });
+    }
 }
 
 #[cfg(test)]
@@ -326,7 +392,11 @@ mod tests {
         let mut li = session.line_iter(true);
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 0 }, None),
+            LineType::Command(
+                OutputVisibility::Output,
+                InteractionHandle { 0: 0 },
+                RunningStatus::Unknown,
+            ),
             None,
             "command 1.1",
         );
@@ -334,7 +404,11 @@ mod tests {
         check(li.next(), LineType::Output, None, "output 1.1.2");
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 1 }, None),
+            LineType::Command(
+                OutputVisibility::Output,
+                InteractionHandle { 0: 1 },
+                RunningStatus::Unknown,
+            ),
             None,
             "command 1.2",
         );
@@ -344,7 +418,11 @@ mod tests {
 
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 2 }, None),
+            LineType::Command(
+                OutputVisibility::Output,
+                InteractionHandle { 0: 2 },
+                RunningStatus::Unknown,
+            ),
             None,
             "command 2.1",
         );
@@ -352,7 +430,11 @@ mod tests {
         check(li.next(), LineType::Output, None, "output 2.1.2");
         check(
             li.next(),
-            LineType::Command(OutputVisibility::Output, InteractionHandle { 0: 3 }, None),
+            LineType::Command(
+                OutputVisibility::Output,
+                InteractionHandle { 0: 3 },
+                RunningStatus::Unknown,
+            ),
             None,
             "command 2.2",
         );

@@ -43,13 +43,19 @@ lazy_static! {
     static ref NONE_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42m » ".as_bytes());
     static ref OUTPUT_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42mO» ".as_bytes());
     static ref ERROR_OK_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[42mE» ".as_bytes());
+
     static ref NONE_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41m » ".as_bytes());
     static ref OUTPUT_FAIL_PREFIX : Vec<Cell> =
         Screen::one_line_cell_vec( "\x1b[41mO» ".as_bytes());
     static ref ERROR_FAIL_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "\x1b[41mE» ".as_bytes());
+
     static ref NONE_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " » ".as_bytes());
     static ref OUTPUT_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "O» ".as_bytes());
     static ref ERROR_RUNNING_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "E» ".as_bytes());
+
+    static ref NONE_UNKNOWN_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " ? ".as_bytes());
+    static ref OUTPUT_UNKNOWN_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "O? ".as_bytes());
+    static ref ERROR_UNKNOWN_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "E? ".as_bytes());
 
     static ref TUI_PREFIX : Vec<Cell> = Vec::new();
     static ref INPUT_PREFIX : Vec<Cell> = Vec::new();
@@ -85,18 +91,36 @@ impl<'a> DisplayLine<'a> {
         let deco = match line.is_a {
             LineType::Output => &*OUTPUT_PREFIX,
             LineType::Prompt => &*PROMPT_PREFIX,
-            LineType::Command(ref ov, _, es) => match (ov, es.map(|es| es.success())) {
-                (OutputVisibility::None, None) => &*NONE_RUNNING_PREFIX,
-                (OutputVisibility::Output, None) => &*OUTPUT_RUNNING_PREFIX,
-                (OutputVisibility::Error, None) => &*ERROR_RUNNING_PREFIX,
+            LineType::Command(ref ov, _, ref rs) => match (ov, rs) {
+                (OutputVisibility::None, RunningStatus::Running) => &*NONE_RUNNING_PREFIX,
+                (OutputVisibility::Output, RunningStatus::Running) => &*OUTPUT_RUNNING_PREFIX,
+                (OutputVisibility::Error, RunningStatus::Running) => &*ERROR_RUNNING_PREFIX,
 
-                (OutputVisibility::None, Some(true)) => &*NONE_OK_PREFIX,
-                (OutputVisibility::Output, Some(true)) => &*OUTPUT_OK_PREFIX,
-                (OutputVisibility::Error, Some(true)) => &*ERROR_OK_PREFIX,
+                (OutputVisibility::None, RunningStatus::Unknown) => &*NONE_UNKNOWN_PREFIX,
+                (OutputVisibility::Output, RunningStatus::Unknown) => &*OUTPUT_UNKNOWN_PREFIX,
+                (OutputVisibility::Error, RunningStatus::Unknown) => &*ERROR_UNKNOWN_PREFIX,
 
-                (OutputVisibility::None, Some(false)) => &*NONE_FAIL_PREFIX,
-                (OutputVisibility::Output, Some(false)) => &*OUTPUT_FAIL_PREFIX,
-                (OutputVisibility::Error, Some(false)) => &*ERROR_FAIL_PREFIX,
+                (OutputVisibility::None, RunningStatus::Exited(es)) => {
+                    if es.success() {
+                        &*NONE_OK_PREFIX
+                    } else {
+                        &*NONE_FAIL_PREFIX
+                    }
+                }
+                (OutputVisibility::Output, RunningStatus::Exited(es)) => {
+                    if es.success() {
+                        &*OUTPUT_OK_PREFIX
+                    } else {
+                        &*OUTPUT_FAIL_PREFIX
+                    }
+                }
+                (OutputVisibility::Error, RunningStatus::Exited(es)) => {
+                    if es.success() {
+                        &*ERROR_OK_PREFIX
+                    } else {
+                        &*ERROR_FAIL_PREFIX
+                    }
+                }
             },
 
             LineType::Input => &*INPUT_PREFIX,

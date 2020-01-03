@@ -19,10 +19,9 @@
 //! Various iterators and their items as used in the model.
 
 use super::screen::*;
-use super::session::{InteractionHandle, OutputVisibility};
+use super::session::{InteractionHandle, OutputVisibility, RunningStatus};
 
 use std::borrow::Cow;
-use std::process::ExitStatus;
 
 /// Type of a line for internal processing.
 #[derive(Debug, PartialEq, Clone)]
@@ -30,7 +29,7 @@ pub enum LineType {
     /// A command prompt.
     Prompt,
     /// A command with its visibility and position for changing that.
-    Command(OutputVisibility, InteractionHandle, Option<ExitStatus>),
+    Command(OutputVisibility, InteractionHandle, RunningStatus),
     /// Output from a program (error or normal).
     Output,
     /// The input line.

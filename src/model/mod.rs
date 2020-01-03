@@ -25,6 +25,7 @@ pub mod control_sequence;
 pub mod error;
 pub mod history;
 pub mod iterators;
+pub mod job;
 pub mod response;
 pub mod screen;
 pub mod session;

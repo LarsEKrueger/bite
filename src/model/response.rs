@@ -44,7 +44,7 @@ impl Response {
 
     /// Add a stream of bytes to the screen and possibly to the archive.
     ///
-    /// Return true if there is progress bar activity going on.
+    /// Return an indication if TUI activity has been detected
     pub fn add_bytes<'a>(&mut self, bytes: &'a [u8]) -> AddBytesResult<'a> {
         for (i, b) in bytes.iter().enumerate() {
             match self.screen.add_byte(*b) {
@@ -62,6 +62,21 @@ impl Response {
             };
         }
         AddBytesResult::AllDone
+    }
+
+    /// Add a stream of bytes to the screen and possibly to the archive.
+    ///
+    /// Ignore all TUI activity
+    pub fn add_bytes_raw(&mut self, bytes: &[u8]) {
+        for b in bytes.iter() {
+            match self.screen.add_byte(*b) {
+                Event::NewLine => {
+                    self.archive_screen();
+                    // Keep going
+                }
+                _ => {}
+            };
+        }
     }
 
     /// Add all the lines on the screen to the archived lines
