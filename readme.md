@@ -247,7 +247,8 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 0.9 Display output of (non-interactive) background programs
     * [X] Allow Session to collect output into non-current interactions
     * [X] BUG: Shows prompt in ExecuteCommandPresenter
-    * [ ] Implement Job
+    * [X] Implement Job
+    * [ ] Move TUI detection from presenter to session
     * [ ] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
     * [ ] Launch foreground program using Job.
     * [ ] Implement Jobs
@@ -264,6 +265,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
+* [ ] In Response: Use a self-compressing screen instead of lines+screen
 * [ ] Bug: Bash source $() does not work correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
@@ -299,6 +301,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * No keypress for history/completion. Pick the right overlay automatically, depending on the situation.
     * Use PgUp/Down for scrolling
 * Automatically update prompt above command input (e.g. run interpreter on already-parsed string)
+* Show output and errors side-by-side
 
 # References
 * utf8 input from https://gist.github.com/baines/5a49f1334281b2685af5dcae81a6fa8a
