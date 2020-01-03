@@ -25,6 +25,8 @@ View *--> Presenter
 Presenter *--> Session
 ComposePresenter --> Interpreter
 
+ExecutePresenter ---> Jobs
+
 Interpreter --> Jobs
 
 Jobs --> Session
@@ -40,7 +42,7 @@ component Session
 
 component Interpreter
 
-[Presenter] *-- [Session]
+[Presenter] *--> [Session]
 [Bite] *-- [Interpreter]
 [Bite] *-- [Jobs]
 [Jobs] *---> [Job]
@@ -48,10 +50,8 @@ component Interpreter
 [Bite] *--> [View]
 [View] *--> [Presenter]
 
-Job --> Interpreter
 Job --> Session
 Interpreter --> Jobs
-Presenter --> Session
 
 node "Main Thread" as Main_Thread {
   [Presenter]
@@ -63,24 +63,29 @@ node "Main Thread" as Main_Thread {
 Presenter -( Session_view
 
 component ComposePresenter
+component ExecutePresenter
 Presenter <|-- ComposePresenter
+Presenter <|-- ExecutePresenter
 
 ComposePresenter - Interpreter_execute
 ComposePresenter --> Interpreter
 
-node "Job Thread" as Job_Thread {
-  interface "Session\n::add()" as Session_add
+ExecutePresenter --> Jobs
 
-  interface "Interpreter\n::set_exit_code()" as Interpreter_set_exit_code
+node "Job Thread" as Job_Thread {
+  interface "Session\n::add_bytes()" as Session_add
+
+  interface "Session\n::set_exit_code()" as Session_set_exit_code
 }
 
 Session_view -- Session
 Session --( Session_add
 
-[Job] -- Session_add
-[Job] -- Interpreter_set_exit_code
+Session --( Session_set_exit_code
+Session_set_exit_code -- Job
 
-Interpreter --( Interpreter_set_exit_code
+[Job] -- Session_add
+
 Interpreter_execute )-- Interpreter
 
 Interpreter --> Session
@@ -107,15 +112,13 @@ title Run Foreground Command
 
 View -> Presenter : event_XXX()
 Presenter -> Session : create_interaction()
-activate Session
 Session -> Presenter : id
 
 Presenter -> Interpreter : run_command()
 Interpreter -> Jobs : create_job()
-Jobs -> Job : set_interaction_id(id)
-Job -> Jobs
-Jobs -> Job : create_thread()
-activate Job
+Jobs -> Job : new(id)
+Job -> Child : spawn()
+activate Child
 Job -> Jobs
 Jobs -> Interpreter
 Interpreter -> Presenter
@@ -129,13 +132,16 @@ group Command runs
     Session -> Presenter : None
   end
   ... Command produces no output, then it does ...
-  Job --> Session : add_line(id, text)
+  Job --> Session : add_bytes(id, text)
+  ... Presenter is sending input to child ...
+  Presenter -> Job : add_bytes()
+  Job -> Child : write()
+  Child -> Job
+  Job -> Presenter
 end
 
-Job --> Interpreter : set_exit_code(id)
-deactivate Job
-Interpreter --> Session : set_exit_code(id)
-deactivate Session
+deactivate Child
+Child --> Session : set_exit_code(id)
 
 group Next redraw
   Presenter -> Session : get_exit_code(id)
@@ -152,15 +158,13 @@ title Run Background Command
 
 View -> Presenter : event_XXX()
 Presenter -> Session : create_interaction()
-activate Session
 Session -> Presenter : id
 
 Presenter -> Interpreter : run_command()
 Interpreter -> Jobs : create_job()
-Jobs -> Job : set_interaction_id(id)
-Job -> Jobs
-Jobs -> Job : create_thread()
-activate Job
+Jobs -> Job : new(id)
+Job -> Child : spawn()
+activate Child
 Job -> Jobs
 Jobs -> Interpreter
 Interpreter -> Presenter
@@ -176,10 +180,8 @@ group Command runs
   Job --> Session : add_line(id, text)
 end
 
-Job --> Interpreter : set_exit_code(id)
-deactivate Job
-Interpreter --> Session : set_exit_code(id)
-deactivate Session
+deactivate Child
+Child --> Session : set_exit_code(id)
 
 group Next redraw
   Presenter -> Session : get_exit_code(id)
