@@ -38,9 +38,17 @@ impl ComposeCommandPresenter {
         Box::new(presenter)
     }
 
+    /// Count the number of items of line_iter would return at most
+    fn line_iter_count(&self) -> usize {
+        let session = self.commons.session.clone();
+        let session = session.0.lock().unwrap();
+        let iter = self.line_iter(&session);
+        iter.count()
+    }
+
     /// Make the last line visible.
     fn to_last_line(&mut self) {
-        let cnt = self.line_iter().count();
+        let cnt = self.line_iter_count();
         self.commons.last_line_shown = cnt;
     }
 
@@ -113,10 +121,12 @@ impl SubPresenter for ComposeCommandPresenter {
         (self, false)
     }
 
-    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(
+        &'a self,
+        session: &'a Session,
+    ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
         Box::new(
-            self.commons
-                .session
+            session
                 .line_iter(true)
                 .chain(self.commons.input_line_iter()),
         )
@@ -226,7 +236,7 @@ impl SubPresenter for ComposeCommandPresenter {
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                let n = self.line_iter().count();
+                let n = self.line_iter_count();
                 self.commons.last_line_shown =
                     ::std::cmp::min(n, self.commons.last_line_shown + middle);
                 (self, PresenterCommand::Redraw)

@@ -21,7 +21,7 @@
 use super::tui::TuiExecuteCommandPresenter;
 use super::*;
 use model::bash::{bash_kill_last, is_bash_waiting};
-use model::session::InteractionHandle;
+use model::session::{InteractionHandle, OutputVisibility, RunningStatus};
 use std::str::from_utf8_unchecked;
 
 /// Presenter to run commands and send input to their stdin.
@@ -64,9 +64,17 @@ impl ExecuteCommandPresenter {
         Box::new(presenter)
     }
 
+    /// Count the number of items of line_iter would return at most
+    fn line_iter_count(&self) -> usize {
+        let session = self.commons.session.clone();
+        let session = session.0.lock().unwrap();
+        let iter = self.line_iter(&session);
+        iter.count()
+    }
+
     /// Ensure that the last line is visible, even if the number of lines was changed.
     fn to_last_line(&mut self) {
-        let len = self.line_iter().count();
+        let len = self.line_iter_count();
         self.commons.last_line_shown = len;
     }
 
@@ -89,47 +97,37 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        match self
-            .commons
+        self.commons
             .session
-            .add_output(self.current_interaction, bytes)
-        {
-            AddBytesResult::ShowStream(rest) => {
-                self.commons.session.show_output(self.current_interaction);
-                (self, rest)
-            }
-            AddBytesResult::AllDone => (self, b""),
-            AddBytesResult::StartTui(rest) => {
+            .add_bytes(OutputVisibility::Output, self.current_interaction, bytes);
+        let presenter: Box<dyn SubPresenter> =
+            if self.commons.session.is_tui(self.current_interaction) {
                 let (c, i) = self.deconstruct();
-                let presenter = TuiExecuteCommandPresenter::new(c, i);
-                (presenter, rest)
-            }
-        }
+                TuiExecuteCommandPresenter::new(c, i)
+            } else {
+                self
+            };
+        (presenter, &bytes[0..0])
     }
 
     fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        match self
-            .commons
+        self.commons
             .session
-            .add_error(self.current_interaction, bytes)
-        {
-            AddBytesResult::ShowStream(rest) => {
-                self.commons.session.show_errors(self.current_interaction);
-                (self, rest)
-            }
-            AddBytesResult::AllDone => (self, b""),
-            AddBytesResult::StartTui(rest) => {
+            .add_bytes(OutputVisibility::Error, self.current_interaction, bytes);
+        let presenter: Box<dyn SubPresenter> =
+            if self.commons.session.is_tui(self.current_interaction) {
                 let (c, i) = self.deconstruct();
-                let presenter = TuiExecuteCommandPresenter::new(c, i);
-                (presenter, rest)
-            }
-        }
+                TuiExecuteCommandPresenter::new(c, i)
+            } else {
+                self
+            };
+        (presenter, &bytes[0..0])
     }
 
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
         self.commons
             .session
-            .set_exit_status(self.current_interaction, exit_status);
+            .set_running_status(self.current_interaction, RunningStatus::Exited(exit_status));
     }
 
     fn set_next_prompt(self: &mut Self, bytes: &[u8]) {
@@ -140,9 +138,6 @@ impl SubPresenter for ExecuteCommandPresenter {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
-                self.commons
-                    .session
-                    .archive_interaction(self.current_interaction);
                 self.commons.session.new_conversation(prompt);
                 return ComposeCommandPresenter::new(self.commons);
             }
@@ -150,10 +145,9 @@ impl SubPresenter for ExecuteCommandPresenter {
         self
     }
 
-    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
-            self.commons
-                .session
+            session
                 .line_iter(false)
                 .chain(self.commons.input_line_iter()),
         )
@@ -199,7 +193,7 @@ impl SubPresenter for ExecuteCommandPresenter {
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                let n = self.line_iter().count();
+                let n = self.line_iter_count();
                 self.commons.last_line_shown =
                     ::std::cmp::min(n, self.commons.last_line_shown + middle);
                 (self, PresenterCommand::Redraw)

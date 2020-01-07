@@ -5,31 +5,29 @@ title Class Diagram
 class Bite
 class View
 class Session
-class Jobs {
- - foregroundJob
+class Jobs
+class Presenter {
+  - foregroundJob
+  - currentInteraction
 }
-class Presenter
 class Interpreter
 
-class ComposePresenter
-class ExecutePresenter
-
-Presenter <|-- ComposePresenter
-Presenter <|-- ExecutePresenter
-
-Bite *--> View
+Bite *--> "n" View
 Bite *-- Interpreter
 Bite *-- Jobs
+Bite *-- "1" Session
+Bite *-- "n" Presenter
 
-View *--> Presenter
-Presenter *--> Session
-ComposePresenter --> Interpreter
+View --> "1" Presenter
+Presenter --> Session
+Presenter --> Interpreter
 
-ExecutePresenter ---> Jobs
+Presenter ---> Jobs
 
 Interpreter --> Jobs
 
-Jobs --> Session
+Jobs *--> Job
+Job --> Session
 
 @enduml
 
@@ -40,37 +38,37 @@ title Thread Allocation
 
 component Session
 
-component Interpreter
-
-[Presenter] *--> [Session]
-[Bite] *-- [Interpreter]
-[Bite] *-- [Jobs]
-[Jobs] *---> [Job]
-[Job] *--- Job_Thread
-[Bite] *--> [View]
-[View] *--> [Presenter]
-
-Job --> Session
-Interpreter --> Jobs
-
 node "Main Thread" as Main_Thread {
+  [Bite]
+  [View]
   [Presenter]
   [Interpreter]
+  [Jobs]
+  [Job]
   interface "Session\n::view()" as Session_view
   interface "Interpreter\n::execute()" as Interpreter_execute
 }
 
-Presenter -( Session_view
+[Presenter] --> [Session]
+[Jobs] *---> [Job]
+[Job] *--- Job_Thread
+[Bite] *-- [Interpreter]
+[Bite] *-- [Jobs]
+[Bite] *-- Session
+[Bite] *--> "n" [View]
+Bite *-- "n" Presenter
+[View] --> "1" [Presenter]
 
-component ComposePresenter
-component ExecutePresenter
-Presenter <|-- ComposePresenter
-Presenter <|-- ExecutePresenter
+Job --> Session
+Interpreter --> Jobs
 
-ComposePresenter - Interpreter_execute
-ComposePresenter --> Interpreter
 
-ExecutePresenter --> Jobs
+Presenter - Session_view
+
+Presenter - Interpreter_execute
+Presenter --> Interpreter
+
+Presenter --> Jobs
 
 node "Job Thread" as Job_Thread {
   interface "Session\n::add_bytes()" as Session_add
@@ -78,7 +76,7 @@ node "Job Thread" as Job_Thread {
   interface "Session\n::set_exit_code()" as Session_set_exit_code
 }
 
-Session_view -- Session
+Session_view )-- Session
 Session --( Session_add
 
 Session --( Session_set_exit_code
@@ -88,8 +86,6 @@ Session_set_exit_code -- Job
 
 Interpreter_execute )-- Interpreter
 
-Interpreter --> Session
-
 @enduml
 
 =====================
@@ -97,7 +93,7 @@ Interpreter --> Session
 @startuml
 title Drawing
 
-View -> Presenter : display_line_iter()
+View -> Presenter : display_lines()
 Presenter -> Session : line_iter()
 Session -> Presenter
 hnote over Presenter : convert\nlines
@@ -186,6 +182,97 @@ Child --> Session : set_exit_code(id)
 group Next redraw
   Presenter -> Session : get_exit_code(id)
   Session -> Presenter : Some(code)
+end
+
+@enduml
+
+=====================
+
+@startuml
+title Run Foreground TUI
+
+View -> Presenter : event_XXX()
+participant Session
+Presenter -> Interpreter : run_command()
+Interpreter -> Jobs : create_job()
+Jobs -> Job : new(id)
+Job -> Child : spawn()
+activate Child
+Job -> Jobs
+Jobs -> Interpreter
+Interpreter -> Presenter
+Presenter -> Presenter : Switch to\nExecuteCommandPresenter\nwith id
+Presenter -> View
+
+group Command runs
+  ... Command switches to TUI  ...
+  Job --> Session : add_bytes(id, text)
+
+  group Next redraw
+    View -> Presenter
+    Presenter -> Session : is_tui_mode()
+    Session -> Presenter : True
+    Presenter -> Presenter : Switch to\nTuiPresenter
+    Presenter -> View
+  end
+end
+
+deactivate Child
+Child --> Session : set_exit_code(id)
+
+group Next redraw
+  View -> Presenter
+  Presenter -> Session : get_exit_code(id)
+  Session -> Presenter : Some(code)
+  Presenter -> Presenter : Switch to\nComposeCommandPresenter
+  Presenter -> View
+end
+
+@enduml
+
+=====================
+
+@startuml
+title Run Background TUI
+
+participant Bite
+
+View -> Presenter : event_XXX()
+Presenter -> Session : create_interaction()
+Session -> Presenter : id
+
+Presenter -> Interpreter : run_command()
+Interpreter -> Jobs : create_job()
+Jobs -> Job : new(id)
+Job -> Child : spawn()
+activate Child
+Job -> Jobs
+Jobs -> Interpreter
+Interpreter -> Presenter
+Presenter -> View
+
+group Command runs
+  ... Command switches to TUI  ...
+  Job --> Session : add_bytes(id, text)
+  ... Some time passes ...
+  group Next redraw
+    View -> Presenter
+    Presenter -> Session : is_tui_mode()
+    Session -> Presenter : True
+    Presenter -> View : Create new view
+    View -> Bite : Create new view
+  end
+end
+
+deactivate Child
+Child --> Session : set_exit_code(id)
+
+group Next redraw
+  View -> Presenter
+  Presenter -> Session : get_exit_code(id)
+  Session -> Presenter : Some(code)
+  Presenter -> View : Close view
+  View -> Bite : Close view
 end
 
 @enduml

@@ -57,9 +57,17 @@ impl CompleteCommandPresenter {
         Box::new(presenter)
     }
 
+    /// Count the number of items of line_iter would return at most
+    fn line_iter_count(&self) -> usize {
+        let session = self.commons.session.clone();
+        let session = session.0.lock().unwrap();
+        let iter = self.line_iter(&session);
+        iter.count()
+    }
+
     /// Make the last line visible.
     fn to_last_line(&mut self) {
-        let cnt = self.line_iter().count();
+        let cnt = self.line_iter_count();
         self.commons.last_line_shown = cnt;
     }
 
@@ -72,7 +80,7 @@ impl CompleteCommandPresenter {
             NeedRedraw::No
         } else {
             let middle = self.commons.window_height / 2;
-            let n = self.line_iter().count();
+            let n = self.line_iter_count();
             self.commons.last_line_shown = ::std::cmp::min(n, self.current + middle);
             NeedRedraw::Yes
         }
@@ -125,7 +133,7 @@ impl SubPresenter for CompleteCommandPresenter {
         (self, false)
     }
 
-    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self, _session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
             self.completions
                 .iter()
@@ -174,10 +182,11 @@ impl SubPresenter for CompleteCommandPresenter {
                 for _i in 0..self.prefix_chars {
                     self.commons.text_input.delete_character();
                 }
-                self.commons
-                    .text_input
-                    .place_str(&self.completions[self.current]);
-
+                if self.current < self.completions.len() {
+                    self.commons
+                        .text_input
+                        .place_str(&self.completions[self.current]);
+                }
                 (
                     ComposeCommandPresenter::new(self.commons),
                     PresenterCommand::Redraw,

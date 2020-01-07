@@ -38,7 +38,7 @@ use model::bash::BashOutput;
 use model::error::*;
 use model::iterators::*;
 use model::screen::*;
-use model::session::*;
+use model::session::{Session, SharedSession};
 
 use self::compose_command::*;
 use self::display_line::*;
@@ -115,8 +115,8 @@ trait SubPresenter {
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool);
 
-    /// Return the lines to be presented.
-    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a>;
+    /// Access to the line iterator which requires unlocking the session mutex
+    fn line_iter<'a>(&'a self, &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a>;
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
@@ -147,7 +147,7 @@ trait SubPresenter {
 /// Data that is common to all presenter views.
 pub struct PresenterCommons {
     /// The current and previous commands and the outputs of them.
-    session: Session,
+    session: SharedSession,
 
     /// Width of the window in characters
     window_width: usize,
@@ -230,7 +230,7 @@ impl PresenterCommons {
         let mut text_input = Screen::new();
         text_input.make_room();
         Ok(PresenterCommons {
-            session: Session::new(prompt.freeze()),
+            session: SharedSession::new(prompt.freeze()),
             window_width: 0,
             window_height: 0,
             button_down: None,
@@ -303,6 +303,14 @@ impl Presenter {
         self.dm().commons_mut().as_mut()
     }
 
+    /// Count the number of items of line_iter would return at most
+    fn line_iter_count(&self) -> usize {
+        let session = self.c().session.clone();
+        let session = session.0.lock().unwrap();
+        let iter = self.d().line_iter(&session);
+        iter.count()
+    }
+
     // /// Call an event handler in the sub-presenter.
     // ///
     // /// Update the sub-presenter if it was changed.
@@ -327,12 +335,12 @@ impl Presenter {
 
     /// Check if the view is scrolled down to the bottom to facilitate auto-scrolling.
     fn last_line_visible(&self) -> bool {
-        self.d().line_iter().count() == self.c().last_line_shown
+        self.line_iter_count() == self.c().last_line_shown
     }
 
     /// Ensure that the last line is visible, even if the number of lines was changed.
     fn to_last_line(&mut self) {
-        let len = self.d().line_iter().count();
+        let len = self.line_iter_count();
         self.cm().last_line_shown = len;
     }
 
@@ -405,7 +413,7 @@ impl Presenter {
     /// Handle the event that the window was scrolled down.
     pub fn event_scroll_down(&mut self, mod_state: ModifierState) -> NeedRedraw {
         if mod_state.none_pressed() {
-            if self.c().last_line_shown < self.d().line_iter().count() {
+            if self.c().last_line_shown < self.line_iter_count() {
                 self.cm().last_line_shown += 1;
                 return NeedRedraw::Yes;
             }
@@ -442,9 +450,6 @@ impl Presenter {
     /// TODO: Handle escape sequences
     pub fn event_text(&mut self, s: &str) -> PresenterCommand {
         self.dispatch_res(|sp| sp.event_text(s))
-        //       {
-        //       }
-        //       self.event_update_line();
     }
 
     /// Handle the event that a mouse button was pressed.
@@ -479,11 +484,22 @@ impl Presenter {
         NeedRedraw::No
     }
 
-    /// Yield an iterator that provides the currently visible lines for display.
-    pub fn display_line_iter<'a>(&'a self) -> impl Iterator<Item = DisplayLine<'a>> {
-        let iter = self.d().line_iter();
+    pub fn display_lines<F>(&self, start_row: i32, end_row: i32, mut f: F)
+    where
+        F: FnMut(i32, &DisplayLine),
+    {
         let start_line = self.c().start_line();
-        iter.skip(start_line).into_iter().map(DisplayLine::from)
+        let session = self.c().session.clone();
+        let session = session.0.lock().unwrap();
+        let iter = self.d().line_iter(&session);
+        let mut row = start_row;
+        for line in iter.skip(start_line).into_iter().map(DisplayLine::from) {
+            if row >= end_row {
+                break;
+            }
+            f(row, &line);
+            row += 1;
+        }
     }
 }
 
@@ -491,7 +507,10 @@ impl Presenter {
 fn clicked_line_type<T: SubPresenter>(pres: &mut T, y: usize) -> Option<LineType> {
     // Find the item that was clicked
     let click_line_index = pres.commons().start_line() + y;
-    pres.line_iter().nth(click_line_index).map(|i| i.is_a)
+    let session = pres.commons_mut().session.clone();
+    let session = session.0.lock().unwrap();
+    let maybe_line = pres.line_iter(&session).nth(click_line_index);
+    maybe_line.map(|i| i.is_a)
 }
 
 /// Check if the response selector has been clicked and update the visibility flags

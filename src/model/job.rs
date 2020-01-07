@@ -213,8 +213,7 @@ fn read_data(
         if data_available {
             let mut buffer = [0; 4096];
             if let Ok(len) = read(fd, &mut buffer) {
-                // TODO: Handle switching to TUI mode
-                session.add_bytes_raw(stream, interactionHandle, &buffer[0..len]);
+                session.add_bytes(stream, interactionHandle, &buffer[0..len]);
             } else {
                 // There was some serious error reading from command, so drop everything and leave.
                 break;
@@ -242,12 +241,17 @@ fn wait_for_child(
                 }
                 Err(msg) => {
                     if !error_reported {
-                        session.add_error_raw(
+                        session.add_bytes(
+                            OutputVisibility::Error,
                             interactionHandle,
                             b"BiTE: Failed to poll for exit code. Cause: ",
                         );
-                        session.add_error_raw(interactionHandle, msg.as_bytes());
-                        session.add_error_raw(interactionHandle, b"\n");
+                        session.add_bytes(
+                            OutputVisibility::Error,
+                            interactionHandle,
+                            msg.as_bytes(),
+                        );
+                        session.add_bytes(OutputVisibility::Error, interactionHandle, b"\n");
                         error_reported = true;
                     }
                     session.set_running_status(interactionHandle, RunningStatus::Unknown);
@@ -331,9 +335,13 @@ impl Job {
     {
         let child = match start_command(session.clone(), interactionHandle, program, args) {
             Err(msg) => {
-                session.add_error_raw(interactionHandle, b"BiTE: Failed to launch job. Cause: ");
-                session.add_error_raw(interactionHandle, msg.as_bytes());
-                session.add_error_raw(interactionHandle, b"\n");
+                session.add_bytes(
+                    OutputVisibility::Error,
+                    interactionHandle,
+                    b"BiTE: Failed to launch job. Cause: ",
+                );
+                session.add_bytes(OutputVisibility::Error, interactionHandle, msg.as_bytes());
+                session.add_bytes(OutputVisibility::Error, interactionHandle, b"\n");
                 None
             }
             Ok(child) => Some(child),

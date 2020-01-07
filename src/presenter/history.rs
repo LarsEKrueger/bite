@@ -46,9 +46,17 @@ impl HistoryPresenter {
         Box::new(presenter)
     }
 
+    /// Count the number of items of line_iter would return at most
+    fn line_iter_count(&self) -> usize {
+        let session = self.commons.session.clone();
+        let session = session.0.lock().unwrap();
+        let iter = self.line_iter(&session);
+        iter.count()
+    }
+
     /// Scroll to last line
     fn to_last_line(&mut self) {
-        let cnt = self.line_iter().count();
+        let cnt = self.line_iter_count();
         self.commons.last_line_shown = cnt;
     }
 
@@ -62,7 +70,7 @@ impl HistoryPresenter {
             NeedRedraw::No
         } else {
             let middle = self.commons.window_height / 2;
-            let n = self.line_iter().count();
+            let n = self.line_iter_count();
             self.commons.last_line_shown = ::std::cmp::min(n, self.search.item_ind + middle);
             NeedRedraw::Yes
         }
@@ -127,7 +135,7 @@ impl SubPresenter for HistoryPresenter {
         (self, false)
     }
 
-    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self, _session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
             self.search
                 .matching_items

@@ -494,48 +494,42 @@ impl Gui {
         unsafe { XClearWindow(self.display, self.window) };
         // TODO: Set colors
 
-        let mut li = self.presenter.display_line_iter();
-        let mut row = 0i32;
-        while let Some(line) = li.next() {
-            self.draw_line(row, &line);
+        self.presenter
+            .display_lines(0, lines_per_window as i32, |row, line| {
+                self.draw_line(row, &line);
 
-            if let Some(cursor_col) = line.cursor_col {
-                // Draw a cursor if requested
-                let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
-                let y = self.line_height * row + LINE_PADDING;
+                if let Some(cursor_col) = line.cursor_col {
+                    // Draw a cursor if requested
+                    let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
+                    let y = self.line_height * row + LINE_PADDING;
 
-                if self.cursor_on && self.have_focus {
-                    unsafe {
-                        XFillRectangle(
-                            self.display,
-                            self.window,
-                            self.gc,
-                            x,
-                            y,
-                            self.font_width as u32,
-                            self.line_height as u32,
-                        );
-                    }
-                } else {
-                    unsafe {
-                        XDrawRectangle(
-                            self.display,
-                            self.window,
-                            self.gc,
-                            x,
-                            y,
-                            self.font_width as u32,
-                            self.line_height as u32,
-                        );
+                    if self.cursor_on && self.have_focus {
+                        unsafe {
+                            XFillRectangle(
+                                self.display,
+                                self.window,
+                                self.gc,
+                                x,
+                                y,
+                                self.font_width as u32,
+                                self.line_height as u32,
+                            );
+                        }
+                    } else {
+                        unsafe {
+                            XDrawRectangle(
+                                self.display,
+                                self.window,
+                                self.gc,
+                                x,
+                                y,
+                                self.font_width as u32,
+                                self.line_height as u32,
+                            );
+                        }
                     }
                 }
-            }
-
-            row += 1;
-            if (row as usize) >= lines_per_window {
-                break;
-            }
-        }
+            });
     }
 
     /// Compute the number of lines in the window, rounded down.

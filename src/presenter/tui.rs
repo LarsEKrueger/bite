@@ -23,7 +23,7 @@
 
 use super::*;
 use model::bash::{is_bash_waiting, program_add_input};
-use model::session::InteractionHandle;
+use model::session::{InteractionHandle, RunningStatus};
 use std::cmp;
 
 /// Presenter to run commands and send input to their stdin.
@@ -130,7 +130,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
         self.commons
             .session
-            .set_exit_status(self.current_interaction, exit_status);
+            .set_running_status(self.current_interaction, RunningStatus::Exited(exit_status));
     }
 
     fn set_next_prompt(self: &mut Self, bytes: &[u8]) {
@@ -139,9 +139,8 @@ impl SubPresenter for TuiExecuteCommandPresenter {
 
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         if !needs_marking && is_bash_waiting() {
-            let (mut commons, current_interaction, next_prompt) = self.deconstruct();
+            let (mut commons, _, next_prompt) = self.deconstruct();
             if let Some(prompt) = next_prompt {
-                commons.session.archive_interaction(current_interaction);
                 commons.session.new_conversation(prompt);
             }
             return (ComposeCommandPresenter::new(commons), true);
@@ -150,7 +149,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     }
 
     /// Return the lines to be presented.
-    fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+    fn line_iter<'a>(&'a self, _session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         let ref s = self.screen;
         Box::new(s.line_iter_full().zip(0..).map(move |(line, nr)| {
             let cursor_x = if s.cursor_y() == nr {

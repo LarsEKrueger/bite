@@ -248,7 +248,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Allow Session to collect output into non-current interactions
     * [X] BUG: Shows prompt in ExecuteCommandPresenter
     * [X] Implement Job
-    * [ ] Move TUI detection from presenter to session
+    * [X] Move TUI detection from presenter to session
     * [ ] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
     * [ ] Launch foreground program using Job.
     * [ ] Implement Jobs
@@ -257,6 +257,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [ ] Extend parser and Job to launch pipes
 * [ ] 0.10 Tabs for TUIs, incl. automatic backgrounding
     * [ ] propagate window size changes to TUI
+    * [ ] Allow multiple views.
 * [ ] 0.11 Join parsing and completion
 * [ ] 0.12 Draw GUI using Xft
 * [ ] 0.13 Implement all Screen Actions
@@ -309,3 +310,4 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * user id checking from https://github.com/rust-lang/rust/blob/1.23.0/src/libstd/sys/unix/os.rs
 * color palette: http://paletton.com/#uid=7000J0ktCwUitFfnGzUxBqFBlle
 * rustc version check: https://stackoverflow.com/questions/32821998/specify-the-version-of-rustc-required-for-a-cargo-project
+* Mutex around Iterator: https://www.reddit.com/r/rust/comments/7l97u0/iterator_struct_of_an_iterable_inside_a_lock_from/, https://play.rust-lang.org/?gist=083f85cd6e564b4c9abda0dbf3a33010&version=stable

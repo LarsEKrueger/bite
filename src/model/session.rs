@@ -62,6 +62,8 @@ struct Interaction {
     visible: OutputVisibility,
     /// status of the command
     running_status: RunningStatus,
+    /// Which response to use for TUI mode
+    tui_mode: OutputVisibility,
 }
 
 /// A number of commands that are executed with the same prompt string.
@@ -84,11 +86,14 @@ pub struct Session {
 
     /// History of interactions, oldest first.
     interactions: Vec<Interaction>,
+
+    /// Marker if the session has been changed since the last redraw
+    needs_redraw: bool,
 }
 
 /// Session that can be shared between threads
 #[derive(Clone)]
-pub struct SharedSession(Arc<Mutex<Session>>);
+pub struct SharedSession(pub Arc<Mutex<Session>>);
 
 /// Index of an interaction in a session.
 ///
@@ -109,6 +114,7 @@ impl Interaction {
             errors: Response::new(),
             visible: OutputVisibility::Output,
             running_status: RunningStatus::Unknown,
+            tui_mode: OutputVisibility::None,
         }
     }
 
@@ -186,54 +192,8 @@ impl Session {
         Session {
             conversations: vec![Conversation::new(prompt)],
             interactions: vec![],
+            needs_redraw: true,
         }
-    }
-
-    /// Open a new conversation if the prompts are different
-    pub fn new_conversation(&mut self, prompt: Matrix) {
-        if let Some(current) = self.conversations.last_mut() {
-            if current.prompt == prompt {
-                return;
-            }
-        }
-        self.conversations.push(Conversation::new(prompt));
-    }
-
-    /// Return an iterator over the currently visible items.
-    pub fn line_iter<'a>(&'a self, show_last_prompt: bool) -> impl Iterator<Item = LineItem<'a>> {
-        let num_conversations = self.conversations.len();
-        self.conversations
-            .iter()
-            .enumerate()
-            .flat_map(move |(conversation_index, conversation)| {
-                let prompt_hash = conversation.prompt_hash;
-                let is_last_conv = (conversation_index + 1) >= num_conversations;
-                let show_this_prompt = !is_last_conv || show_last_prompt;
-
-                conversation
-                    .interactions
-                    .iter()
-                    .flat_map(move |interHandle| {
-                        self.interactions[interHandle.0].line_iter(*interHandle, prompt_hash)
-                    })
-                    .chain(
-                        conversation
-                            .prompt
-                            .line_iter()
-                            .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash))
-                            .take_while(move |_| show_this_prompt),
-                    )
-            })
-    }
-
-    /// Add a new interaction to the latest conversation.
-    pub fn add_interaction(&mut self, command: Matrix) -> InteractionHandle {
-        let handle = InteractionHandle(self.interactions.len());
-        self.interactions.push(Interaction::new(command));
-        if let Some(current) = self.conversations.last_mut() {
-            current.interactions.push(handle);
-        }
-        handle
     }
 
     /// Quick access to an interaction by handle.
@@ -260,34 +220,174 @@ impl Session {
         self.interaction_mut(handle, (), Interaction::show_errors)
     }
 
-    /// Add bytes to the output of the given interaction
-    pub fn add_output<'a>(
-        &mut self,
-        handle: InteractionHandle,
-        bytes: &'a [u8],
-    ) -> AddBytesResult<'a> {
-        self.interaction_mut(handle, AddBytesResult::AllDone, |i| {
-            i.output.add_bytes(bytes)
-        })
-    }
-
-    /// Add bytes to the errors of the given interaction
-    pub fn add_error<'a>(
-        &mut self,
-        handle: InteractionHandle,
-        bytes: &'a [u8],
-    ) -> AddBytesResult<'a> {
-        self.interaction_mut(handle, AddBytesResult::AllDone, |i| {
-            i.errors.add_bytes(bytes)
-        })
-    }
-
     /// Archive the given interaction
     pub fn archive_interaction(&mut self, handle: InteractionHandle) {
         self.interaction_mut(handle, (), |i| {
             i.output.archive_screen();
             i.errors.archive_screen();
         })
+    }
+
+    /// Set the exit status of an interaction
+    ///
+    /// This is an obsolete method
+    pub fn set_exit_status(&mut self, handle: InteractionHandle, status: ExitStatus) {
+        self.interaction_mut(handle, (), |i| {
+            i.running_status = RunningStatus::Exited(status);
+            i.show_potential_errors();
+        });
+    }
+
+    /// Return an iterator over the currently visible items.
+    pub fn line_iter<'a>(
+        &'a self,
+        show_last_prompt: bool,
+    ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
+        let num_conversations = self.conversations.len();
+        Box::new(self.conversations.iter().enumerate().flat_map(
+            move |(conversation_index, conversation)| {
+                let prompt_hash = conversation.prompt_hash;
+                let is_last_conv = (conversation_index + 1) >= num_conversations;
+                let show_this_prompt = !is_last_conv || show_last_prompt;
+
+                conversation
+                    .interactions
+                    .iter()
+                    .flat_map(move |interHandle| {
+                        self.interactions[interHandle.0].line_iter(*interHandle, prompt_hash)
+                    })
+                    .chain(
+                        conversation
+                            .prompt
+                            .line_iter()
+                            .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash))
+                            .take_while(move |_| show_this_prompt),
+                    )
+            },
+        ))
+    }
+}
+
+impl SharedSession {
+    /// Create a new session.
+    pub fn new(prompt: Matrix) -> Self {
+        SharedSession(Arc::new(Mutex::new(Session::new(prompt))))
+    }
+
+    /// Quick access to the the underlying session
+    ///
+    /// Does nothing if something goes wrong
+    fn session_mut<F, R>(&mut self, default: R, f: F) -> R
+    where
+        F: FnOnce(&mut Session) -> R,
+    {
+        if let Ok(mut s) = self.0.lock() {
+            f(&mut s)
+        } else {
+            default
+        }
+    }
+    /// Quick access to an interaction by handle.
+    ///
+    /// Returns the default if something goes wrong.
+    fn interaction_mut<F, R>(&mut self, handle: InteractionHandle, default: R, f: F) -> R
+    where
+        F: FnOnce(&mut Interaction) -> R,
+        R: Copy,
+    {
+        self.session_mut(default, |s| s.interaction_mut(handle, default, f))
+    }
+
+    /// Add a new interaction to the latest conversation.
+    pub fn add_interaction(&mut self, command: Matrix) -> InteractionHandle {
+        self.session_mut(InteractionHandle(std::usize::MAX), |s| {
+            let handle = InteractionHandle(s.interactions.len());
+            s.interactions.push(Interaction::new(command));
+            if let Some(current) = s.conversations.last_mut() {
+                current.interactions.push(handle);
+            }
+            handle
+        })
+    }
+
+    /// Open a new conversation if the prompts are different
+    pub fn new_conversation(&mut self, prompt: Matrix) {
+        self.session_mut((), |s| {
+            if let Some(current) = s.conversations.last_mut() {
+                if current.prompt == prompt {
+                    return;
+                }
+            }
+            s.conversations.push(Conversation::new(prompt));
+        });
+    }
+
+    /// Add bytes to selected stream of interaction
+    ///
+    /// If the interaction is already in TUI mode, use that response instead.
+    pub fn add_bytes(&mut self, stream: OutputVisibility, handle: InteractionHandle, bytes: &[u8]) {
+        let mut needs_redraw = false;
+        self.interaction_mut(handle, (), |interaction| {
+            let mut new_tui_mode = OutputVisibility::None;
+            // TUI mode overrides stream
+            let (mut response, mut is_tui_mode) = match interaction.tui_mode {
+                OutputVisibility::None => match stream {
+                    OutputVisibility::None => return,
+                    OutputVisibility::Output => (&mut interaction.output, false),
+                    OutputVisibility::Error => (&mut interaction.errors, false),
+                },
+                OutputVisibility::Output => (&mut interaction.output, true),
+                OutputVisibility::Error => (&mut interaction.errors, true),
+            };
+            // Process the bytes
+            let mut work = bytes;
+            while work.len() != 0 {
+                match response.add_bytes(work) {
+                    AddBytesResult::AllDone => break,
+                    AddBytesResult::ShowStream(new_work) => {
+                        needs_redraw = true;
+                        work = new_work;
+                    }
+                    AddBytesResult::StartTui(new_work) => {
+                        // If no TUI mode is set, set it to stream and make the response
+                        // fixed-size. If the new tui_mode is different from the existing, ignore
+                        // the change.
+                        if !is_tui_mode {
+                            new_tui_mode = stream;
+                            is_tui_mode = true;
+                            response = match stream {
+                                OutputVisibility::None => return,
+                                OutputVisibility::Output => &mut interaction.output,
+                                OutputVisibility::Error => &mut interaction.errors,
+                            };
+                        }
+                        work = new_work;
+                    }
+                }
+            }
+            // Update the interaction
+            interaction.tui_mode = new_tui_mode;
+        });
+        // Update the session
+        self.session_mut((), |s| s.needs_redraw |= needs_redraw);
+    }
+
+    /// Set the running status of an interaction
+    pub fn set_running_status(&mut self, handle: InteractionHandle, status: RunningStatus) {
+        self.interaction_mut(handle, (), |i| {
+            i.running_status = status;
+            i.show_potential_errors();
+        });
+    }
+
+    /// Mark the session as redrawn
+    pub fn mark_drawn(&mut self) {
+        self.session_mut((), |s| s.needs_redraw = false)
+    }
+
+    /// Check if the given interaction is in TUI mode
+    pub fn is_tui(&mut self, handle: InteractionHandle) -> bool {
+        self.interaction_mut(handle, false, |i| i.tui_mode != OutputVisibility::None)
     }
 
     /// Cycle the visibility of an interaction
@@ -301,63 +401,6 @@ impl Session {
             i.visible = v;
         })
     }
-
-    /// Set the exit status of an interaction
-    ///
-    /// This is an obsolete method
-    pub fn set_exit_status(&mut self, handle: InteractionHandle, status: ExitStatus) {
-        self.interaction_mut(handle, (), |i| {
-            i.running_status = RunningStatus::Exited(status);
-            i.show_potential_errors();
-        });
-    }
-}
-
-impl SharedSession {
-    /// Quick access to an interaction by handle.
-    ///
-    /// Returns the default if something goes wrong.
-    fn interaction_mut<F, R>(&mut self, handle: InteractionHandle, default: R, f: F) -> R
-    where
-        F: FnOnce(&mut Interaction) -> R,
-    {
-        if let Ok(mut s) = self.0.lock() {
-            s.interaction_mut(handle, default, f)
-        } else {
-            default
-        }
-    }
-
-    /// Add bytes to error stream of interaction.
-    ///
-    /// Ignore the AddBytesResult and keep going.
-    pub fn add_error_raw(&mut self, handle: InteractionHandle, bytes: &[u8]) {
-        self.interaction_mut(handle, (), |i| i.errors.add_bytes_raw(bytes));
-    }
-
-    /// Add bytes to selected stream of interaction
-    ///
-    /// Ignore the AddBytesResult and keep going.
-    pub fn add_bytes_raw(
-        &mut self,
-        stream: OutputVisibility,
-        handle: InteractionHandle,
-        bytes: &[u8],
-    ) {
-        self.interaction_mut(handle, (), |i| match stream {
-            OutputVisibility::None => {}
-            OutputVisibility::Output => i.output.add_bytes_raw(bytes),
-            OutputVisibility::Error => i.errors.add_bytes_raw(bytes),
-        });
-    }
-
-    /// Set the running status of an interaction
-    pub fn set_running_status(&mut self, handle: InteractionHandle, status: RunningStatus) {
-        self.interaction_mut(handle, (), |i| {
-            i.running_status = status;
-            i.show_potential_errors();
-        });
-    }
 }
 
 #[cfg(test)]
@@ -366,8 +409,10 @@ mod tests {
     use super::super::screen::Screen;
     use super::*;
 
-    fn new_test_session(prompt: &[u8]) -> Session {
-        Session::new(Screen::one_line_matrix(prompt))
+    fn new_test_session(prompt: &[u8]) -> SharedSession {
+        SharedSession(Arc::new(Mutex::new(Session::new(Screen::one_line_matrix(
+            prompt,
+        )))))
     }
 
     #[test]
@@ -375,20 +420,39 @@ mod tests {
         let mut session = new_test_session(b"prompt 1");
 
         let inter_1_1 = session.add_interaction(Screen::one_line_matrix(b"command 1.1"));
-        session.add_output(inter_1_1, b"output 1.1.1\noutput 1.1.2\n");
+        session.add_bytes(
+            OutputVisibility::Output,
+            inter_1_1,
+            b"output 1.1.1\noutput 1.1.2\n",
+        );
         let inter_1_2 = session.add_interaction(Screen::one_line_matrix(b"command 1.2"));
-        session.add_output(inter_1_2, b"output 1.2.1\noutput 1.2.2\n");
+        session.add_bytes(
+            OutputVisibility::Output,
+            inter_1_2,
+            b"output 1.2.1\noutput 1.2.2\n",
+        );
 
         session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
         let inter_2_1 = session.add_interaction(Screen::one_line_matrix(b"command 2.1"));
-        session.add_output(inter_2_1, b"output 2.1.1\noutput 2.1.2\n");
+        session.add_bytes(
+            OutputVisibility::Output,
+            inter_2_1,
+            b"output 2.1.1\noutput 2.1.2\n",
+        );
         let inter_2_2 = session.add_interaction(Screen::one_line_matrix(b"command 2.2"));
-        session.add_output(inter_2_2, b"output 2.2.1\noutput 2.2.2\n");
+        session.add_bytes(
+            OutputVisibility::Output,
+            inter_2_2,
+            b"output 2.2.1\noutput 2.2.2\n",
+        );
 
-        assert_eq!(session.conversations.len(), 2);
-        assert_eq!(session.conversations[0].interactions.len(), 2);
-        assert_eq!(session.conversations[1].interactions.len(), 2);
+        session.session_mut((), |s| {
+            assert_eq!(s.conversations.len(), 2);
+            assert_eq!(s.conversations[0].interactions.len(), 2);
+            assert_eq!(s.conversations[1].interactions.len(), 2);
+        });
 
+        let session = session.0.lock().unwrap();
         let mut li = session.line_iter(true);
         check(
             li.next(),
