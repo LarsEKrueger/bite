@@ -25,6 +25,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
+mod parser;
+
 struct Interpreter {
     /// Session to print output to.
     session: SharedSession,

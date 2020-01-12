@@ -49,6 +49,9 @@ extern crate glob;
 
 extern crate nix;
 
+extern crate nom;
+extern crate nom_locate;
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
