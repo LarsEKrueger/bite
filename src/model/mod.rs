@@ -24,6 +24,7 @@ pub mod bash;
 pub mod control_sequence;
 pub mod error;
 pub mod history;
+pub mod interpreter;
 pub mod iterators;
 pub mod job;
 pub mod response;

@@ -186,6 +186,10 @@ impl Conversation {
     }
 }
 
+impl InteractionHandle {
+    pub const INVALID: Self = InteractionHandle(std::usize::MAX);
+}
+
 impl Session {
     /// Create a new session.
     pub fn new(prompt: Matrix) -> Self {
