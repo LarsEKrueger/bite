@@ -22,7 +22,6 @@
 //! does not archive its output.
 
 use super::*;
-use model::bash::{is_bash_waiting, program_add_input};
 use model::session::{InteractionHandle, RunningStatus};
 use std::cmp;
 
@@ -77,13 +76,13 @@ impl TuiExecuteCommandPresenter {
     }
 
     fn send_string(&self, send: &str) -> PresenterCommand {
-        program_add_input(send);
+        // TODO: Send to job
         PresenterCommand::Redraw
     }
 
     fn send_term_info(&self, cap_name: &str) -> PresenterCommand {
         if let Some(cap_str) = self.commons.term_info.strings.get(cap_name) {
-            program_add_input(&String::from_utf8_lossy(cap_str));
+            // TODO: Send to job
             PresenterCommand::Redraw
         } else {
             PresenterCommand::Unknown
@@ -105,6 +104,10 @@ impl TuiExecuteCommandPresenter {
 }
 
 impl SubPresenter for TuiExecuteCommandPresenter {
+    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+        self.commons
+    }
+
     /// Provide read access to the data that is common to the presenter in all modi.
     fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
         &self.commons
@@ -137,15 +140,12 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        if !needs_marking && is_bash_waiting() {
-            let (mut commons, _, next_prompt) = self.deconstruct();
-            if let Some(prompt) = next_prompt {
-                commons.session.new_conversation(prompt);
-            }
-            return (ComposeCommandPresenter::new(commons), true);
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
+        if !self.commons.session.is_running( self.current_interaction) {
+            let (mut commons, _, _) = self.deconstruct();
+            return ComposeCommandPresenter::new(commons);
         }
-        (self, false)
+        self
     }
 
     /// Return the lines to be presented.
@@ -169,7 +169,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         let cmd = match (mod_state.as_tuple(), key) {
             ((_, _, _), SpecialKey::Escape) => {
-                program_add_input("\x1b");
+                // TODO: Send key to program
                 PresenterCommand::Redraw
             }
             ((_, _, _), SpecialKey::Enter) => self.send_term_info("kent"),

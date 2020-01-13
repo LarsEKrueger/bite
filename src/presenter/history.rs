@@ -19,14 +19,14 @@
 //! Sub presenter for searching the history.
 
 use super::*;
-use model::history::*;
 
 /// Presenter to select an item from the history.
 pub struct HistoryPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
-    /// Current search result
-    search: history::HistorySearchCursor,
+    // TODO: Use own history
+    // /// Current search result
+    // search: history::HistorySearchCursor,
 }
 
 impl HistoryPresenter {
@@ -90,6 +90,10 @@ impl HistoryPresenter {
 }
 
 impl SubPresenter for HistoryPresenter {
+    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+        self.commons
+    }
+
     fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
         &self.commons
     }

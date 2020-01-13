@@ -214,6 +214,20 @@ impl Session {
         }
     }
 
+    /// Quick access to an interaction by handle.
+    ///
+    /// Returns the default for illegal handles.
+    fn interaction<F, R>(&self, handle: InteractionHandle, default: R, f: F) -> R
+    where
+        F: FnOnce(&Interaction) -> R,
+    {
+        if handle.0 < self.interactions.len() {
+            f(&self.interactions[handle.0])
+        } else {
+            default
+        }
+    }
+
     /// Show the output of a given interaction
     pub fn show_output(&mut self, handle: InteractionHandle) {
         self.interaction_mut(handle, (), |i| i.visible = OutputVisibility::Output)
@@ -278,7 +292,7 @@ impl SharedSession {
         SharedSession(Arc::new(Mutex::new(Session::new(prompt))))
     }
 
-    /// Quick access to the the underlying session
+    /// Quick access to the underlying session
     ///
     /// Does nothing if something goes wrong
     fn session_mut<F, R>(&mut self, default: R, f: F) -> R
@@ -291,6 +305,21 @@ impl SharedSession {
             default
         }
     }
+
+    /// Quick access to the underlying session
+    ///
+    /// Does nothing if something goes wrong
+    fn session<F, R>(& self, default: R, f: F) -> R
+    where
+        F: FnOnce(& Session) -> R,
+    {
+        if let Ok( s) = self.0.lock() {
+            f(& s)
+        } else {
+            default
+        }
+    }
+
     /// Quick access to an interaction by handle.
     ///
     /// Returns the default if something goes wrong.
@@ -300,6 +329,17 @@ impl SharedSession {
         R: Copy,
     {
         self.session_mut(default, |s| s.interaction_mut(handle, default, f))
+    }
+
+    /// Quick access to an interaction by handle.
+    ///
+    /// Returns the default if something goes wrong.
+    fn interaction<F, R>(&self, handle: InteractionHandle, default: R, f: F) -> R
+    where
+        F: FnOnce(&Interaction) -> R,
+        R: Copy,
+    {
+        self.session(default, |s| s.interaction(handle, default, f))
     }
 
     /// Add a new interaction to the latest conversation.
@@ -384,9 +424,19 @@ impl SharedSession {
         });
     }
 
+    /// Check if the given interaction is still running
+    pub fn is_running(&self, handle: InteractionHandle) -> bool {
+        self.interaction( handle, true, |i| if let RunningStatus::Exited(_) = i.running_status { false } else {true })
+    }
+
     /// Mark the session as redrawn
     pub fn mark_drawn(&mut self) {
         self.session_mut((), |s| s.needs_redraw = false)
+    }
+
+    /// Check if the session needs redrawing and reset that
+    pub fn check_redraw(&mut self) -> bool{
+      self.session_mut(true, |s| { let res = s.needs_redraw; s.needs_redraw = false; res})
     }
 
     /// Check if the given interaction is in TUI mode

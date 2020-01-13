@@ -20,9 +20,7 @@
 
 use super::completion::CompleteCommandPresenter;
 use super::execute_command::ExecuteCommandPresenter;
-use super::history::*;
 use super::*;
-use model::history::*;
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -67,15 +65,25 @@ impl ComposeCommandPresenter {
         trace!("Execute »{}«", line);
         let mut line_with_nl = line.clone();
         line_with_nl.push('\n');
-        ::model::bash::bash_add_input(line_with_nl.as_str());
+
+        // Create a new interaction
+        let interaction_handle = self.commons.session.add_interaction( Screen::one_line_matrix( line.as_bytes()));
+        // Send command to interpreter
+        self.commons.interpreter.run_command( line, interaction_handle);
+
+        // Wait for the command to finish
         (
-            ExecuteCommandPresenter::new(self.commons, Screen::one_line_matrix(line.as_bytes())),
+            ExecuteCommandPresenter::new(self.commons, interaction_handle),
             PresenterCommand::Redraw,
         )
     }
 }
 
 impl SubPresenter for ComposeCommandPresenter {
+    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+        self.commons
+    }
+
     fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
         &self.commons
     }
@@ -191,7 +199,8 @@ impl SubPresenter for ComposeCommandPresenter {
                 } else {
                     // Go to history browse mode without search.
                     (
-                        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, true),
+                        // TODO: Use own history
+                        self,
                         PresenterCommand::Redraw,
                     )
                 }
@@ -203,7 +212,8 @@ impl SubPresenter for ComposeCommandPresenter {
                 } else {
                     (
                         // Go to history browse mode without search.
-                        HistoryPresenter::new(self.commons, HistorySearchMode::Browse, false),
+                        // TODO: Use own history
+                        self,
                         PresenterCommand::Redraw,
                     )
                 }
@@ -229,7 +239,8 @@ impl SubPresenter for ComposeCommandPresenter {
                     prefix
                 };
                 (
-                    HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), true),
+                        // TODO: Use own history
+                        self,
                     PresenterCommand::Redraw,
                 )
             }
@@ -252,7 +263,8 @@ impl SubPresenter for ComposeCommandPresenter {
                     prefix
                 };
                 (
-                    HistoryPresenter::new(self.commons, HistorySearchMode::Prefix(prefix), false),
+                        // TODO: Use own history
+                        self,
                     PresenterCommand::Redraw,
                 )
             }
@@ -384,7 +396,8 @@ impl SubPresenter for ComposeCommandPresenter {
                     prefix
                 };
                 (
-                    HistoryPresenter::new(self.commons, HistorySearchMode::Contained(prefix), true),
+                        // TODO: Use own history
+                        self,
                     PresenterCommand::Redraw,
                 )
             }

@@ -23,7 +23,6 @@
 
 use std::fmt::{Display, Formatter};
 use std::process::ExitStatus;
-use std::sync::mpsc::Receiver;
 
 use term::terminfo::TermInfo;
 
@@ -31,18 +30,18 @@ mod completion;
 mod compose_command;
 pub mod display_line;
 mod execute_command;
-mod history;
+// TODO: Reactivate when own history exists.
+// mod history;
 mod tui;
 
-use model::bash::BashOutput;
 use model::error::*;
 use model::iterators::*;
 use model::screen::*;
 use model::session::{Session, SharedSession};
+use model::interpreter::Interpreter;
 
 use self::compose_command::*;
 use self::display_line::*;
-use self::execute_command::*;
 
 /// GUI agnostic representation of the modifier keys
 #[derive(Debug)]
@@ -68,7 +67,6 @@ pub enum SpecialKey {
     Delete,
     Backspace,
     Tab,
-    Space,
 }
 
 /// Represent a boolean with the semantics 'does the GUI need to be redrawn'.
@@ -100,6 +98,9 @@ pub enum PresenterCommand {
 /// Each SubPresenter handles a different kind of interaction mode, e.g. command composition or
 /// history browsing.
 trait SubPresenter {
+    /// Destroy the presenter and get back the commons
+    fn finish(self:Box<Self>) -> Box<PresenterCommons>;
+
     /// Provide read access to the data that is common to the presenter in all modi.
     fn commons<'a>(&'a self) -> &'a Box<PresenterCommons>;
 
@@ -113,7 +114,7 @@ trait SubPresenter {
     fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]);
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool);
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter>;
 
     /// Access to the line iterator which requires unlocking the session mutex
     fn line_iter<'a>(&'a self, &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a>;
@@ -149,6 +150,9 @@ pub struct PresenterCommons {
     /// The current and previous commands and the outputs of them.
     session: SharedSession,
 
+    /// Interpreter to run things
+    interpreter:Interpreter,
+
     /// Width of the window in characters
     window_width: usize,
 
@@ -171,8 +175,6 @@ pub struct PresenterCommons {
 
     // List of all lines we have successfully parsed.
     // pub history: History,
-    /// Channel from Bash
-    receiver: Receiver<BashOutput>,
 
     /// TermInfo entry for xterm
     term_info: TermInfo,
@@ -223,21 +225,19 @@ impl PresenterCommons {
     /// Allocate a new data struct.
     ///
     /// This will be passed from sub-presenter to sub-presenter on state changes.
-    pub fn new(receiver: Receiver<BashOutput>, term_info: TermInfo) -> Result<Self> {
+    pub fn new(session:SharedSession, interpreter:Interpreter, term_info: TermInfo) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
-        let mut prompt = Screen::new();
-        let _ = prompt.add_bytes(b"System");
         let mut text_input = Screen::new();
         text_input.make_room();
         Ok(PresenterCommons {
-            session: SharedSession::new(prompt.freeze()),
+            session,
+            interpreter,
             window_width: 0,
             window_height: 0,
             button_down: None,
             text_input,
             last_line_shown: 0,
             // history,
-            receiver,
             term_info,
         })
     }
@@ -276,11 +276,15 @@ impl PresenterCommons {
 
 impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
-    pub fn new(receiver: Receiver<BashOutput>, term_info: TermInfo) -> Result<Self> {
-        Ok(Presenter(Some(ExecuteCommandPresenter::new(
-            Box::new(PresenterCommons::new(receiver, term_info)?),
-            Screen::one_line_matrix(b"Startup"),
+    pub fn new(session:SharedSession, interpreter:Interpreter, term_info: TermInfo) -> Result<Self> {
+        Ok(Presenter(Some(ComposeCommandPresenter::new(
+            Box::new(PresenterCommons::new(session, interpreter, term_info)?)
         ))))
+    }
+
+    /// Clean up and get back the interpreter
+    pub fn finish(self) -> Interpreter {
+        self.0.unwrap().finish().interpreter
     }
 
     /// Access sub-presenter read-only for dynamic dispatch
@@ -350,37 +354,10 @@ impl Presenter {
     pub fn poll_interaction(&mut self) -> NeedRedraw {
         let last_line_visible_pre = self.last_line_visible();
         let needs_redraw = self.dispatch_res(|sp| {
-            let mut needs_marking = false;
             let mut presenter = sp;
-            if let Ok(output) = presenter.commons_mut().receiver.try_recv() {
-                needs_marking = true;
-                match output {
-                    BashOutput::FromOutput(full_line) => {
-                        let mut line = &full_line[..];
-                        while line.len() != 0 {
-                            let (pres, rest) = presenter.add_output(line);
-                            presenter = pres;
-                            line = rest;
-                        }
-                    }
-                    BashOutput::FromError(full_line) => {
-                        let mut line = &full_line[..];
-                        while line.len() != 0 {
-                            let (pres, rest) = presenter.add_error(line);
-                            presenter = pres;
-                            line = rest;
-                        }
-                    }
-                    BashOutput::Terminated(exit_code) => {
-                        presenter.set_exit_status(exit_code);
-                    }
-                    BashOutput::Prompt(prompt) => {
-                        presenter.set_next_prompt(&prompt);
-                    }
-                }
-            }
-
-            presenter.end_polling(needs_marking)
+            let needs_marking = presenter.commons_mut().session.check_redraw();
+            presenter = presenter.end_polling(needs_marking);
+            (presenter, needs_marking)
         });
         if last_line_visible_pre {
             self.to_last_line();

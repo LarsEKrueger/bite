@@ -73,12 +73,10 @@ pub mod presenter;
 pub mod tools;
 pub mod view;
 
-use model::bash::{bash_add_input, bite_write_output};
-
 extern crate backtrace;
 
 fn panic_hook(info: &PanicInfo) {
-    let msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
+    let err_msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
         (Some(msg), Some(loc)) => {
             error!(
                 "Panic at {}:{}:{} with '{}'",
@@ -106,14 +104,14 @@ fn panic_hook(info: &PanicInfo) {
         }
         _ => format!("bite panicked: {:?}\n", info),
     };
-    bite_write_output(msg.as_str());
+    bite_write_output(err_msg.as_str());
 
     let bt = backtrace::Backtrace::new();
     use std::fmt::Write;
     let mut msg = String::new();
     let _ = write!(msg, "{:?}", bt);
     bite_write_output(msg.as_str());
-    error!("Stack Trace:\n{}", msg);
+    error!("Error:{}\nStack Trace:\n{}", err_msg, msg);
 }
 
 /// Main function that starts the program.
@@ -141,21 +139,17 @@ pub fn main() {
     #[cfg(debug_assertions)]
     info!("{:?}", params);
 
-    // Start bash in a thread
-    let (receiver, reader_barrier, bash_barrier) = match model::bash::start() {
-        Err(err) => {
-            error!("Can't start integrated bash: {}", err);
-            bite_write_output(&format!("Can't start integrated bash: {}", err));
-            ::std::process::exit(1);
-        }
-        Ok(r) => r,
-    };
+    // Create the session
+    let session = model::session::SharedSession::new( model::screen::Screen::one_line_matrix( b"System"));
+
+    // Start interpreter in a thread
+    let interpreter = model::interpreter::Interpreter::new( session.clone());
 
     // Start the gui
-    let mut gui = match ::view::Gui::new(receiver) {
+    let mut gui = match ::view::Gui::new(session,interpreter) {
         Err(err) => {
             error!("Can't init GUI: {}", err);
-            bite_write_output(&format!("Can't init GUI: {}", err));
+            println!("Can't init GUI: {}", err);
             ::std::process::exit(1);
         }
         Ok(g) => g,
@@ -170,22 +164,12 @@ pub fn main() {
     // after bash::start.
     std::panic::set_hook(Box::new(&panic_hook));
 
-    // Wait for bash thread to be ready to accept commands
-    reader_barrier.wait();
-    bash_barrier.wait();
-
-    // Make bash pretend it's running inside xterm
-    bash_add_input("export TERM=xterm\n");
-
     // Run the gui loop until the program is closed
     gui.main_loop();
-    gui.finish();
+   let interpreter =  gui.finish();
 
-    // Make bash shutdown cleanly by killing a potentially running program and then telling bash to
-    // exit, which will make it terminate its thread.
-    // bash_kill_last();
-    bash_add_input("exit 0\n");
-    model::bash::stop();
+    // Shutdown interpreter and wait for it to end
+    interpreter.shutdown();
 
     let _ = std::panic::take_hook();
     info!("Exiting bite normally");

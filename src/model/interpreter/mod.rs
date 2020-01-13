@@ -20,14 +20,16 @@
 //!
 //! Processes the source, starts jobs etc.
 
-use super::session::{InteractionHandle, SharedSession, OutputVisibility};
+use super::session::{InteractionHandle, SharedSession, OutputVisibility, RunningStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
+use std::process::ExitStatus;
+use std::os::unix::process::ExitStatusExt;
 
 mod parser;
 
-struct Interpreter {
+pub struct Interpreter {
     /// Session to print output to.
     session: SharedSession,
 
@@ -56,6 +58,9 @@ fn interpreter_loop(
             let mut input_data = input.1.lock().unwrap();
             while input_data.is_none() {
                 input_data = input.0.wait(input_data).unwrap();
+                if !is_running.load(Ordering::Acquire) {
+                    return;
+                }
             }
 
             // Extract the data
@@ -68,26 +73,31 @@ fn interpreter_loop(
                 if rest.fragment.is_empty() {
                     // TODO: Run command
                     session.add_bytes( OutputVisibility::Output, interaction_handle, format!("OK: Would run »{:?}«", cmd).as_bytes());
+                    session.set_running_status(interaction_handle,RunningStatus::Exited( ExitStatus::from_raw(0)));
                     session.set_visibility( interaction_handle, OutputVisibility::Output);
                 } else {
                     // TODO: Complain about additional stuff
                     session.add_bytes( OutputVisibility::Error, interaction_handle, format!("Error: Might run »{:?}«, but found trailing »{:?}«", cmd, rest).as_bytes());
+                    session.set_running_status(interaction_handle,RunningStatus::Exited( ExitStatus::from_raw(1)));
                     session.set_visibility( interaction_handle, OutputVisibility::Error);
                 }
             }
             Err(nom::Err::Incomplete(n)) => {
                 // TODO: Complain about incomplete parse
                     session.add_bytes( OutputVisibility::Error, interaction_handle, format!("Error: Incomplete »{:?}«", n).as_bytes());
+                    session.set_running_status(interaction_handle,RunningStatus::Exited( ExitStatus::from_raw(1)));
                     session.set_visibility( interaction_handle, OutputVisibility::Error);
             }
             Err(nom::Err::Error(sp)) => {
                 // TODO: Complain about error
                     session.add_bytes( OutputVisibility::Error, interaction_handle, format!("Error: Error »{:?}«", sp).as_bytes());
+                    session.set_running_status(interaction_handle,RunningStatus::Exited( ExitStatus::from_raw(1)));
                     session.set_visibility( interaction_handle, OutputVisibility::Error);
             }
             Err(nom::Err::Failure(sp)) => {
                 // TODO: Complain about failure
                     session.add_bytes( OutputVisibility::Error, interaction_handle, format!("Error: Failure »{:?}«", sp).as_bytes());
+                    session.set_running_status(interaction_handle,RunningStatus::Exited( ExitStatus::from_raw(1)));
                     session.set_visibility( interaction_handle, OutputVisibility::Error);
             }
 

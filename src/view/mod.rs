@@ -25,15 +25,14 @@ use std::collections::HashMap;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::ptr::{null, null_mut};
-use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime};
 use x11::keysym::*;
 use x11::xlib::*;
 
-use model::bash;
-use model::bash::BashOutput;
 use model::iterators::LineType;
 use model::screen::Cell;
+use model::session::SharedSession;
+use model::interpreter::Interpreter;
 use presenter::display_line::*;
 use presenter::*;
 use tools::polling;
@@ -203,7 +202,7 @@ impl Gui {
     ///
     /// Not all return codes are checked (yet), so might cause crashes that could have been
     /// detected at startup.
-    pub fn new(receiver: Receiver<BashOutput>) -> Result<Gui, String> {
+    pub fn new(session:SharedSession,interpreter:Interpreter) -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
         let WM_DELETE_WINDOW = cstr!("WM_DELETE_WINDOW");
         let EMPTY = cstr!("");
@@ -213,7 +212,7 @@ impl Gui {
         let presenter = {
             // Only the presenter needs to know the term info for TUI applications.
             let term_info = TermInfo::from_name("xterm").map_err(|e| format!("{}", e))?;
-            Presenter::new(receiver, term_info)
+            Presenter::new(session,interpreter, term_info)
                 .or_else(|e| Err(e.readable("during initialisation")))
         }?;
 
@@ -594,7 +593,8 @@ impl Gui {
     ///
     /// Waits for events and dispatches then to the presenter or to itself.
     pub fn main_loop(&mut self) {
-        while bash::read_lines_running() {
+        // TODO: Allow the presenter to exit the loop
+        loop {
             self.gate.wait();
 
             if NeedRedraw::Yes == self.presenter.poll_interaction() {
@@ -792,12 +792,13 @@ impl Gui {
         }
     }
 
-    /// Frees all X resources
-    pub fn finish(&mut self) {
+    /// Frees all X resources and get back the interpreter
+    pub fn finish(self) -> Interpreter {
         unsafe {
             XDestroyIC(self.xic);
             XCloseIM(self.xim);
             XCloseDisplay(self.display);
         }
+        self.presenter.finish()
     }
 }

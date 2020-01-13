@@ -20,9 +20,7 @@
 
 use super::tui::TuiExecuteCommandPresenter;
 use super::*;
-use model::bash::{bash_kill_last, is_bash_waiting};
 use model::session::{InteractionHandle, OutputVisibility, RunningStatus};
-use std::str::from_utf8_unchecked;
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -39,8 +37,7 @@ pub struct ExecuteCommandPresenter {
 
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
-    pub fn new(mut commons: Box<PresenterCommons>, prompt: Matrix) -> Box<Self> {
-        let current_interaction = commons.session.add_interaction(prompt);
+    pub fn new(commons: Box<PresenterCommons>, current_interaction:InteractionHandle) -> Box<Self> {
         let mut presenter = ExecuteCommandPresenter {
             commons,
             current_interaction,
@@ -84,6 +81,10 @@ impl ExecuteCommandPresenter {
 }
 
 impl SubPresenter for ExecuteCommandPresenter {
+    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+        self.commons
+    }
+
     fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
         &self.commons
     }
@@ -134,13 +135,9 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
-        if !needs_marking && is_bash_waiting() {
-            let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
-            if let Some(prompt) = next_prompt {
-                self.commons.session.new_conversation(prompt);
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<dyn SubPresenter> {
+        if !self.commons.session.is_running( self.current_interaction) {
                 return ComposeCommandPresenter::new(self.commons);
-            }
         }
         self
     }
@@ -161,12 +158,10 @@ impl SubPresenter for ExecuteCommandPresenter {
     ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
-                let line = self.commons.text_input.extract_text();
+                // let line = self.commons.text_input.extract_text();
                 self.commons.text_input.reset();
                 self.commons.text_input.make_room();
-                // TODO: disable write-back in bash and mark this line as input
-                // self.current_interaction.add_output(line.clone());
-                ::model::bash::program_add_input(line.as_str());
+                // TODO: Send text to running program
                 (self, PresenterCommand::Redraw)
             }
 
@@ -233,14 +228,12 @@ impl SubPresenter for ExecuteCommandPresenter {
                 // Control-only
                 match letter {
                     b'c' => {
-                        bash_kill_last();
+                        // TODO: Kill the last job if it is still running
                         return (self, PresenterCommand::Redraw);
                     }
 
                     b'd' => {
-                        // ODO: Exit bite only if input line is empty.
-                        let letter = [0x04; 1];
-                        ::model::bash::program_add_input(unsafe { from_utf8_unchecked(&letter) });
+                        // TODO: Send to running program
                         return (self, PresenterCommand::Redraw);
                     }
                     _ => {}
