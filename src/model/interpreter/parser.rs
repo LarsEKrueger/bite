@@ -25,7 +25,7 @@ use nom::sequence::preceded;
 use nom::IResult;
 
 use nom_locate::LocatedSpan;
-type Span<'a> = LocatedSpan<&'a str>;
+pub type Span<'a> = LocatedSpan<&'a str>;
 
 /// A command and its parameters
 #[derive(Debug, PartialEq)]

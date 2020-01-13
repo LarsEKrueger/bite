@@ -405,6 +405,11 @@ impl SharedSession {
             i.visible = v;
         })
     }
+
+    /// Set the visibility
+    pub fn set_visibility( &mut self, handle: InteractionHandle, visible:OutputVisibility) {
+        self.interaction_mut(handle, (), |i| i.visible=visible)
+    }
 }
 
 #[cfg(test)]
