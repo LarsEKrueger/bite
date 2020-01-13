@@ -37,7 +37,10 @@ pub struct ExecuteCommandPresenter {
 
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
-    pub fn new(commons: Box<PresenterCommons>, current_interaction:InteractionHandle) -> Box<Self> {
+    pub fn new(
+        commons: Box<PresenterCommons>,
+        current_interaction: InteractionHandle,
+    ) -> Box<Self> {
         let mut presenter = ExecuteCommandPresenter {
             commons,
             current_interaction,
@@ -81,7 +84,7 @@ impl ExecuteCommandPresenter {
 }
 
 impl SubPresenter for ExecuteCommandPresenter {
-    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+    fn finish(self: Box<Self>) -> Box<PresenterCommons> {
         self.commons
     }
 
@@ -136,8 +139,8 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<dyn SubPresenter> {
-        if !self.commons.session.is_running( self.current_interaction) {
-                return ComposeCommandPresenter::new(self.commons);
+        if !self.commons.session.is_running(self.current_interaction) {
+            return ComposeCommandPresenter::new(self.commons);
         }
         self
     }

@@ -104,7 +104,7 @@ impl TuiExecuteCommandPresenter {
 }
 
 impl SubPresenter for TuiExecuteCommandPresenter {
-    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+    fn finish(self: Box<Self>) -> Box<PresenterCommons> {
         self.commons
     }
 
@@ -141,7 +141,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     }
 
     fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
-        if !self.commons.session.is_running( self.current_interaction) {
+        if !self.commons.session.is_running(self.current_interaction) {
             let (mut commons, _, _) = self.deconstruct();
             return ComposeCommandPresenter::new(commons);
         }

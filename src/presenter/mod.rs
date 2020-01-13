@@ -35,10 +35,10 @@ mod execute_command;
 mod tui;
 
 use model::error::*;
+use model::interpreter::Interpreter;
 use model::iterators::*;
 use model::screen::*;
 use model::session::{Session, SharedSession};
-use model::interpreter::Interpreter;
 
 use self::compose_command::*;
 use self::display_line::*;
@@ -99,7 +99,7 @@ pub enum PresenterCommand {
 /// history browsing.
 trait SubPresenter {
     /// Destroy the presenter and get back the commons
-    fn finish(self:Box<Self>) -> Box<PresenterCommons>;
+    fn finish(self: Box<Self>) -> Box<PresenterCommons>;
 
     /// Provide read access to the data that is common to the presenter in all modi.
     fn commons<'a>(&'a self) -> &'a Box<PresenterCommons>;
@@ -151,7 +151,7 @@ pub struct PresenterCommons {
     session: SharedSession,
 
     /// Interpreter to run things
-    interpreter:Interpreter,
+    interpreter: Interpreter,
 
     /// Width of the window in characters
     window_width: usize,
@@ -175,7 +175,6 @@ pub struct PresenterCommons {
 
     // List of all lines we have successfully parsed.
     // pub history: History,
-
     /// TermInfo entry for xterm
     term_info: TermInfo,
 }
@@ -225,7 +224,11 @@ impl PresenterCommons {
     /// Allocate a new data struct.
     ///
     /// This will be passed from sub-presenter to sub-presenter on state changes.
-    pub fn new(session:SharedSession, interpreter:Interpreter, term_info: TermInfo) -> Result<Self> {
+    pub fn new(
+        session: SharedSession,
+        interpreter: Interpreter,
+        term_info: TermInfo,
+    ) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
         let mut text_input = Screen::new();
         text_input.make_room();
@@ -276,10 +279,14 @@ impl PresenterCommons {
 
 impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
-    pub fn new(session:SharedSession, interpreter:Interpreter, term_info: TermInfo) -> Result<Self> {
-        Ok(Presenter(Some(ComposeCommandPresenter::new(
-            Box::new(PresenterCommons::new(session, interpreter, term_info)?)
-        ))))
+    pub fn new(
+        session: SharedSession,
+        interpreter: Interpreter,
+        term_info: TermInfo,
+    ) -> Result<Self> {
+        Ok(Presenter(Some(ComposeCommandPresenter::new(Box::new(
+            PresenterCommons::new(session, interpreter, term_info)?,
+        )))))
     }
 
     /// Clean up and get back the interpreter

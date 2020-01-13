@@ -140,13 +140,14 @@ pub fn main() {
     info!("{:?}", params);
 
     // Create the session
-    let session = model::session::SharedSession::new( model::screen::Screen::one_line_matrix( b"System"));
+    let session =
+        model::session::SharedSession::new(model::screen::Screen::one_line_matrix(b"System"));
 
     // Start interpreter in a thread
-    let interpreter = model::interpreter::Interpreter::new( session.clone());
+    let interpreter = model::interpreter::Interpreter::new(session.clone());
 
     // Start the gui
-    let mut gui = match ::view::Gui::new(session,interpreter) {
+    let mut gui = match ::view::Gui::new(session, interpreter) {
         Err(err) => {
             error!("Can't init GUI: {}", err);
             println!("Can't init GUI: {}", err);
@@ -166,7 +167,7 @@ pub fn main() {
 
     // Run the gui loop until the program is closed
     gui.main_loop();
-   let interpreter =  gui.finish();
+    let interpreter = gui.finish();
 
     // Shutdown interpreter and wait for it to end
     interpreter.shutdown();

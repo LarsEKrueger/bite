@@ -35,11 +35,10 @@ pub struct Command<'a> {
     // pub mode: PipelineMode,
 }
 
-   /// Parse a (partial) bash script.
-   pub fn script( input: Span ) -> IResult<Span, Command> {
-       simple_command( input)
-   }
-
+/// Parse a (partial) bash script.
+pub fn script(input: Span) -> IResult<Span, Command> {
+    simple_command(input)
+}
 
 fn simple_command(input: Span) -> IResult<Span, Command> {
     map(preceded(space0, separated_list(space1, word)), |words| {

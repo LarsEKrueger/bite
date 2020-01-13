@@ -88,8 +88,7 @@ impl CompleteCommandPresenter {
 }
 
 impl SubPresenter for CompleteCommandPresenter {
-
-    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+    fn finish(self: Box<Self>) -> Box<PresenterCommons> {
         self.commons
     }
 

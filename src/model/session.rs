@@ -309,12 +309,12 @@ impl SharedSession {
     /// Quick access to the underlying session
     ///
     /// Does nothing if something goes wrong
-    fn session<F, R>(& self, default: R, f: F) -> R
+    fn session<F, R>(&self, default: R, f: F) -> R
     where
-        F: FnOnce(& Session) -> R,
+        F: FnOnce(&Session) -> R,
     {
-        if let Ok( s) = self.0.lock() {
-            f(& s)
+        if let Ok(s) = self.0.lock() {
+            f(&s)
         } else {
             default
         }
@@ -426,7 +426,13 @@ impl SharedSession {
 
     /// Check if the given interaction is still running
     pub fn is_running(&self, handle: InteractionHandle) -> bool {
-        self.interaction( handle, true, |i| if let RunningStatus::Exited(_) = i.running_status { false } else {true })
+        self.interaction(handle, true, |i| {
+            if let RunningStatus::Exited(_) = i.running_status {
+                false
+            } else {
+                true
+            }
+        })
     }
 
     /// Mark the session as redrawn
@@ -435,8 +441,12 @@ impl SharedSession {
     }
 
     /// Check if the session needs redrawing and reset that
-    pub fn check_redraw(&mut self) -> bool{
-      self.session_mut(true, |s| { let res = s.needs_redraw; s.needs_redraw = false; res})
+    pub fn check_redraw(&mut self) -> bool {
+        self.session_mut(true, |s| {
+            let res = s.needs_redraw;
+            s.needs_redraw = false;
+            res
+        })
     }
 
     /// Check if the given interaction is in TUI mode
@@ -457,8 +467,8 @@ impl SharedSession {
     }
 
     /// Set the visibility
-    pub fn set_visibility( &mut self, handle: InteractionHandle, visible:OutputVisibility) {
-        self.interaction_mut(handle, (), |i| i.visible=visible)
+    pub fn set_visibility(&mut self, handle: InteractionHandle, visible: OutputVisibility) {
+        self.interaction_mut(handle, (), |i| i.visible = visible)
     }
 }
 

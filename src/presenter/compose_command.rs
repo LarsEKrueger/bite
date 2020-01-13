@@ -67,9 +67,14 @@ impl ComposeCommandPresenter {
         line_with_nl.push('\n');
 
         // Create a new interaction
-        let interaction_handle = self.commons.session.add_interaction( Screen::one_line_matrix( line.as_bytes()));
+        let interaction_handle = self
+            .commons
+            .session
+            .add_interaction(Screen::one_line_matrix(line.as_bytes()));
         // Send command to interpreter
-        self.commons.interpreter.run_command( line, interaction_handle);
+        self.commons
+            .interpreter
+            .run_command(line, interaction_handle);
 
         // Wait for the command to finish
         (
@@ -80,7 +85,7 @@ impl ComposeCommandPresenter {
 }
 
 impl SubPresenter for ComposeCommandPresenter {
-    fn finish(self:Box<Self>) -> Box<PresenterCommons> {
+    fn finish(self: Box<Self>) -> Box<PresenterCommons> {
         self.commons
     }
 
@@ -239,8 +244,8 @@ impl SubPresenter for ComposeCommandPresenter {
                     prefix
                 };
                 (
-                        // TODO: Use own history
-                        self,
+                    // TODO: Use own history
+                    self,
                     PresenterCommand::Redraw,
                 )
             }
@@ -263,8 +268,8 @@ impl SubPresenter for ComposeCommandPresenter {
                     prefix
                 };
                 (
-                        // TODO: Use own history
-                        self,
+                    // TODO: Use own history
+                    self,
                     PresenterCommand::Redraw,
                 )
             }
@@ -396,8 +401,8 @@ impl SubPresenter for ComposeCommandPresenter {
                     prefix
                 };
                 (
-                        // TODO: Use own history
-                        self,
+                    // TODO: Use own history
+                    self,
                     PresenterCommand::Redraw,
                 )
             }

@@ -46,4 +46,3 @@ fn main() {
         .file("c_src/myCreateIC.c")
         .compile("mystuff");
 }
-
