@@ -18,10 +18,11 @@
 
 //! Bash script parser.
 
+use nom::bytes::complete::tag;
 use nom::character::complete::{none_of, space0, space1};
 use nom::combinator::{map, recognize};
 use nom::multi::{many1, separated_list};
-use nom::sequence::preceded;
+use nom::sequence::{preceded, terminated};
 use nom::IResult;
 
 use nom_locate::LocatedSpan;
@@ -41,9 +42,10 @@ pub fn script(input: Span) -> IResult<Span, Command> {
 }
 
 fn simple_command(input: Span) -> IResult<Span, Command> {
-    map(preceded(space0, separated_list(space1, word)), |words| {
-        Command { words }
-    })(input)
+    map(
+        terminated(preceded(space0, separated_list(space1, word)), tag("\n")),
+        |words| Command { words },
+    )(input)
 }
 
 fn word(input: Span) -> IResult<Span, Span> {

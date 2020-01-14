@@ -68,30 +68,36 @@ fn interpreter_loop(
         };
 
         // Process string
-        match parser::script(parser::Span::new(&input_string)) {
-            Ok((rest, cmd)) => {
-                if rest.fragment.is_empty() {
+        let mut input = parser::Span::new(&input_string);
+        while !input.fragment.is_empty() {
+            session.add_bytes(
+                OutputVisibility::Output,
+                interaction_handle,
+                format!("Parse: »{}«\n", input.fragment).as_bytes(),
+            );
+            match parser::script(input) {
+                Ok((rest, cmd)) => {
                     // TODO: Run command
                     session.add_bytes(
                         OutputVisibility::Output,
                         interaction_handle,
-                        format!("OK: Would run »{:?}«", cmd).as_bytes(),
+                        format!("OK: Would run »{:?}«\n", cmd).as_bytes(),
                     );
+                    // TODO: Set running status of last command
                     session.set_running_status(
                         interaction_handle,
                         RunningStatus::Exited(ExitStatus::from_raw(0)),
                     );
                     session.set_visibility(interaction_handle, OutputVisibility::Output);
-                } else {
-                    // TODO: Complain about additional stuff
+                    // Process the rest of the input
+                    input = rest;
+                }
+                Err(nom::Err::Incomplete(n)) => {
+                    // TODO: Complain about incomplete parse
                     session.add_bytes(
                         OutputVisibility::Error,
                         interaction_handle,
-                        format!(
-                            "Error: Might run »{:?}«, but found trailing »{:?}«",
-                            cmd, rest
-                        )
-                        .as_bytes(),
+                        format!("Error: Incomplete »{:?}«\n", n).as_bytes(),
                     );
                     session.set_running_status(
                         interaction_handle,
@@ -99,45 +105,32 @@ fn interpreter_loop(
                     );
                     session.set_visibility(interaction_handle, OutputVisibility::Error);
                 }
-            }
-            Err(nom::Err::Incomplete(n)) => {
-                // TODO: Complain about incomplete parse
-                session.add_bytes(
-                    OutputVisibility::Error,
-                    interaction_handle,
-                    format!("Error: Incomplete »{:?}«", n).as_bytes(),
-                );
-                session.set_running_status(
-                    interaction_handle,
-                    RunningStatus::Exited(ExitStatus::from_raw(1)),
-                );
-                session.set_visibility(interaction_handle, OutputVisibility::Error);
-            }
-            Err(nom::Err::Error(sp)) => {
-                // TODO: Complain about error
-                session.add_bytes(
-                    OutputVisibility::Error,
-                    interaction_handle,
-                    format!("Error: Error »{:?}«", sp).as_bytes(),
-                );
-                session.set_running_status(
-                    interaction_handle,
-                    RunningStatus::Exited(ExitStatus::from_raw(1)),
-                );
-                session.set_visibility(interaction_handle, OutputVisibility::Error);
-            }
-            Err(nom::Err::Failure(sp)) => {
-                // TODO: Complain about failure
-                session.add_bytes(
-                    OutputVisibility::Error,
-                    interaction_handle,
-                    format!("Error: Failure »{:?}«", sp).as_bytes(),
-                );
-                session.set_running_status(
-                    interaction_handle,
-                    RunningStatus::Exited(ExitStatus::from_raw(1)),
-                );
-                session.set_visibility(interaction_handle, OutputVisibility::Error);
+                Err(nom::Err::Error(sp)) => {
+                    // TODO: Complain about error
+                    session.add_bytes(
+                        OutputVisibility::Error,
+                        interaction_handle,
+                        format!("Error: Error »{:?}«\n", sp).as_bytes(),
+                    );
+                    session.set_running_status(
+                        interaction_handle,
+                        RunningStatus::Exited(ExitStatus::from_raw(1)),
+                    );
+                    session.set_visibility(interaction_handle, OutputVisibility::Error);
+                }
+                Err(nom::Err::Failure(sp)) => {
+                    // TODO: Complain about failure
+                    session.add_bytes(
+                        OutputVisibility::Error,
+                        interaction_handle,
+                        format!("Error: Failure »{:?}«\n", sp).as_bytes(),
+                    );
+                    session.set_running_status(
+                        interaction_handle,
+                        RunningStatus::Exited(ExitStatus::from_raw(1)),
+                    );
+                    session.set_visibility(interaction_handle, OutputVisibility::Error);
+                }
             }
         }
     }

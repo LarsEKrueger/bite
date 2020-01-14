@@ -74,7 +74,7 @@ impl ComposeCommandPresenter {
         // Send command to interpreter
         self.commons
             .interpreter
-            .run_command(line, interaction_handle);
+            .run_command(line_with_nl, interaction_handle);
 
         // Wait for the command to finish
         (
