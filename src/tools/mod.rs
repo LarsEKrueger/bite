@@ -21,4 +21,5 @@
 
 pub mod commandline;
 pub mod polling;
+pub mod shared_item;
 pub mod versioned_file;

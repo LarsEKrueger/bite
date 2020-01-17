@@ -21,12 +21,13 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::process::ExitStatus;
+use std::sync::{Arc, Mutex};
 
 use super::iterators::*;
 use super::response::*;
 use super::screen::{AddBytesResult, Matrix};
 
-use std::sync::{Arc, Mutex};
+use tools::shared_item;
 
 /// Which output is visible.
 ///
@@ -289,7 +290,7 @@ impl Session {
 impl SharedSession {
     /// Create a new session.
     pub fn new(prompt: Matrix) -> Self {
-        SharedSession(Arc::new(Mutex::new(Session::new(prompt))))
+        SharedSession(shared_item::new(Session::new(prompt)))
     }
 
     /// Quick access to the underlying session
@@ -299,11 +300,7 @@ impl SharedSession {
     where
         F: FnOnce(&mut Session) -> R,
     {
-        if let Ok(mut s) = self.0.lock() {
-            f(&mut s)
-        } else {
-            default
-        }
+        shared_item::item_mut(&mut self.0, default, f)
     }
 
     /// Quick access to the underlying session
@@ -313,11 +310,7 @@ impl SharedSession {
     where
         F: FnOnce(&Session) -> R,
     {
-        if let Ok(s) = self.0.lock() {
-            f(&s)
-        } else {
-            default
-        }
+        shared_item::item(&self.0, default, f)
     }
 
     /// Quick access to an interaction by handle.

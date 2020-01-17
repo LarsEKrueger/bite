@@ -27,6 +27,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
+use super::job::Job;
+use super::screen::Screen;
+
+mod jobs;
 mod parser;
 
 pub struct Interpreter {
@@ -43,6 +47,9 @@ pub struct Interpreter {
 
     /// Atomic to stop the interpreter
     is_running: Arc<AtomicBool>,
+
+    /// List of active jobs
+    jobs: jobs::SharedJobs,
 }
 
 /// Processing function that gets input from the mutex
@@ -50,8 +57,11 @@ fn interpreter_loop(
     mut session: SharedSession,
     is_running: Arc<AtomicBool>,
     input: Arc<(Condvar, Mutex<Option<(String, InteractionHandle)>>)>,
+    mut jobs: jobs::SharedJobs,
 ) {
     while is_running.load(Ordering::Acquire) {
+        trace!( "Waiting for new command");
+        assert!(!jobs.has_foreground());
         // Wait for condition variable and extract the string and the interaction handle.
         let (input_string, interaction_handle) = {
             // The lock must not be held for too long to allow other threads to check the readiness.
@@ -66,6 +76,8 @@ fn interpreter_loop(
             // Extract the data
             std::mem::replace(&mut *input_data, None).unwrap()
         };
+
+        trace!("Got new input »{}«", input_string);
 
         // Process string
         let mut input = parser::Span::new(&input_string);
@@ -83,12 +95,21 @@ fn interpreter_loop(
                         interaction_handle,
                         format!("OK: Would run »{:?}«\n", cmd).as_bytes(),
                     );
-                    // TODO: Set running status of last command
-                    session.set_running_status(
-                        interaction_handle,
-                        RunningStatus::Exited(ExitStatus::from_raw(0)),
-                    );
-                    session.set_visibility(interaction_handle, OutputVisibility::Output);
+
+                   let job = {
+                       let session = session.clone();
+                       Job::new(
+                           session,
+                           interaction_handle,
+                           cmd.words[0].fragment,
+                           cmd.words[1..].iter().map(|s| s.fragment),
+                       )
+                   };
+
+                   jobs.set_foreground(job);
+
+                   // TODO: Wait for foreground job to be finished
+
                     // Process the rest of the input
                     input = rest;
                 }
@@ -141,11 +162,13 @@ impl Interpreter {
     pub fn new(session: SharedSession) -> Self {
         let is_running = Arc::new(AtomicBool::new(true));
         let input = Arc::new((Condvar::new(), Mutex::new(None)));
+        let jobs = jobs::SharedJobs::new();
         let thread = {
             let session = session.clone();
             let is_running = is_running.clone();
             let input = input.clone();
-            std::thread::spawn(move || interpreter_loop(session, is_running, input))
+            let jobs = jobs.clone();
+            std::thread::spawn(move || interpreter_loop(session, is_running, input, jobs))
         };
 
         Self {
@@ -153,6 +176,7 @@ impl Interpreter {
             thread,
             input,
             is_running,
+            jobs,
         }
     }
 
@@ -166,9 +190,12 @@ impl Interpreter {
     /// If the interpreter is still busy with another one, this call will block. The output of any
     /// command started from this call will be added to the given interaction.
     pub fn run_command(&self, command: String, interaction: InteractionHandle) {
+        trace!("Want to run »{}«", command);
         let mut input = self.input.1.lock().unwrap();
         *input = Some((command, interaction));
+        trace!("Set input");
         self.input.0.notify_one();
+        trace!("Sent notification");
     }
 
     /// Shut down the interpreter.
