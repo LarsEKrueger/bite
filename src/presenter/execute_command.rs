@@ -100,34 +100,6 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.commons
     }
 
-    fn add_output(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        self.commons
-            .session
-            .add_bytes(OutputVisibility::Output, self.current_interaction, bytes);
-        let presenter: Box<dyn SubPresenter> =
-            if self.commons.session.is_tui(self.current_interaction) {
-                let (c, i) = self.deconstruct();
-                TuiExecuteCommandPresenter::new(c, i)
-            } else {
-                self
-            };
-        (presenter, &bytes[0..0])
-    }
-
-    fn add_error(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        self.commons
-            .session
-            .add_bytes(OutputVisibility::Error, self.current_interaction, bytes);
-        let presenter: Box<dyn SubPresenter> =
-            if self.commons.session.is_tui(self.current_interaction) {
-                let (c, i) = self.deconstruct();
-                TuiExecuteCommandPresenter::new(c, i)
-            } else {
-                self
-            };
-        (presenter, &bytes[0..0])
-    }
-
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
         self.commons
             .session
@@ -139,7 +111,9 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<dyn SubPresenter> {
-        if !self.commons.session.is_running(self.current_interaction) {
+        let is_running = self.commons.session.is_running(self.current_interaction);
+        trace!( "ExecuteCommandPresenter::end_polling: is_running = {}", is_running);
+        if !is_running {
             return ComposeCommandPresenter::new(self.commons);
         }
         self
@@ -161,10 +135,12 @@ impl SubPresenter for ExecuteCommandPresenter {
     ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
-                // let line = self.commons.text_input.extract_text();
+                let line = self.commons.text_input.extract_text();
                 self.commons.text_input.reset();
                 self.commons.text_input.make_room();
-                // TODO: Send text to running program
+                self.commons
+                    .interpreter
+                    .write_stdin_foreground(line.as_bytes());
                 (self, PresenterCommand::Redraw)
             }
 

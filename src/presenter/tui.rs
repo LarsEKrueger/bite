@@ -122,14 +122,6 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.commons
     }
 
-    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        self.add_bytes_to_screen(bytes)
-    }
-
-    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        self.add_bytes_to_screen(bytes)
-    }
-
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
         self.commons
             .session

@@ -110,8 +110,6 @@ trait SubPresenter {
     /// Extract the commons and forget the presenter
     fn to_commons(self) -> Box<PresenterCommons>;
 
-    fn add_output(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]);
-    fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]);
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
     fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter>;

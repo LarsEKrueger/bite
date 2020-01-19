@@ -27,7 +27,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
-use super::job::Job;
 use super::screen::Screen;
 
 mod jobs;
@@ -43,6 +42,8 @@ pub struct Interpreter {
     /// Mutex and condition around the input string and the interaction handle.
     ///
     /// If the mutex holds None, there is no new input
+    ///
+    /// TODO: Use a channel
     input: Arc<(Condvar, Mutex<Option<(String, InteractionHandle)>>)>,
 
     /// Atomic to stop the interpreter
@@ -60,7 +61,7 @@ fn interpreter_loop(
     mut jobs: jobs::SharedJobs,
 ) {
     while is_running.load(Ordering::Acquire) {
-        trace!( "Waiting for new command");
+        trace!("Waiting for new command");
         assert!(!jobs.has_foreground());
         // Wait for condition variable and extract the string and the interaction handle.
         let (input_string, interaction_handle) = {
@@ -96,19 +97,16 @@ fn interpreter_loop(
                         format!("OK: Would run »{:?}«\n", cmd).as_bytes(),
                     );
 
-                   let job = {
-                       let session = session.clone();
-                       Job::new(
-                           session,
-                           interaction_handle,
-                           cmd.words[0].fragment,
-                           cmd.words[1..].iter().map(|s| s.fragment),
-                       )
-                   };
-
-                   jobs.set_foreground(job);
-
-                   // TODO: Wait for foreground job to be finished
+                    {
+                        let session = session.clone();
+                        jobs.run(
+                            session,
+                            interaction_handle,
+                            cmd.words[0].fragment,
+                            cmd.words[1..].iter().map(|s| s.fragment),
+                            true,
+                        )
+                    }
 
                     // Process the rest of the input
                     input = rest;
@@ -189,13 +187,24 @@ impl Interpreter {
     ///
     /// If the interpreter is still busy with another one, this call will block. The output of any
     /// command started from this call will be added to the given interaction.
-    pub fn run_command(&self, command: String, interaction: InteractionHandle) {
+    pub fn run_command(&mut self, command: String) -> InteractionHandle {
         trace!("Want to run »{}«", command);
+        let interaction = self
+            .session
+            .add_interaction(Screen::one_line_matrix(command.as_bytes()));
         let mut input = self.input.1.lock().unwrap();
         *input = Some((command, interaction));
         trace!("Set input");
         self.input.0.notify_one();
         trace!("Sent notification");
+        interaction
+    }
+
+    /// Send some bytes to the foreground job
+    ///
+    /// Does nothing if there is no foreground job
+    pub fn write_stdin_foreground(&mut self, bytes: &[u8]) {
+        self.jobs.write_stdin_foreground(bytes);
     }
 
     /// Shut down the interpreter.
@@ -203,7 +212,10 @@ impl Interpreter {
     /// This function will block until the interpreter has completed the last command.
     pub fn shutdown(self) {
         self.is_running.store(false, Ordering::Release);
-        self.run_command(String::new(), InteractionHandle::INVALID);
+        {
+            let mut input = self.input.1.lock().unwrap();
+            *input = Some((String::new(), InteractionHandle::INVALID));
+        }
         let _ = self.thread.join();
     }
 }

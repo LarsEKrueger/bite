@@ -66,15 +66,8 @@ impl ComposeCommandPresenter {
         let mut line_with_nl = line.clone();
         line_with_nl.push('\n');
 
-        // Create a new interaction
-        let interaction_handle = self
-            .commons
-            .session
-            .add_interaction(Screen::one_line_matrix(line.as_bytes()));
         // Send command to interpreter
-        self.commons
-            .interpreter
-            .run_command(line_with_nl, interaction_handle);
+        let interaction_handle = self.commons.interpreter.run_command(line_with_nl);
 
         // Wait for the command to finish
         (
@@ -99,20 +92,6 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn to_commons(self) -> Box<PresenterCommons> {
         self.commons
-    }
-
-    fn add_output(self: Box<Self>, _bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-        (self, b"")
-    }
-
-    fn add_error(self: Box<Self>, _bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-        (self, b"")
     }
 
     fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {

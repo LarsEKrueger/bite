@@ -101,7 +101,7 @@ pub struct SharedSession(pub Arc<Mutex<Session>>);
 /// While there will be usually less than 2^64 interactions in a session, this is a usize to avoid
 /// error handling now. Opening too many interactions will eat up all the memory before the program
 /// runs out of indices.
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug, Eq, Hash)]
 pub struct InteractionHandle(usize);
 
 impl Interaction {
@@ -419,11 +419,11 @@ impl SharedSession {
 
     /// Check if the given interaction is still running
     pub fn is_running(&self, handle: InteractionHandle) -> bool {
-        self.interaction(handle, true, |i| {
-            if let RunningStatus::Exited(_) = i.running_status {
-                false
-            } else {
+        self.interaction(handle, false, |i| {
+            if let RunningStatus::Running = i.running_status {
                 true
+            } else {
+                false
             }
         })
     }
