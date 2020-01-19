@@ -250,11 +250,12 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Implement Job
     * [X] Move TUI detection from presenter to session
     * [ ] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
-    * [ ] Launch foreground program using Job.
-    * [ ] Implement Jobs
+    * [X] Launch foreground program using Job.
+    * [X] Implement Jobs
     * [ ] Extend parser to backgrounding (non-pipe)
     * [ ] Launch background program using Jobs
     * [ ] Extend parser and Job to launch pipes
+    * [ ] Add quick switching of last command's output screens
 * [ ] 0.10 Tabs for TUIs, incl. automatic backgrounding
     * [ ] propagate window size changes to TUI
     * [ ] Allow multiple views.
