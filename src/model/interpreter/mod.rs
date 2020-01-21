@@ -29,6 +29,7 @@ use std::thread::JoinHandle;
 
 use super::screen::Screen;
 
+mod builtins;
 mod jobs;
 mod parser;
 
@@ -97,6 +98,19 @@ fn interpreter_loop(
                         format!("OK: Would run »{:?}«\n", cmd).as_bytes(),
                     );
 
+                    // If this is a builtin command, launch it as such.
+                    if let Some( builtin) = builtins::runner( &cmd.words[0].fragment) {
+                        // TODO: Start builtin instead of command
+                        let session = session.clone();
+                        jobs.run_builtin(
+                            session,
+                            interaction_handle,
+                            builtin,
+                            cmd.words.iter().map(|s| s.fragment.to_string()).collect(),
+                            true,
+                        )
+
+                    } else 
                     {
                         let session = session.clone();
                         jobs.run(

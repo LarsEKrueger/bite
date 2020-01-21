@@ -39,6 +39,7 @@ use termios::os::target::*;
 use termios::*;
 
 use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
+use super::builtins::{BuiltinRunner,SessionStdout, SessionStderr, SessionOutput};
 
 use tools::shared_item;
 
@@ -280,13 +281,13 @@ fn wait_for_child(
     }
 
     // Remove job from table
-    jobs.jobs_mut((), | jobs| {
-        if let Some( fg_interaction_handle) = jobs.foreground {
+    jobs.jobs_mut((), |jobs| {
+        if let Some(fg_interaction_handle) = jobs.foreground {
             if fg_interaction_handle == interactionHandle {
                 jobs.foreground = None;
             }
         }
-        jobs.job_table.remove( &interactionHandle);
+        jobs.job_table.remove(&interactionHandle);
     });
 }
 
@@ -369,7 +370,7 @@ impl SharedJobs {
         self.jobs(false, |j| j.foreground.is_some())
     }
 
-    /// Set the foreground job to the given job.
+    /// Run an external command
     ///
     /// TODO: Handle an already existing foreground job. Move to background?
     pub fn run<I, S>(
@@ -417,9 +418,45 @@ impl SharedJobs {
                     wait_for_child(wait_jobs, wait_child, session, interactionHandle);
                 } else {
                     // Spawn a thread for wait_for_child
-                    spawn(move || wait_for_child(wait_jobs, wait_child, session, interactionHandle));
+                    spawn(move || {
+                        wait_for_child(wait_jobs, wait_child, session, interactionHandle)
+                    });
                 }
             }
+        }
+    }
+
+    /// Run a builtin command
+    ///
+    /// TODO: Handle an already existing foreground job. Move to background?
+    pub fn run_builtin(
+        &mut self,
+        mut session: SharedSession,
+        interactionHandle: InteractionHandle,
+        builtin: BuiltinRunner,
+        args: Vec<String>,
+        in_foreground: bool,
+    )
+    {
+        // Mark interaction as running
+        session.set_running_status(interactionHandle, RunningStatus::Running);
+
+        // Store interaction handle as foreground
+        self.jobs_mut((), |j| j.foreground = Some(interactionHandle));
+
+        let mut session_output = {
+            let session = session.clone();
+            SessionOutput { session, handle: interactionHandle} };
+
+        if in_foreground {
+            let mut session_stdout = SessionStdout ( session_output.clone());
+            let mut session_stderr = SessionStderr ( session_output.clone());
+            builtin( args, &mut session_stdout, &mut session_stderr, &mut session_output);
+        } else {
+            // TODO: Create pipes and attach
+
+            // TODO: Launch thread
+
         }
     }
 
@@ -428,12 +465,9 @@ impl SharedJobs {
     /// Does nothing if there is no foreground job
     pub fn write_stdin_foreground(&mut self, bytes: &[u8]) {
         if let Some(Some(stdin)) = self.jobs(None, |jobs| {
-            jobs.foreground
-                .map(|interaction_handle| {
-                    jobs.job_table
-                        .get(&interaction_handle)
-                        .map(|job| job.stdin)
-                })
+            jobs.foreground.map(|interaction_handle| {
+                jobs.job_table.get(&interaction_handle).map(|job| job.stdin)
+            })
         }) {
             // TODO: Check result
             let _ = write(stdin, bytes);

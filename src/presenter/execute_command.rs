@@ -112,7 +112,10 @@ impl SubPresenter for ExecuteCommandPresenter {
 
     fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<dyn SubPresenter> {
         let is_running = self.commons.session.is_running(self.current_interaction);
-        trace!( "ExecuteCommandPresenter::end_polling: is_running = {}", is_running);
+        trace!(
+            "ExecuteCommandPresenter::end_polling: is_running = {}",
+            is_running
+        );
         if !is_running {
             return ComposeCommandPresenter::new(self.commons);
         }
