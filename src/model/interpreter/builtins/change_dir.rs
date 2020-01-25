@@ -18,35 +18,67 @@
 
 //! Change directory builtin
 
+use std::env::VarError;
 use std::io::Write;
+
+use nix::unistd::chdir;
 
 use argparse::{ArgumentParser, Store};
 
 use super::SetReturnCode;
+
+fn change_dir(mut dir: String, _stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
+    // Fix dir
+    if dir.is_empty() {
+        dir = match std::env::var("HOME") {
+            Ok(d) => d,
+            Err(var_err) => {
+                return match var_err {
+                    VarError::NotPresent => {
+                        let _ = write!(stderr, "BiTE: cd can't value of $HOME\n");
+                        3
+                    }
+                    VarError::NotUnicode(_) => {
+                        let _ = write!(stderr, "BiTE: cd: Vlue of $HOME isn't unicode\n");
+                        4
+                    }
+                };
+            }
+        };
+    }
+    // Change directory
+    match chdir(dir.as_str()) {
+        Ok(()) => 0,
+        Err(e) => {
+            let _ = write!(stderr, "BiTE: cd can't change to »{}«: {}\n", dir, e);
+            5
+        }
+    }
+}
 
 /// Run function for the *change directory* builtin.
 ///
 /// cd [dir]
 pub fn run(
     words: Vec<String>,
-    stdout: &mut Write,
-    stderr: &mut Write,
-    set_return_code: &mut SetReturnCode,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    set_return_code: &mut dyn SetReturnCode,
 ) {
     let mut dir = String::new();
 
-    let mut ap = ArgumentParser::new();
-    ap.set_description("Change directory");
-    ap.refer(&mut dir)
-        .add_argument("dir", Store, "Directory to change into");
-    match ap.parse(words, stdout, stderr) {
-        Ok(()) => {
-            // TODO: Change directory
+    let parse_res = {
+        let mut ap = ArgumentParser::new();
+        ap.set_description("Change directory");
+        ap.refer(&mut dir)
+            .add_argument("dir", Store, "Directory to change into");
 
-        }
-        Err(ret_code) => {
+        ap.parse(words, stdout, stderr)
+    };
+    let ret_code = match parse_res {
+        Ok(()) => change_dir(dir, stdout, stderr),
+        Err(ret_code) => ret_code,
+    };
 
-        set_return_code.set_return_code( ret_code); 
-        }
-    }
+    set_return_code.set_return_code(ret_code);
 }

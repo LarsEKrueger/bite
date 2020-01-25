@@ -43,7 +43,10 @@ pub fn script(input: Span) -> IResult<Span, Command> {
 
 fn simple_command(input: Span) -> IResult<Span, Command> {
     map(
-        terminated(preceded(space0, separated_list(space1, word)), tag("\n")),
+        terminated(
+            preceded(space0, separated_list(space1, word)),
+            preceded(space0, tag("\n")),
+        ),
         |words| Command { words },
     )(input)
 }
@@ -501,9 +504,9 @@ mod tests {
     #[test]
     fn parse_simple_command() {
         assert_eq!(
-            simple_command(Span::new("ab bc   cd \t\tde")),
+            simple_command(Span::new("ab bc   cd \t\tde\n")),
             Ok((
-                span(15, 1, ""),
+                span(16, 2, ""),
                 Command {
                     words: vec![
                         span(0, 1, "ab"),
@@ -516,9 +519,9 @@ mod tests {
         );
 
         assert_eq!(
-            simple_command(Span::new(" \tab bc   cd \t\tde")),
+            simple_command(Span::new(" \tab bc   cd \t\tde\n")),
             Ok((
-                span(17, 1, ""),
+                span(18, 2, ""),
                 Command {
                     words: vec![
                         span(2, 1, "ab"),
@@ -534,9 +537,19 @@ mod tests {
         assert_eq!(
             simple_command(Span::new("ab cd\nef")),
             Ok((
-                span(5, 1, "\nef"),
+                span(6, 2, "ef"),
                 Command {
                     words: vec![span(0, 1, "ab"), span(3, 1, "cd"),]
+                }
+            ))
+        );
+        // A simple command with trailing spaces
+        assert_eq!(
+            simple_command(Span::new("ab \n")),
+            Ok((
+                span(4, 2, ""),
+                Command {
+                    words: vec![span(0, 1, "ab"),]
                 }
             ))
         );

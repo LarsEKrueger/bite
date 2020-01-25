@@ -39,7 +39,7 @@ use termios::os::target::*;
 use termios::*;
 
 use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
-use super::builtins::{BuiltinRunner,SessionStdout, SessionStderr, SessionOutput};
+use super::builtins::{BuiltinRunner, SessionOutput, SessionStderr, SessionStdout};
 
 use tools::shared_item;
 
@@ -436,8 +436,7 @@ impl SharedJobs {
         builtin: BuiltinRunner,
         args: Vec<String>,
         in_foreground: bool,
-    )
-    {
+    ) {
         // Mark interaction as running
         session.set_running_status(interactionHandle, RunningStatus::Running);
 
@@ -446,12 +445,22 @@ impl SharedJobs {
 
         let mut session_output = {
             let session = session.clone();
-            SessionOutput { session, handle: interactionHandle} };
+            SessionOutput {
+                session,
+                handle: interactionHandle,
+            }
+        };
 
         if in_foreground {
-            let mut session_stdout = SessionStdout ( session_output.clone());
-            let mut session_stderr = SessionStderr ( session_output.clone());
-            builtin( args, &mut session_stdout, &mut session_stderr, &mut session_output);
+            let mut session_stdout = SessionStdout(session_output.clone());
+            let mut session_stderr = SessionStderr(session_output.clone());
+            builtin(
+                args,
+                &mut session_stdout,
+                &mut session_stderr,
+                &mut session_output,
+            );
+            self.jobs_mut((), |j| j.foreground = None);
         } else {
             // TODO: Create pipes and attach
 

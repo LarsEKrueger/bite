@@ -73,16 +73,17 @@ impl Write for SessionStderr {
     }
 }
 
-pub type BuiltinRunner =
-fn (
+pub type BuiltinRunner = fn(
     words: Vec<String>,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
     set_return_code: &mut dyn SetReturnCode,
 );
 
-pub fn runner( cmd:&str) -> Option< BuiltinRunner> {
-  if cmd == "cd" {
-      Some(change_dir::run)
-  } else { None }
+pub fn runner(cmd: &str) -> Option<BuiltinRunner> {
+    if cmd == "cd" {
+        Some(change_dir::run)
+    } else {
+        None
+    }
 }

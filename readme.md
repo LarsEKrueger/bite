@@ -249,7 +249,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] BUG: Shows prompt in ExecuteCommandPresenter
     * [X] Implement Job
     * [X] Move TUI detection from presenter to session
-    * [ ] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
+    * [X] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
     * [X] Launch foreground program using Job.
     * [X] Implement Jobs
     * [ ] Extend parser to backgrounding (non-pipe)
