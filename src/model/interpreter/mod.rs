@@ -178,7 +178,10 @@ impl Interpreter {
             let is_running = is_running.clone();
             let input = input.clone();
             let jobs = jobs.clone();
-            std::thread::spawn(move || interpreter_loop(session, is_running, input, jobs))
+            std::thread::Builder::new()
+                .name("interpreter".to_string())
+                .spawn(move || interpreter_loop(session, is_running, input, jobs))
+                .unwrap()
         };
 
         Self {
