@@ -112,7 +112,7 @@ trait SubPresenter {
 
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter>;
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool);
 
     /// Access to the line iterator which requires unlocking the session mutex
     fn line_iter<'a>(&'a self, &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a>;
@@ -361,8 +361,7 @@ impl Presenter {
         let needs_redraw = self.dispatch_res(|sp| {
             let mut presenter = sp;
             let needs_marking = presenter.commons_mut().session.check_redraw();
-            presenter = presenter.end_polling(needs_marking);
-            (presenter, needs_marking)
+            presenter.end_polling(needs_marking)
         });
         if last_line_visible_pre {
             self.to_last_line();

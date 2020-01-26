@@ -132,12 +132,12 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>,bool)  {
         if !self.commons.session.is_running(self.current_interaction) {
             let (mut commons, _, _) = self.deconstruct();
-            return ComposeCommandPresenter::new(commons);
+            return (ComposeCommandPresenter::new(commons), true);
         }
-        self
+        (self,false)
     }
 
     /// Return the lines to be presented.

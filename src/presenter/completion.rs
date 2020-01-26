@@ -116,11 +116,11 @@ impl SubPresenter for CompleteCommandPresenter {
         // TODO: Log this occurance.
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>,bool) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         // TODO: Log this occurance.
-        (self, false)
+        (self,false)
     }
 
     fn line_iter<'a>(&'a self, _session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {

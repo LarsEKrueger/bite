@@ -132,11 +132,11 @@ impl SubPresenter for HistoryPresenter {
         error!("HistoryPresenter::set_next_prompt called. Internal error.");
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>,bool) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         error!("HistoryPresenter::end_polling called. Internal error.");
-        (self, false)
+        (self,false)
     }
 
     fn line_iter<'a>(&'a self, _session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
