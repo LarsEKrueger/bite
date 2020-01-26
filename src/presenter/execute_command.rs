@@ -110,16 +110,16 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>,bool) {
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         let is_running = self.commons.session.is_running(self.current_interaction);
         trace!(
             "ExecuteCommandPresenter::end_polling: is_running = {}",
             is_running
         );
         if !is_running {
-            return (ComposeCommandPresenter::new(self.commons),true);
+            return (ComposeCommandPresenter::new(self.commons), true);
         }
-        (self,false)
+        (self, false)
     }
 
     fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
@@ -193,6 +193,28 @@ impl SubPresenter for ExecuteCommandPresenter {
 
             ((false, false, false), SpecialKey::Backspace) => {
                 self.commons.text_input.delete_left();
+                (self, PresenterCommand::Redraw)
+            }
+
+            // Ctrl-Space: cycle current interaction's output
+            ((false, true, false), SpecialKey::Space) => {
+                self.commons
+                    .session
+                    .cycle_visibility(self.current_interaction);
+                (self, PresenterCommand::Redraw)
+            }
+            // Shift-Ctrl-Space: cycle all interaction's output
+            ((true, true, false), SpecialKey::Space) => {
+                self.commons
+                    .session
+                    .cycle_visibility(self.current_interaction);
+                if let Some(ov) = self
+                    .commons
+                    .session
+                    .get_visibility(self.current_interaction)
+                {
+                    self.commons.session.set_visibility_all(ov);
+                }
                 (self, PresenterCommand::Redraw)
             }
 

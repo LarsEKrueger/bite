@@ -463,6 +463,31 @@ impl SharedSession {
     pub fn set_visibility(&mut self, handle: InteractionHandle, visible: OutputVisibility) {
         self.interaction_mut(handle, (), |i| i.visible = visible)
     }
+
+    /// Get the visibility
+    pub fn get_visibility(&mut self, handle: InteractionHandle) -> Option<OutputVisibility> {
+        self.interaction(handle, None, |i| Some(i.visible))
+    }
+
+    /// Find the last interaction
+    pub fn last_interaction(&self) -> Option<InteractionHandle> {
+        self.session(None, |session| {
+            if session.interactions.len() == 0 {
+                None
+            } else {
+                Some(InteractionHandle(session.interactions.len() - 1))
+            }
+        })
+    }
+
+    /// Set the visibility of all interactions
+    pub fn set_visibility_all(&mut self, ov: OutputVisibility) {
+        self.session_mut((), |session| {
+            for inter in session.interactions.iter_mut() {
+                inter.visible = ov.clone();
+            }
+        })
+    }
 }
 
 #[cfg(test)]
