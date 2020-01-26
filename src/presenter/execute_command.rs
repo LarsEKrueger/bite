@@ -144,7 +144,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 return (ComposeCommandPresenter::new(self.commons), true);
             }
         }
-        (self, false)
+        (self, needs_marking)
     }
 
     fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
