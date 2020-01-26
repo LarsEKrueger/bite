@@ -112,7 +112,7 @@ trait SubPresenter {
     fn add_error(self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]);
     fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter>;
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool);
 
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a>;
@@ -371,8 +371,7 @@ impl Presenter {
                 }
             }
 
-            presenter = presenter.end_polling(needs_marking);
-            (presenter, needs_marking)
+            presenter.end_polling(needs_marking)
         });
         if last_line_visible_pre {
             self.to_last_line();

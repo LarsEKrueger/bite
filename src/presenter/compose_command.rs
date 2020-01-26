@@ -106,11 +106,11 @@ impl SubPresenter for ComposeCommandPresenter {
         // TODO: Log this occurance.
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> Box<dyn SubPresenter> {
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>,bool) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         // TODO: Log this occurance.
-        self
+        (self,false)
     }
 
     fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {

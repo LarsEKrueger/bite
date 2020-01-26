@@ -125,7 +125,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> Box<dyn SubPresenter> {
+    fn end_polling(mut self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         if !needs_marking && is_bash_waiting() {
             let next_prompt = ::std::mem::replace(&mut self.next_prompt, None);
             if let Some(prompt) = next_prompt {
@@ -141,10 +141,10 @@ impl SubPresenter for ExecuteCommandPresenter {
                     self.commons.session.new_conversation(prompt);
                 }
                 trace!("Done executing");
-                return ComposeCommandPresenter::new(self.commons);
+                return (ComposeCommandPresenter::new(self.commons), true);
             }
         }
-        self
+        (self, false)
     }
 
     fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
