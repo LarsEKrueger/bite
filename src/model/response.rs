@@ -50,7 +50,7 @@ impl Response {
             match self.screen.add_byte(*b) {
                 Event::NewLine => {
                     self.archive_screen();
-                    // Keep going
+                    return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
                 }
                 Event::Cr => {
                     return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
