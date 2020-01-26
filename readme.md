@@ -255,7 +255,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [ ] Extend parser to backgrounding (non-pipe)
     * [ ] Launch background program using Jobs
     * [ ] Extend parser and Job to launch pipes
-    * [ ] Add quick switching of last command's output screens
+    * [X] Add quick switching of last command's output screens
 * [ ] 0.10 Tabs for TUIs, incl. automatic backgrounding
     * [ ] propagate window size changes to TUI
     * [ ] Allow multiple views.
