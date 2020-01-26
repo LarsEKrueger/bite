@@ -228,6 +228,7 @@ impl Interpreter {
             let mut input = self.input.1.lock().unwrap();
             *input = Some((String::new(), InteractionHandle::INVALID));
         }
+        self.input.0.notify_one();
         let _ = self.thread.join();
     }
 }

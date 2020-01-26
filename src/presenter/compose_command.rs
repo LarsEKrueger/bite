@@ -333,7 +333,6 @@ impl SubPresenter for ComposeCommandPresenter {
 
             // Ctrl-Space: cycle last interaction's output
             ((false, true, false), SpecialKey::Space) => {
-                trace!("Got Ctrl-Space");
                 if let Some(interaction_handle) = self.commons.session.last_interaction() {
                     self.commons.session.cycle_visibility(interaction_handle);
                     (self, PresenterCommand::Redraw)
@@ -343,7 +342,6 @@ impl SubPresenter for ComposeCommandPresenter {
             }
             // Shift-Ctrl-Space: cycle all interaction's output
             ((true, true, false), SpecialKey::Space) => {
-                trace!("Got Shift-Ctrl-Space");
                 if let Some(interaction_handle) = self.commons.session.last_interaction() {
                     self.commons.session.cycle_visibility(interaction_handle);
                     if let Some(ov) = self.commons.session.get_visibility(interaction_handle) {

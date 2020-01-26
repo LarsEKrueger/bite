@@ -169,8 +169,10 @@ pub fn main() {
     gui.main_loop();
     let interpreter = gui.finish();
 
+    trace!("GUI finished");
     // Shutdown interpreter and wait for it to end
     interpreter.shutdown();
+    trace!("interpreter shut down");
 
     let _ = std::panic::take_hook();
     info!("Exiting bite normally");
