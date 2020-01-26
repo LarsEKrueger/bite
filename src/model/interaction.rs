@@ -199,6 +199,7 @@ impl CurrentInteraction {
                         response.add_data(l.to_vec());
                     }
                     screen.reset();
+                    return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
                 }
                 screen::Event::Cr => {
                     return AddBytesResult::ShowStream(&bytes[(i + 1)..]);
