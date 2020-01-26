@@ -110,7 +110,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         let is_running = self.commons.session.is_running(self.current_interaction);
         trace!(
             "ExecuteCommandPresenter::end_polling: is_running = {}",
@@ -119,7 +119,7 @@ impl SubPresenter for ExecuteCommandPresenter {
         if !is_running {
             return (ComposeCommandPresenter::new(self.commons), true);
         }
-        (self, false)
+        (self, needs_marking)
     }
 
     fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
