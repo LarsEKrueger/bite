@@ -68,6 +68,7 @@ pub enum SpecialKey {
     Delete,
     Backspace,
     Tab,
+    Space,
 }
 
 /// Represent a boolean with the semantics 'does the GUI need to be redrawn'.

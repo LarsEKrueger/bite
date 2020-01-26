@@ -31,6 +31,18 @@ Currently, terminal emulators are deficient in two areas:
 BiTE remedies all these shortcomings by uniting the shell and terminal emulator
 part of the stack that run a command line program.
 
+## Keyboard Shortcuts
+
+The following keyboard shortcuts trigger actions:
+
+Shortcut            | Compose Command                          | Execute Command
+--------------------|------------------------------------------|----------------
+Cursor Left/Right   | Cursor Left/Right in command line        | Cursor Left/Right in input
+Cursor Up/Down      | Open History View                        | ...
+Page Up/Down        | Search History                           | ...
+Ctrl-Space          | Toggle output visibility of last command | Toggle output visibility of current command
+Shift-Ctrl-Space    | Toggle output visibility of all commands | Toggle output visibility of all commands
+
 # How to build this program
 
 Please understand this software is in a very early stage. Many features are

@@ -106,11 +106,11 @@ impl SubPresenter for ComposeCommandPresenter {
         // TODO: Log this occurance.
     }
 
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>,bool) {
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         // This should not happen. If it does happen, someone is generating output while the shell
         // is waiting for commands.
         // TODO: Log this occurance.
-        (self,false)
+        (self, false)
     }
 
     fn line_iter<'a>(&'a self) -> Box<dyn Iterator<Item = LineItem> + 'a> {
@@ -322,6 +322,30 @@ impl SubPresenter for ComposeCommandPresenter {
                             )
                         }
                     }
+                }
+            }
+
+            // Ctrl-Space: cycle last interaction's output
+            ((false, true, false), SpecialKey::Space) => {
+                trace!("Got Ctrl-Space");
+                if let Some(interaction) = self.commons.session.last_interaction_mut() {
+                    interaction.cycle_visibility();
+                    (self, PresenterCommand::Redraw)
+                } else {
+                    (self, PresenterCommand::Unknown)
+                }
+            }
+            // Shift-Ctrl-Space: cycle all interaction's output
+            ((true, true, false), SpecialKey::Space) => {
+                trace!("Got Shift-Ctrl-Space");
+                if let Some(interaction) = self.commons.session.last_interaction_mut() {
+                    interaction.cycle_visibility();
+                    let ov = interaction.get_visibility();
+                    self.commons.session.set_interaction_visibility(ov);
+
+                    (self, PresenterCommand::Redraw)
+                } else {
+                    (self, PresenterCommand::Unknown)
                 }
             }
 

@@ -180,6 +180,7 @@ lazy_static! {
         m.insert(XK_Delete as KeySym, SpecialKey::Delete);
         m.insert(XK_BackSpace as KeySym, SpecialKey::Backspace);
         m.insert(XK_Tab as KeySym, SpecialKey::Tab);
+        m.insert(XK_space as KeySym, SpecialKey::Space);
         m
     };
 }
@@ -642,6 +643,7 @@ impl Gui {
                         }
                         KeyPress => {
                             let mut info = unsafe { event.key };
+                            trace!("KeyPress: {:?}", info);
                             let mut keysym: c_ulong = 0;
                             let mut buf: [c_char; 20] = unsafe { ::std::mem::uninitialized() };
                             let mut status = 0;
@@ -657,6 +659,7 @@ impl Gui {
                             };
                             assert!((count as usize) < ::std::mem::size_of_val(&buf));
                             buf[count as usize] = 0;
+                            trace!("KeyPress: {}, »{:?}«", status, buf);
 
                             // Handle movement and delete. They are all keysyms
                             let mut cmd = PresenterCommand::Unknown;

@@ -226,6 +226,22 @@ impl SubPresenter for ExecuteCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
+            // Ctrl-Space: cycle current interaction's output
+            ((false, true, false), SpecialKey::Space) => {
+                trace!("Got Ctrl-Space");
+                self.current_interaction.get_archive().cycle_visibility();
+                (self, PresenterCommand::Redraw)
+            }
+            // Shift-Ctrl-Space: cycle all interaction's output
+            ((true, true, false), SpecialKey::Space) => {
+                trace!("Got Shift-Ctrl-Space");
+                self.current_interaction.get_archive().cycle_visibility();
+                let ov = self.current_interaction.get_archive().get_visibility();
+                self.commons.session.set_interaction_visibility(ov);
+
+                (self, PresenterCommand::Redraw)
+            }
+
             _ => (self, PresenterCommand::Unknown),
         }
     }

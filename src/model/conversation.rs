@@ -21,7 +21,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use super::interaction::{ArchivedInteraction, CommandPosition};
+use super::interaction::{ArchivedInteraction, CommandPosition, OutputVisibility};
 use super::iterators::*;
 use super::screen::Matrix;
 
@@ -74,6 +74,18 @@ impl Conversation {
     /// Return the hash value of the prompt
     pub fn prompt_hash(&self) -> u64 {
         self.prompt_hash
+    }
+
+    /// Get the last interaction
+    pub fn last_interaction_mut(&mut self) -> Option<&mut ArchivedInteraction> {
+        self.interactions.last_mut()
+    }
+
+    /// Set the visibility of all interactions
+    pub fn set_interaction_visibility(&mut self, ov: OutputVisibility) {
+        for inter in self.interactions.iter_mut() {
+            inter.set_visibility(ov.clone());
+        }
     }
 }
 

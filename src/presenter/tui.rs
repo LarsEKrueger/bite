@@ -137,7 +137,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.next_prompt = Some(Screen::one_line_matrix(bytes));
     }
 
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>,bool) {
+    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         if !needs_marking && is_bash_waiting() {
             let (mut commons, current_interaction, next_prompt) = self.deconstruct();
             if let Some(prompt) = next_prompt {
@@ -151,7 +151,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
             }
             return (ComposeCommandPresenter::new(commons), true);
         }
-        (self,false)
+        (self, false)
     }
 
     /// Return the lines to be presented.
@@ -200,6 +200,11 @@ impl SubPresenter for TuiExecuteCommandPresenter {
             }
             ((_, _, _), SpecialKey::Backspace) => self.send_term_info("kbs"),
             ((_, _, _), SpecialKey::Tab) => self.send_string("\x08"),
+
+            ((_, _, _), _) => {
+                // For all other keys, do nothing as they can't be represented in a TUI.
+                PresenterCommand::Unknown
+            }
         };
         (self, cmd)
     }

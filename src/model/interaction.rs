@@ -171,6 +171,26 @@ impl ArchivedInteraction {
         self.output.visible = ov;
         self.errors.visible = ev;
     }
+
+    /// Get output visibility
+    pub fn get_visibility(&self) -> OutputVisibility {
+        match (self.output.visible, self.errors.visible) {
+            (true, _) => OutputVisibility::Output,
+            (false, true) => OutputVisibility::Error,
+            _ => OutputVisibility::None,
+        }
+    }
+
+    /// Set the visibility
+    pub fn set_visibility(&mut self, ov: OutputVisibility) {
+        let (ov, ev) = match ov {
+            OutputVisibility::Output => (true, false),
+            OutputVisibility::Error => (false, true),
+            _ => (false, false),
+        };
+        self.output.visible = ov;
+        self.errors.visible = ev;
+    }
 }
 
 impl CurrentInteraction {
@@ -255,11 +275,7 @@ impl CurrentInteraction {
             .into_iter()
             .flat_map(|i| i);
 
-        let ov = match (self.archive.output.visible, self.archive.errors.visible) {
-            (true, _) => OutputVisibility::Output,
-            (false, true) => OutputVisibility::Error,
-            _ => OutputVisibility::None,
-        };
+        let ov = self.archive.get_visibility();
 
         let lt = LineType::Command(ov, pos, self.archive.exit_status);
 

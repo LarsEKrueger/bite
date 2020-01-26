@@ -83,6 +83,26 @@ impl Session {
                     .line_iter(CommandPosition::CurrentConversation(0)),
             )
     }
+
+    /// Find the last interaction
+    pub fn last_interaction_mut(&mut self) -> Option<&mut ArchivedInteraction> {
+        let res = self.current_conversation.last_interaction_mut();
+        if res.is_some() {
+            return res;
+        }
+        self.archived
+            .last_mut()
+            .and_then(|c| c.last_interaction_mut())
+    }
+
+    /// Set the visibility of all interactions
+    pub fn set_interaction_visibility(&mut self, ov: OutputVisibility) {
+        self.current_conversation
+            .set_interaction_visibility(ov.clone());
+        for conv in self.archived.iter_mut() {
+            conv.set_interaction_visibility(ov.clone());
+        }
+    }
 }
 
 #[cfg(test)]
