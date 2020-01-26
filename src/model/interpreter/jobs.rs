@@ -407,7 +407,7 @@ impl SharedJobs {
                 let wait_child = child.clone();
                 let wait_jobs = self.clone();
 
-                // TODO: Store job for later interaction in job table
+                // Store job for later interaction in job table
                 let job = Job { child, stdin };
                 self.jobs_mut((), |j| {
                     j.job_table.insert(interactionHandle, job);
@@ -451,9 +451,9 @@ impl SharedJobs {
             }
         };
 
+        let mut session_stdout = SessionStdout(session_output.clone());
+        let mut session_stderr = SessionStderr(session_output.clone());
         if in_foreground {
-            let mut session_stdout = SessionStdout(session_output.clone());
-            let mut session_stderr = SessionStderr(session_output.clone());
             builtin(
                 args,
                 &mut session_stdout,
@@ -462,10 +462,15 @@ impl SharedJobs {
             );
             self.jobs_mut((), |j| j.foreground = None);
         } else {
-            // TODO: Create pipes and attach
-
-            // TODO: Launch thread
-
+            // Launch thread
+            spawn(move || {
+                builtin(
+                    args,
+                    &mut session_stdout,
+                    &mut session_stderr,
+                    &mut session_output,
+                )
+            });
         }
     }
 

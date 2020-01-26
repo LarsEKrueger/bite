@@ -18,37 +18,138 @@
 
 //! Bash script parser.
 
+use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{none_of, space0, space1};
+use nom::character::complete::{line_ending, none_of, not_line_ending, space0, space1};
 use nom::combinator::{map, recognize};
 use nom::multi::{many1, separated_list};
-use nom::sequence::{preceded, terminated};
+use nom::sequence::{preceded, terminated, tuple};
 use nom::IResult;
 
 use nom_locate::LocatedSpan;
 pub type Span<'a> = LocatedSpan<&'a str>;
 
-/// A command and its parameters
+/// The result of the parse
 #[derive(Debug, PartialEq)]
-pub struct Command<'a> {
-    /// The words of this command
-    pub words: Vec<Span<'a>>,
-    // pub mode: PipelineMode,
+pub enum ParsingResult<'a> {
+    /// Nothing to do, e.g. an empty string.
+    Nothing,
+    /// A comment. It ends in this line. The returned span does not include the comment leader.
+    Comment(Span<'a>),
+    /// One or more external programs that depend on each other's exit code.
+    Logical(Vec<Pipeline<'a>>, BackgroundMode),
+}
+
+type Pipeline<'a> = Vec<Command<'a>>;
+
+/// How to react on the failure of a command
+#[derive(Debug, PartialEq)]
+pub enum LogicalOperator {
+    /// Short-cut AND
+    And,
+    /// Short-cut OR
+    Or,
+}
+
+/// What to do with a logical expression
+#[derive(Debug, PartialEq)]
+pub enum BackgroundMode {
+    /// Execute asynchronously
+    Background,
+    /// Wait for completion
+    Foreground,
+}
+
+/// How to connect commands in a pipeline
+#[derive(Debug, PartialEq)]
+pub enum PipelineOperator {
+    StdoutOnly,
+    StderrAndStdout,
+}
+
+/// Command the shell can handle
+#[derive(Debug, PartialEq)]
+pub enum Command<'a> {
+    /// Call a program
+    Program(Vec<Span<'a>>),
 }
 
 /// Parse a (partial) bash script.
-pub fn script(input: Span) -> IResult<Span, Command> {
+///
+/// It parses a single command, which can be as simple as one word or as complicated as a long for
+/// loop. The function consumes the terminator and returns the next position.
+///
+/// The parser expects a line terminator as the last character.
+pub fn script(input: Span) -> IResult<Span, ParsingResult> {
+    alt((empty_line, logical, comment))(input)
+}
+
+/// Parse an empty line
+fn empty_line(input: Span) -> IResult<Span, ParsingResult> {
+    map(terminated(space0, line_ending), |_| ParsingResult::Nothing)(input)
+}
+
+/// Parse a comment. Skip any spaces
+fn comment(input: Span) -> IResult<Span, ParsingResult> {
+    map(
+        tuple((space0, tag("#"), space0, not_line_ending, line_ending)),
+        |(_, _, _, cmt, _)| ParsingResult::Comment(cmt),
+    )(input)
+}
+
+/// Parse a logical conjunction of pipelines. In contrast to bash, the parsing stops at the first
+/// separator (e.g. &).
+fn logical(input: Span) -> IResult<Span, ParsingResult> {
+    let unterminated_expression = separated_list(logical_operator, pipeline);
+    let expression_terminators = alt((
+        map(tag("&"), |_| BackgroundMode::Background),
+        map(tag(";"), |_| BackgroundMode::Foreground),
+        map(line_ending, |_| BackgroundMode::Foreground),
+    ));
+    map(
+        tuple((space0, unterminated_expression, expression_terminators)),
+        |(_, pipelines, bg_mode)| ParsingResult::Logical(pipelines, bg_mode),
+    )(input)
+}
+
+/// Parse a logical operator
+fn logical_operator(input: Span) -> IResult<Span, LogicalOperator> {
+    preceded(
+        space0,
+        alt((
+            map(tag("&&"), |_| LogicalOperator::And),
+            map(tag("||"), |_| LogicalOperator::Or),
+        )),
+    )(input)
+}
+
+/// Parse a pipeline
+///
+/// TODO: Handle ! and time.
+fn pipeline(input: Span) -> IResult<Span, Pipeline> {
+    preceded(space0, separated_list(pipeline_operator, command))(input)
+}
+
+/// Pipeline operator, i.e. | or |&
+///
+/// TODO: Newlines are allowed after the operators.
+fn pipeline_operator(input: Span) -> IResult<Span, PipelineOperator> {
+    let operators = alt((
+        map(tag("|"), |_| PipelineOperator::StdoutOnly),
+        map(tag("|&"), |_| PipelineOperator::StderrAndStdout),
+    ));
+    preceded(space0, operators)(input)
+}
+
+/// Down to basic commands
+fn command(input: Span) -> IResult<Span, Command> {
     simple_command(input)
 }
 
 fn simple_command(input: Span) -> IResult<Span, Command> {
-    map(
-        terminated(
-            preceded(space0, separated_list(space1, word)),
-            preceded(space0, tag("\n")),
-        ),
-        |words| Command { words },
-    )(input)
+    map(preceded(space0, separated_list(space1, word)), |words| {
+        Command::Program(words)
+    })(input)
 }
 
 fn word(input: Span) -> IResult<Span, Span> {
@@ -59,132 +160,685 @@ fn word_letter(input: Span) -> IResult<Span, char> {
     none_of(" \n\t\"\'|&;()<>")(input)
 }
 
-//named!(word_letter<Span,Span>, none_of!();
-
-//   /*
-//   named!(pub script<ParsedCommand>,
-//       alt_complete!(
-//           map!(preceded!(myspace,newline), |_| ParsedCommand::None) |
-//           terminated!( command_sequence, preceded!(myspace,newline))
-//           )
-//   );*/
+//   /* Reserved words.  Members of the first group are only recognized
+//   in the case that they are preceded by a list_terminator.  Members
+//   of the second group are for [[...]] commands.  Members of the
+//   third group are recognized only under special circumstances. */
+//   %token IF THEN ELSE ELIF FI CASE ESAC FOR SELECT WHILE UNTIL DO DONE FUNCTION COPROC
+//   %token COND_START COND_END COND_ERROR
+//   %token IN BANG TIME TIMEOPT TIMEIGN
 //
-//   /*
+//   /* More general tokens. yylex () knows how to make these. */
+//   %token <word> WORD ASSIGNMENT_WORD REDIR_WORD
+//   %token <number> NUMBER
+//   %token <word_list> ARITH_CMD ARITH_FOR_EXPRS
+//   %token <command> COND_CMD
+//   %token AND_AND OR_OR GREATER_GREATER LESS_LESS LESS_AND LESS_LESS_LESS
+//   %token GREATER_AND SEMI_SEMI SEMI_AND SEMI_SEMI_AND
+//   %token LESS_LESS_MINUS AND_GREATER AND_GREATER_GREATER LESS_GREATER
+//   %token GREATER_BAR BAR_AND
+//
+//   /* The types that the various syntactical units return. */
+//
+//   %type <command> script command pipeline pipeline_command
+//   %type <command> list list0 list1 compound_list simple_list simple_list1
+//   %type <command> simple_command shell_command
+//   %type <command> for_command select_command case_command group_command
+//   %type <command> arith_command
+//   %type <command> cond_command
+//   %type <command> arith_for_command
+//   %type <command> coproc
+//   %type <command> function_def function_body if_command elif_clause subshell
+//   %type <redirect> redirection redirection_list
+//   %type <element> simple_command_element
+//   %type <word_list> word_list pattern
+//   %type <pattern> pattern_list case_clause_sequence case_clause
+//   %type <number> timespec
+//   %type <number> list_terminator
+//
+//   %left '&' ';' '\n' yacc_EOF
+//   %left AND_AND OR_OR
+//   %right '|' BAR_AND
+//   %%
+//
+//   script:	simple_list simple_list_terminator
+//           |	'\n'
+//           |	error '\n'
+//           |	yacc_EOF
+//           ;
+//
+//   word_list:	WORD
+//           |	word_list WORD
+//           ;
+//
 //   redirection:	'>' WORD
-//       |	'<' WORD
-//       |	NUMBER '>' WORD
-//       |	NUMBER '<' WORD
-//       |	REDIR_WORD '>' WORD
-//       |	REDIR_WORD '<' WORD
-//       |	GREATER_GREATER WORD
-//       |	NUMBER GREATER_GREATER WORD
-//       |	REDIR_WORD GREATER_GREATER WORD
-//       |	GREATER_BAR WORD
-//       |	NUMBER GREATER_BAR WORD
-//       |	REDIR_WORD GREATER_BAR WORD
-//       |	LESS_GREATER WORD
-//       |	NUMBER LESS_GREATER WORD
-//       |	REDIR_WORD LESS_GREATER WORD
-//       |	LESS_LESS WORD
-//       |	NUMBER LESS_LESS WORD
-//       |	REDIR_WORD LESS_LESS WORD
-//       |	LESS_LESS_MINUS WORD
-//       |	NUMBER LESS_LESS_MINUS WORD
-//       |	REDIR_WORD  LESS_LESS_MINUS WORD
-//       |	LESS_LESS_LESS WORD
-//       |	NUMBER LESS_LESS_LESS WORD
-//       |	REDIR_WORD LESS_LESS_LESS WORD
-//       |	LESS_AND NUMBER
-//       |	NUMBER LESS_AND NUMBER
-//       |	REDIR_WORD LESS_AND NUMBER
-//       |	GREATER_AND NUMBER
-//       |	NUMBER GREATER_AND NUMBER
-//       |	REDIR_WORD GREATER_AND NUMBER
-//       |	LESS_AND WORD
-//       |	NUMBER LESS_AND WORD
-//       |	REDIR_WORD LESS_AND WORD
-//       |	GREATER_AND WORD
-//       |	NUMBER GREATER_AND WORD
-//       |	REDIR_WORD GREATER_AND WORD
-//       |	GREATER_AND '-'
-//       |	NUMBER GREATER_AND '-'
-//       |	REDIR_WORD GREATER_AND '-'
-//       |	LESS_AND '-'
-//       |	NUMBER LESS_AND '-'
-//       |	REDIR_WORD LESS_AND '-'
-//       |	AND_GREATER WORD
-//       |	AND_GREATER_GREATER WORD
-//       ;
-//   */
+//                           {
+//                           source.dest = 1;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_output_direction, redir, 0);
+//                           }
+//           |	'<' WORD
+//                           {
+//                           source.dest = 0;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_input_direction, redir, 0);
+//                           }
+//           |	NUMBER '>' WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_output_direction, redir, 0);
+//                           }
+//           |	NUMBER '<' WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_input_direction, redir, 0);
+//                           }
+//           |	REDIR_WORD '>' WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_output_direction, redir, REDIR_VARASSIGN);
+//                           }
+//           |	REDIR_WORD '<' WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_input_direction, redir, REDIR_VARASSIGN);
+//                           }
+//           |	GREATER_GREATER WORD
+//                           {
+//                           source.dest = 1;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_appending_to, redir, 0);
+//                           }
+//           |	NUMBER GREATER_GREATER WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_appending_to, redir, 0);
+//                           }
+//           |	REDIR_WORD GREATER_GREATER WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_appending_to, redir, REDIR_VARASSIGN);
+//                           }
+//           |	GREATER_BAR WORD
+//                           {
+//                           source.dest = 1;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_output_force, redir, 0);
+//                           }
+//           |	NUMBER GREATER_BAR WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_output_force, redir, 0);
+//                           }
+//           |	REDIR_WORD GREATER_BAR WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_output_force, redir, REDIR_VARASSIGN);
+//                           }
+//           |	LESS_GREATER WORD
+//                           {
+//                           source.dest = 0;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_input_output, redir, 0);
+//                           }
+//           |	NUMBER LESS_GREATER WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_input_output, redir, 0);
+//                           }
+//           |	REDIR_WORD LESS_GREATER WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_input_output, redir, REDIR_VARASSIGN);
+//                           }
+//           |	LESS_LESS WORD
+//                           {
+//                           source.dest = 0;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_reading_until, redir, 0);
+//                           push_heredoc ($$);
+//                           }
+//           |	NUMBER LESS_LESS WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_reading_until, redir, 0);
+//                           push_heredoc ($$);
+//                           }
+//           |	REDIR_WORD LESS_LESS WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_reading_until, redir, REDIR_VARASSIGN);
+//                           push_heredoc ($$);
+//                           }
+//           |	LESS_LESS_MINUS WORD
+//                           {
+//                           source.dest = 0;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_deblank_reading_until, redir, 0);
+//                           push_heredoc ($$);
+//                           }
+//           |	NUMBER LESS_LESS_MINUS WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_deblank_reading_until, redir, 0);
+//                           push_heredoc ($$);
+//                           }
+//           |	REDIR_WORD  LESS_LESS_MINUS WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_deblank_reading_until, redir, REDIR_VARASSIGN);
+//                           push_heredoc ($$);
+//                           }
+//           |	LESS_LESS_LESS WORD
+//                           {
+//                           source.dest = 0;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_reading_string, redir, 0);
+//                           }
+//           |	NUMBER LESS_LESS_LESS WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_reading_string, redir, 0);
+//                           }
+//           |	REDIR_WORD LESS_LESS_LESS WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_reading_string, redir, REDIR_VARASSIGN);
+//                           }
+//           |	LESS_AND NUMBER
+//                           {
+//                           source.dest = 0;
+//                           redir.dest = $2;
+//                           $$ = make_redirection (source, r_duplicating_input, redir, 0);
+//                           }
+//           |	NUMBER LESS_AND NUMBER
+//                           {
+//                           source.dest = $1;
+//                           redir.dest = $3;
+//                           $$ = make_redirection (source, r_duplicating_input, redir, 0);
+//                           }
+//           |	REDIR_WORD LESS_AND NUMBER
+//                           {
+//                           source.filename = $1;
+//                           redir.dest = $3;
+//                           $$ = make_redirection (source, r_duplicating_input, redir, REDIR_VARASSIGN);
+//                           }
+//           |	GREATER_AND NUMBER
+//                           {
+//                           source.dest = 1;
+//                           redir.dest = $2;
+//                           $$ = make_redirection (source, r_duplicating_output, redir, 0);
+//                           }
+//           |	NUMBER GREATER_AND NUMBER
+//                           {
+//                           source.dest = $1;
+//                           redir.dest = $3;
+//                           $$ = make_redirection (source, r_duplicating_output, redir, 0);
+//                           }
+//           |	REDIR_WORD GREATER_AND NUMBER
+//                           {
+//                           source.filename = $1;
+//                           redir.dest = $3;
+//                           $$ = make_redirection (source, r_duplicating_output, redir, REDIR_VARASSIGN);
+//                           }
+//           |	LESS_AND WORD
+//                           {
+//                           source.dest = 0;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_duplicating_input_word, redir, 0);
+//                           }
+//           |	NUMBER LESS_AND WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_duplicating_input_word, redir, 0);
+//                           }
+//           |	REDIR_WORD LESS_AND WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_duplicating_input_word, redir, REDIR_VARASSIGN);
+//                           }
+//           |	GREATER_AND WORD
+//                           {
+//                           source.dest = 1;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_duplicating_output_word, redir, 0);
+//                           }
+//           |	NUMBER GREATER_AND WORD
+//                           {
+//                           source.dest = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_duplicating_output_word, redir, 0);
+//                           }
+//           |	REDIR_WORD GREATER_AND WORD
+//                           {
+//                           source.filename = $1;
+//                           redir.filename = $3;
+//                           $$ = make_redirection (source, r_duplicating_output_word, redir, REDIR_VARASSIGN);
+//                           }
+//           |	GREATER_AND '-'
+//                           {
+//                           source.dest = 1;
+//                           redir.dest = 0;
+//                           $$ = make_redirection (source, r_close_this, redir, 0);
+//                           }
+//           |	NUMBER GREATER_AND '-'
+//                           {
+//                           source.dest = $1;
+//                           redir.dest = 0;
+//                           $$ = make_redirection (source, r_close_this, redir, 0);
+//                           }
+//           |	REDIR_WORD GREATER_AND '-'
+//                           {
+//                           source.filename = $1;
+//                           redir.dest = 0;
+//                           $$ = make_redirection (source, r_close_this, redir, REDIR_VARASSIGN);
+//                           }
+//           |	LESS_AND '-'
+//                           {
+//                           source.dest = 0;
+//                           redir.dest = 0;
+//                           $$ = make_redirection (source, r_close_this, redir, 0);
+//                           }
+//           |	NUMBER LESS_AND '-'
+//                           {
+//                           source.dest = $1;
+//                           redir.dest = 0;
+//                           $$ = make_redirection (source, r_close_this, redir, 0);
+//                           }
+//           |	REDIR_WORD LESS_AND '-'
+//                           {
+//                           source.filename = $1;
+//                           redir.dest = 0;
+//                           $$ = make_redirection (source, r_close_this, redir, REDIR_VARASSIGN);
+//                           }
+//           |	AND_GREATER WORD
+//                           {
+//                           source.dest = 1;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_err_and_out, redir, 0);
+//                           }
+//           |	AND_GREATER_GREATER WORD
+//                           {
+//                           source.dest = 1;
+//                           redir.filename = $2;
+//                           $$ = make_redirection (source, r_append_err_and_out, redir, 0);
+//                           }
+//           ;
 //
-//   //named!(simple_command_element<String>, do_parse!(word));
-//   /*
 //   simple_command_element: WORD
-//       |	ASSIGNMENT_WORD
-//       |	redirection
-//       ;
+//                           { $$.word = $1; $$.redirect = 0; }
+//           |	ASSIGNMENT_WORD
+//                           { $$.word = $1; $$.redirect = 0; }
+//           |	redirection
+//                           { $$.redirect = $1; $$.word = 0; }
+//           ;
 //
 //   redirection_list: redirection
-//       |	redirection_list redirection
-//       ;
-//   */
+//                           {
+//                           $$ = $1;
+//                           }
+//           |	redirection_list redirection
+//                           {
+//                           register REDIRECT *t;
 //
-//   /*
-//   named!(pub assignment<super::Assignment>,
-//       do_parse!(
-//           var_name : identifier >>
-//           tag!("=") >>
-//           var_value : word >>
-//           ({
-//               super::Assignment::new(String::from_utf8_lossy(var_name).into_owned(),var_value)
-//           } )
-//       )
-//   );
-//   */
+//                           for (t = $1; t->next; t = t->next)
+//                               ;
+//                           t->next = $2;
+//                           $$ = $1;
+//                           }
+//           ;
 //
-//   /*
+//   simple_command:	simple_command_element
+//                           { $$ = make_simple_command ($1, (COMMAND *)NULL); }
+//           |	simple_command simple_command_element
+//                           { $$ = make_simple_command ($2, $1); }
+//           ;
+//
 //   command:	simple_command
-//       |	shell_command
-//       |	shell_command redirection_list
-//       ;
+//                           { $$ = clean_simple_command ($1); }
+//           |	shell_command
+//                           { $$ = $1; }
+//           |	shell_command redirection_list
+//                           {
+//                           COMMAND *tc;
+//
+//                           tc = $1;
+//                           if (tc->redirects)
+//                               {
+//                               register REDIRECT *t;
+//                               for (t = tc->redirects; t->next; t = t->next)
+//                                   ;
+//                               t->next = $2;
+//                               }
+//                           else
+//                               tc->redirects = $2;
+//                           $$ = $1;
+//                           }
+//           |	function_def
+//                           { $$ = $1; }
+//           |	coproc
+//                           { $$ = $1; }
+//           ;
 //
 //   shell_command:	for_command
-//       |	WHILE compound_list DO compound_list DONE
-//       |	if_command
-//       |	subshell
-//       |	group_command
-//       |	cond_command
-//       ;
+//                           { $$ = $1; }
+//           |	case_command
+//                           { $$ = $1; }
+//           |	WHILE compound_list DO compound_list DONE
+//                           { $$ = make_while_command ($2, $4); }
+//           |	UNTIL compound_list DO compound_list DONE
+//                           { $$ = make_until_command ($2, $4); }
+//           |	select_command
+//                           { $$ = $1; }
+//           |	if_command
+//                           { $$ = $1; }
+//           |	subshell
+//                           { $$ = $1; }
+//           |	group_command
+//                           { $$ = $1; }
+//           |	arith_command
+//                           { $$ = $1; }
+//           |	cond_command
+//                           { $$ = $1; }
+//           |	arith_for_command
+//                           { $$ = $1; }
+//           ;
 //
 //   for_command:	FOR WORD newline_list DO compound_list DONE
-//       |	FOR WORD newline_list '{' compound_list '}'
-//       |	FOR WORD ';' newline_list DO compound_list DONE
-//       |	FOR WORD ';' newline_list '{' compound_list '}'
-//       |	FOR WORD newline_list IN word_list list_terminator newline_list DO compound_list DONE
-//       |	FOR WORD newline_list IN word_list list_terminator newline_list '{' compound_list '}'
-//       |	FOR WORD newline_list IN list_terminator newline_list DO compound_list DONE
-//       |	FOR WORD newline_list IN list_terminator newline_list '{' compound_list '}'
-//       ;
+//                           {
+//                           $$ = make_for_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $5, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	FOR WORD newline_list '{' compound_list '}'
+//                           {
+//                           $$ = make_for_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $5, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	FOR WORD ';' newline_list DO compound_list DONE
+//                           {
+//                           $$ = make_for_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $6, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	FOR WORD ';' newline_list '{' compound_list '}'
+//                           {
+//                           $$ = make_for_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $6, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	FOR WORD newline_list IN word_list list_terminator newline_list DO compound_list DONE
+//                           {
+//                           $$ = make_for_command ($2, REVERSE_LIST ($5, WORD_LIST *), $9, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	FOR WORD newline_list IN word_list list_terminator newline_list '{' compound_list '}'
+//                           {
+//                           $$ = make_for_command ($2, REVERSE_LIST ($5, WORD_LIST *), $9, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	FOR WORD newline_list IN list_terminator newline_list DO compound_list DONE
+//                           {
+//                           $$ = make_for_command ($2, (WORD_LIST *)NULL, $8, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	FOR WORD newline_list IN list_terminator newline_list '{' compound_list '}'
+//                           {
+//                           $$ = make_for_command ($2, (WORD_LIST *)NULL, $8, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           ;
+//
+//   arith_for_command:	FOR ARITH_FOR_EXPRS list_terminator newline_list DO compound_list DONE
+//                                   {
+//                                   $$ = make_arith_for_command ($2, $6, arith_for_lineno);
+//                                   if (word_top > 0) word_top--;
+//                                   }
+//           |		FOR ARITH_FOR_EXPRS list_terminator newline_list '{' compound_list '}'
+//                                   {
+//                                   $$ = make_arith_for_command ($2, $6, arith_for_lineno);
+//                                   if (word_top > 0) word_top--;
+//                                   }
+//           |		FOR ARITH_FOR_EXPRS DO compound_list DONE
+//                                   {
+//                                   $$ = make_arith_for_command ($2, $4, arith_for_lineno);
+//                                   if (word_top > 0) word_top--;
+//                                   }
+//           |		FOR ARITH_FOR_EXPRS '{' compound_list '}'
+//                                   {
+//                                   $$ = make_arith_for_command ($2, $4, arith_for_lineno);
+//                                   if (word_top > 0) word_top--;
+//                                   }
+//           ;
+//
+//   select_command:	SELECT WORD newline_list DO list DONE
+//                           {
+//                           $$ = make_select_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $5, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	SELECT WORD newline_list '{' list '}'
+//                           {
+//                           $$ = make_select_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $5, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	SELECT WORD ';' newline_list DO list DONE
+//                           {
+//                           $$ = make_select_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $6, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	SELECT WORD ';' newline_list '{' list '}'
+//                           {
+//                           $$ = make_select_command ($2, add_string_to_list ("\"$@\"", (WORD_LIST *)NULL), $6, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	SELECT WORD newline_list IN word_list list_terminator newline_list DO list DONE
+//                           {
+//                           $$ = make_select_command ($2, REVERSE_LIST ($5, WORD_LIST *), $9, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	SELECT WORD newline_list IN word_list list_terminator newline_list '{' list '}'
+//                           {
+//                           $$ = make_select_command ($2, REVERSE_LIST ($5, WORD_LIST *), $9, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           ;
+//
+//   case_command:	CASE WORD newline_list IN newline_list ESAC
+//                           {
+//                           $$ = make_case_command ($2, (PATTERN_LIST *)NULL, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	CASE WORD newline_list IN case_clause_sequence newline_list ESAC
+//                           {
+//                           $$ = make_case_command ($2, $5, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           |	CASE WORD newline_list IN case_clause ESAC
+//                           {
+//                           $$ = make_case_command ($2, $5, word_lineno[word_top]);
+//                           if (word_top > 0) word_top--;
+//                           }
+//           ;
+//
+//   function_def:	WORD '(' ')' newline_list function_body
+//                           { $$ = make_function_def ($1, $5, function_dstart, function_bstart); }
+//
+//           |	FUNCTION WORD '(' ')' newline_list function_body
+//                           { $$ = make_function_def ($2, $6, function_dstart, function_bstart); }
+//
+//           |	FUNCTION WORD newline_list function_body
+//                           { $$ = make_function_def ($2, $4, function_dstart, function_bstart); }
+//           ;
+//
+//   function_body:	shell_command
+//                           { $$ = $1; }
+//           |	shell_command redirection_list
+//                           {
+//                           COMMAND *tc;
+//
+//                           tc = $1;
+//                           /* According to Posix.2 3.9.5, redirections
+//                               specified after the body of a function should
+//                               be attached to the function and performed when
+//                               the function is executed, not as part of the
+//                               function definition command. */
+//                           /* XXX - I don't think it matters, but we might
+//                               want to change this in the future to avoid
+//                               problems differentiating between a function
+//                               definition with a redirection and a function
+//                               definition containing a single command with a
+//                               redirection.  The two are semantically equivalent,
+//                               though -- the only difference is in how the
+//                               command printing code displays the redirections. */
+//                           if (tc->redirects)
+//                               {
+//                               register REDIRECT *t;
+//                               for (t = tc->redirects; t->next; t = t->next)
+//                                   ;
+//                               t->next = $2;
+//                               }
+//                           else
+//                               tc->redirects = $2;
+//                           $$ = $1;
+//                           }
+//           ;
 //
 //   subshell:	'(' compound_list ')'
-//       ;
+//                           {
+//                           $$ = make_subshell_command ($2);
+//                           $$->flags |= CMD_WANT_SUBSHELL;
+//                           }
+//           ;
+//
+//   coproc:		COPROC shell_command
+//                           {
+//                           $$ = make_coproc_command ("COPROC", $2);
+//                           $$->flags |= CMD_WANT_SUBSHELL|CMD_COPROC_SUBSHELL;
+//                           }
+//           |	COPROC shell_command redirection_list
+//                           {
+//                           COMMAND *tc;
+//
+//                           tc = $2;
+//                           if (tc->redirects)
+//                               {
+//                               register REDIRECT *t;
+//                               for (t = tc->redirects; t->next; t = t->next)
+//                                   ;
+//                               t->next = $3;
+//                               }
+//                           else
+//                               tc->redirects = $3;
+//                           $$ = make_coproc_command ("COPROC", $2);
+//                           $$->flags |= CMD_WANT_SUBSHELL|CMD_COPROC_SUBSHELL;
+//                           }
+//           |	COPROC WORD shell_command
+//                           {
+//                           $$ = make_coproc_command ($2->word, $3);
+//                           $$->flags |= CMD_WANT_SUBSHELL|CMD_COPROC_SUBSHELL;
+//                           }
+//           |	COPROC WORD shell_command redirection_list
+//                           {
+//                           COMMAND *tc;
+//
+//                           tc = $3;
+//                           if (tc->redirects)
+//                               {
+//                               register REDIRECT *t;
+//                               for (t = tc->redirects; t->next; t = t->next)
+//                                   ;
+//                               t->next = $4;
+//                               }
+//                           else
+//                               tc->redirects = $4;
+//                           $$ = make_coproc_command ($2->word, $3);
+//                           $$->flags |= CMD_WANT_SUBSHELL|CMD_COPROC_SUBSHELL;
+//                           }
+//           |	COPROC simple_command
+//                           {
+//                           $$ = make_coproc_command ("COPROC", clean_simple_command ($2));
+//                           $$->flags |= CMD_WANT_SUBSHELL|CMD_COPROC_SUBSHELL;
+//                           }
+//           ;
 //
 //   if_command:	IF compound_list THEN compound_list FI
-//       |	IF compound_list THEN compound_list ELSE compound_list FI
-//       |	IF compound_list THEN compound_list elif_clause FI
-//       ;
+//                           { $$ = make_if_command ($2, $4, (COMMAND *)NULL); }
+//           |	IF compound_list THEN compound_list ELSE compound_list FI
+//                           { $$ = make_if_command ($2, $4, $6); }
+//           |	IF compound_list THEN compound_list elif_clause FI
+//                           { $$ = make_if_command ($2, $4, $5); }
+//           ;
 //
 //
 //   group_command:	'{' compound_list '}'
-//       ;
+//                           { $$ = make_group_command ($2); }
+//           ;
+//
+//   arith_command:	ARITH_CMD
+//                           { $$ = make_arith_command ($1); }
+//           ;
 //
 //   cond_command:	COND_START COND_CMD COND_END
-//       ;
+//                           { $$ = $2; }
+//           ;
 //
 //   elif_clause:	ELIF compound_list THEN compound_list
-//       |	ELIF compound_list THEN compound_list ELSE compound_list
-//       |	ELIF compound_list THEN compound_list elif_clause
-//       ;
+//                           { $$ = make_if_command ($2, $4, (COMMAND *)NULL); }
+//           |	ELIF compound_list THEN compound_list ELSE compound_list
+//                           { $$ = make_if_command ($2, $4, $6); }
+//           |	ELIF compound_list THEN compound_list elif_clause
+//                           { $$ = make_if_command ($2, $4, $5); }
+//           ;
+//
+//   case_clause:	pattern_list
+//           |	case_clause_sequence pattern_list
+//                           { $2->next = $1; $$ = $2; }
+//           ;
+//
+//   pattern_list:	newline_list pattern ')' compound_list
+//                           { $$ = make_pattern_list ($2, $4); }
+//           |	newline_list pattern ')' newline_list
+//                           { $$ = make_pattern_list ($2, (COMMAND *)NULL); }
+//           |	newline_list '(' pattern ')' compound_list
+//                           { $$ = make_pattern_list ($3, $5); }
+//           |	newline_list '(' pattern ')' newline_list
+//                           { $$ = make_pattern_list ($3, (COMMAND *)NULL); }
+//           ;
+//
+//   case_clause_sequence:  pattern_list SEMI_SEMI
+//                           { $$ = $1; }
+//           |	case_clause_sequence pattern_list SEMI_SEMI
+//                           { $2->next = $1; $$ = $2; }
+//           |	pattern_list SEMI_AND
+//                           { $1->flags |= CASEPAT_FALLTHROUGH; $$ = $1; }
+//           |	case_clause_sequence pattern_list SEMI_AND
+//                           { $2->flags |= CASEPAT_FALLTHROUGH; $2->next = $1; $$ = $2; }
+//           |	pattern_list SEMI_SEMI_AND
+//                           { $1->flags |= CASEPAT_TESTNEXT; $$ = $1; }
+//           |	case_clause_sequence pattern_list SEMI_SEMI_AND
+//                           { $2->flags |= CASEPAT_TESTNEXT; $2->next = $1; $$ = $2; }
+//           ;
+//
+//   pattern:	WORD
+//                           { $$ = make_word_list ($1, (WORD_LIST *)NULL); }
+//           |	pattern '|' WORD
+//                           { $$ = make_word_list ($3, $1); }
+//           ;
 //
 //   /* A list allows leading or trailing newlines and
 //   newlines as operators (equivalent to semicolons).
@@ -192,289 +846,170 @@ fn word_letter(input: Span) -> IResult<Span, char> {
 //   Lists are used within commands such as if, for, while.  */
 //
 //   list:		newline_list list0
-//       ;
+//                           {
+//                           $$ = $2;
+//                           if (need_here_doc)
+//                               gather_here_documents ();
+//                           }
+//           ;
 //
 //   compound_list:	list
-//       |	newline_list list1
-//       ;
+//           |	newline_list list1
+//                           {
+//                           $$ = $2;
+//                           }
+//           ;
 //
 //   list0:  	list1 '\n' newline_list
-//       |	list1 '&' newline_list
-//       |	list1 ';' newline_list
-//       ;
+//           |	list1 '&' newline_list
+//                           {
+//                           if ($1->type == cm_connection)
+//                               $$ = connect_async_list ($1, (COMMAND *)NULL, '&');
+//                           else
+//                               $$ = command_connect ($1, (COMMAND *)NULL, '&');
+//                           }
+//           |	list1 ';' newline_list
+//
+//           ;
 //
 //   list1:		list1 AND_AND newline_list list1
-//       |	list1 OR_OR newline_list list1
-//       |	list1 '&' newline_list list1
-//       |	list1 ';' newline_list list1
-//       |	list1 '\n' newline_list list1
-//       |	pipeline_command
-//       ;
-//   */
+//                           { $$ = command_connect ($1, $4, AND_AND); }
+//           |	list1 OR_OR newline_list list1
+//                           { $$ = command_connect ($1, $4, OR_OR); }
+//           |	list1 '&' newline_list list1
+//                           {
+//                           if ($1->type == cm_connection)
+//                               $$ = connect_async_list ($1, $4, '&');
+//                           else
+//                               $$ = command_connect ($1, $4, '&');
+//                           }
+//           |	list1 ';' newline_list list1
+//                           { $$ = command_connect ($1, $4, ';'); }
+//           |	list1 '\n' newline_list list1
+//                           { $$ = command_connect ($1, $4, ';'); }
+//           |	pipeline_command
+//                           { $$ = $1; }
+//           ;
 //
-//   // separated_list_map that handles the return value of the separator.
-//   //
-//   // `separated_list_map!(
-//   //   I -> IResult<I,T>,
-//   //   (T,&mut Vec<O>) -> (),
-//   //   I -> IResult<I,O>) =>
-//   //   I -> IResult<I, Vec<O>>`
-//   // separated_list_map(sep, updateFun, X) returns Vec<X> will return Incomplete if there may be
-//   // more elements
-//   #[macro_export]
-//   macro_rules! separated_list_map(
-//   ($i:expr, $sep:ident!( $($args:tt)* ), $u:expr, $submac:ident!( $($args2:tt)* )) => (
-//       {
-//       //FIXME: use crate vec
-//       let mut res   = ::std::vec::Vec::new();
-//       let mut input = $i.clone();
+//   simple_list_terminator:	'\n'
+//           |	yacc_EOF
+//           ;
 //
-//       // get the first element
-//       let input_ = input.clone();
-//       match $submac!(input_, $($args2)*) {
-//           IResult::Error(_)      => IResult::Done(input, ::std::vec::Vec::new()),
-//           IResult::Incomplete(i) => IResult::Incomplete(i),
-//           IResult::Done(i,o)     => {
-//           if i.input_len() == input.input_len() {
-//               IResult::Error(error_position!(ErrorKind::SeparatedList,input))
-//           } else {
-//               res.push(o);
-//               input = i;
+//   list_terminator:'\n'
+//                   { $$ = '\n'; }
+//           |	';'
+//                   { $$ = ';'; }
+//           |	yacc_EOF
+//                   { $$ = yacc_EOF; }
+//           ;
 //
-//               let ret;
+//   newline_list:
+//           |	newline_list '\n'
+//           ;
 //
-//               loop {
-//               // get the separator first
-//               let input_ = input.clone();
-//               match $sep!(input_, $($args)*) {
-//                   IResult::Error(_) => {
-//                   ret = IResult::Done(input, res);
-//                   break;
-//                   }
-//                   IResult::Incomplete(Needed::Unknown) => {
-//                   ret = IResult::Incomplete(Needed::Unknown);
-//                   break;
-//                   },
-//                   IResult::Incomplete(Needed::Size(needed)) => {
-//                   let (size,overflowed) =
-//                       needed.overflowing_add(($i).input_len() - input.input_len());
-//                   ret = match overflowed {
-//                       true  => IResult::Incomplete(Needed::Unknown),
-//                       false => IResult::Incomplete(Needed::Size(size)),
-//                   };
-//                   break;
-//                   },
-//                   IResult::Done(i2,sep_val)     => {
-//                   let i2_len = i2.input_len();
-//                   if i2_len == input.input_len() {
-//                       ret = IResult::Done(input, res);
-//                       break;
-//                   }
+//   simple_list:	simple_list1
+//           |	simple_list1 '&'
+//           |	simple_list1 ';'
+//           ;
 //
-//                   $u(&mut res, sep_val);
+//   simple_list1:	simple_list1 AND_AND newline_list simple_list1
+//           |	simple_list1 OR_OR newline_list simple_list1
+//           |	simple_list1 '&' simple_list1
+//           |	simple_list1 ';' simple_list1
+//           |	pipeline_command
+//           ;
 //
-//                   // get the element next
-//                   match $submac!(i2, $($args2)*) {
-//                       IResult::Error(_) => {
-//                       ret = IResult::Done(input, res);
-//                       break;
-//                       },
-//                       IResult::Incomplete(Needed::Unknown) => {
-//                       ret = IResult::Incomplete(Needed::Unknown);
-//                       break;
-//                       },
-//                       IResult::Incomplete(Needed::Size(needed)) => {
-//                       let (size,overflowed) = needed.overflowing_add(($i).input_len() - i2_len);
-//                       ret = match overflowed {
-//                           true  => IResult::Incomplete(Needed::Unknown),
-//                           false => IResult::Incomplete(Needed::Size(size)),
-//                       };
-//                       break;
-//                       },
-//                       IResult::Done(i3,o3)    => {
-//                       if i3.input_len() == i2_len {
-//                           ret = IResult::Done(input, res);
-//                           break;
-//                       }
-//                       res.push(o3);
-//                       input = i3;
-//                       }
-//                   }
-//                   }
-//               }
-//               }
-//
-//               ret
-//           }
-//           },
-//       }
-//       }
-//   );
-//   ($i:expr, $submac:ident!( $($args:tt)* ), $u:expr, $g:expr) => (
-//       separated_list_map!($i, $submac!($($args)*), $u, call!($g));
-//   );
-//   ($i:expr, $f:expr, $u:expr, $submac:ident!( $($args:tt)* )) => (
-//       separated_list_map!($i, call!($f), $u, $submac!($($args)*));
-//   );
-//   ($i:expr, $f:expr, $u:expr, $g:expr) => (
-//       separated_list_map!($i, call!($f), $u, call!($g));
-//   );
-//   );
-//
-//   // Parse a list of commands to be executed in one run.
-//   //
-//   // This parser is equivalent to bash's simple_list and simple_list1 rules.
-//   //
-//   // We also need to handle the precedence of && and || over ; and &. We do this by breaking
-//   // simple_list1 with the four alternatives into two nested rules that are used to return an
-//   // expression tree.
-//   //
-//   // The last CommandInfo can have an additional ; or &, but not an && or ||
-//   named!(
-//       command_sequence<ParsedCommand>,
-//       // This expressions of lower precedence: ; and &
-//       do_parse!(
-//           seq: separated_list_map!(command_sequence_sep, updateReaction, command_logic)
-//               >> cr: opt!(command_sequence_sep)
-//               >> (ParsedCommand::new_sequence(seq, cr))
-//       )
-//   );
-//
-//   /// Helper to set the CommandReaction of the last entry
-//   fn updateReaction(cis: &mut Vec<CommandLogic>, cr: CommandReaction) {
-//       cis.last_mut().map(|ci| ci.set_reaction(cr));
-//   }
-//
-//   // Separator for simple_list, i.e. & and ;
-//   named!(
-//       command_sequence_sep<CommandReaction>,
-//       preceded!(
-//           myspace,
-//           alt_complete!(
-//               map!(tag!(";"), |_| CommandReaction::Normal)
-//                   | map!(tag!("&"), |_| CommandReaction::Background)
-//           )
-//       )
-//   );
-//
-//   // Helper parser to ensure precedence of && and || over & and ;
-//   named!(
-//       command_logic<CommandLogic>,
-//       // This expression has higher precedence: && and ||
-//       map!(
-//           separated_list_map!(command_logic_sep, updateReaction_cl, pipeline_command),
-//           CommandLogic::new
-//       )
-//   );
-//
-//   /// Helper to set the CommandReaction of the last entry
-//   fn updateReaction_cl(cis: &mut Vec<Pipeline>, cr: CommandReaction) {
-//       cis.last_mut().map(|ci| ci.set_reaction(cr));
-//   }
-//
-//   // Separator for command_logic, i.e. && and ||
-//   named!(
-//       command_logic_sep<CommandReaction>,
-//       preceded!(
-//           myspace,
-//           alt_complete!(
-//               map!(tag!("&&"), |_| CommandReaction::And) | map!(tag!("||"), |_| CommandReaction::Or)
-//           )
-//       )
-//   );
-//
-//   // Pipeline with optional inversion
-//   named!(
-//       pipeline_command<Pipeline>,
-//       alt!(
-//           do_parse!(
-//               myspace
-//                   >> tag!("!")
-//                   >> many1!(one_of!(" \t"))
-//                   >> ci: pipeline_command
-//                   >> (Pipeline {
-//                       commands: ci.commands,
-//                       reaction: ci.reaction,
-//                       invert: true ^ ci.invert
-//                   })
-//           ) | pipeline
-//       )
-//   );
-//
-//   /*
 //   pipeline_command: pipeline
-//       |	BANG pipeline_command
-//       |	timespec pipeline_command
-//       |	timespec list_terminator
-//       |	BANG list_terminator
-//       ;
-//   */
+//           |	BANG pipeline_command
+//                           {
+//                           if ($2)
+//                               $2->flags ^= CMD_INVERT_RETURN;	/* toggle */
+//                           $$ = $2;
+//                           }
+//           |	timespec pipeline_command
+//                           {
+//                           if ($2)
+//                               $2->flags |= $1;
+//                           $$ = $2;
+//                           }
+//           |	timespec list_terminator
+//                           {
+//                           ELEMENT x;
 //
-//   // Pipeline command
-//   named!(
-//       pipeline<Pipeline>,
-//       map!(
-//           separated_list_map!(pipeline_sep, update_pipeline, simple_command),
-//           Pipeline::new
-//       )
-//   );
+//                           /* Boy, this is unclean.  `time' by itself can
+//                               time a null command.  We cheat and push a
+//                               newline back if the list_terminator was a newline
+//                               to avoid the double-newline problem (one to
+//                               terminate this, one to terminate the command) */
+//                           x.word = 0;
+//                           x.redirect = 0;
+//                           $$ = make_simple_command (x, (COMMAND *)NULL);
+//                           $$->flags |= $1;
+//                           /* XXX - let's cheat and push a newline back */
+//                           if ($2 == '\n')
+//                               token_to_read = '\n';
+//                           else if ($2 == ';')
+//                               token_to_read = ';';
+//                           }
+//           |	BANG list_terminator
+//                           {
+//                           ELEMENT x;
 //
-//   // Separator for pipelines
-//   named!(
-//       pipeline_sep<PipelineMode>,
-//       preceded!(
-//           myspace,
-//           alt_complete!(
-//               map!(tag!("|&"), |_| PipelineMode::StdOutStdErr)
-//                   | do_parse!(not!(tag!("||")) >> tag!("|") >> (PipelineMode::StdOut))
-//           )
-//       )
-//   );
+//                           /* This is just as unclean.  Posix says that `!'
+//                               by itself should be equivalent to `false'.
+//                               We cheat and push a
+//                               newline back if the list_terminator was a newline
+//                               to avoid the double-newline problem (one to
+//                               terminate this, one to terminate the command) */
+//                           x.word = 0;
+//                           x.redirect = 0;
+//                           $$ = make_simple_command (x, (COMMAND *)NULL);
+//                           $$->flags |= CMD_INVERT_RETURN;
+//                           /* XXX - let's cheat and push a newline back */
+//                           if ($2 == '\n')
+//                               token_to_read = '\n';
+//                           if ($2 == ';')
+//                               token_to_read = ';';
+//                           }
+//           ;
 //
-//   /// Updater for pipeline commands
-//   fn update_pipeline(commands: &mut Vec<Command>, mode: PipelineMode) {
-//       commands.last_mut().map(|cmd| cmd.set_pipeline_mode(mode));
-//   }
+//   pipeline:	pipeline '|' newline_list pipeline
+//                           { $$ = command_connect ($1, $4, '|'); }
+//           |	pipeline BAR_AND newline_list pipeline
+//                           {
+//                           /* Make cmd1 |& cmd2 equivalent to cmd1 2>&1 | cmd2 */
+//                           COMMAND *tc;
+//                           REDIRECTEE rd, sd;
+//                           REDIRECT *r;
 //
-//   /*
+//                           tc = $1->type == cm_simple ? (COMMAND *)$1->value.Simple : $1;
+//                           sd.dest = 2;
+//                           rd.dest = 1;
+//                           r = make_redirection (sd, r_duplicating_output, rd, 0);
+//                           if (tc->redirects)
+//                               {
+//                               register REDIRECT *t;
+//                               for (t = tc->redirects; t->next; t = t->next)
+//                                   ;
+//                               t->next = r;
+//                               }
+//                           else
+//                               tc->redirects = r;
+//
+//                           $$ = command_connect ($1, $4, '|');
+//                           }
+//           |	command
+//                           { $$ = $1; }
+//           ;
+//
 //   timespec:	TIME
-//       |	TIME TIMEOPT
-//       |	TIME TIMEOPT TIMEIGN
-//       ;
-//   */
-//
-//   fn is_alphanum_or_underscore(c: u8) -> bool {
-//       is_alphanumeric(c) || c == b'_'
-//   }
-//
-//   named!(alpha_or_underscore, alt!(alpha | tag!("_")));
-//   named!(pub identifier,
-//       recognize!(preceded!(
-//           alpha_or_underscore,
-//           take_while!(is_alphanum_or_underscore)))
-//   );
-//
-//   pub fn legal_identifier(s: &str) -> bool {
-//       if let IResult::Done(b"", _) = identifier(s.as_bytes()) {
-//           true
-//       } else {
-//           false
-//       }
-//   }
-//
-//   named!(pub assignment_or_name<(&[u8],Option<String>)>,
-//   do_parse!(
-//       name : identifier >>
-//       value : alt_complete!(
-//           do_parse!(
-//               tag!("=") >>
-//               w:word >> (Some(w))
-//               ) |
-//           map!(eof!(),|_| None)
-//           )
-//       >> (name,value)
-//       )
-//   );
+//                           { $$ = CMD_TIME_PIPELINE; }
+//           |	TIME TIMEOPT
+//                           { $$ = CMD_TIME_PIPELINE|CMD_TIME_POSIX; }
+//           |	TIME TIMEOPT TIMEIGN
+//                           { $$ = CMD_TIME_PIPELINE|CMD_TIME_POSIX; }
+//           ;
+//   %%
 
 #[cfg(test)]
 mod tests {
@@ -489,71 +1024,98 @@ mod tests {
         }
     }
 
+    //   #[test]
+    //   fn parse_word() {
+    //       assert_eq!(
+    //           word(Span::new("bc")),
+    //           Ok((span(2, 1, ""), span(0, 1, "bc")))
+    //       );
+    //       assert_eq!(
+    //           word(Span::new("bc<")),
+    //           Ok((span(2, 1, "<"), span(0, 1, "bc")))
+    //       );
+    //   }
+
     #[test]
-    fn parse_word() {
+    fn parse_command_empty() {
         assert_eq!(
-            word(Span::new("bc")),
-            Ok((span(2, 1, ""), span(0, 1, "bc")))
+            script(Span::new("\n")),
+            Ok((span(1, 2, ""), ParsingResult::Nothing))
         );
         assert_eq!(
-            word(Span::new("bc<")),
-            Ok((span(2, 1, "<"), span(0, 1, "bc")))
+            script(Span::new(" \n")),
+            Ok((span(2, 2, ""), ParsingResult::Nothing))
         );
     }
 
     #[test]
-    fn parse_simple_command() {
+    fn parse_command_comment() {
         assert_eq!(
-            simple_command(Span::new("ab bc   cd \t\tde\n")),
-            Ok((
-                span(16, 2, ""),
-                Command {
-                    words: vec![
-                        span(0, 1, "ab"),
-                        span(3, 1, "bc"),
-                        span(8, 1, "cd"),
-                        span(13, 1, "de"),
-                    ]
-                }
-            ))
+            script(Span::new("# Stuff \n")),
+            Ok((span(9, 2, ""), ParsingResult::Comment(span(2, 1, "Stuff "))))
         );
-
         assert_eq!(
-            simple_command(Span::new(" \tab bc   cd \t\tde\n")),
+            script(Span::new(" # Stuff \n")),
             Ok((
-                span(18, 2, ""),
-                Command {
-                    words: vec![
-                        span(2, 1, "ab"),
-                        span(5, 1, "bc"),
-                        span(10, 1, "cd"),
-                        span(15, 1, "de"),
-                    ]
-                }
-            ))
-        );
-
-        // A simple command ends at the end of the line
-        assert_eq!(
-            simple_command(Span::new("ab cd\nef")),
-            Ok((
-                span(6, 2, "ef"),
-                Command {
-                    words: vec![span(0, 1, "ab"), span(3, 1, "cd"),]
-                }
-            ))
-        );
-        // A simple command with trailing spaces
-        assert_eq!(
-            simple_command(Span::new("ab \n")),
-            Ok((
-                span(4, 2, ""),
-                Command {
-                    words: vec![span(0, 1, "ab"),]
-                }
+                span(10, 2, ""),
+                ParsingResult::Comment(span(3, 1, "Stuff "))
             ))
         );
     }
+
+    //   #[test]
+    //   fn parse_simple_command() {
+    //       assert_eq!(
+    //           simple_command(Span::new("ab bc   cd \t\tde\n")),
+    //           Ok((
+    //               span(16, 2, ""),
+    //               Command {
+    //                   words: vec![
+    //                       span(0, 1, "ab"),
+    //                       span(3, 1, "bc"),
+    //                       span(8, 1, "cd"),
+    //                       span(13, 1, "de"),
+    //                   ]
+    //               }
+    //           ))
+    //       );
+    //
+    //       assert_eq!(
+    //           simple_command(Span::new(" \tab bc   cd \t\tde\n")),
+    //           Ok((
+    //               span(18, 2, ""),
+    //               Command {
+    //                   words: vec![
+    //                       span(2, 1, "ab"),
+    //                       span(5, 1, "bc"),
+    //                       span(10, 1, "cd"),
+    //                       span(15, 1, "de"),
+    //                   ]
+    //               }
+    //           ))
+    //       );
+    //
+    //       // A simple command ends at the end of the line
+    //       assert_eq!(
+    //           simple_command(Span::new("ab cd\nef")),
+    //           Ok((
+    //               span(6, 2, "ef"),
+    //               Command {
+    //                   words: vec![span(0, 1, "ab"), span(3, 1, "cd"),]
+    //               }
+    //           ))
+    //       );
+    //       // A simple command with trailing spaces
+    //       assert_eq!(
+    //           simple_command(Span::new("ab \n")),
+    //           Ok((
+    //               span(4, 2, ""),
+    //               Command {
+    //                   words: vec![span(0, 1, "ab"),]
+    //               }
+    //           ))
+    //       );
+    //   }
 
     //   #[test]
     //   fn parse_script_one() {

@@ -99,26 +99,26 @@ fn interpreter_loop(
                     );
 
                     // If this is a builtin command, launch it as such.
-                    if let Some(builtin) = builtins::runner(&cmd.words[0].fragment) {
-                        // TODO: Start builtin instead of command
-                        let session = session.clone();
-                        jobs.run_builtin(
-                            session,
-                            interaction_handle,
-                            builtin,
-                            cmd.words.iter().map(|s| s.fragment.to_string()).collect(),
-                            true,
-                        )
-                    } else {
-                        let session = session.clone();
-                        jobs.run(
-                            session,
-                            interaction_handle,
-                            cmd.words[0].fragment,
-                            cmd.words[1..].iter().map(|s| s.fragment),
-                            true,
-                        )
-                    }
+                    //                   if let Some(builtin) = builtins::runner(&cmd.words[0].fragment) {
+                    //                       // TODO: Start builtin instead of command
+                    //                       let session = session.clone();
+                    //                       jobs.run_builtin(
+                    //                           session,
+                    //                           interaction_handle,
+                    //                           builtin,
+                    //                           cmd.words.iter().map(|s| s.fragment.to_string()).collect(),
+                    //                           true,
+                    //                       )
+                    //                   } else {
+                    //                       let session = session.clone();
+                    //                       jobs.run(
+                    //                           session,
+                    //                           interaction_handle,
+                    //                           cmd.words[0].fragment,
+                    //                           cmd.words[1..].iter().map(|s| s.fragment),
+                    //                           true,
+                    //                       )
+                    //                   }
 
                     // Process the rest of the input
                     input = rest;
