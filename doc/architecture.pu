@@ -267,3 +267,71 @@ group Next redraw
 end
 
 @enduml
+
+=====================
+
+@startuml
+title Presenter States and Keys
+hide empty description
+
+[*] --> ComposeCommand
+
+state "ComposeCommand\nCompletion" as ComposeCommandCtrl
+ComposeCommand --> ExecuteCommand : Enter\nStart input or history entry
+ExecuteCommand -> ComposeCommand : (Exit)
+
+ComposeCommand --> ComposeCommand: Letter
+note left of ComposeCommand
+If cursor is at end of input,
+predict command from history, specific to CWD.
+Display as overlay (roll menu).
+
+Any cursor movement to the right will take the respective
+letters from prediction to input as if they were typed.
+end note
+
+note top of ComposeCommand
+Keys: plain, e.g. Enter
+Events: parentheses, e.g. (Exit)
+
+Left/Right: Horizontal movement by character
+Ctrl-Left/Right: Horizontal movement by word
+Home/End: Start/End of line
+Shift-<movement>: Horizontal movement with selection
+
+Ctrl-Backspace: Delete word backwards
+Shift-Backspace: Delete to start of line
+Shift-Delete: Delete to end of line
+
+Up: Previous prediction
+Down: Next prediction
+Tab: Take prediction without starting
+endnote
+
+
+ComposeCommand --> ComposeCommandCtrl: Tab
+ComposeCommandCtrl --> ComposeCommand: Enter\nStart input
+note bottom of ComposeCommandCtrl
+Show completion
+Tab: Take completion
+Up: Previous completion
+Down: Next completion
+end note
+
+ComposeCommand --> FocusBackgroundJob: [Shift-]Ctrl-Tab && [1]
+FocusBackgroundJob -> ComposeCommand: [Shift-]Ctrl-Tab && [3]
+note bottom of FocusBackgroundJob
+Keep selected background job on screen.
+Display input field.
+Send input to stdin.
+[1]: Next (previous if Shift) background job is not TUI
+[3]: Wrap around job list
+end note
+
+ComposeCommand --> TUI: [Shift-]Ctrl-Tab && [2]
+TUI -> ComposeCommand: [Shift-]Ctrl-Tab && [3]
+note bottom of TUI
+[2]: Next (previous if Shift) background job is TUI
+end note
+
+@enduml
