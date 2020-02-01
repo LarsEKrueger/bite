@@ -130,8 +130,10 @@ pub mod tests {
     fn line_iter_non_archived() {
         let mut resp = Response::new();
 
-        let abr = resp.add_bytes(b"line 1\nline 2\n\nline 4");
-        assert!(abr == AddBytesResult::AllDone);
+        let _ = resp.add_bytes(b"line 1\n");
+        let _ = resp.add_bytes(b"line 2\n");
+        let _ = resp.add_bytes(b"\n");
+        let _ = resp.add_bytes(b"line 4");
 
         assert_eq!(resp.line_iter(0).count(), 4);
 
@@ -147,8 +149,10 @@ pub mod tests {
     fn line_iter_archived() {
         let mut resp = Response::new();
 
-        let abr = resp.add_bytes(b"line 1\nline 2\n\nline 4\n");
-        assert!(abr == AddBytesResult::AllDone);
+        let _ = resp.add_bytes(b"line 1\n");
+        let _ = resp.add_bytes(b"line 2\n");
+        let _ = resp.add_bytes(b"\n");
+        let _ = resp.add_bytes(b"line 4");
 
         assert_eq!(resp.line_iter(0).count(), 4);
 

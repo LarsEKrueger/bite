@@ -7,6 +7,7 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="800"
@@ -17,7 +18,37 @@
    inkscape:version="0.92.4 5da689c313, 2019-01-14"
    sodipodi:docname="visual-design.svg">
   <defs
-     id="defs2" />
+     id="defs2">
+    <linearGradient
+       id="linearGradient1132"
+       inkscape:collect="always">
+      <stop
+         id="stop1124"
+         offset="0"
+         style="stop-color:#fffc00;stop-opacity:0.29355609" />
+      <stop
+         style="stop-color:#fffc00;stop-opacity:1"
+         offset="0.44444445"
+         id="stop1126" />
+      <stop
+         id="stop1128"
+         offset="0.55555558"
+         style="stop-color:#fffc00;stop-opacity:1" />
+      <stop
+         id="stop1130"
+         offset="1"
+         style="stop-color:#fffc00;stop-opacity:0.29411766" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient1132"
+       id="linearGradient1113"
+       gradientUnits="userSpaceOnUse"
+       x1="-80"
+       y1="88"
+       x2="-80"
+       y2="232" />
+  </defs>
   <sodipodi:namedview
      id="base"
      pagecolor="#c7ffff"
@@ -25,11 +56,11 @@
      borderopacity="1.0"
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
-     inkscape:zoom="2.71529"
-     inkscape:cx="251.90358"
-     inkscape:cy="362.13158"
+     inkscape:zoom="3.2"
+     inkscape:cx="400"
+     inkscape:cy="300"
      inkscape:document-units="px"
-     inkscape:current-layer="svg8"
+     inkscape:current-layer="g1145"
      showgrid="true"
      inkscape:window-width="3838"
      inkscape:window-height="2126"
@@ -40,7 +71,7 @@
      units="px"
      inkscape:snap-perpendicular="true"
      objecttolerance="10000"
-     inkscape:snap-text-baseline="true"
+     inkscape:snap-text-baseline="false"
      inkscape:object-nodes="false"
      inkscape:snap-nodes="false">
     <inkscape:grid
@@ -98,7 +129,8 @@
      inkscape:groupmode="layer"
      id="layer2"
      inkscape:label="Conversation Markers"
-     transform="translate(0,100)">
+     transform="translate(0,100)"
+     style="display:inline">
     <rect
        style="display:inline;opacity:1;fill:#0cff00;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.22474492;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:markers stroke fill"
        id="rect4532"
@@ -140,15 +172,15 @@
          sodipodi:role="line"
          id="tspan4694"
          x="208"
-         y="-16">drwxr-xr-x 10 user user 4096 Jan  1 12:34 .</tspan><tspan
+         y="-15.999999">drwxr-xr-x 10 user user 4096 Jan  1 12:34 .</tspan><tspan
          sodipodi:role="line"
          id="tspan4696"
          x="208"
-         y="0">drwxr-xr-x 10 user user 4096 Jan  1 12:35 ..</tspan><tspan
+         y="7.6293941e-07">drwxr-xr-x 10 user user 4096 Jan  1 12:35 ..</tspan><tspan
          sodipodi:role="line"
          id="tspan4698"
          x="208"
-         y="16">drwxr-xr-x 10 user user 4096 Jan  1 12:37 .config</tspan><tspan
+         y="16.000002">drwxr-xr-x 10 user user 4096 Jan  1 12:37 .config</tspan><tspan
          sodipodi:role="line"
          id="tspan4700"
          x="208"
@@ -395,4 +427,81 @@
        y="344"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.33333302px;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start"
        id="tspan876-1-8">current prompt</tspan></text>
+  <g
+     inkscape:groupmode="layer"
+     id="layer3"
+     inkscape:label="PredictionOverlay">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.33333302px;line-height:16px;font-family:'Liberation Mono';-inkscape-font-specification:'Liberation Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#ffdf00;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="55.999996"
+       y="164"
+       id="text4546-6-2"><tspan
+         sodipodi:role="line"
+         id="tspan4708-0"
+         x="55.999996"
+         y="175.53036" /></text>
+    <g
+       id="g1145"
+       transform="translate(424.9375,207.9375)">
+      <rect
+         y="88"
+         x="-128"
+         height="144"
+         width="88"
+         id="rect1083"
+         style="opacity:1;fill:#004c4d;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.00894845;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:markers stroke fill" />
+      <text
+         id="text4546-6-4"
+         y="100"
+         x="-128"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.33333302px;line-height:16px;font-family:'Liberation Mono';-inkscape-font-specification:'Liberation Mono, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:url(#linearGradient1113);fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         xml:space="preserve"><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           y="100"
+           x="-128"
+           id="tspan4708-5"
+           sodipodi:role="line">lib</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1063"
+           y="116"
+           x="-128"
+           sodipodi:role="line">bin stuff</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1065"
+           y="132"
+           x="-128"
+           sodipodi:role="line">bins</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1067"
+           y="148"
+           x="-128"
+           sodipodi:role="line">example run</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1069"
+           y="164"
+           x="-128"
+           sodipodi:role="line">examples</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1071"
+           y="180"
+           x="-128"
+           sodipodi:role="line">test tryit</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1073"
+           y="196"
+           x="-128"
+           sodipodi:role="line">tests</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1075"
+           y="212"
+           x="-128"
+           sodipodi:role="line">release</tspan><tspan
+           style="fill:url(#linearGradient1113);fill-opacity:1"
+           id="tspan1079"
+           y="228"
+           x="-128"
+           sodipodi:role="line">features</tspan></text>
+    </g>
+  </g>
 </svg>

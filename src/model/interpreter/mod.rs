@@ -22,6 +22,7 @@
 
 use super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
 use std::os::unix::process::ExitStatusExt;
+use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -30,8 +31,11 @@ use std::thread::JoinHandle;
 use super::screen::Screen;
 
 mod builtins;
+mod history;
 mod jobs;
 mod parser;
+
+type SharedHistory = Arc<Mutex<history::History>>;
 
 pub struct Interpreter {
     /// Session to print output to.
@@ -39,6 +43,9 @@ pub struct Interpreter {
 
     /// Interpreter thread
     thread: JoinHandle<()>,
+
+    /// The history
+    history: SharedHistory,
 
     /// Mutex and condition around the input string and the interaction handle.
     ///
@@ -54,12 +61,15 @@ pub struct Interpreter {
     jobs: jobs::SharedJobs,
 }
 
+const BITE_HISTFILENAME: &str = ".bitehistory";
+
 /// Processing function that gets input from the mutex
 fn interpreter_loop(
     mut session: SharedSession,
     is_running: Arc<AtomicBool>,
     input: Arc<(Condvar, Mutex<Option<(String, InteractionHandle)>>)>,
     mut jobs: jobs::SharedJobs,
+    mut history: SharedHistory,
 ) {
     while is_running.load(Ordering::Acquire) {
         trace!("Waiting for new command");
@@ -79,7 +89,17 @@ fn interpreter_loop(
             std::mem::replace(&mut *input_data, None).unwrap()
         };
 
+        let cwd = match nix::unistd::getcwd() {
+            Ok(cwd) => cwd.to_string_lossy().into_owned(),
+            Err(err) => {
+                debug!("Can't get current working dir. Reason: {:?}", err);
+                ".".to_string()
+            }
+        };
+
+        trace!("CWD: »{}«", cwd);
         trace!("Got new input »{}«", input_string);
+        history.lock().unwrap().enter(&cwd, &input_string);
 
         // Process string
         let mut input = parser::Span::new(&input_string);
@@ -170,6 +190,24 @@ fn interpreter_loop(
 impl Interpreter {
     /// Create a new interpreter. This will spawn a thread.
     pub fn new(session: SharedSession) -> Self {
+        let home = std::env::var("HOME").unwrap_or(".".to_string());
+
+        // Load the history
+        let mut bitehist_name = PathBuf::from(home);
+        bitehist_name.push(BITE_HISTFILENAME);
+
+        let history = match history::History::load(&bitehist_name.to_string_lossy()) {
+            Ok(history) => history,
+            Err(msg) => {
+                debug!(
+                    "Could not load history file from »{:?}«. Error: {}",
+                    bitehist_name, msg
+                );
+                history::History::new()
+            }
+        };
+        let history = Arc::new(Mutex::new(history));
+
         let is_running = Arc::new(AtomicBool::new(true));
         let input = Arc::new((Condvar::new(), Mutex::new(None)));
         let jobs = jobs::SharedJobs::new();
@@ -178,14 +216,16 @@ impl Interpreter {
             let is_running = is_running.clone();
             let input = input.clone();
             let jobs = jobs.clone();
+            let history = history.clone();
             std::thread::Builder::new()
                 .name("interpreter".to_string())
-                .spawn(move || interpreter_loop(session, is_running, input, jobs))
+                .spawn(move || interpreter_loop(session, is_running, input, jobs, history))
                 .unwrap()
         };
 
         Self {
             session,
+            history,
             thread,
             input,
             is_running,
@@ -233,5 +273,20 @@ impl Interpreter {
         }
         self.input.0.notify_one();
         let _ = self.thread.join();
+
+        let home = std::env::var("HOME").unwrap_or(".".to_string());
+        let mut bitehist_name = PathBuf::from(home);
+        bitehist_name.push(BITE_HISTFILENAME);
+        if let Err(msg) = self
+            .history
+            .lock()
+            .unwrap()
+            .save(&bitehist_name.to_string_lossy())
+        {
+            debug!(
+                "Could not save history file to »{:?}«. Error: {}",
+                bitehist_name, msg
+            );
+        }
     }
 }

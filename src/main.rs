@@ -44,6 +44,10 @@ extern crate cstr;
 extern crate lazy_static;
 
 extern crate bincode;
+extern crate itertools;
+extern crate radix_trie;
+#[macro_use]
+extern crate serde;
 
 extern crate glob;
 
