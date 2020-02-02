@@ -21,6 +21,7 @@
 //! The presenter dispatches all events to sub-presenters that handle different views, e.g. command
 //! composition or history browsing.
 
+use std::cmp;
 use std::fmt::{Display, Formatter};
 use std::process::ExitStatus;
 
@@ -115,8 +116,13 @@ trait SubPresenter {
     fn set_next_prompt(self: &mut Self, bytes: &[u8]);
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool);
 
-    /// Access to the line iterator which requires unlocking the session mutex
+    /// Return an iterator of lines to be drawn.
+    ///
+    /// Access to the line iterator requires unlocking the session mutex outside the SubPresenter.
     fn line_iter<'a>(&'a self, &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a>;
+
+    /// Return info about the overlay to be be drawn.
+    fn get_overlay(&self, &Session) -> Option<(Vec<String>, usize, usize, i32)>;
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
@@ -180,6 +186,8 @@ pub struct PresenterCommons {
 
 /// The top-level presenter dispatches events to the sub-presenters.
 pub struct Presenter(Option<Box<dyn SubPresenter>>);
+
+pub const OVERLAY_RAD: usize = 3;
 
 impl ModifierState {
     /// Returns true if no modifier key is pressed.
@@ -481,6 +489,33 @@ impl Presenter {
             }
             f(row, &line);
             row += 1;
+        }
+    }
+
+    pub fn display_overlay<F>(&self, mut f: F)
+    where
+        F: FnMut(i32, i32, usize, &[String]),
+    {
+        let start_line = self.c().start_line();
+        let session = self.c().session.clone();
+        let session = session.0.lock().unwrap();
+        if let Some((items, selection, cursor_row, cursor_col)) = self.d().get_overlay(&session) {
+            let screen_row_cursor = (cursor_row - start_line) as i32;
+            let item_start_index = if selection > OVERLAY_RAD {
+                selection - OVERLAY_RAD
+            } else {
+                0
+            };
+            let item_end_index = cmp::min(items.len(), selection + OVERLAY_RAD + 1);
+            let rad_selection = selection - item_start_index;
+            let top = screen_row_cursor - (rad_selection as i32);
+
+            f(
+                cursor_col,
+                top,
+                rad_selection,
+                &items[item_start_index..item_end_index],
+            );
         }
     }
 }

@@ -124,6 +124,22 @@ impl SubPresenter for ComposeCommandPresenter {
         )
     }
 
+    /// If the cursor at the end of the input, and there are predictions, display them.
+    fn get_overlay(&self, session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+        if self.commons.text_input.cursor_at_end() {
+            trace!("ComposeCommandPresenter::get_overlay at end");
+            let row =
+                session.line_iter(true).count() + (self.commons.text_input.cursor_y() as usize);
+            let line = self.commons.text_input.extract_text_without_last_nl();
+            trace!("line: »{}«", line);
+            let items = self.commons.interpreter.predict(&line);
+            trace!("items: »{:?}«", items);
+            Some((items, 0, row, self.commons.text_input.cursor_x() as i32))
+        } else {
+            None
+        }
+    }
+
     /// Handle a click.
     ///
     /// If a command was clicked, cycle through the visibility of output and error.

@@ -99,7 +99,13 @@ fn interpreter_loop(
 
         trace!("CWD: »{}«", cwd);
         trace!("Got new input »{}«", input_string);
-        history.lock().unwrap().enter(&cwd, &input_string);
+        let input_len = input_string.len();
+        if input_len > 1 {
+            history
+                .lock()
+                .unwrap()
+                .enter(&cwd, &input_string[..input_len - 1].to_string());
+        }
 
         // Process string
         let mut input = parser::Span::new(&input_string);
@@ -253,6 +259,21 @@ impl Interpreter {
         self.input.0.notify_one();
         trace!("Sent notification");
         interaction
+    }
+
+    /// Predict the rest of the input command from history
+    pub fn predict(&self, command: &String) -> Vec<String> {
+        let cwd = match nix::unistd::getcwd() {
+            Ok(cwd) => cwd.to_string_lossy().into_owned(),
+            Err(err) => {
+                debug!("Can't get current working dir. Reason: {:?}", err);
+                ".".to_string()
+            }
+        };
+
+        trace!("CWD: »{}«", cwd);
+
+        self.history.lock().unwrap().predict(&cwd, command)
     }
 
     /// Send some bytes to the foreground job

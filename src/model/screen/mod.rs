@@ -533,9 +533,20 @@ impl Screen {
     pub fn line_iter_full(&self) -> impl Iterator<Item = &[Cell]> {
         self.matrix.line_iter_full()
     }
+
     /// Check if the cursor is at the end of the line
     pub fn cursor_at_end_of_line(&self) -> bool {
         if 0 <= self.cursor.y && self.cursor.y < self.height() {
+            let line = self.matrix.compacted_row_slice(self.cursor.y);
+            self.cursor.x == line.len() as isize
+        } else {
+            false
+        }
+    }
+
+    /// Check if the cursor is at the end of the last line
+    pub fn cursor_at_end(&self) -> bool {
+        if self.cursor.y + 1 == self.height() {
             let line = self.matrix.compacted_row_slice(self.cursor.y);
             self.cursor.x == line.len() as isize
         } else {

@@ -54,16 +54,16 @@ const NUM_PROMPT_COLORS: usize = 20;
 const COLOR_SEAM_WIDTH: i32 = 20;
 
 /// Width in pixel of colored seam to draw the prompt color for an output line.
-const OUTPUT_SEAM_WIDTH: u32 = 3;
+const OUTPUT_SEAM_WIDTH: u32 = 8;
 
 /// Width in pixel of colored seam to draw the prompt color for a prompt line.
 const PROMPT_SEAM_WIDTH: u32 = 16;
 
 /// Width in pixel of colored seam to draw the prompt color for a command line.
-const COMMAND_SEAM_WIDTH: u32 = 8;
+const COMMAND_SEAM_WIDTH: u32 = 12;
 
 /// Width in pixel of colored seam to draw the prompt color for an input line.
-const INPUT_SEAM_WIDTH: u32 = 6;
+const INPUT_SEAM_WIDTH: u32 = 10;
 
 /// Number of pixels between text and next line
 const LINE_PADDING: i32 = 1;
@@ -525,6 +525,80 @@ impl Gui {
                                 self.font_width as u32,
                                 self.line_height as u32,
                             );
+                        }
+                    }
+                }
+            });
+
+        // Draw the overlay if there is one
+        self.presenter
+            .display_overlay(|screen_column, top, selection, items| {
+                if !items.is_empty() {
+                    let x = self.font_width * ((screen_column + 1) as i32) + COLOR_SEAM_WIDTH;
+                    let y = self.line_height * top + LINE_PADDING;
+                    let max_len = items.iter().map(|s| s.len()).max().unwrap();
+                    let w = (max_len as i32) * self.font_width;
+                    let h = (items.len() as i32) * self.line_height;
+
+                    unsafe {
+                        // Draw background
+                        XSetForeground(self.display, self.gc, 0x101020u64);
+                        XFillRectangle(
+                            self.display,
+                            self.window,
+                            self.gc,
+                            x,
+                            y,
+                            w as u32,
+                            h as u32,
+                        );
+                        // Draw frame
+                        let r_ctr = 0xe0i32;
+                        let g_ctr = 0xe0i32;
+                        let b_ctr = 0x00i32;
+                        let r_edg = 0x60i32;
+                        let g_edg = 0x60i32;
+                        let b_edg = 0x60i32;
+                        XSetForeground(self.display, self.gc, 0xe0e000u64);
+                        XDrawRectangle(
+                            self.display,
+                            self.window,
+                            self.gc,
+                            x,
+                            y,
+                            w as u32,
+                            h as u32,
+                        );
+                        // Draw items
+                        for (i, s) in items.iter().enumerate() {
+                            let diff = if i < selection {
+                                selection - i
+                            } else {
+                                i - selection
+                            } as i32;
+
+                            let r_line = r_ctr + ((r_edg - r_ctr) * diff) / (items.len() as i32);
+                            let g_line = g_ctr + ((g_edg - g_ctr) * diff) / (items.len() as i32);
+                            let b_line = b_ctr + ((b_edg - b_ctr) * diff) / (items.len() as i32);
+
+                            XSetForeground(
+                                self.display,
+                                self.gc,
+                                ((r_line << 16) + (g_line << 8) + b_line) as u64,
+                            );
+
+                            let y_line =
+                                y + (i as i32) * self.line_height + self.font_ascent + LINE_PADDING;
+                            Xutf8DrawString(
+                                self.display,
+                                self.window,
+                                self.font_set,
+                                self.gc,
+                                x,
+                                y_line,
+                                s.as_ptr() as *const i8,
+                                s.len() as i32,
+                            )
                         }
                     }
                 }

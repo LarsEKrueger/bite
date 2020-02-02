@@ -130,6 +130,10 @@ impl SubPresenter for ExecuteCommandPresenter {
         )
     }
 
+    fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+        None
+    }
+
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
         mut self: Box<Self>,

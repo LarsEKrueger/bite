@@ -143,6 +143,10 @@ impl SubPresenter for CompleteCommandPresenter {
         )
     }
 
+    fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+        None
+    }
+
     /// Handle a click.
     fn handle_click(
         self: Box<Self>,

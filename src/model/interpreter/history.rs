@@ -21,8 +21,6 @@
 //! TODO: Merge histories on save
 
 use itertools::Itertools;
-use radix_trie::TrieCommon;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::OpenOptions;
@@ -30,14 +28,14 @@ use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 
 /// Map a command to the number of times it was entered
-type CommandCountMap = radix_trie::Trie<String, u32>;
+type CommandCountMap = qptrie::Trie<String, u32>;
 
 /// Zero-cost abstraction around the trie to add some operations
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 struct EnteredCommands(CommandCountMap);
 
 /// The history is a sorted by folders
-#[derive(PartialEq, Debug)]
+#[derive(Debug)]
 pub struct History(HashMap<String, EnteredCommands>);
 
 impl History {
@@ -61,6 +59,7 @@ impl History {
     pub fn save(&self, file_name: &str) -> Result<(), String> {
         let file_handle = OpenOptions::new()
             .write(true)
+            .create(true)
             .custom_flags(libc::O_EXCL)
             .open(file_name)
             .map_err(|e| e.description().to_string())?;
@@ -69,13 +68,28 @@ impl History {
     }
 
     /// Enter a command in the history
-    pub fn enter(&mut self, dir: &str, cmd: &str) {
+    pub fn enter(&mut self, dir: &str, cmd: &String) {
         if !self.0.contains_key(dir) {
             self.0
                 .insert(dir.to_string(), EnteredCommands(CommandCountMap::new()));
         }
         if let Some(dir_cmds) = self.0.get_mut(dir) {
             dir_cmds.enter(cmd);
+        }
+    }
+
+    /// Return list of predictions
+    pub fn predict(&self, dir: &str, start: &String) -> Vec<String> {
+        if let Some(ec) = self.0.get(dir) {
+            trace!(
+                "history of »{}« starting with »{}«: {:?}",
+                dir,
+                start,
+                ec
+            );
+            ec.predict(start)
+        } else {
+            Vec::new()
         }
     }
 
@@ -107,7 +121,7 @@ impl History {
 
         for (dir, cmds) in self.0.iter() {
             let mut ccm = HashMap::new();
-            for (cmd, cnt) in cmds.0.iter() {
+            for (cmd, cnt) in cmds.0.prefix_iter(&String::new()) {
                 let _ = ccm.insert(cmd.to_string(), *cnt);
             }
             let _ = hm.insert(dir.to_string(), ccm);
@@ -118,7 +132,7 @@ impl History {
 
 impl EnteredCommands {
     /// Put the string in the map, increment the count if it was already there.
-    fn enter(&mut self, command: &str) {
+    fn enter(&mut self, command: &String) {
         if let Some(counter) = self.0.get_mut(command) {
             *counter += 1;
         } else {
@@ -126,14 +140,13 @@ impl EnteredCommands {
         }
     }
 
-    fn predict(&self, start: &str) -> impl Iterator<Item = &str> {
+    fn predict(&self, start: &String) -> Vec<String> {
         let start_len = start.len();
         self.0
-            .subtrie(start)
-            .iter()
-            .flat_map(|subtrie| subtrie.iter())
+            .prefix_iter(start)
             .sorted_by(|a, b| Ord::cmp(b.1, a.1))
-            .map(move |(s, _)| &s[start_len..])
+            .map(move |(s, _)| s[start_len..].to_string())
+            .collect()
     }
 }
 
@@ -145,17 +158,16 @@ mod tests {
     fn enter() {
         let mut trie = EnteredCommands(CommandCountMap::new());
 
-        trie.enter("ab cd ef");
-        trie.enter("ab cd ef");
-        trie.enter("ab cd ef");
-        trie.enter("ab ef cd");
-        trie.enter("ab ef cd");
-        trie.enter("ef cd ab");
+        trie.enter(&"ab cd ef".to_string());
+        trie.enter(&"ab cd ef".to_string());
+        trie.enter(&"ab cd ef".to_string());
+        trie.enter(&"ab ef cd".to_string());
+        trie.enter(&"ab ef cd".to_string());
+        trie.enter(&"ef cd ab".to_string());
 
-        assert_eq!(trie.0.len(), 3);
-        assert_eq!(trie.0.get("ab cd ef"), Some(&3));
-        assert_eq!(trie.0.get("ab ef cd"), Some(&2));
-        assert_eq!(trie.0.get("ef cd ab"), Some(&1));
+        assert_eq!(trie.0.get(&"ab cd ef".to_string()), Some(&3));
+        assert_eq!(trie.0.get(&"ab ef cd".to_string()), Some(&2));
+        assert_eq!(trie.0.get(&"ef cd ab".to_string()), Some(&1));
     }
 
     #[test]
@@ -163,21 +175,21 @@ mod tests {
         let trie = {
             let mut trie = EnteredCommands(CommandCountMap::new());
 
-            trie.enter("abzzz ef");
-            trie.enter("abzzz ef");
-            trie.enter("abzzz ef");
-            trie.enter("ab ef cd");
-            trie.enter("ab ef cd");
-            trie.enter("abxxx");
-            trie.enter("yyyyy");
+            trie.enter(&"abzzz ef".to_string());
+            trie.enter(&"abzzz ef".to_string());
+            trie.enter(&"abzzz ef".to_string());
+            trie.enter(&"ab ef cd".to_string());
+            trie.enter(&"ab ef cd".to_string());
+            trie.enter(&"abxxx".to_string());
+            trie.enter(&"yyyyy".to_string());
             trie
         };
 
-        let mut options = trie.predict("ab");
-        assert_eq!(options.next(), Some("zzz ef"));
-        assert_eq!(options.next(), Some(" ef cd"));
-        assert_eq!(options.next(), Some("xxx"));
-        assert_eq!(options.next(), None);
+        let options = trie.predict(&"ab".to_string());
+        assert_eq!(options.len(), 3);
+        assert_eq!(options[0], "zzz ef");
+        assert_eq!(options[1], " ef cd");
+        assert_eq!(options[2], "xxx");
     }
 
     #[test]
@@ -185,12 +197,12 @@ mod tests {
         // Build a history
         let mut history = History(HashMap::new());
 
-        history.enter("/home/user", "ab cd ef");
-        history.enter("/home/user", "ab cd ef");
-        history.enter("/home/user", "ab cd ef");
-        history.enter("/home/user/stuff", "ab cd ef");
-        history.enter("/home/user/stuff", "ab cd ef");
-        history.enter("/home/user", "cd ef");
+        history.enter("/home/user", &"ab cd ef".to_string());
+        history.enter("/home/user", &"ab cd ef".to_string());
+        history.enter("/home/user", &"ab cd ef".to_string());
+        history.enter("/home/user/stuff", &"ab cd ef".to_string());
+        history.enter("/home/user/stuff", &"ab cd ef".to_string());
+        history.enter("/home/user", &"cd ef".to_string());
 
         let mut buffer = Vec::new();
         history.serialize_into(&mut buffer);
@@ -198,7 +210,14 @@ mod tests {
         let maybe_readback = History::deserialize_from(&buffer[..]);
         assert_eq!(maybe_readback.is_ok(), true);
         if let Ok(readback) = maybe_readback {
-            assert_eq!(history, readback);
+            assert_eq!(
+                readback.predict("/home/user", &String::new()),
+                ["ab cd ef", "cd ef"]
+            );
+            assert_eq!(
+                readback.predict("/home/user/stuff", &String::new()),
+                ["ab cd ef"]
+            );
         }
     }
 }

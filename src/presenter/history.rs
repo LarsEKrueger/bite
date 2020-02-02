@@ -161,6 +161,10 @@ impl SubPresenter for HistoryPresenter {
         )
     }
 
+    fn get_overlay(&self, _session:&Session) -> Option<(Vec<String>, usize, usize, i32)> {
+ None
+    }
+
     fn event_special_key(
         mut self: Box<Self>,
         mod_state: &ModifierState,

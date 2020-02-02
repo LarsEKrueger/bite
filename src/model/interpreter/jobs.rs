@@ -31,7 +31,7 @@ use std::mem;
 use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::thread::spawn;
 use std::time::Duration;
