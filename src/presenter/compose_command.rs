@@ -26,12 +26,18 @@ use super::*;
 pub struct ComposeCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
+
+    /// Index of selected prediction
+    selected_prediction: usize,
 }
 
 impl ComposeCommandPresenter {
     /// Allocate a sub-presenter for command composition and input to running programs.
     pub fn new(commons: Box<PresenterCommons>) -> Box<Self> {
-        let mut presenter = ComposeCommandPresenter { commons };
+        let mut presenter = ComposeCommandPresenter {
+            commons,
+            selected_prediction: 0,
+        };
         presenter.to_last_line();
         Box::new(presenter)
     }
@@ -75,94 +81,111 @@ impl ComposeCommandPresenter {
             PresenterCommand::Redraw,
         )
     }
-}
 
-impl SubPresenter for ComposeCommandPresenter {
-    fn finish(self: Box<Self>) -> Box<PresenterCommons> {
-        self.commons
-    }
-
-    fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
-        &self.commons
-    }
-
-    fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons> {
-        &mut self.commons
-    }
-
-    fn to_commons(self) -> Box<PresenterCommons> {
-        self.commons
-    }
-
-    fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-    }
-
-    fn set_next_prompt(self: &mut Self, _bytes: &[u8]) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-    }
-
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-        (self, false)
-    }
-
-    fn line_iter<'a>(
-        &'a self,
-        session: &'a Session,
-    ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
-        Box::new(
-            session
-                .line_iter(true)
-                .chain(self.commons.input_line_iter()),
-        )
-    }
-
-    /// If the cursor at the end of the input, and there are predictions, display them.
-    fn get_overlay(&self, session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
-        if self.commons.text_input.cursor_at_end() {
-            trace!("ComposeCommandPresenter::get_overlay at end");
-            let row =
-                session.line_iter(true).count() + (self.commons.text_input.cursor_y() as usize);
-            let line = self.commons.text_input.extract_text_without_last_nl();
-            trace!("line: »{}«", line);
-            let items = self.commons.interpreter.predict(&line);
-            trace!("items: »{:?}«", items);
-            Some((items, 0, row, self.commons.text_input.cursor_x() as i32))
-        } else {
-            None
+    /// Fix the selected_prediction to cope with changes in the number of items
+    fn fix_selected_prediction(&mut self, item_cnt: usize) {
+        if item_cnt == 0 {
+            self.selected_prediction = 0;
+        } else if self.selected_prediction >= item_cnt {
+            self.selected_prediction = item_cnt - 1;
         }
     }
 
-    /// Handle a click.
-    ///
-    /// If a command was clicked, cycle through the visibility of output and error.
-    fn handle_click(
-        mut self: Box<Self>,
-        button: usize,
-        x: usize,
-        y: usize,
-    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
-        let redraw = if check_response_clicked(&mut *self, button, x, y) {
-            NeedRedraw::Yes
-        } else {
-            NeedRedraw::No
-        };
-        (self, redraw)
+    /// Compute prediction based on the current input.
+    fn predict(&self) -> Vec<String> {
+        let cwd = self.commons.interpreter.get_cwd();
+        let line = self.commons.text_input.extract_text_without_last_nl();
+        self.commons.history.predict(&cwd.to_string_lossy(), &line)
     }
 
-    fn event_special_key(
+    fn event_special_key_prediction(
         mut self: Box<Self>,
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> (Box<dyn SubPresenter>, PresenterCommand) {
         match (mod_state.as_tuple(), key) {
+            // (shift,control,meta)
+            ((false, false, false), SpecialKey::Enter) => {
+                // Take remaining prediction and execute it
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
+                let item = &items[self.selected_prediction];
+                self.commons_mut().text_input_add_characters(item);
+                self.to_last_line();
+                self.execute_input()
+            }
+            ((false, false, false), SpecialKey::Left) => {
+                // Delete the last character
+                self.commons.text_input.delete_left();
+                (self, PresenterCommand::Redraw)
+            }
+            ((false, true, false), SpecialKey::Left) => {
+                // TODO: Delete the last word
+                (self, PresenterCommand::Unknown)
+            }
+            ((false, false, false), SpecialKey::Right) => {
+                // Take the first character from the current prediction
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
+                let item = &items[self.selected_prediction];
+                if let Some(c) = item.chars().next() {
+                    self.commons_mut().text_input_add_characters(&c.to_string());
+                    self.to_last_line();
+                    (self, PresenterCommand::Redraw)
+                } else {
+                    (self, PresenterCommand::Unknown)
+                }
+            }
+            ((false, true, false), SpecialKey::Right) => {
+                // TODO: Take the first word from the current prediction
+                (self, PresenterCommand::Unknown)
+            }
+
+            ((false, false, false), SpecialKey::Up) => {
+                // Decrement the selection index
+                if self.selected_prediction > 0 {
+                    self.selected_prediction -= 1;
+                }
+                (self, PresenterCommand::Redraw)
+            }
+            ((false, false, false), SpecialKey::Down) => {
+                // Increment the selection index
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
+                if self.selected_prediction + 1 < items.len() {
+                    self.selected_prediction += 1;
+                }
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::Home) => {
+                // Delete the whole line
+                self.commons.text_input.reset();
+                self.commons.text_input.make_room();
+                (self, PresenterCommand::Redraw)
+            }
+
+            ((false, false, false), SpecialKey::End) => {
+                // Take the rest of the prediction
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
+                let item = &items[self.selected_prediction];
+                self.commons_mut().text_input_add_characters(item);
+                self.to_last_line();
+                (self, PresenterCommand::Redraw)
+            }
+
+            _ => self.event_special_key_normal(mod_state, key),
+        }
+    }
+
+    fn event_special_key_normal(
+        mut self: Box<Self>,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+        match (mod_state.as_tuple(), key) {
+            // (shift,control,meta)
             ((false, false, false), SpecialKey::Enter) => {
                 if self.is_multi_line() {
                     self.commons_mut().text_input.break_line();
@@ -371,6 +394,109 @@ impl SubPresenter for ComposeCommandPresenter {
 
             _ => (self, PresenterCommand::Unknown),
         }
+    }
+}
+
+impl SubPresenter for ComposeCommandPresenter {
+    fn finish(self: Box<Self>) -> Box<PresenterCommons> {
+        self.commons
+    }
+
+    fn commons<'a>(&'a self) -> &'a Box<PresenterCommons> {
+        &self.commons
+    }
+
+    fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons> {
+        &mut self.commons
+    }
+
+    fn to_commons(self) -> Box<PresenterCommons> {
+        self.commons
+    }
+
+    fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+    }
+
+    fn set_next_prompt(self: &mut Self, _bytes: &[u8]) {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+    }
+
+    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
+        // This should not happen. If it does happen, someone is generating output while the shell
+        // is waiting for commands.
+        // TODO: Log this occurance.
+        (self, false)
+    }
+
+    fn line_iter<'a>(
+        &'a self,
+        session: &'a Session,
+    ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
+        Box::new(
+            session
+                .line_iter(true)
+                .chain(self.commons.input_line_iter()),
+        )
+    }
+
+    /// If the cursor at the end of the input, and there are predictions, display them.
+    fn get_overlay(&self, session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+        if self.commons.text_input.cursor_at_end() {
+            trace!("ComposeCommandPresenter::get_overlay at end");
+            let row =
+                session.line_iter(true).count() + (self.commons.text_input.cursor_y() as usize);
+            let line = self.commons.text_input.extract_text_without_last_nl();
+            trace!("line: »{}«", line);
+
+            // Get cwd
+            let cwd = self.commons.interpreter.get_cwd();
+
+            let items = self.commons.history.predict(&cwd.to_string_lossy(), &line);
+            trace!("items: »{:?}«", items);
+            Some((
+                items,
+                self.selected_prediction,
+                row,
+                self.commons.text_input.cursor_x() as i32,
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// Handle a click.
+    ///
+    /// If a command was clicked, cycle through the visibility of output and error.
+    fn handle_click(
+        mut self: Box<Self>,
+        button: usize,
+        x: usize,
+        y: usize,
+    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
+        let redraw = if check_response_clicked(&mut *self, button, x, y) {
+            NeedRedraw::Yes
+        } else {
+            NeedRedraw::No
+        };
+        (self, redraw)
+    }
+
+    fn event_special_key(
+        self: Box<Self>,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+        if self.commons.text_input.cursor_at_end() {
+            if !self.predict().is_empty() {
+                return self.event_special_key_prediction(mod_state, key);
+            }
+        }
+        self.event_special_key_normal(mod_state, key)
     }
 
     /// Handle pressing modifier + letter.

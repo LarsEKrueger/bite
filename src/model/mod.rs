@@ -18,10 +18,11 @@
 
 //! The model component of the model-view-presenter pattern.
 //!
-//! All modules deal with the bash script interpreter, either interactively or non-interactively.
+//! Most modules deal with the bash script interpreter, either interactively or non-interactively.
 
 pub mod control_sequence;
 pub mod error;
+pub mod history;
 pub mod interpreter;
 pub mod iterators;
 pub mod response;

@@ -31,18 +31,16 @@ mod completion;
 mod compose_command;
 pub mod display_line;
 mod execute_command;
-// TODO: Reactivate when own history exists.
-// mod history;
 mod tui;
 
+use self::compose_command::*;
+use self::display_line::*;
 use model::error::*;
+use model::history::History;
 use model::interpreter::Interpreter;
 use model::iterators::*;
 use model::screen::*;
 use model::session::{Session, SharedSession};
-
-use self::compose_command::*;
-use self::display_line::*;
 
 /// GUI agnostic representation of the modifier keys
 #[derive(Debug)]
@@ -178,8 +176,9 @@ pub struct PresenterCommons {
     /// Currently edited input line
     text_input: Screen,
 
-    // List of all lines we have successfully parsed.
-    // pub history: History,
+    /// List of all lines that have been entered
+    history: History,
+
     /// TermInfo entry for xterm
     term_info: TermInfo,
 }
@@ -234,6 +233,7 @@ impl PresenterCommons {
     pub fn new(
         session: SharedSession,
         interpreter: Interpreter,
+        history: History,
         term_info: TermInfo,
     ) -> Result<Self> {
         // let history = History::new(bash.get_current_user_home_dir());
@@ -247,7 +247,7 @@ impl PresenterCommons {
             button_down: None,
             text_input,
             last_line_shown: 0,
-            // history,
+            history,
             term_info,
         })
     }
@@ -289,16 +289,18 @@ impl Presenter {
     pub fn new(
         session: SharedSession,
         interpreter: Interpreter,
+        history: History,
         term_info: TermInfo,
     ) -> Result<Self> {
         Ok(Presenter(Some(ComposeCommandPresenter::new(Box::new(
-            PresenterCommons::new(session, interpreter, term_info)?,
+            PresenterCommons::new(session, interpreter, history, term_info)?,
         )))))
     }
 
     /// Clean up and get back the interpreter
-    pub fn finish(self) -> Interpreter {
-        self.0.unwrap().finish().interpreter
+    pub fn finish(self) -> (Interpreter, History) {
+        let commons = self.0.unwrap().finish();
+        (commons.interpreter, commons.history)
     }
 
     /// Access sub-presenter read-only for dynamic dispatch

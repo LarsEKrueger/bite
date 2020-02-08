@@ -16,11 +16,18 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//! Various tools that support the implementation, but are not part of the model-view-presenter
-//! pattern.
+//! Tools that help with logging
 
-pub mod commandline;
-pub mod logging;
-pub mod polling;
-pub mod shared_item;
-pub mod versioned_file;
+/// Unwrap a Result, print debug message and return default value in case of error.
+pub fn unwrap_log<T, E>(result: Result<T, E>, desc: &str, default: T) -> T
+where
+    E: core::fmt::Debug,
+{
+    match result {
+        Err(e) => {
+            debug!("BiTE: {}, due to »{:?}«", desc, e);
+            default
+        }
+        Ok(x) => x,
+    }
+}

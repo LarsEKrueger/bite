@@ -29,6 +29,7 @@ use std::time::{Duration, SystemTime};
 use x11::keysym::*;
 use x11::xlib::*;
 
+use model::history::History;
 use model::interpreter::Interpreter;
 use model::iterators::LineType;
 use model::screen::Cell;
@@ -202,7 +203,11 @@ impl Gui {
     ///
     /// Not all return codes are checked (yet), so might cause crashes that could have been
     /// detected at startup.
-    pub fn new(session: SharedSession, interpreter: Interpreter) -> Result<Gui, String> {
+    pub fn new(
+        session: SharedSession,
+        interpreter: Interpreter,
+        history: History,
+    ) -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
         let WM_DELETE_WINDOW = cstr!("WM_DELETE_WINDOW");
         let EMPTY = cstr!("");
@@ -212,7 +217,7 @@ impl Gui {
         let presenter = {
             // Only the presenter needs to know the term info for TUI applications.
             let term_info = TermInfo::from_name("xterm").map_err(|e| format!("{}", e))?;
-            Presenter::new(session, interpreter, term_info)
+            Presenter::new(session, interpreter, history, term_info)
                 .or_else(|e| Err(e.readable("during initialisation")))
         }?;
 
@@ -866,8 +871,8 @@ impl Gui {
         }
     }
 
-    /// Frees all X resources and get back the interpreter
-    pub fn finish(self) -> Interpreter {
+    /// Frees all X resources and get back the owned objects
+    pub fn finish(self) -> (Interpreter, History) {
         unsafe {
             XDestroyIC(self.xic);
             XCloseIM(self.xim);

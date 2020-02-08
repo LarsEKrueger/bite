@@ -70,13 +70,19 @@ extern crate term;
 extern crate termios;
 
 use std::panic::PanicInfo;
+use std::path::PathBuf;
 
 pub mod model;
 pub mod presenter;
 pub mod tools;
 pub mod view;
 
+use model::history::History;
+
 extern crate backtrace;
+
+/// Name of the file to store the history
+const BITE_HISTFILENAME: &str = ".bitehistory";
 
 fn panic_hook(info: &PanicInfo) {
     let err_msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
@@ -142,6 +148,24 @@ pub fn main() {
     #[cfg(debug_assertions)]
     info!("{:?}", params);
 
+    // Load the history
+    let history = {
+        let home = std::env::var("HOME").unwrap_or(".".to_string());
+        let mut bitehist_name = PathBuf::from(home);
+        bitehist_name.push(BITE_HISTFILENAME);
+
+        match History::load(&bitehist_name.to_string_lossy()) {
+            Ok(history) => history,
+            Err(msg) => {
+                debug!(
+                    "Could not load history file from »{:?}«. Error: {}",
+                    bitehist_name, msg
+                );
+                History::new()
+            }
+        }
+    };
+
     // Create the session
     let session =
         model::session::SharedSession::new(model::screen::Screen::one_line_matrix(b"System"));
@@ -150,7 +174,7 @@ pub fn main() {
     let interpreter = model::interpreter::Interpreter::new(session.clone());
 
     // Start the gui
-    let mut gui = match ::view::Gui::new(session, interpreter) {
+    let mut gui = match ::view::Gui::new(session, interpreter, history) {
         Err(err) => {
             error!("Can't init GUI: {}", err);
             println!("Can't init GUI: {}", err);
@@ -170,12 +194,24 @@ pub fn main() {
 
     // Run the gui loop until the program is closed
     gui.main_loop();
-    let interpreter = gui.finish();
+    let (interpreter, history) = gui.finish();
 
     trace!("GUI finished");
     // Shutdown interpreter and wait for it to end
     interpreter.shutdown();
     trace!("interpreter shut down");
+
+    {
+        let home = std::env::var("HOME").unwrap_or(".".to_string());
+        let mut bitehist_name = PathBuf::from(home);
+        bitehist_name.push(BITE_HISTFILENAME);
+        if let Err(msg) = history.save(&bitehist_name.to_string_lossy()) {
+            debug!(
+                "Could not save history file to »{:?}«. Error: {}",
+                bitehist_name, msg
+            );
+        }
+    }
 
     let _ = std::panic::take_hook();
     info!("Exiting bite normally");
