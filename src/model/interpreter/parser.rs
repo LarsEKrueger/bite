@@ -22,7 +22,7 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{line_ending, none_of, not_line_ending, space0, space1};
 use nom::combinator::{map, recognize};
-use nom::multi::{many1, separated_list};
+use nom::multi::{many1, separated_list, separated_nonempty_list};
 use nom::sequence::{preceded, terminated, tuple};
 use nom::IResult;
 
@@ -95,7 +95,7 @@ pub enum Command<'a> {
 ///
 /// The parser expects a line terminator as the last character.
 pub fn script(input: Span) -> IResult<Span, ParsingResult> {
-    alt((empty_line, logical, comment))(input)
+    alt((empty_line, comment, logical))(input)
 }
 
 /// Version of nom's separated_list that can fix the last parsed output by the value of the
@@ -144,7 +144,71 @@ where
                         )));
                     }
 
-                    fix(res.last_mut().unwrap(), o2);
+                    match f(i1.clone()) {
+                        Err(nom::Err::Error(_)) => return Ok((i, res)),
+                        Err(e) => return Err(e),
+                        Ok((i2, o)) => {
+                            if i2 == i {
+                                return Err(nom::Err::Error(E::from_error_kind(
+                                    i2,
+                                    nom::error::ErrorKind::SeparatedList,
+                                )));
+                            }
+                            fix(res.last_mut().unwrap(), o2);
+
+                            res.push(o);
+                            i = i2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn separated_nonempty_list_fix<I, O, O2, E, F, G, Fix>(
+    sep: G,
+    f: F,
+    fix: Fix,
+) -> impl Fn(I) -> IResult<I, Vec<O>, E>
+where
+    I: Clone + PartialEq,
+    F: Fn(I) -> IResult<I, O, E>,
+    G: Fn(I) -> IResult<I, O2, E>,
+    Fix: Fn(&mut O, O2),
+    E: nom::error::ParseError<I>,
+{
+    move |i: I| {
+        let mut res = Vec::new();
+        let mut i = i.clone();
+
+        // Parse the first element
+        match f(i.clone()) {
+            Err(e) => return Err(e),
+            Ok((i1, o)) => {
+                if i1 == i {
+                    return Err(nom::Err::Error(E::from_error_kind(
+                        i1,
+                        nom::error::ErrorKind::SeparatedList,
+                    )));
+                }
+
+                res.push(o);
+                i = i1;
+            }
+        }
+
+        loop {
+            match sep(i.clone()) {
+                Err(nom::Err::Error(_)) => return Ok((i, res)),
+                Err(e) => return Err(e),
+                Ok((i1, o2)) => {
+                    if i1 == i {
+                        return Err(nom::Err::Error(E::from_error_kind(
+                            i1,
+                            nom::error::ErrorKind::SeparatedList,
+                        )));
+                    }
 
                     match f(i1.clone()) {
                         Err(nom::Err::Error(_)) => return Ok((i, res)),
@@ -156,6 +220,8 @@ where
                                     nom::error::ErrorKind::SeparatedList,
                                 )));
                             }
+
+                            fix(res.last_mut().unwrap(), o2);
 
                             res.push(o);
                             i = i2;
@@ -184,15 +250,20 @@ fn comment(input: Span) -> IResult<Span, ParsingResult> {
 /// separator (e.g. &).
 fn logical(input: Span) -> IResult<Span, ParsingResult> {
     let unterminated_expression =
-        separated_list_fix(logical_operator, pipeline, |pipe, op| pipe.operator = op);
+        separated_nonempty_list_fix(logical_operator, pipeline, |pipe, op| pipe.operator = op);
     let expression_terminators = alt((
         map(tag("&"), |_| BackgroundMode::Background),
         map(tag(";"), |_| BackgroundMode::Foreground),
         map(line_ending, |_| BackgroundMode::Foreground),
     ));
     map(
-        tuple((space0, unterminated_expression, expression_terminators)),
-        |(_, pipelines, bg_mode)| ParsingResult::Logical(pipelines, bg_mode),
+        tuple((
+            space0,
+            unterminated_expression,
+            space0,
+            expression_terminators,
+        )),
+        |(_, pipelines, _, bg_mode)| ParsingResult::Logical(pipelines, bg_mode),
     )(input)
 }
 
@@ -212,7 +283,7 @@ fn logical_operator(input: Span) -> IResult<Span, LogicalOperator> {
 /// TODO: Handle ! and time.
 fn pipeline(input: Span) -> IResult<Span, Pipeline> {
     let pipe = map(
-        separated_list_fix(pipeline_operator, command, |cmd, op| cmd.operator = op),
+        separated_nonempty_list_fix(pipeline_operator, command, |cmd, op| cmd.operator = op),
         |cmds| Pipeline {
             commands: cmds,
             operator: LogicalOperator::Nothing,
@@ -241,9 +312,10 @@ fn command(input: Span) -> IResult<Span, PipelineCommand> {
 }
 
 fn simple_command(input: Span) -> IResult<Span, Command> {
-    map(preceded(space0, separated_list(space1, word)), |words| {
-        Command::Program(words)
-    })(input)
+    map(
+        preceded(space0, separated_nonempty_list(space1, word)),
+        |words| Command::Program(words),
+    )(input)
 }
 
 fn word(input: Span) -> IResult<Span, Span> {
@@ -1256,6 +1328,210 @@ mod tests {
                     ],
                     operator: LogicalOperator::Nothing
                 }
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_logical() {
+        // Two commands, and
+        assert_eq!(
+            logical(Span::new("ab cd && de fg\n")),
+            Ok((
+                span(15, 2, ""),
+                ParsingResult::Logical(
+                    vec![
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![span(0, 1, "ab"), span(3, 1, "cd")]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::And
+                        },
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![
+                                    span(9, 1, "de"),
+                                    span(12, 1, "fg"),
+                                ]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::Nothing
+                        }
+                    ],
+                    BackgroundMode::Foreground
+                )
+            ))
+        );
+
+        // Two commands, or
+        assert_eq!(
+            logical(Span::new("ab cd || de fg\n")),
+            Ok((
+                span(15, 2, ""),
+                ParsingResult::Logical(
+                    vec![
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![span(0, 1, "ab"), span(3, 1, "cd")]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::Or
+                        },
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![
+                                    span(9, 1, "de"),
+                                    span(12, 1, "fg"),
+                                ]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::Nothing
+                        }
+                    ],
+                    BackgroundMode::Foreground
+                )
+            ))
+        );
+
+        // Two pipelines, or
+        assert_eq!(
+            logical(Span::new("ab cd | de fg || gh ij | kl mn\n")),
+            Ok((
+                span(31, 2, ""),
+                ParsingResult::Logical(
+                    vec![
+                        Pipeline {
+                            commands: vec![
+                                PipelineCommand {
+                                    command: Command::Program(vec![
+                                        span(0, 1, "ab"),
+                                        span(3, 1, "cd")
+                                    ]),
+                                    operator: PipelineOperator::StdoutOnly
+                                },
+                                PipelineCommand {
+                                    command: Command::Program(vec![
+                                        span(8, 1, "de"),
+                                        span(11, 1, "fg")
+                                    ]),
+                                    operator: PipelineOperator::Nothing
+                                },
+                            ],
+                            operator: LogicalOperator::Or
+                        },
+                        Pipeline {
+                            commands: vec![
+                                PipelineCommand {
+                                    command: Command::Program(vec![
+                                        span(17, 1, "gh"),
+                                        span(20, 1, "ij"),
+                                    ]),
+                                    operator: PipelineOperator::StdoutOnly
+                                },
+                                PipelineCommand {
+                                    command: Command::Program(vec![
+                                        span(25, 1, "kl"),
+                                        span(28, 1, "mn"),
+                                    ]),
+                                    operator: PipelineOperator::Nothing
+                                }
+                            ],
+                            operator: LogicalOperator::Nothing
+                        }
+                    ],
+                    BackgroundMode::Foreground
+                )
+            ))
+        );
+
+        // Two commands, and, semicolon
+        assert_eq!(
+            logical(Span::new("ab cd && de fg;")),
+            Ok((
+                span(15, 1, ""),
+                ParsingResult::Logical(
+                    vec![
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![span(0, 1, "ab"), span(3, 1, "cd")]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::And
+                        },
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![
+                                    span(9, 1, "de"),
+                                    span(12, 1, "fg"),
+                                ]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::Nothing
+                        }
+                    ],
+                    BackgroundMode::Foreground
+                )
+            ))
+        );
+
+        // Two commands, and, space, semicolon
+        assert_eq!(
+            logical(Span::new("ab cd && de fg ;")),
+            Ok((
+                span(16, 1, ""),
+                ParsingResult::Logical(
+                    vec![
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![span(0, 1, "ab"), span(3, 1, "cd")]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::And
+                        },
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![
+                                    span(9, 1, "de"),
+                                    span(12, 1, "fg"),
+                                ]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::Nothing
+                        }
+                    ],
+                    BackgroundMode::Foreground
+                )
+            ))
+        );
+
+        // Two commands, and, space, ampersand
+        assert_eq!(
+            logical(Span::new("ab cd && de fg &")),
+            Ok((
+                span(16, 1, ""),
+                ParsingResult::Logical(
+                    vec![
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![span(0, 1, "ab"), span(3, 1, "cd")]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::And
+                        },
+                        Pipeline {
+                            commands: vec![PipelineCommand {
+                                command: Command::Program(vec![
+                                    span(9, 1, "de"),
+                                    span(12, 1, "fg"),
+                                ]),
+                                operator: PipelineOperator::Nothing
+                            },],
+                            operator: LogicalOperator::Nothing
+                        }
+                    ],
+                    BackgroundMode::Background
+                )
             ))
         );
     }
