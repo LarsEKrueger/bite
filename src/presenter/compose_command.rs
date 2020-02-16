@@ -64,7 +64,7 @@ impl ComposeCommandPresenter {
         &mut self.commons.text_input
     }
 
-    fn execute_input(mut self) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn execute_input(mut self: Box<Self>) -> (Box<dyn SubPresenter>, PresenterCommand) {
         let line = self.commons.text_input.extract_text_without_last_nl();
         self.commons.text_input.reset();
         self.commons.text_input.make_room();
@@ -73,13 +73,15 @@ impl ComposeCommandPresenter {
         line_with_nl.push('\n');
 
         // Send command to interpreter
-        let interaction_handle = self.commons.interpreter.run_command(line_with_nl);
+        // TODO
+        // let interaction_handle = self.commons.interpreter.run_command(line_with_nl);
 
-        // Wait for the command to finish
-        (
-            ExecuteCommandPresenter::new(self.commons, interaction_handle),
-            PresenterCommand::Redraw,
-        )
+        // // Wait for the command to finish
+        // (
+        //     ExecuteCommandPresenter::new(self.commons, interaction_handle),
+        //     PresenterCommand::Redraw,
+        // )
+        (self, PresenterCommand::Redraw)
     }
 
     /// Fix the selected_prediction to cope with changes in the number of items

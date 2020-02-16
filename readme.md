@@ -252,7 +252,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
     * [X] Launch foreground program using Job.
     * [X] Implement Jobs
-    * [ ] Extend parser to backgrounding (non-pipe)
+    * [X] Extend parser to backgrounding (non-pipe)
     * [ ] Launch background program using Jobs
     * [ ] Extend parser and Job to launch pipes
     * [X] Add quick switching of last command's output screens

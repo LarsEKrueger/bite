@@ -31,7 +31,7 @@ pub type Span<'a> = LocatedSpan<&'a str>;
 
 /// The result of the parse
 #[derive(Debug, PartialEq)]
-pub enum ParsingResult<'a> {
+pub enum AbstractSyntaxTree<'a> {
     /// Nothing to do, e.g. an empty string.
     Nothing,
     /// A comment. It ends in this line. The returned span does not include the comment leader.
@@ -49,7 +49,7 @@ struct Pipeline<'a> {
 /// How to react on the failure of a command
 #[derive(Debug, PartialEq)]
 pub enum LogicalOperator {
-    /// Default value, only to be set for the last element of ParsingResult::Logical
+    /// Default value, only to be set for the last element of AbstractSyntaxTree::Logical
     Nothing,
     /// Short-cut AND
     And,
@@ -94,7 +94,7 @@ pub enum Command<'a> {
 /// loop. The function consumes the terminator and returns the next position.
 ///
 /// The parser expects a line terminator as the last character.
-pub fn script(input: Span) -> IResult<Span, ParsingResult> {
+pub fn script(input: Span) -> IResult<Span, AbstractSyntaxTree> {
     alt((empty_line, comment, logical))(input)
 }
 
@@ -234,21 +234,23 @@ where
 }
 
 /// Parse an empty line
-fn empty_line(input: Span) -> IResult<Span, ParsingResult> {
-    map(terminated(space0, line_ending), |_| ParsingResult::Nothing)(input)
+fn empty_line(input: Span) -> IResult<Span, AbstractSyntaxTree> {
+    map(terminated(space0, line_ending), |_| {
+        AbstractSyntaxTree::Nothing
+    })(input)
 }
 
 /// Parse a comment. Skip any spaces
-fn comment(input: Span) -> IResult<Span, ParsingResult> {
+fn comment(input: Span) -> IResult<Span, AbstractSyntaxTree> {
     map(
         tuple((space0, tag("#"), space0, not_line_ending, line_ending)),
-        |(_, _, _, cmt, _)| ParsingResult::Comment(cmt),
+        |(_, _, _, cmt, _)| AbstractSyntaxTree::Comment(cmt),
     )(input)
 }
 
 /// Parse a logical conjunction of pipelines. In contrast to bash, the parsing stops at the first
 /// separator (e.g. &).
-fn logical(input: Span) -> IResult<Span, ParsingResult> {
+fn logical(input: Span) -> IResult<Span, AbstractSyntaxTree> {
     let unterminated_expression =
         separated_nonempty_list_fix(logical_operator, pipeline, |pipe, op| pipe.operator = op);
     let expression_terminators = alt((
@@ -263,7 +265,7 @@ fn logical(input: Span) -> IResult<Span, ParsingResult> {
             space0,
             expression_terminators,
         )),
-        |(_, pipelines, _, bg_mode)| ParsingResult::Logical(pipelines, bg_mode),
+        |(_, pipelines, _, bg_mode)| AbstractSyntaxTree::Logical(pipelines, bg_mode),
     )(input)
 }
 
@@ -1206,11 +1208,11 @@ mod tests {
     fn parse_command_empty() {
         assert_eq!(
             script(Span::new("\n")),
-            Ok((span(1, 2, ""), ParsingResult::Nothing))
+            Ok((span(1, 2, ""), AbstractSyntaxTree::Nothing))
         );
         assert_eq!(
             script(Span::new(" \n")),
-            Ok((span(2, 2, ""), ParsingResult::Nothing))
+            Ok((span(2, 2, ""), AbstractSyntaxTree::Nothing))
         );
     }
 
@@ -1218,13 +1220,16 @@ mod tests {
     fn parse_command_comment() {
         assert_eq!(
             script(Span::new("# Stuff \n")),
-            Ok((span(9, 2, ""), ParsingResult::Comment(span(2, 1, "Stuff "))))
+            Ok((
+                span(9, 2, ""),
+                AbstractSyntaxTree::Comment(span(2, 1, "Stuff "))
+            ))
         );
         assert_eq!(
             script(Span::new(" # Stuff \n")),
             Ok((
                 span(10, 2, ""),
-                ParsingResult::Comment(span(3, 1, "Stuff "))
+                AbstractSyntaxTree::Comment(span(3, 1, "Stuff "))
             ))
         );
     }
@@ -1339,7 +1344,7 @@ mod tests {
             logical(Span::new("ab cd && de fg\n")),
             Ok((
                 span(15, 2, ""),
-                ParsingResult::Logical(
+                AbstractSyntaxTree::Logical(
                     vec![
                         Pipeline {
                             commands: vec![PipelineCommand {
@@ -1369,7 +1374,7 @@ mod tests {
             logical(Span::new("ab cd || de fg\n")),
             Ok((
                 span(15, 2, ""),
-                ParsingResult::Logical(
+                AbstractSyntaxTree::Logical(
                     vec![
                         Pipeline {
                             commands: vec![PipelineCommand {
@@ -1399,7 +1404,7 @@ mod tests {
             logical(Span::new("ab cd | de fg || gh ij | kl mn\n")),
             Ok((
                 span(31, 2, ""),
-                ParsingResult::Logical(
+                AbstractSyntaxTree::Logical(
                     vec![
                         Pipeline {
                             commands: vec![
@@ -1450,7 +1455,7 @@ mod tests {
             logical(Span::new("ab cd && de fg;")),
             Ok((
                 span(15, 1, ""),
-                ParsingResult::Logical(
+                AbstractSyntaxTree::Logical(
                     vec![
                         Pipeline {
                             commands: vec![PipelineCommand {
@@ -1480,7 +1485,7 @@ mod tests {
             logical(Span::new("ab cd && de fg ;")),
             Ok((
                 span(16, 1, ""),
-                ParsingResult::Logical(
+                AbstractSyntaxTree::Logical(
                     vec![
                         Pipeline {
                             commands: vec![PipelineCommand {
@@ -1510,7 +1515,7 @@ mod tests {
             logical(Span::new("ab cd && de fg &")),
             Ok((
                 span(16, 1, ""),
-                ParsingResult::Logical(
+                AbstractSyntaxTree::Logical(
                     vec![
                         Pipeline {
                             commands: vec![PipelineCommand {
