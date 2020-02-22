@@ -19,6 +19,7 @@
 //! Byte Code for Shell Scripts
 
 use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
+use super::parser::{AbstractSyntaxTree, Pipeline, LogicalOperator, PipelineOperator, Command, PipelineCommand};
 
 /// Instructions to execute
 pub type Instructions = Vec<Instruction>;
@@ -95,6 +96,9 @@ pub enum Instruction {
 
     /// Invert logical value of top-of-stack value
     Not,
+
+    /// Placeholder for redirection
+    Redirect,
 }
 
 /// The byte code interpreter.
@@ -149,12 +153,15 @@ impl Launchpad {
     /// Complete ann incomplete words
     fn finalize_words(&mut self) {
         for arg in self.incomplete_args() {
-            let mut res = String::new();
-            for s in &*arg { res.push_str(&s); }
-            *arg = vec![res];
+            if arg.len() != 1 {
+                let mut res = String::new();
+                for s in &*arg {
+                    res.push_str(&s);
+                }
+                *arg = vec![res];
+            }
         }
         self.marker = self.args.len();
-
     }
 }
 
@@ -172,6 +179,10 @@ impl Runner {
             match i {
                 Instruction::Lit(s) => self.launchpad.lit(s),
                 Instruction::Word => self.launchpad.finalize_words(),
+                Instruction::Exec => {
+                    // finalize the words to have single strings
+                    self.launchpad.finalize_words();
+                }
 
                 _ => {
                     error!("Unhandled instruction {:?}", i);
@@ -181,9 +192,92 @@ impl Runner {
     }
 }
 
+fn compile_command<'a>(
+    instructions: &mut Instructions,
+    pipeline_command: PipelineCommand<'a>
+) -> Result<(), String> {
+    match pipeline_command.command {
+        Command::Program( args) => {
+            for a in args {
+                instructions.push( Instruction::Lit(a.to_string()));
+                instructions.push( Instruction::Word);
+            }
+        }
+    }
+    match pipeline_command.operator {
+        PipelineOperator::StderrAndStdout => {
+            // TODO: Proper redirection
+            instructions.push( Instruction::Redirect);
+        }
+        _ => {
+            // No redirection required
+        }
+    }
+    instructions.push( Instruction::Exec);
+
+    Ok(())
+}
+
+fn compile_pipeline<'a>(
+    instructions: &mut Instructions,
+    jump_stack: &mut Vec<i32>,
+    pipeline: Pipeline<'a>,
+) -> Result<(), String> {
+
+    for cmd in pipeline.commands {
+        compile_command( instructions, cmd)?;
+    }
+                instructions.push( Instruction::Wait);
+    match pipeline.operator {
+        LogicalOperator::Nothing => {
+            // Do nothing
+        }
+        LogicalOperator::Or |
+        LogicalOperator::And => {
+            instructions.push( Instruction::Success);
+            if pipeline.operator == LogicalOperator::Or {
+                instructions.push( Instruction::Not);
+            }
+            jump_stack.push( instructions.len() as i32);
+            instructions.push( Instruction::JumpIfNot(0));
+        }
+    }
+
+    Ok(())
+}
+
+pub fn compile<'a>(
+    instructions: &mut Instructions,
+    ast: AbstractSyntaxTree<'a>,
+) -> Result<(), String> {
+    match ast {
+        AbstractSyntaxTree::Comment(_) | AbstractSyntaxTree::Nothing => {
+            // Do nothing
+        }
+        AbstractSyntaxTree::Logical(terms, background_mode) => {
+            // Compile the terms one by one
+            // Remember where forward jumps were, so their targets can be fixed
+            let mut jump_stack: Vec<i32> = Vec::new();
+            for p in terms {
+                compile_pipeline(instructions, &mut jump_stack, p)?;
+            }
+            let jump_tgt = instructions.len() as i32;
+            for jump_source in jump_stack {
+                if let Instruction::JumpIfNot(_) = instructions[jump_source as usize] {
+                    instructions[jump_source as usize] =
+                        Instruction::JumpIfNot(jump_tgt - jump_source);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::parser;
 
     #[test]
     fn lit_and_finalize() {
@@ -198,5 +292,41 @@ mod tests {
         lp.finalize_words();
         assert_eq!(lp.marker, 1);
         assert_eq!(lp.args, vec![vec!["tennineeight"]]);
+    }
+
+    #[test]
+    fn compile_logical() {
+        let input = parser::Span::new( "ab cd | ef gh ij || stuff\n");
+        let ast = parser::script(input);
+        assert_eq!( ast.is_ok(), true);
+        if let Ok((rest,ast)) = ast {
+            assert_eq!( rest, parser::Span { offset:26,line:2, fragment:"", extra:{}});
+            let mut instructions  = Vec::new();
+            let compile_result = super::compile(&mut instructions, ast);
+            assert_eq!( compile_result.is_ok(), true);
+
+            assert_eq!(instructions, vec![
+                       Instruction::Lit("ab".to_string()),
+                       Instruction::Word,
+                       Instruction::Lit("cd".to_string()),
+                       Instruction::Word,
+                       Instruction::Exec,
+                       Instruction::Lit("ef".to_string()),
+                       Instruction::Word,
+                       Instruction::Lit("gh".to_string()),
+                       Instruction::Word,
+                       Instruction::Lit("ij".to_string()),
+                       Instruction::Word,
+                       Instruction::Exec,
+                       Instruction::Wait,
+                       Instruction::Success,
+                       Instruction::Not,
+                       Instruction::JumpIfNot(5),
+                       Instruction::Lit("stuff".to_string()),
+                       Instruction::Word,
+                       Instruction::Exec,
+                       Instruction::Wait,
+            ]);
+        }
     }
 }

@@ -21,6 +21,9 @@
 use super::completion::CompleteCommandPresenter;
 use super::execute_command::ExecuteCommandPresenter;
 use super::*;
+use model::session::{OutputVisibility, RunningStatus};
+
+use std::os::unix::process::ExitStatusExt;
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -72,15 +75,40 @@ impl ComposeCommandPresenter {
         let mut line_with_nl = line.clone();
         line_with_nl.push('\n');
 
-        // Send command to interpreter
-        // TODO
-        // let interaction_handle = self.commons.interpreter.run_command(line_with_nl);
+        // Check if the input parses
+        match self.commons.interpreter.parse_script(&line_with_nl) {
+            Ok(instructions) => {
+                // Run the compiled instructions
+                let interaction_handle = self.commons.interpreter.run(line_with_nl, instructions);
+                // Wait for the command to finish
+                return (
+                    ExecuteCommandPresenter::new(self.commons, interaction_handle),
+                    PresenterCommand::Redraw,
+                );
+            }
+            Err(msg) => {
+                // Create a fake interaction, print the error, set the return code to error
+                let interaction_handle = self
+                    .commons
+                    .session
+                    .add_interaction(Screen::one_line_matrix(line.as_bytes()));
+                self.commons.session.add_bytes(
+                    OutputVisibility::Error,
+                    interaction_handle,
+                    msg.as_bytes(),
+                );
+                self.commons.session.set_running_status(
+                    interaction_handle,
+                    RunningStatus::Exited(ExitStatusExt::from_raw(1)),
+                );
+                self.commons
+                    .session
+                    .set_visibility(interaction_handle, OutputVisibility::Error);
+                // Put back the input
+                self.commons.text_input.replace(&line, false);
+            }
+        }
 
-        // // Wait for the command to finish
-        // (
-        //     ExecuteCommandPresenter::new(self.commons, interaction_handle),
-        //     PresenterCommand::Redraw,
-        // )
         (self, PresenterCommand::Redraw)
     }
 

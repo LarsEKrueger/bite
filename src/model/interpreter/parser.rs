@@ -41,9 +41,9 @@ pub enum AbstractSyntaxTree<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-struct Pipeline<'a> {
-    commands: Vec<PipelineCommand<'a>>,
-    operator: LogicalOperator,
+pub struct Pipeline<'a> {
+    pub commands: Vec<PipelineCommand<'a>>,
+    pub operator: LogicalOperator,
 }
 
 /// How to react on the failure of a command
@@ -77,8 +77,8 @@ pub enum PipelineOperator {
 /// A command in a pipeline
 #[derive(Debug, PartialEq)]
 pub struct PipelineCommand<'a> {
-    command: Command<'a>,
-    operator: PipelineOperator,
+    pub command: Command<'a>,
+    pub operator: PipelineOperator,
 }
 
 /// Command the shell can handle

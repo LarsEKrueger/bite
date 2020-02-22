@@ -153,33 +153,33 @@ impl Interpreter {
     }
 
     /// Parse a (partial) script and either return the byte code array or an error message
-    pub fn parse_script(&self, script: String) -> Result<byte_code::Instructions, String> {
-        let instructions: byte_code::Instructions = Vec::new();
+    pub fn parse_script(&self, script: &String) -> Result<byte_code::Instructions, String> {
+        let mut instructions: byte_code::Instructions = Vec::new();
 
-        let mut input = parser::Span::new(&script);
+        let mut input = parser::Span::new(script);
         while !input.fragment.is_empty() {
             match parser::script(input) {
                 Ok((rest, ast)) => {
-                    // TODO: Compile AST into instructions
-
+                    // Compile AST into instructions
+                    byte_code::compile(&mut instructions, ast)?;
                     input = rest;
                 }
                 Err(nom::Err::Incomplete(needed)) => {
                     // TODO: Create error message
-                    let msg = String::new();
-
+                    let mut msg = String::new();
+                    msg.push_str(&format!("Incomplete: {:?}", needed));
                     return Err(msg);
                 }
                 Err(nom::Err::Error(code)) => {
                     // TODO: Create error message
-                    let msg = String::new();
-
+                    let mut msg = String::new();
+                    msg.push_str(&format!("Error: {:?}", code));
                     return Err(msg);
                 }
                 Err(nom::Err::Failure(code)) => {
                     // TODO: Create error message
-                    let msg = String::new();
-
+                    let mut msg = String::new();
+                    msg.push_str(&format!("Failure: {:?}", code));
                     return Err(msg);
                 }
             }
@@ -188,11 +188,11 @@ impl Interpreter {
         Ok(instructions)
     }
 
-    /// Execute a (partial) script.
+    /// Execute a set of instructions.
     ///
     /// If the interpreter is still busy with another one, this call will block. The output of any
     /// command started from this call will be added to the given interaction.
-    pub fn run_command(
+    pub fn run(
         &mut self,
         command: String,
         instructions: byte_code::Instructions,
