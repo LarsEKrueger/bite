@@ -20,6 +20,7 @@
 
 pub mod change_dir;
 
+use std::fmt::Debug;
 use std::io::Write;
 use std::os::unix::process::ExitStatusExt;
 

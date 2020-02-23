@@ -18,7 +18,8 @@
 
 //! Byte Code for Shell Scripts
 
-use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
+use super::super::session::{InteractionHandle, OutputVisibility, SharedSession};
+use super::jobs;
 use super::parser::{
     AbstractSyntaxTree, Command, LogicalOperator, Pipeline, PipelineCommand, PipelineOperator,
 };
@@ -34,51 +35,59 @@ pub type Instructions = Vec<Instruction>;
 /// Source:
 ///     ab cd
 /// Byte Code:
-///     Lit("ab") Word Lit("cd") Word Exec Wait
+///     Begin Lit("ab") Word Lit("cd") Word Exec Wait
 ///
 /// ## Pipe
 ///
 /// Source:
 ///     ab cd | de ef
 /// Byte Code:
-///      Lit("ab") Word Lit("cd") Word Exec Lit("de") Word Lit("ef") Word Exec Wait
+///      Begin Lit("ab") Word Lit("cd") Word Exec Lit("de") Word Lit("ef") Word Exec Wait
 ///
 /// Source:
 ///     ab cd |& de ef
 /// Byte Code:
-///      Lit("ab") Word Lit("cd") Word Redirect(Stderr2Stderr) Exec Lit("de") Word Lit("ef") Word Exec Wait
+///      Begin Lit("ab") Word Lit("cd") Word Redirect(Stderr2Stderr) Exec Lit("de") Word Lit("ef") Word Exec Wait
 ///
 /// ## Logical Processing
 ///
 /// Source:
 ///     ab cd && de ef
 /// Byte Code:
-///      Lit("ab") Word Lit("cd") Word Exec Wait Success JumpIfNot(6) Lit("de") Word Lit("ef") Word Exec Wait
+///      Begin Lit("ab") Word Lit("cd") Word Exec Wait Success JumpIfNot(6) Lit("de") Word Lit("ef") Word Exec Wait
 ///
 /// Source:
 ///     ab cd || de ef
 /// Byte Code:
-///      Lit("ab") Word Lit("cd") Word Exec Wait Success Not JumpIfNot(6) Lit("de") Word Lit("ef") Word Exec Wait
+///      Begin Lit("ab") Word Lit("cd") Word Exec Wait Success Not JumpIfNot(6) Lit("de") Word Lit("ef") Word Exec Wait
 ///
 /// ## Backgrounding
 ///
 /// Source:
 ///     ab cd && de ef &
 /// Byte Code:
-///      Background([ Lit("ab") Word Lit("cd") Word Exec Wait Success JumpIfNot(6) Lit("de") Word Lit("ef") Word Exec Wait])
+///      Begin Background([ Lit("ab") Word Lit("cd") Word Exec Wait Success JumpIfNot(6) Lit("de") Word Lit("ef") Word Exec Wait])
 ///
 #[derive(Debug, PartialEq)]
 pub enum Instruction {
+    /// Begin a new pipeline
+    Begin,
+
     /// Put a literal string on the stack of the last word in the launchpad
     Lit(String),
 
     /// Combine all stacks and store as words in the launchpad
     Word,
 
+    /// Set the program name from the first word on the launch pad
+    SetProgram,
+
     /// Run the program on the launch pad.
     ///
     /// Connect the last stdout to stdin. Remember stderr / stdin for the next program.
-    Exec,
+    ///
+    /// Parameter: true if this is the last command of the pipeline
+    Exec(bool),
 
     /// Wait for program to complete. Read from all remaining pipes until all programs close.
     Wait,
@@ -112,9 +121,13 @@ pub struct Runner {
 
     /// Argument stacks for constructing arguments
     launchpad: Launchpad,
+
+    /// Job being started
+    current_pipeline: Option<jobs::PipelineBuilder>,
 }
 
 /// The array of stacks to construct command line arguments
+#[derive(Debug)]
 struct Launchpad {
     /// One stack (inner Vec) for each future argument (outer Vec)
     args: Vec<Vec<String>>,
@@ -172,6 +185,25 @@ impl Runner {
         Self {
             session,
             launchpad: Launchpad::new(),
+            current_pipeline: None,
+        }
+    }
+
+    fn check_error<T, F>(
+        &mut self,
+        interaction: InteractionHandle,
+        res: Result<T, String>,
+        mut f: F,
+    ) where
+        F: FnMut(&mut Self, T),
+    {
+        match res {
+            Ok(value) => f(self, value),
+            Err(msg) => self.session.add_bytes(
+                OutputVisibility::Error,
+                interaction,
+                format!("BiTE: {}", msg).as_bytes(),
+            ),
         }
     }
 
@@ -179,11 +211,48 @@ impl Runner {
     pub fn run(&mut self, instructions: &Instructions, interaction: InteractionHandle) {
         for i in instructions {
             match i {
+                Instruction::Begin => {
+                    if self.current_pipeline.is_some() {
+                        error!(
+                            "Overwriting existing pipeline builder »{:?}«",
+                            self.current_pipeline
+                        );
+                    }
+                    self.check_error(interaction, jobs::PipelineBuilder::new(), |runner, pb| {
+                        runner.current_pipeline = Some(pb)
+                    });
+                }
+
                 Instruction::Lit(s) => self.launchpad.lit(s),
                 Instruction::Word => self.launchpad.finalize_words(),
-                Instruction::Exec => {
+                Instruction::SetProgram => {
                     // finalize the words to have single strings
                     self.launchpad.finalize_words();
+                    if self.launchpad.args.len() != 1 {
+                        warn!(
+                            "Launchpad isn't 1 word long for program name: »{:?}«",
+                            self.launchpad
+                        );
+                    }
+
+                    if let Some(ref mut pb) = self.current_pipeline {
+                        let mut name_stack = self.launchpad.args.remove(0);
+                        let name = name_stack.remove(0);
+                        pb.set_program(name);
+                    } else {
+                        error!("No pipeline builder in SetProgram");
+                    }
+                }
+                Instruction::Exec(is_last) => {
+                    // finalize the words to have single strings
+                    self.launchpad.finalize_words();
+                    if let Some(ref mut pb) = self.current_pipeline {
+                        let args = self.launchpad.args.drain(0..).map(|mut w| w.remove(0));
+                        let res = pb.start(*is_last, args);
+                        self.check_error(interaction, res, |_, _| {});
+                    } else {
+                        error!("No pipeline builder in Exec");
+                    }
                 }
 
                 _ => {
@@ -197,12 +266,18 @@ impl Runner {
 fn compile_command<'a>(
     instructions: &mut Instructions,
     pipeline_command: PipelineCommand<'a>,
+    is_last: bool,
 ) -> Result<(), String> {
     match pipeline_command.command {
         Command::Program(args) => {
+            let mut is_first = true;
             for a in args {
                 instructions.push(Instruction::Lit(a.to_string()));
                 instructions.push(Instruction::Word);
+                if is_first {
+                    instructions.push(Instruction::SetProgram);
+                    is_first = false;
+                }
             }
         }
     }
@@ -215,7 +290,7 @@ fn compile_command<'a>(
             // No redirection required
         }
     }
-    instructions.push(Instruction::Exec);
+    instructions.push(Instruction::Exec(is_last));
 
     Ok(())
 }
@@ -225,8 +300,11 @@ fn compile_pipeline<'a>(
     jump_stack: &mut Vec<i32>,
     pipeline: Pipeline<'a>,
 ) -> Result<(), String> {
-    for cmd in pipeline.commands {
-        compile_command(instructions, cmd)?;
+    instructions.push(Instruction::Begin);
+    let num_commands = pipeline.commands.len();
+    for (ind, cmd) in pipeline.commands.into_iter().enumerate() {
+        let is_last = (ind + 1) == num_commands;
+        compile_command(instructions, cmd, is_last)?;
     }
     instructions.push(Instruction::Wait);
     match pipeline.operator {
@@ -242,7 +320,6 @@ fn compile_pipeline<'a>(
             instructions.push(Instruction::JumpIfNot(0));
         }
     }
-
     Ok(())
 }
 
@@ -316,25 +393,30 @@ mod tests {
             assert_eq!(
                 instructions,
                 vec![
+                    Instruction::Begin,
                     Instruction::Lit("ab".to_string()),
                     Instruction::Word,
+                    Instruction::SetProgram,
                     Instruction::Lit("cd".to_string()),
                     Instruction::Word,
-                    Instruction::Exec,
+                    Instruction::Exec(false),
                     Instruction::Lit("ef".to_string()),
                     Instruction::Word,
+                    Instruction::SetProgram,
                     Instruction::Lit("gh".to_string()),
                     Instruction::Word,
                     Instruction::Lit("ij".to_string()),
                     Instruction::Word,
-                    Instruction::Exec,
+                    Instruction::Exec(true),
                     Instruction::Wait,
                     Instruction::Success,
                     Instruction::Not,
-                    Instruction::JumpIfNot(5),
+                    Instruction::JumpIfNot(7),
+                    Instruction::Begin,
                     Instruction::Lit("stuff".to_string()),
                     Instruction::Word,
-                    Instruction::Exec,
+                    Instruction::SetProgram,
+                    Instruction::Exec(true),
                     Instruction::Wait,
                 ]
             );

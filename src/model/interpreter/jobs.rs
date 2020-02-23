@@ -28,7 +28,7 @@ use nix::unistd::{close, read, write};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::mem;
-use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -39,6 +39,7 @@ use termios::os::target::*;
 use termios::*;
 
 use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
+use super::builtins;
 use super::builtins::{BuiltinRunner, SessionOutput, SessionStderr, SessionStdout};
 
 use tools::shared_item;
@@ -73,7 +74,8 @@ pub struct Job {
 }
 
 /// Handles for the Pseudo Terminals
-struct PtsHandles {
+#[derive(Debug)]
+pub struct PtsHandles {
     /// Stdin PTS master (bite side)
     stdin_m: RawFd,
     /// Stdin PTS slave (command side)
@@ -86,6 +88,56 @@ struct PtsHandles {
     stderr_m: RawFd,
     /// Stderr PTS slave (command side)
     stderr_s: RawFd,
+}
+
+/// Pair of PTS handles
+#[derive(Debug)]
+pub struct PtsPair {
+    /// Stdin PTS master
+    bite_side: RawFd,
+    /// Stdin PTS slave
+    command_side: RawFd,
+}
+
+/// All infos needed during starting a pipeline
+#[derive(Debug)]
+pub struct PipelineBuilder {
+    /// Pseudo terminal handle for sending data to stdin of the whole pipeline. Will not be changed
+    /// after creation
+    stdin_bite_side: RawFd,
+
+    /// Pseudo terminal handle for reading data from stdout of the whole pipeline. Created by last
+    /// program in the pipeline.
+    stdout_bite_side: Option<RawFd>,
+
+    /// Pseudo terminal handle for reading data from stderr of the whole pipeline. Created by last
+    /// program in the pipeline.
+    stderr_bite_side: Option<RawFd>,
+
+    /// fd to use for stdin of the next program. Will be overwritten by every command in the
+    /// pipeline.
+    prev_stdout: RawFd,
+
+    /// Stderr handles to read from
+    stderr: Vec<RawFd>,
+
+    /// Child processes to watch
+    children: Vec<Child>,
+
+    /// Next program to start, might be a builtin
+    next_program: ProgramOrBuiltin,
+}
+
+/// If next program is a builtin, store its function pointer instead of the name
+enum ProgramOrBuiltin {
+    /// Not set
+    Nothing,
+
+    /// Program, keep its name
+    Program(String),
+
+    /// Builtin, keep the function pointer
+    Builtin(BuiltinRunner),
 }
 
 /// Compute the matching control character of a letter
@@ -147,6 +199,31 @@ fn default_termios() -> Termios {
     }
 }
 
+/// Prepare termios struct for use with pts
+fn fixup_termios(termios: &mut Termios) {
+    // Fix termios struct
+    termios.c_iflag &= !(INLCR | IGNCR);
+    termios.c_iflag |= ICRNL;
+    termios.c_iflag |= IUTF8;
+    termios.c_oflag |= OPOST | ONLCR;
+    termios.c_cflag &= !CBAUD;
+    termios.c_lflag |= ISIG | ICANON | ECHO | ECHOE | ECHOK;
+    termios.c_lflag |= ECHOKE | IEXTEN;
+    termios.c_lflag |= ECHOCTL | IEXTEN;
+    termios.c_cflag |= CS8;
+    termios.c_cflag |= B38400;
+    trace!(
+        "ttySetAttr: c_iflag={:x}, c_oflag={:x}, c_cflag={:x}, c_lflag={:x}\n",
+        termios.c_iflag,
+        termios.c_oflag,
+        termios.c_cflag,
+        termios.c_lflag
+    );
+    // c_iflag=4500, c_oflag=5, c_cflag=bf, c_lflag=8a3b
+    fix_termios_cc(termios);
+    cfmakeraw(termios);
+}
+
 /// Create a single pts master/slave pair.
 ///
 /// Returns: (master, slave)
@@ -171,28 +248,7 @@ fn create_terminal(termios: Termios) -> Result<(RawFd, RawFd), String> {
 fn create_terminals() -> Result<PtsHandles, String> {
     // Create an initial termios struct
     let mut termios = default_termios();
-
-    // Fix termios struct
-    termios.c_iflag &= !(INLCR | IGNCR);
-    termios.c_iflag |= ICRNL;
-    termios.c_iflag |= IUTF8;
-    termios.c_oflag |= OPOST | ONLCR;
-    termios.c_cflag &= !CBAUD;
-    termios.c_lflag |= ISIG | ICANON | ECHO | ECHOE | ECHOK;
-    termios.c_lflag |= ECHOKE | IEXTEN;
-    termios.c_lflag |= ECHOCTL | IEXTEN;
-    termios.c_cflag |= CS8;
-    termios.c_cflag |= B38400;
-    trace!(
-        "ttySetAttr: c_iflag={:x}, c_oflag={:x}, c_cflag={:x}, c_lflag={:x}\n",
-        termios.c_iflag,
-        termios.c_oflag,
-        termios.c_cflag,
-        termios.c_lflag
-    );
-    // c_iflag=4500, c_oflag=5, c_cflag=bf, c_lflag=8a3b
-    fix_termios_cc(&mut termios);
-    cfmakeraw(&mut termios);
+    fixup_termios(&mut termios);
 
     // Create the pts pairs
     let (stdin_m, stdin_s) = create_terminal(termios)?;
@@ -206,6 +262,17 @@ fn create_terminals() -> Result<PtsHandles, String> {
         stdout_s,
         stderr_m,
         stderr_s,
+    })
+}
+
+/// Create a pair of PTS handles
+fn create_handle_pair() -> Result<PtsPair, String> {
+    let mut termios = default_termios();
+    fixup_termios(&mut termios);
+    let (bite_side, command_side) = create_terminal(termios)?;
+    Ok(PtsPair {
+        bite_side,
+        command_side,
     })
 }
 
@@ -342,6 +409,104 @@ where
 
     let child = Arc::new(Mutex::new(child));
     Ok((child, handles.stdin_m))
+}
+
+impl std::fmt::Debug for ProgramOrBuiltin {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ProgramOrBuiltin::Nothing => write!(f, "ProgramOrBuiltin::Nothing"),
+            ProgramOrBuiltin::Program(s) => write!(f, "ProgramOrBuiltin::Program {{ {:?} }}", s),
+            ProgramOrBuiltin::Builtin(b) => {
+                write!(f, "ProgramOrBuiltin::Builtin {{ {:?} }}", *b as *const ())
+            }
+        }
+    }
+}
+
+impl PipelineBuilder {
+    /// Prepare a new pipeline
+    pub fn new() -> Result<Self, String> {
+        let stdin_pair = create_handle_pair()?;
+
+        Ok(Self {
+            stdin_bite_side: stdin_pair.bite_side,
+            stdout_bite_side: None,
+            stderr_bite_side: None,
+            prev_stdout: stdin_pair.command_side,
+            stderr: Vec::new(),
+            children: Vec::new(),
+            next_program: ProgramOrBuiltin::Nothing,
+        })
+    }
+
+    /// Set the name of the next program to launch
+    pub fn set_program(&mut self, name: String) {
+        if let ProgramOrBuiltin::Nothing = self.next_program {
+            error!(
+                "Overwriting program »{:?}« with »{}«",
+                self.next_program, name
+            );
+        }
+        self.next_program = if let Some(b) = builtins::runner(&name) {
+            ProgramOrBuiltin::Builtin(b)
+        } else {
+            ProgramOrBuiltin::Program(name)
+        };
+    }
+
+    /// Start a program and hook it into the pipeline
+    ///
+    /// If it's the first program in the pipeline, connect the stdin to the command_side of the
+    /// stdin pts, otherwise connect it to the stdout of the previous program.
+    ///
+    /// If it's the last program in the pipeline, connect to the command_side of the stdout/stderr
+    /// pts, otherwise create them as pipes.
+    pub fn start<I, S>(&mut self, is_last: bool, args: I) -> Result<(), String>
+    where
+        I: IntoIterator<Item = S> + std::fmt::Debug,
+        S: AsRef<OsStr>,
+    {
+        match &self.next_program {
+            ProgramOrBuiltin::Nothing => {
+                error!("No program set for argument »{:?}«", args);
+                Err("Internal error".to_string())
+            }
+            ProgramOrBuiltin::Program(s) => {
+                let handles = create_terminals()?;
+
+                let mut cmd = Command::new(s);
+
+                cmd.args(args)
+                    .stdin(unsafe { Stdio::from_raw_fd(self.prev_stdout) });
+
+                if is_last {
+                    // If this is the last command of the pipeline, create pts for the outputs.
+                    let stdout_pair = create_handle_pair()?;
+                    let stderr_pair = create_handle_pair()?;
+                    self.stdout_bite_side = Some(stdout_pair.bite_side);
+                    self.stderr_bite_side = Some(stderr_pair.bite_side);
+
+                    cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_pair.command_side) })
+                        .stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
+                }
+
+                let child = cmd.spawn().map_err(as_description)?;
+
+                // Get the last stdout, then keep the child for waiting, then check if the pipe
+                // creation worked.
+                let prev_stdout = child
+                    .stdout
+                    .as_ref()
+                    .map(|o| o.as_raw_fd())
+                    .ok_or_else(|| format!("Could not create output pipeline for »{}«", s));
+                self.children.push(child);
+                self.prev_stdout = prev_stdout?;
+
+                Ok(())
+            }
+            ProgramOrBuiltin::Builtin(b) => Err("Not implemented".to_string()),
+        }
+    }
 }
 
 impl SharedJobs {
