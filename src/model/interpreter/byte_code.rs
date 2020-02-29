@@ -90,7 +90,7 @@ pub enum Instruction {
     Exec(bool),
 
     /// Wait for program to complete. Read from all remaining pipes until all programs close.
-    Wait,
+    ForegroundJob,
 
     /// Create a thread and a subshell, execute instructions.
     Background(Instructions),
@@ -118,6 +118,9 @@ pub enum Instruction {
 pub struct Runner {
     /// Session to write output to
     session: SharedSession,
+
+    /// Job list
+    pub jobs: jobs::SharedJobs,
 
     /// Argument stacks for constructing arguments
     launchpad: Launchpad,
@@ -178,12 +181,18 @@ impl Launchpad {
         }
         self.marker = self.args.len();
     }
+
+    fn clear(&mut self) {
+        self.args = Vec::new();
+        self.marker = 0;
+    }
 }
 
 impl Runner {
-    pub fn new(session: SharedSession) -> Self {
+    pub fn new(session: SharedSession, jobs: jobs::SharedJobs) -> Self {
         Self {
             session,
+            jobs,
             launchpad: Launchpad::new(),
             current_pipeline: None,
         }
@@ -218,9 +227,11 @@ impl Runner {
                             self.current_pipeline
                         );
                     }
-                    self.check_error(interaction, jobs::PipelineBuilder::new(), |runner, pb| {
-                        runner.current_pipeline = Some(pb)
-                    });
+                    self.check_error(
+                        interaction,
+                        jobs::PipelineBuilder::new(interaction),
+                        |runner, pb| runner.current_pipeline = Some(pb),
+                    );
                 }
 
                 Instruction::Lit(s) => self.launchpad.lit(s),
@@ -252,6 +263,16 @@ impl Runner {
                         self.check_error(interaction, res, |_, _| {});
                     } else {
                         error!("No pipeline builder in Exec");
+                    }
+                    self.launchpad.clear();
+                }
+
+                Instruction::ForegroundJob => {
+                    let maybe_pb = std::mem::replace(&mut self.current_pipeline, None);
+                    if let Some(pb) = maybe_pb {
+                        self.jobs.foreground_job(self.session.clone(), pb);
+                    } else {
+                        error!("No pipeline builder in ForegroundJob");
                     }
                 }
 
@@ -306,7 +327,7 @@ fn compile_pipeline<'a>(
         let is_last = (ind + 1) == num_commands;
         compile_command(instructions, cmd, is_last)?;
     }
-    instructions.push(Instruction::Wait);
+    instructions.push(Instruction::ForegroundJob);
     match pipeline.operator {
         LogicalOperator::Nothing => {
             // Do nothing
@@ -408,7 +429,7 @@ mod tests {
                     Instruction::Lit("ij".to_string()),
                     Instruction::Word,
                     Instruction::Exec(true),
-                    Instruction::Wait,
+                    Instruction::ForegroundJob,
                     Instruction::Success,
                     Instruction::Not,
                     Instruction::JumpIfNot(7),
@@ -417,7 +438,7 @@ mod tests {
                     Instruction::Word,
                     Instruction::SetProgram,
                     Instruction::Exec(true),
-                    Instruction::Wait,
+                    Instruction::ForegroundJob,
                 ]
             );
         }

@@ -29,6 +29,7 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -55,22 +56,15 @@ struct Jobs {
 #[derive(Clone)]
 pub struct SharedJobs(Arc<Mutex<Jobs>>);
 
-impl Jobs {}
-
 /// std::process::Child that can be shared between threads
 type SharedChild = Arc<Mutex<Child>>;
 
 /// Public info about the job.
 ///
-/// Most internal info is kept in threads and can be kept private.
+/// Most internal info is stored in threads and can be kept private.
 pub struct Job {
-    /// The child process that has been created
-    ///
-    /// Might be None if the start failed
-    child: SharedChild,
-
-    /// and its stdin PTS handle.
-    stdin: RawFd,
+    /// Pseudo terminal handle for sending data to stdin of the whole pipeline.
+    stdin_bite_side: RawFd,
 }
 
 /// Handles for the Pseudo Terminals
@@ -102,6 +96,9 @@ pub struct PtsPair {
 /// All infos needed during starting a pipeline
 #[derive(Debug)]
 pub struct PipelineBuilder {
+    /// Interaction to write the output to
+    interaction_handle: InteractionHandle,
+
     /// Pseudo terminal handle for sending data to stdin of the whole pipeline. Will not be changed
     /// after creation
     stdin_bite_side: RawFd,
@@ -423,12 +420,18 @@ impl std::fmt::Debug for ProgramOrBuiltin {
     }
 }
 
+fn is_valid_fd(fd:RawFd) -> bool
+{
+    nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_GETFL).is_ok()
+}
+
 impl PipelineBuilder {
     /// Prepare a new pipeline
-    pub fn new() -> Result<Self, String> {
+    pub fn new(interaction_handle: InteractionHandle) -> Result<Self, String> {
         let stdin_pair = create_handle_pair()?;
 
         Ok(Self {
+            interaction_handle,
             stdin_bite_side: stdin_pair.bite_side,
             stdout_bite_side: None,
             stderr_bite_side: None,
@@ -472,28 +475,48 @@ impl PipelineBuilder {
                 Err("Internal error".to_string())
             }
             ProgramOrBuiltin::Program(s) => {
-                let handles = create_terminals()?;
+                let stdio_stdin = unsafe { Stdio::from_raw_fd(self.prev_stdout) };
+                trace!("stdio_stdin: {:?} / {:?} / {:?}", stdio_stdin, self.prev_stdout, is_valid_fd( self.prev_stdout));
+               let mut cmd = Command::new(s);
 
-                let mut cmd = Command::new(s);
+               cmd.args(args)
+                   .stdin(stdio_stdin);
+                trace!("post-stdin: {:?} / {:?}", self.prev_stdout, is_valid_fd( self.prev_stdout));
 
-                cmd.args(args)
-                    .stdin(unsafe { Stdio::from_raw_fd(self.prev_stdout) });
+              trace!("cmd: {:?}", cmd);
 
-                if is_last {
-                    // If this is the last command of the pipeline, create pts for the outputs.
-                    let stdout_pair = create_handle_pair()?;
-                    let stderr_pair = create_handle_pair()?;
-                    self.stdout_bite_side = Some(stdout_pair.bite_side);
-                    self.stderr_bite_side = Some(stderr_pair.bite_side);
+              trace!("is_last: {:?}", is_last);
+              if is_last {
+                  // If this is the last command of the pipeline, create pts for the outputs.
+                  let stdout_pair = create_handle_pair()?;
+                  let stderr_pair = create_handle_pair()?;
+                  self.stdout_bite_side = Some(stdout_pair.bite_side);
+                  self.stderr_bite_side = Some(stderr_pair.bite_side);
 
-                    cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_pair.command_side) })
-                        .stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
-                }
+                  trace!("stdout_pair: {:?}", stdout_pair);
+                  trace!("stderr_pair: {:?}", stderr_pair);
 
+                  cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_pair.command_side) })
+                      .stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
+
+                trace!("is_last out: {:?} / {:?}", stdout_pair.command_side, is_valid_fd( stdout_pair.command_side));
+                trace!("is_last err: {:?} / {:?}", stderr_pair.command_side, is_valid_fd( stderr_pair.command_side));
+
+                  trace!("cmd: {:?}", cmd);
+              } else {
+                  cmd.stderr(Stdio::piped())
+                      .stdout(Stdio::piped());
+              }
+
+                trace!("pre-spawn: {:?} / {:?}", self.prev_stdout, is_valid_fd( self.prev_stdout));
                 let child = cmd.spawn().map_err(as_description)?;
+                trace!("post-spawn: {:?} / {:?}", self.prev_stdout, is_valid_fd( self.prev_stdout));
 
                 // Get the last stdout, then keep the child for waiting, then check if the pipe
                 // creation worked.
+                trace!("Child stdin: »{:?}«", child.stdin);
+                trace!("Child stdout: »{:?}«", child.stdout);
+                trace!("Child stderr: »{:?}«", child.stderr);
                 let prev_stdout = child
                     .stdout
                     .as_ref()
@@ -535,108 +558,63 @@ impl SharedJobs {
         self.jobs(false, |j| j.foreground.is_some())
     }
 
-    /// Run an external command
-    ///
-    /// TODO: Handle an already existing foreground job. Move to background?
-    pub fn run<I, S>(
-        &mut self,
-        mut session: SharedSession,
-        interactionHandle: InteractionHandle,
-        program: S,
-        args: I,
-        in_foreground: bool,
-    ) where
-        I: IntoIterator<Item = S>,
-        S: AsRef<OsStr>,
-    {
-        // Mark interaction as running
-        session.set_running_status(interactionHandle, RunningStatus::Running);
-
-        // Store interaction handle as foreground
-        self.jobs_mut((), |j| j.foreground = Some(interactionHandle));
-
-        // Launch program and reader threads
-        match start_command(session.clone(), interactionHandle, program, args) {
-            Err(msg) => {
-                session.add_bytes(
-                    OutputVisibility::Error,
-                    interactionHandle,
-                    b"BiTE: Failed to launch job. Cause: ",
-                );
-                session.add_bytes(OutputVisibility::Error, interactionHandle, msg.as_bytes());
-                session.add_bytes(OutputVisibility::Error, interactionHandle, b"\n");
-                // TODO: Introduce a failed state
-                session.set_running_status(interactionHandle, RunningStatus::Unknown);
-            }
-            Ok((child, stdin)) => {
-                let wait_child = child.clone();
-                let wait_jobs = self.clone();
-
-                // Store job for later interaction in job table
-                let job = Job { child, stdin };
-                self.jobs_mut((), |j| {
-                    j.job_table.insert(interactionHandle, job);
-                });
-
-                if in_foreground {
-                    // Run wait for child in this thread
-                    wait_for_child(wait_jobs, wait_child, session, interactionHandle);
-                } else {
-                    // Spawn a thread for wait_for_child
-                    spawn(move || {
-                        wait_for_child(wait_jobs, wait_child, session, interactionHandle)
-                    });
-                }
-            }
-        }
-    }
-
-    /// Run a builtin command
-    ///
-    /// TODO: Handle an already existing foreground job. Move to background?
-    pub fn run_builtin(
-        &mut self,
-        mut session: SharedSession,
-        interactionHandle: InteractionHandle,
-        builtin: BuiltinRunner,
-        args: Vec<String>,
-        in_foreground: bool,
-    ) {
-        // Mark interaction as running
-        session.set_running_status(interactionHandle, RunningStatus::Running);
-
-        // Store interaction handle as foreground
-        self.jobs_mut((), |j| j.foreground = Some(interactionHandle));
-
-        let mut session_output = {
-            let session = session.clone();
-            SessionOutput {
-                session,
-                handle: interactionHandle,
-            }
+    /// Run a pipeline in foreground until completion
+    pub fn foreground_job(&mut self, mut session: SharedSession, builder: PipelineBuilder) {
+        // Store job for later interaction in job table
+        let job = Job {
+            stdin_bite_side: builder.stdin_bite_side,
         };
+        let interaction_handle = builder.interaction_handle;
+        // Store interaction handle as foreground
+        self.jobs_mut((), |j| {
+            j.foreground = Some(interaction_handle);
+            j.job_table.insert(interaction_handle, job);
+        });
 
-        let mut session_stdout = SessionStdout(session_output.clone());
-        let mut session_stderr = SessionStderr(session_output.clone());
-        if in_foreground {
-            builtin(
-                args,
-                &mut session_stdout,
-                &mut session_stderr,
-                &mut session_output,
-            );
-            self.jobs_mut((), |j| j.foreground = None);
-        } else {
-            // Launch thread
+        // Start a reader thread for each stderr
+        for e in builder.stderr {
+            let session = session.clone();
+            spawn(move || read_data(e, session, interaction_handle, OutputVisibility::Error));
+        }
+
+        // Start a reader thread for the last stdout
+        {
+            let session = session.clone();
+            let prev_stdout = builder.prev_stdout;
             spawn(move || {
-                builtin(
-                    args,
-                    &mut session_stdout,
-                    &mut session_stderr,
-                    &mut session_output,
+                read_data(
+                    prev_stdout,
+                    session,
+                    interaction_handle,
+                    OutputVisibility::Output,
                 )
             });
         }
+
+        // Wait for each child
+        let mut exit_status = ExitStatusExt::from_raw(0);
+        for mut c in builder.children {
+            match c.wait() {
+                Err(e) => {
+                    debug!("Error waiting for child: »{:?}«", e);
+                }
+                Ok(es) => {
+                    exit_status = es;
+                }
+            }
+        }
+
+        session.set_running_status(interaction_handle, RunningStatus::Exited(exit_status));
+
+        // Remove job from table
+        self.jobs_mut((), |jobs| {
+            if let Some(fg_interaction_handle) = jobs.foreground {
+                if fg_interaction_handle == interaction_handle {
+                    jobs.foreground = None;
+                }
+            }
+            jobs.job_table.remove(&interaction_handle);
+        });
     }
 
     /// Send some bytes to the foreground job
@@ -645,7 +623,9 @@ impl SharedJobs {
     pub fn write_stdin_foreground(&mut self, bytes: &[u8]) {
         if let Some(Some(stdin)) = self.jobs(None, |jobs| {
             jobs.foreground.map(|interaction_handle| {
-                jobs.job_table.get(&interaction_handle).map(|job| job.stdin)
+                jobs.job_table
+                    .get(&interaction_handle)
+                    .map(|job| job.stdin_bite_side)
             })
         }) {
             // TODO: Check result

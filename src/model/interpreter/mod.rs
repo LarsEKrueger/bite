@@ -62,17 +62,16 @@ pub struct Interpreter {
 
 /// Processing function that gets input from the mutex
 fn interpreter_loop(
-    mut session: SharedSession,
+    mut runner: byte_code::Runner,
     is_running: Arc<AtomicBool>,
     input: Arc<(
         Condvar,
         Mutex<Option<(byte_code::Instructions, InteractionHandle)>>,
     )>,
-    mut jobs: jobs::SharedJobs,
 ) {
     while is_running.load(Ordering::Acquire) {
         trace!("Waiting for new command");
-        assert!(!jobs.has_foreground());
+        assert!(!runner.jobs.has_foreground());
         // Wait for condition variable and extract the string and the interaction handle.
         let (instructions, interaction_handle) = {
             // The lock must not be held for too long to allow other threads to check the readiness.
@@ -89,35 +88,8 @@ fn interpreter_loop(
         };
 
         trace!("Got instructions: »{:?}«", instructions);
-        // Run the instructions
 
-        //session.add_bytes(
-        //    OutputVisibility::Output,
-        //    interaction_handle,
-        //    format!("Parse: »{}«\n", input.fragment).as_bytes(),
-        //);
-
-        // If this is a builtin command, launch it as such.
-        //                   if let Some(builtin) = builtins::runner(&cmd.words[0].fragment) {
-        //                       // TODO: Start builtin instead of command
-        //                       let session = session.clone();
-        //                       jobs.run_builtin(
-        //                           session,
-        //                           interaction_handle,
-        //                           builtin,
-        //                           cmd.words.iter().map(|s| s.fragment.to_string()).collect(),
-        //                           true,
-        //                       )
-        //                   } else {
-        //                       let session = session.clone();
-        //                       jobs.run(
-        //                           session,
-        //                           interaction_handle,
-        //                           cmd.words[0].fragment,
-        //                           cmd.words[1..].iter().map(|s| s.fragment),
-        //                           true,
-        //                       )
-        //                   }
+        runner.run(&instructions, interaction_handle);
     }
 }
 
@@ -132,9 +104,10 @@ impl Interpreter {
             let is_running = is_running.clone();
             let input = input.clone();
             let jobs = jobs.clone();
+            let runner = byte_code::Runner::new(session, jobs);
             std::thread::Builder::new()
                 .name("interpreter".to_string())
-                .spawn(move || interpreter_loop(session, is_running, input, jobs))
+                .spawn(move || interpreter_loop(runner, is_running, input))
                 .unwrap()
         };
 
