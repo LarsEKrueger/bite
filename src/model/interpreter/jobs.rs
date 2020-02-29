@@ -31,7 +31,7 @@ use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::thread::spawn;
@@ -487,8 +487,7 @@ impl PipelineBuilder {
                     let stdout_pair = create_handle_pair()?;
                     self.stdout_bite_side = Some(stdout_pair.bite_side);
 
-                    cmd
-                        .stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
+                    cmd.stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
                 } else {
                     cmd.stdout(Stdio::piped());
                 }
@@ -544,7 +543,11 @@ impl SharedJobs {
     }
 
     /// Run a pipeline in foreground until completion
-    pub fn foreground_job(&mut self, mut session: SharedSession, mut builder: PipelineBuilder) {
+    pub fn foreground_job(
+        &mut self,
+        mut session: SharedSession,
+        mut builder: PipelineBuilder,
+    ) -> ExitStatus {
         // Store job for later interaction in job table
         let job = Job {
             stdin_bite_side: builder.stdin_bite_side,
@@ -578,7 +581,7 @@ impl SharedJobs {
         // Wait for each child, report on the exit code of each failing program. Keep the exit code
         // of the last failing program.
         let mut exit_status = ExitStatusExt::from_raw(0);
-        for (i,c) in builder.children.iter_mut().enumerate() {
+        for (i, c) in builder.children.iter_mut().enumerate() {
             match c.wait() {
                 Err(e) => {
                     debug!("Error waiting for child: »{:?}«", e);
@@ -591,16 +594,29 @@ impl SharedJobs {
                                                    format!( "BiTE: Pipeline command #{} failed with exit code {:} and signal {:}\n", i, c, s).as_bytes());
                             }
                             (Some(c), None) => {
-                                session.add_bytes( OutputVisibility::Error, interaction_handle,
-                                                   format!( "BiTE: Pipeline command #{} failed with exit code {:}\n", i, c).as_bytes());
+                                // Normal case, do nothing.
                             }
                             (None, Some(s)) => {
-                                session.add_bytes( OutputVisibility::Error, interaction_handle,
-                                                   format!( "BiTE: Pipeline command #{} failed with signal {:}\n", i, s).as_bytes());
+                                session.add_bytes(
+                                    OutputVisibility::Error,
+                                    interaction_handle,
+                                    format!(
+                                        "BiTE: Pipeline command #{} failed with signal {:}\n",
+                                        i, s
+                                    )
+                                    .as_bytes(),
+                                );
                             }
                             (None, None) => {
-                                session.add_bytes( OutputVisibility::Error, interaction_handle,
-                                                   format!( "BiTE: Pipeline command #{} failed for unknown reasons\n", i).as_bytes());
+                                session.add_bytes(
+                                    OutputVisibility::Error,
+                                    interaction_handle,
+                                    format!(
+                                        "BiTE: Pipeline command #{} failed for unknown reasons\n",
+                                        i
+                                    )
+                                    .as_bytes(),
+                                );
                             }
                         }
                         exit_status = es;
@@ -620,6 +636,7 @@ impl SharedJobs {
             }
             jobs.job_table.remove(&interaction_handle);
         });
+        exit_status
     }
 
     /// Send some bytes to the foreground job

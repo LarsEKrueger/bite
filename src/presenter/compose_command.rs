@@ -80,7 +80,7 @@ impl ComposeCommandPresenter {
             Ok(instructions) => {
                 // Put the command in the history
                 let cwd = self.commons.interpreter.get_cwd();
-                self.commons.history.enter( &cwd.to_string_lossy(), &line);
+                self.commons.history.enter(&cwd.to_string_lossy(), &line);
                 // Run the compiled instructions
                 let interaction_handle = self.commons.interpreter.run(line_with_nl, instructions);
                 // Wait for the command to finish

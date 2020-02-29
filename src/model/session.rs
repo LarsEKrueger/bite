@@ -166,7 +166,9 @@ impl Interaction {
             RunningStatus::Exited(es) => !es.success(),
             _ => false,
         };
-        if self.has_errors() || failure {
+        if !failure {
+            self.visible = OutputVisibility::Output;
+        } else if self.has_errors() {
             self.show_errors();
         }
     }

@@ -19,10 +19,13 @@
 //! Byte Code for Shell Scripts
 
 use super::super::session::{InteractionHandle, OutputVisibility, SharedSession};
+use super::data_stack::Stack;
 use super::jobs;
 use super::parser::{
     AbstractSyntaxTree, Command, LogicalOperator, Pipeline, PipelineCommand, PipelineOperator,
 };
+use std::os::unix::process::ExitStatusExt;
+use std::process::ExitStatus;
 
 /// Instructions to execute
 pub type Instructions = Vec<Instruction>;
@@ -92,21 +95,21 @@ pub enum Instruction {
     /// Wait for program to complete. Read from all remaining pipes until all programs close.
     ForegroundJob,
 
-    /// Create a thread and a subshell, execute instructions.
-    Background(Instructions),
-
-    /// Create a subshell, execute instructions, then drop subshell.
-    Subshell(Instructions),
-
     /// If the last command was a success, put true on the stack
     Success,
+
+    /// Invert logical value of top-of-stack value
+    Not,
 
     /// If true was on the stack, continue with the next instruction. If anything else was there,
     /// move the instruction pointer according to the parameter.
     JumpIfNot(i32),
 
-    /// Invert logical value of top-of-stack value
-    Not,
+    /// Create a thread and a subshell, execute instructions.
+    Background(Instructions),
+
+    /// Create a subshell, execute instructions, then drop subshell.
+    Subshell(Instructions),
 
     /// Placeholder for redirection
     Redirect,
@@ -127,6 +130,12 @@ pub struct Runner {
 
     /// Job being started
     current_pipeline: Option<jobs::PipelineBuilder>,
+
+    /// ExitStatus of last foreground program. TODO: Make shell variable.
+    last_exit_status: ExitStatus,
+
+    /// Data stack
+    data_stack: Stack,
 }
 
 /// The array of stacks to construct command line arguments
@@ -155,7 +164,7 @@ impl Launchpad {
         }
     }
 
-    /// Return the incomplete argumens
+    /// Return the incomplete arguments
     fn incomplete_args(&mut self) -> &mut [Vec<String>] {
         &mut self.args[self.marker..]
     }
@@ -170,13 +179,15 @@ impl Launchpad {
 
     /// Complete ann incomplete words
     fn finalize_words(&mut self) {
-        for arg in self.incomplete_args() {
-            if arg.len() != 1 {
-                let mut res = String::new();
-                for s in &*arg {
-                    res.push_str(&s);
+        if self.marker < self.args.len() {
+            for arg in self.incomplete_args() {
+                if arg.len() != 1 {
+                    let mut res = String::new();
+                    for s in &*arg {
+                        res.push_str(&s);
+                    }
+                    *arg = vec![res];
                 }
-                *arg = vec![res];
             }
         }
         self.marker = self.args.len();
@@ -195,6 +206,8 @@ impl Runner {
             jobs,
             launchpad: Launchpad::new(),
             current_pipeline: None,
+            data_stack: Stack::new(),
+            last_exit_status: ExitStatusExt::from_raw(0),
         }
     }
 
@@ -218,7 +231,10 @@ impl Runner {
 
     /// Run the instructions
     pub fn run(&mut self, instructions: &Instructions, interaction: InteractionHandle) {
-        for i in instructions {
+        let mut ip: i32 = 0;
+        while (0 <= ip) && ((ip as usize) < instructions.len()) {
+            let i = &instructions[ip as usize];
+            trace!("Instruction {:?}", i);
             match i {
                 Instruction::Begin => {
                     if self.current_pipeline.is_some() {
@@ -270,9 +286,32 @@ impl Runner {
                 Instruction::ForegroundJob => {
                     let maybe_pb = std::mem::replace(&mut self.current_pipeline, None);
                     if let Some(pb) = maybe_pb {
-                        self.jobs.foreground_job(self.session.clone(), pb);
+                        self.last_exit_status = self.jobs.foreground_job(self.session.clone(), pb);
                     } else {
                         error!("No pipeline builder in ForegroundJob");
+                    }
+                }
+
+                Instruction::Success => {
+                    self.data_stack.push_bool(self.last_exit_status.success());
+                }
+
+                Instruction::Not => {
+                    let b = self.data_stack.pop_bool(false);
+                    self.data_stack.push_bool(!b);
+                }
+
+                Instruction::JumpIfNot(delta) => {
+                    let b = self.data_stack.pop_bool(false);
+                    if !b {
+                        ip += delta - 1;
+                        if (ip < 0) || ((ip as usize) > instructions.len()) {
+                            error!(
+                                "Instruction Pointer ({}) out of range: [0,{}]",
+                                ip,
+                                instructions.len()
+                            );
+                        }
                     }
                 }
 
@@ -280,6 +319,7 @@ impl Runner {
                     error!("Unhandled instruction {:?}", i);
                 }
             }
+            ip += 1;
         }
     }
 }
