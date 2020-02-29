@@ -107,10 +107,6 @@ pub struct PipelineBuilder {
     /// program in the pipeline.
     stdout_bite_side: Option<RawFd>,
 
-    /// Pseudo terminal handle for reading data from stderr of the whole pipeline. Created by last
-    /// program in the pipeline.
-    stderr_bite_side: Option<RawFd>,
-
     /// fd to use for stdin of the next program. Will be overwritten by every command in the
     /// pipeline.
     prev_stdout: RawFd,
@@ -420,8 +416,7 @@ impl std::fmt::Debug for ProgramOrBuiltin {
     }
 }
 
-fn is_valid_fd(fd:RawFd) -> bool
-{
+fn is_valid_fd(fd: RawFd) -> bool {
     nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_GETFL).is_ok()
 }
 
@@ -434,7 +429,6 @@ impl PipelineBuilder {
             interaction_handle,
             stdin_bite_side: stdin_pair.bite_side,
             stdout_bite_side: None,
-            stderr_bite_side: None,
             prev_stdout: stdin_pair.command_side,
             stderr: Vec::new(),
             children: Vec::new(),
@@ -475,55 +469,46 @@ impl PipelineBuilder {
                 Err("Internal error".to_string())
             }
             ProgramOrBuiltin::Program(s) => {
-                let stdio_stdin = unsafe { Stdio::from_raw_fd(self.prev_stdout) };
-                trace!("stdio_stdin: {:?} / {:?} / {:?}", stdio_stdin, self.prev_stdout, is_valid_fd( self.prev_stdout));
-               let mut cmd = Command::new(s);
+                let mut cmd = Command::new(s);
 
-               cmd.args(args)
-                   .stdin(stdio_stdin);
-                trace!("post-stdin: {:?} / {:?}", self.prev_stdout, is_valid_fd( self.prev_stdout));
+                cmd.args(args)
+                    .stdin(unsafe { Stdio::from_raw_fd(self.prev_stdout) });
 
-              trace!("cmd: {:?}", cmd);
+                // If stderr isn't redirected, it will go out to the pts directly.
+                {
+                    let stderr_pair = create_handle_pair()?;
+                    self.stderr.push(stderr_pair.bite_side);
+                    cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_pair.command_side) });
+                }
 
-              trace!("is_last: {:?}", is_last);
-              if is_last {
-                  // If this is the last command of the pipeline, create pts for the outputs.
-                  let stdout_pair = create_handle_pair()?;
-                  let stderr_pair = create_handle_pair()?;
-                  self.stdout_bite_side = Some(stdout_pair.bite_side);
-                  self.stderr_bite_side = Some(stderr_pair.bite_side);
+                // The last stdout goes to the pts, all others are piped.
+                if is_last {
+                    // If this is the last command of the pipeline, create pts for the outputs.
+                    let stdout_pair = create_handle_pair()?;
+                    self.stdout_bite_side = Some(stdout_pair.bite_side);
 
-                  trace!("stdout_pair: {:?}", stdout_pair);
-                  trace!("stderr_pair: {:?}", stderr_pair);
+                    cmd
+                        .stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
+                } else {
+                    cmd.stdout(Stdio::piped());
+                }
 
-                  cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_pair.command_side) })
-                      .stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
-
-                trace!("is_last out: {:?} / {:?}", stdout_pair.command_side, is_valid_fd( stdout_pair.command_side));
-                trace!("is_last err: {:?} / {:?}", stderr_pair.command_side, is_valid_fd( stderr_pair.command_side));
-
-                  trace!("cmd: {:?}", cmd);
-              } else {
-                  cmd.stderr(Stdio::piped())
-                      .stdout(Stdio::piped());
-              }
-
-                trace!("pre-spawn: {:?} / {:?}", self.prev_stdout, is_valid_fd( self.prev_stdout));
                 let child = cmd.spawn().map_err(as_description)?;
-                trace!("post-spawn: {:?} / {:?}", self.prev_stdout, is_valid_fd( self.prev_stdout));
 
                 // Get the last stdout, then keep the child for waiting, then check if the pipe
                 // creation worked.
-                trace!("Child stdin: »{:?}«", child.stdin);
-                trace!("Child stdout: »{:?}«", child.stdout);
-                trace!("Child stderr: »{:?}«", child.stderr);
                 let prev_stdout = child
                     .stdout
                     .as_ref()
                     .map(|o| o.as_raw_fd())
                     .ok_or_else(|| format!("Could not create output pipeline for »{}«", s));
+
                 self.children.push(child);
-                self.prev_stdout = prev_stdout?;
+                // If this isn't the last command in a pipe, keep the stdout around for the next
+                // command as stdin.
+                if !is_last {
+                    self.prev_stdout = prev_stdout?;
+                }
 
                 Ok(())
             }
@@ -559,7 +544,7 @@ impl SharedJobs {
     }
 
     /// Run a pipeline in foreground until completion
-    pub fn foreground_job(&mut self, mut session: SharedSession, builder: PipelineBuilder) {
+    pub fn foreground_job(&mut self, mut session: SharedSession, mut builder: PipelineBuilder) {
         // Store job for later interaction in job table
         let job = Job {
             stdin_bite_side: builder.stdin_bite_side,
@@ -578,12 +563,11 @@ impl SharedJobs {
         }
 
         // Start a reader thread for the last stdout
-        {
+        if let Some(stdout) = builder.stdout_bite_side {
             let session = session.clone();
-            let prev_stdout = builder.prev_stdout;
             spawn(move || {
                 read_data(
-                    prev_stdout,
+                    stdout,
                     session,
                     interaction_handle,
                     OutputVisibility::Output,
@@ -591,15 +575,36 @@ impl SharedJobs {
             });
         }
 
-        // Wait for each child
+        // Wait for each child, report on the exit code of each failing program. Keep the exit code
+        // of the last failing program.
         let mut exit_status = ExitStatusExt::from_raw(0);
-        for mut c in builder.children {
+        for (i,c) in builder.children.iter_mut().enumerate() {
             match c.wait() {
                 Err(e) => {
                     debug!("Error waiting for child: »{:?}«", e);
                 }
                 Ok(es) => {
-                    exit_status = es;
+                    if !es.success() {
+                        match (es.code(), es.signal()) {
+                            (Some(c), Some(s)) => {
+                                session.add_bytes( OutputVisibility::Error, interaction_handle,
+                                                   format!( "BiTE: Pipeline command #{} failed with exit code {:} and signal {:}\n", i, c, s).as_bytes());
+                            }
+                            (Some(c), None) => {
+                                session.add_bytes( OutputVisibility::Error, interaction_handle,
+                                                   format!( "BiTE: Pipeline command #{} failed with exit code {:}\n", i, c).as_bytes());
+                            }
+                            (None, Some(s)) => {
+                                session.add_bytes( OutputVisibility::Error, interaction_handle,
+                                                   format!( "BiTE: Pipeline command #{} failed with signal {:}\n", i, s).as_bytes());
+                            }
+                            (None, None) => {
+                                session.add_bytes( OutputVisibility::Error, interaction_handle,
+                                                   format!( "BiTE: Pipeline command #{} failed for unknown reasons\n", i).as_bytes());
+                            }
+                        }
+                        exit_status = es;
+                    }
                 }
             }
         }
