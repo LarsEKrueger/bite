@@ -60,7 +60,7 @@ impl History {
         let file_handle = OpenOptions::new()
             .write(true)
             .create(true)
-            .custom_flags(libc::O_EXCL)
+            .truncate(true)
             .open(file_name)
             .map_err(|e| e.description().to_string())?;
         self.serialize_into(file_handle);
