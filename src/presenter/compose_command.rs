@@ -569,8 +569,8 @@ impl SubPresenter for ComposeCommandPresenter {
     fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
         self.commons_mut().text_input_add_characters(s);
         self.to_last_line();
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+        let items = self.predict();
+        self.fix_selected_prediction(items.len());
         (self, PresenterCommand::Redraw)
     }
 }

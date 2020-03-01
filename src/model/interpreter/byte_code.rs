@@ -350,7 +350,7 @@ impl Runner {
 
                 Instruction::BackgroundJob(len) => {
                     // TODO: Create background job
-                    let mut clone_self = Runner::new( self.session.clone(), self.jobs.clone());
+                    let mut clone_self = Runner::new(self.session.clone(), self.jobs.clone());
                     let clone_instructions = instructions.clone();
                     let clone_start = ip + 1;
                     let clone_end = ip + 1 + len;
