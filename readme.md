@@ -1,3 +1,12 @@
+# Attention!
+
+**This version supports a smaller set of BASH scripts than versions 0.8 and before!**
+
+With this version, the interpreter is switched to an internal implementation
+that does not use BASH to parse and execute scripts. As the interpreter is
+growing, more and more capabilities will come back until the full set of
+features in BASH has been implemented.
+
 # Introduction
 
 As a shell, e.g. bash, is required to work over slow connections and on dumb
@@ -31,6 +40,10 @@ Currently, terminal emulators are deficient in two areas:
 BiTE remedies all these shortcomings by uniting the shell and terminal emulator
 part of the stack that run a command line program.
 
+Be aware that BiTE is currently more an experiment in User Experience than a
+POSIX compliant shell implementation. The outcome of these experiments will
+decide the future of BiTE.
+
 ## Keyboard Shortcuts
 
 The following keyboard shortcuts trigger actions:
@@ -48,20 +61,6 @@ Shift-Ctrl-Space    | Toggle output visibility of all commands | Toggle output v
 Please understand this software is in a very early stage. Many features are
 simply not developed. The architecture and the API of all modules are subject
 to (sometimes drastic) changes from version to version.
-
-One example of this are the various messages that show up during startup (e.g.
-`bite: cannot set terminal process group ...`). These messages are the result
-of an as-of-yet incomplete integration of bash. They will go away with the next
-releases.
-
-One built-in command that is definitely missing right now, is `complete`. This
-is deactivated along with whole completion mechanism. It should be available
-with 1.0 release. The 0.8 release contains a rudimentary mechanism that mostly
-works on file names. The 0.11 release will investigate an alternative mechanism
-to completion. It may provide a working `complete` command.
-
-Also, `bind` is also missing as the key-mapping mechanism in bite is not yet
-implemented.
 
 You are welcome to try it out. This section will give you an overview on how to
 download and build BiTE.
@@ -156,9 +155,8 @@ outlined below. It will ensure that your bug can be reproduced and addressed.
 
 # Planned Features, Step 1
 
-This section is written how the feature is supposed to work once it is
-completely implemented. Keep in mind that the current state of the code may not
-live up to this promise.
+The following features are to investigated regarding their UX. The list may
+change from version to version.
 
 BiTE always shows the most appropriate view for each type of user actions. One
 example is the visual grouping of commands, their outputs and the prompt under
