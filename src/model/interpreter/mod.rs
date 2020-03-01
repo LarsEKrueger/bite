@@ -90,7 +90,7 @@ fn interpreter_loop(
 
         trace!("Got instructions: »{:?}«", instructions);
 
-        runner.run(&instructions, interaction_handle);
+        runner.run(Arc::new(instructions), interaction_handle);
     }
 }
 

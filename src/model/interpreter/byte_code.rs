@@ -22,10 +22,13 @@ use super::super::session::{InteractionHandle, OutputVisibility, SharedSession};
 use super::data_stack::Stack;
 use super::jobs;
 use super::parser::{
-    AbstractSyntaxTree, Command, LogicalOperator, Pipeline, PipelineCommand, PipelineOperator,
+    AbstractSyntaxTree, BackgroundMode, Command, LogicalOperator, Pipeline, PipelineCommand,
+    PipelineOperator,
 };
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
+use std::sync::Arc;
+use std::thread::spawn;
 
 /// Instructions to execute
 pub type Instructions = Vec<Instruction>;
@@ -106,8 +109,11 @@ pub enum Instruction {
     JumpIfNot(i32),
 
     /// Create a thread and a subshell, execute instructions.
-    Background(Instructions),
+    ///
+    /// Parameter is number of instructions to execute in background.
+    BackgroundJob(usize),
 
+    // Not yet implemented below this line
     /// Create a subshell, execute instructions, then drop subshell.
     Subshell(Instructions),
 
@@ -230,10 +236,21 @@ impl Runner {
     }
 
     /// Run the instructions
-    pub fn run(&mut self, instructions: &Instructions, interaction: InteractionHandle) {
-        let mut ip: i32 = 0;
-        while (0 <= ip) && ((ip as usize) < instructions.len()) {
-            let i = &instructions[ip as usize];
+    pub fn run(&mut self, instructions: Arc<Instructions>, interaction: InteractionHandle) {
+        let end = instructions.len();
+        self.run_sub_set(instructions, interaction, 0, end);
+    }
+
+    fn run_sub_set(
+        &mut self,
+        instructions: Arc<Instructions>,
+        interaction: InteractionHandle,
+        start: usize,
+        end: usize,
+    ) {
+        let mut ip = start;
+        while (start <= ip) && (ip < end) {
+            let i = &instructions[ip];
             trace!("Instruction {:?}", i);
             match i {
                 Instruction::Begin => {
@@ -304,14 +321,55 @@ impl Runner {
                 Instruction::JumpIfNot(delta) => {
                     let b = self.data_stack.pop_bool(false);
                     if !b {
-                        ip += delta - 1;
-                        if (ip < 0) || ((ip as usize) > instructions.len()) {
+                        let mut out_of_range = false;
+                        if *delta < 0 {
+                            // Backwards jump
+                            let delta = (-delta) as usize;
+                            if ip >= delta {
+                                ip = ip - delta - 1;
+                            } else {
+                                out_of_range = true;
+                            }
+                        } else {
+                            let delta = *delta as usize;
+                            if ip + 1 + delta <= end {
+                                ip = ip + delta - 1;
+                            } else {
+                                out_of_range = true;
+                            }
+                        }
+                        if out_of_range {
+                            ip = end;
                             error!(
-                                "Instruction Pointer ({}) out of range: [0,{}]",
-                                ip,
-                                instructions.len()
+                                "Instruction Pointer ({}) out of range: [{},{}]",
+                                ip, start, end
                             );
                         }
+                    }
+                }
+
+                Instruction::BackgroundJob(len) => {
+                    // TODO: Create background job
+                    let mut clone_self = Runner::new( self.session.clone(), self.jobs.clone());
+                    let clone_instructions = instructions.clone();
+                    let clone_start = ip + 1;
+                    let clone_end = ip + 1 + len;
+                    spawn(move || {
+                        clone_self.run_sub_set(
+                            clone_instructions,
+                            interaction,
+                            clone_start,
+                            clone_end,
+                        );
+                    });
+
+                    // Skip over background instructions
+                    ip += len - 1;
+                    if ip > end {
+                        error!(
+                            "Instruction Pointer ({}) out of range: [{},{}]",
+                            ip, start, end
+                        );
                     }
                 }
 
@@ -326,10 +384,10 @@ impl Runner {
 
 fn compile_command<'a>(
     instructions: &mut Instructions,
-    pipeline_command: PipelineCommand<'a>,
+    pipeline_command: &PipelineCommand<'a>,
     is_last: bool,
 ) -> Result<(), String> {
-    match pipeline_command.command {
+    match &pipeline_command.command {
         Command::Program(args) => {
             let mut is_first = true;
             for a in args {
@@ -358,12 +416,12 @@ fn compile_command<'a>(
 
 fn compile_pipeline<'a>(
     instructions: &mut Instructions,
-    jump_stack: &mut Vec<i32>,
-    pipeline: Pipeline<'a>,
+    jump_stack: &mut Vec<usize>,
+    pipeline: &Pipeline<'a>,
 ) -> Result<(), String> {
     instructions.push(Instruction::Begin);
     let num_commands = pipeline.commands.len();
-    for (ind, cmd) in pipeline.commands.into_iter().enumerate() {
+    for (ind, cmd) in pipeline.commands.iter().enumerate() {
         let is_last = (ind + 1) == num_commands;
         compile_command(instructions, cmd, is_last)?;
     }
@@ -377,7 +435,7 @@ fn compile_pipeline<'a>(
             if pipeline.operator == LogicalOperator::Or {
                 instructions.push(Instruction::Not);
             }
-            jump_stack.push(instructions.len() as i32);
+            jump_stack.push(instructions.len());
             instructions.push(Instruction::JumpIfNot(0));
         }
     }
@@ -395,15 +453,32 @@ pub fn compile<'a>(
         AbstractSyntaxTree::Logical(terms, background_mode) => {
             // Compile the terms one by one
             // Remember where forward jumps were, so their targets can be fixed
-            let mut jump_stack: Vec<i32> = Vec::new();
-            for p in terms {
+            let mut jump_stack: Vec<usize> = Vec::new();
+            if background_mode == BackgroundMode::Background {
+                jump_stack.push(instructions.len());
+                instructions.push(Instruction::BackgroundJob(0));
+            }
+            for p in terms.iter() {
                 compile_pipeline(instructions, &mut jump_stack, p)?;
             }
-            let jump_tgt = instructions.len() as i32;
+            let jump_tgt = instructions.len();
             for jump_source in jump_stack {
-                if let Instruction::JumpIfNot(_) = instructions[jump_source as usize] {
-                    instructions[jump_source as usize] =
-                        Instruction::JumpIfNot(jump_tgt - jump_source);
+                match instructions[jump_source] {
+                    Instruction::JumpIfNot(_) => {
+                        instructions[jump_source] =
+                            Instruction::JumpIfNot((jump_tgt - jump_source) as i32);
+                    }
+                    Instruction::BackgroundJob(_) => {
+                        instructions[jump_source] =
+                            Instruction::BackgroundJob(jump_tgt - jump_source);
+                    }
+                    _ => {
+                        error!(
+                            "Found unhandled jump stack entry »{:?}« when compiling »{:?}«",
+                            instructions[jump_source], terms
+                        );
+                        return Err("BiTE: Internal error\n".to_string());
+                    }
                 }
             }
         }
@@ -416,6 +491,26 @@ pub fn compile<'a>(
 mod tests {
     use super::super::parser;
     use super::*;
+
+    fn compile_full_script(script: &str) -> Instructions {
+        let mut instructions = Vec::new();
+
+        let script_span = parser::Span::new(script);
+
+        let mut input = script_span;
+
+        while input.fragment.len() != 0 {
+            let ast = parser::script(input);
+            assert_eq!(ast.is_ok(), true);
+
+            if let Ok((rest, ast)) = ast {
+                let compile_result = super::compile(&mut instructions, ast);
+                assert_eq!(compile_result.is_ok(), true);
+                input = rest;
+            }
+        }
+        instructions
+    }
 
     #[test]
     fn lit_and_finalize() {
@@ -433,54 +528,81 @@ mod tests {
     }
 
     #[test]
-    fn compile_logical() {
-        let input = parser::Span::new("ab cd | ef gh ij || stuff\n");
-        let ast = parser::script(input);
-        assert_eq!(ast.is_ok(), true);
-        if let Ok((rest, ast)) = ast {
-            assert_eq!(
-                rest,
-                parser::Span {
-                    offset: 26,
-                    line: 2,
-                    fragment: "",
-                    extra: {}
-                }
-            );
-            let mut instructions = Vec::new();
-            let compile_result = super::compile(&mut instructions, ast);
-            assert_eq!(compile_result.is_ok(), true);
+    fn compile_logical_foreground() {
+        let instructions = compile_full_script("ab cd | ef gh ij || stuff\n");
+        assert_eq!(
+            instructions,
+            vec![
+                Instruction::Begin,
+                Instruction::Lit("ab".to_string()),
+                Instruction::Word,
+                Instruction::SetProgram,
+                Instruction::Lit("cd".to_string()),
+                Instruction::Word,
+                Instruction::Exec(false),
+                Instruction::Lit("ef".to_string()),
+                Instruction::Word,
+                Instruction::SetProgram,
+                Instruction::Lit("gh".to_string()),
+                Instruction::Word,
+                Instruction::Lit("ij".to_string()),
+                Instruction::Word,
+                Instruction::Exec(true),
+                Instruction::ForegroundJob,
+                Instruction::Success,
+                Instruction::Not,
+                Instruction::JumpIfNot(7),
+                Instruction::Begin,
+                Instruction::Lit("stuff".to_string()),
+                Instruction::Word,
+                Instruction::SetProgram,
+                Instruction::Exec(true),
+                Instruction::ForegroundJob,
+            ]
+        );
+    }
 
-            assert_eq!(
-                instructions,
-                vec![
-                    Instruction::Begin,
-                    Instruction::Lit("ab".to_string()),
-                    Instruction::Word,
-                    Instruction::SetProgram,
-                    Instruction::Lit("cd".to_string()),
-                    Instruction::Word,
-                    Instruction::Exec(false),
-                    Instruction::Lit("ef".to_string()),
-                    Instruction::Word,
-                    Instruction::SetProgram,
-                    Instruction::Lit("gh".to_string()),
-                    Instruction::Word,
-                    Instruction::Lit("ij".to_string()),
-                    Instruction::Word,
-                    Instruction::Exec(true),
-                    Instruction::ForegroundJob,
-                    Instruction::Success,
-                    Instruction::Not,
-                    Instruction::JumpIfNot(7),
-                    Instruction::Begin,
-                    Instruction::Lit("stuff".to_string()),
-                    Instruction::Word,
-                    Instruction::SetProgram,
-                    Instruction::Exec(true),
-                    Instruction::ForegroundJob,
-                ]
-            );
-        }
+    #[test]
+    fn compile_logical_background() {
+        let instructions = compile_full_script("ab cd | ef gh ij || stuff & xy z\n");
+        assert_eq!(
+            instructions,
+            vec![
+                Instruction::BackgroundJob(26),
+                Instruction::Begin,
+                Instruction::Lit("ab".to_string()),
+                Instruction::Word,
+                Instruction::SetProgram,
+                Instruction::Lit("cd".to_string()),
+                Instruction::Word,
+                Instruction::Exec(false),
+                Instruction::Lit("ef".to_string()),
+                Instruction::Word,
+                Instruction::SetProgram,
+                Instruction::Lit("gh".to_string()),
+                Instruction::Word,
+                Instruction::Lit("ij".to_string()),
+                Instruction::Word,
+                Instruction::Exec(true),
+                Instruction::ForegroundJob,
+                Instruction::Success,
+                Instruction::Not,
+                Instruction::JumpIfNot(7),
+                Instruction::Begin,
+                Instruction::Lit("stuff".to_string()),
+                Instruction::Word,
+                Instruction::SetProgram,
+                Instruction::Exec(true),
+                Instruction::ForegroundJob,
+                Instruction::Begin,
+                Instruction::Lit("xy".to_string()),
+                Instruction::Word,
+                Instruction::SetProgram,
+                Instruction::Lit("z".to_string()),
+                Instruction::Word,
+                Instruction::Exec(true),
+                Instruction::ForegroundJob,
+            ]
+        );
     }
 }
