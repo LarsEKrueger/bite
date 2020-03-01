@@ -498,48 +498,17 @@ impl Gui {
         unsafe { XClearWindow(self.display, self.window) };
         // TODO: Set colors
 
+        // Draw the text
         self.presenter
             .display_lines(0, lines_per_window as i32, |row, line| {
                 self.draw_line(row, &line);
-
-                if let Some(cursor_col) = line.cursor_col {
-                    // Draw a cursor if requested
-                    let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
-                    let y = self.line_height * row + LINE_PADDING;
-
-                    if self.cursor_on && self.have_focus {
-                        unsafe {
-                            XFillRectangle(
-                                self.display,
-                                self.window,
-                                self.gc,
-                                x,
-                                y,
-                                self.font_width as u32,
-                                self.line_height as u32,
-                            );
-                        }
-                    } else {
-                        unsafe {
-                            XDrawRectangle(
-                                self.display,
-                                self.window,
-                                self.gc,
-                                x,
-                                y,
-                                self.font_width as u32,
-                                self.line_height as u32,
-                            );
-                        }
-                    }
-                }
             });
 
         // Draw the overlay if there is one
         self.presenter
             .display_overlay(|screen_column, top, selection, items| {
                 if !items.is_empty() {
-                    let x = self.font_width * ((screen_column + 1) as i32) + COLOR_SEAM_WIDTH;
+                    let x = self.font_width * (screen_column as i32) + COLOR_SEAM_WIDTH;
                     let y = self.line_height * top + LINE_PADDING;
                     let max_len = items.iter().map(|s| s.len()).max().unwrap();
                     let w = (max_len as i32) * self.font_width;
@@ -604,6 +573,42 @@ impl Gui {
                                 s.as_ptr() as *const i8,
                                 s.len() as i32,
                             )
+                        }
+                    }
+                }
+            });
+
+        // Draw any cursor on top of that
+        self.presenter
+            .display_lines(0, lines_per_window as i32, |row, line| {
+                if let Some(cursor_col) = line.cursor_col {
+                    // Draw a cursor if requested
+                    let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
+                    let y = self.line_height * row + LINE_PADDING;
+
+                    if self.cursor_on && self.have_focus {
+                        unsafe {
+                            XFillRectangle(
+                                self.display,
+                                self.window,
+                                self.gc,
+                                x,
+                                y,
+                                self.font_width as u32,
+                                self.line_height as u32,
+                            );
+                        }
+                    } else {
+                        unsafe {
+                            XDrawRectangle(
+                                self.display,
+                                self.window,
+                                self.gc,
+                                x,
+                                y,
+                                self.font_width as u32,
+                                self.line_height as u32,
+                            );
                         }
                     }
                 }
