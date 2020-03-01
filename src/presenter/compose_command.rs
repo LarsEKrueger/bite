@@ -150,6 +150,8 @@ impl ComposeCommandPresenter {
             ((false, false, false), SpecialKey::Left) => {
                 // Delete the last character
                 self.commons.text_input.delete_left();
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
                 (self, PresenterCommand::Redraw)
             }
             ((false, true, false), SpecialKey::Left) => {
@@ -195,6 +197,8 @@ impl ComposeCommandPresenter {
                 // Delete the whole line
                 self.commons.text_input.reset();
                 self.commons.text_input.make_room();
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
                 (self, PresenterCommand::Redraw)
             }
 
@@ -565,6 +569,8 @@ impl SubPresenter for ComposeCommandPresenter {
     fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
         self.commons_mut().text_input_add_characters(s);
         self.to_last_line();
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
         (self, PresenterCommand::Redraw)
     }
 }
