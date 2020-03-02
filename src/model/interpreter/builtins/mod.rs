@@ -20,66 +20,11 @@
 
 pub mod change_dir;
 
-use std::fmt::Debug;
 use std::io::Write;
-use std::os::unix::process::ExitStatusExt;
+use std::process::ExitStatus;
 
-use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
-
-pub trait SetReturnCode {
-    fn set_return_code(&mut self, i32);
-}
-
-#[derive(Clone)]
-pub struct SessionOutput {
-    pub session: SharedSession,
-    pub handle: InteractionHandle,
-}
-
-pub struct SessionStdout(pub SessionOutput);
-pub struct SessionStderr(pub SessionOutput);
-
-impl SetReturnCode for SessionOutput {
-    fn set_return_code(&mut self, return_code: i32) {
-        self.session.set_running_status(
-            self.handle,
-            RunningStatus::Exited(ExitStatusExt::from_raw(return_code)),
-        );
-    }
-}
-
-impl Write for SessionStdout {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0
-            .session
-            .add_bytes(OutputVisibility::Output, self.0.handle, buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-impl Write for SessionStderr {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0
-            .session
-            .add_bytes(OutputVisibility::Error, self.0.handle, buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-pub type BuiltinRunner = fn(
-    words: Vec<String>,
-    stdout: &mut dyn Write,
-    stderr: &mut dyn Write,
-    set_return_code: &mut dyn SetReturnCode,
-);
+pub type BuiltinRunner =
+    fn(words: Vec<String>, stdout: &mut dyn Write, stderr: &mut dyn Write) -> ExitStatus;
 
 pub fn runner(cmd: &str) -> Option<BuiltinRunner> {
     if cmd == "cd" {

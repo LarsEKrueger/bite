@@ -20,12 +20,12 @@
 
 use std::env::VarError;
 use std::io::Write;
+use std::os::unix::process::ExitStatusExt;
+use std::process::ExitStatus;
 
 use nix::unistd::chdir;
 
 use argparse::{ArgumentParser, Store};
-
-use super::SetReturnCode;
 
 fn change_dir(mut dir: String, _stdout: &mut dyn Write, stderr: &mut dyn Write) -> i32 {
     // Fix dir
@@ -59,12 +59,7 @@ fn change_dir(mut dir: String, _stdout: &mut dyn Write, stderr: &mut dyn Write) 
 /// Run function for the *change directory* builtin.
 ///
 /// cd [dir]
-pub fn run(
-    words: Vec<String>,
-    stdout: &mut dyn Write,
-    stderr: &mut dyn Write,
-    set_return_code: &mut dyn SetReturnCode,
-) {
+pub fn run(words: Vec<String>, stdout: &mut dyn Write, stderr: &mut dyn Write) -> ExitStatus {
     let mut dir = String::new();
 
     let parse_res = {
@@ -80,5 +75,5 @@ pub fn run(
         Err(ret_code) => ret_code,
     };
 
-    set_return_code.set_return_code(ret_code);
+    ExitStatusExt::from_raw(ret_code)
 }

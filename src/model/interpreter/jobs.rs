@@ -27,21 +27,21 @@ use nix::sys::time::{TimeVal, TimeValLike};
 use nix::unistd::{close, read, write};
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::fs::File;
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
-use std::thread::sleep;
-use std::thread::spawn;
+use std::thread::{sleep, spawn, JoinHandle};
 use std::time::Duration;
 use termios::os::target::*;
 use termios::*;
 
 use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
 use super::builtins;
-use super::builtins::{BuiltinRunner, SessionOutput, SessionStderr, SessionStdout};
+use super::builtins::BuiltinRunner;
 
 use tools::shared_item;
 
@@ -115,7 +115,7 @@ pub struct PipelineBuilder {
     stderr: Vec<RawFd>,
 
     /// Child processes to watch
-    children: Vec<Child>,
+    children: Vec<ChildOrThread>,
 
     /// Next program to start, might be a builtin
     next_program: ProgramOrBuiltin,
@@ -131,6 +131,13 @@ enum ProgramOrBuiltin {
 
     /// Builtin, keep the function pointer
     Builtin(BuiltinRunner),
+}
+
+/// Different things to wait on for completion
+#[derive(Debug)]
+enum ChildOrThread {
+    Child(Child),
+    Thread(JoinHandle<ExitStatus>),
 }
 
 /// Compute the matching control character of a letter
@@ -502,7 +509,7 @@ impl PipelineBuilder {
                     .map(|o| o.as_raw_fd())
                     .ok_or_else(|| format!("Could not create output pipeline for »{}«", s));
 
-                self.children.push(child);
+                self.children.push(ChildOrThread::Child(child));
                 // If this isn't the last command in a pipe, keep the stdout around for the next
                 // command as stdin.
                 if !is_last {
@@ -511,7 +518,46 @@ impl PipelineBuilder {
 
                 Ok(())
             }
-            ProgramOrBuiltin::Builtin(b) => Err("Not implemented".to_string()),
+            ProgramOrBuiltin::Builtin(b) => {
+                // stdin isn't used and can be closed.
+                let _ = nix::unistd::close(self.prev_stdout);
+
+                // If stderr isn't redirected, it will go out to the pts directly.
+                let stderr_pair = create_handle_pair()?;
+                self.stderr.push(stderr_pair.bite_side);
+
+                // The last stdout goes to the pts, all others are piped.
+                let stdout_command_side = if is_last {
+                    // If this is the last command of the pipeline, create pts for the outputs.
+                    let stdout_pair = create_handle_pair()?;
+                    self.stdout_bite_side = Some(stdout_pair.bite_side);
+                    stdout_pair.command_side
+                } else {
+                    // Create a normal pipe
+                    let (read_end, write_end) = nix::unistd::pipe().map_err(as_description)?;
+                    self.prev_stdout = read_end;
+                    write_end
+                };
+
+                let mut args: Vec<String> = args
+                    .into_iter()
+                    .map(|s| s.as_ref().to_string_lossy().into_owned())
+                    .collect();
+                // Insert a fake argv[0]. Replace with name of builtin if that is important.
+                args.insert(0, "builtin".to_string());
+                let b = b.clone();
+                let t = spawn(move || {
+                    b(
+                        args,
+                        &mut unsafe { File::from_raw_fd(stdout_command_side) },
+                        &mut unsafe { File::from_raw_fd(stderr_pair.command_side) },
+                    )
+                });
+
+                self.children.push(ChildOrThread::Thread(t));
+
+                Ok(())
+            }
         }
     }
 }
@@ -581,47 +627,61 @@ impl SharedJobs {
         // Wait for each child, report on the exit code of each failing program. Keep the exit code
         // of the last failing program.
         let mut exit_status = ExitStatusExt::from_raw(0);
-        for (i, c) in builder.children.iter_mut().enumerate() {
-            match c.wait() {
-                Err(e) => {
-                    debug!("Error waiting for child: »{:?}«", e);
-                }
-                Ok(es) => {
-                    if !es.success() {
-                        match (es.code(), es.signal()) {
-                            (Some(c), Some(s)) => {
-                                session.add_bytes( OutputVisibility::Error, interaction_handle,
-                                                   format!( "BiTE: Pipeline command #{} failed with exit code {:} and signal {:}\n", i, c, s).as_bytes());
-                            }
-                            (Some(c), None) => {
-                                // Normal case, do nothing.
-                            }
-                            (None, Some(s)) => {
-                                session.add_bytes(
-                                    OutputVisibility::Error,
-                                    interaction_handle,
-                                    format!(
-                                        "BiTE: Pipeline command #{} failed with signal {:}\n",
-                                        i, s
-                                    )
-                                    .as_bytes(),
-                                );
-                            }
-                            (None, None) => {
-                                session.add_bytes(
-                                    OutputVisibility::Error,
-                                    interaction_handle,
-                                    format!(
-                                        "BiTE: Pipeline command #{} failed for unknown reasons\n",
-                                        i
-                                    )
-                                    .as_bytes(),
-                                );
+        for (i, c) in builder.children.drain(0..).enumerate() {
+            match c {
+                ChildOrThread::Child(mut c) => {
+                    match c.wait() {
+                        Err(e) => {
+                            debug!("Error waiting for child: »{:?}«", e);
+                        }
+                        Ok(es) => {
+                            if !es.success() {
+                                match (es.code(), es.signal()) {
+                                    (Some(c), Some(s)) => {
+                                        session.add_bytes( OutputVisibility::Error, interaction_handle,
+                                                           format!( "BiTE: Pipeline command #{} failed with exit code {:} and signal {:}\n", i, c, s).as_bytes());
+                                    }
+                                    (Some(_c), None) => {
+                                        // Normal case, do nothing.
+                                    }
+                                    (None, Some(s)) => {
+                                        session.add_bytes(
+                                            OutputVisibility::Error,
+                                            interaction_handle,
+                                            format!(
+                                                "BiTE: Pipeline command #{} failed with signal {:}\n",
+                                                i, s
+                                            )
+                                            .as_bytes(),
+                                            );
+                                    }
+                                    (None, None) => {
+                                        session.add_bytes(
+                                            OutputVisibility::Error,
+                                            interaction_handle,
+                                            format!(
+                                                "BiTE: Pipeline command #{} failed for unknown reasons\n",
+                                                i
+                                            )
+                                            .as_bytes(),
+                                            );
+                                    }
+                                }
+                                exit_status = es;
                             }
                         }
-                        exit_status = es;
                     }
                 }
+                ChildOrThread::Thread(t) => match t.join() {
+                    Err(e) => {
+                        debug!("Error waiting for thread of builtin: »{:?}«", e);
+                    }
+                    Ok(es) => {
+                        if !es.success() {
+                            exit_status = es;
+                        }
+                    }
+                },
             }
         }
 
