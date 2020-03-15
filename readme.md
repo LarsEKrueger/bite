@@ -143,6 +143,12 @@ outlined below. It will ensure that your bug can be reproduced and addressed.
       ```
 
       and report it's output.
+* If you can reproduce the bug, start a new instance of BiTE with tracing on:
+  ```
+  BITE_LOG=trace bite
+  ```
+
+  and add the log file. *Be sure to censor any personal information before posting.*
 
 # Planned Features, Step 1
 
