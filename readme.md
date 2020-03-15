@@ -64,6 +64,8 @@ implemented.
 You are welcome to try it out. This section will give you an overview on how to
 download and build BiTE.
 
+See the next section for the features currently being implemented.
+
 ## Prerequisites
 
 * Linux (tested on an 64 bit Intel CPU)
@@ -152,11 +154,19 @@ outlined below. It will ensure that your bug can be reproduced and addressed.
 
 # Planned Features, Step 1
 
+This section is written how the feature is supposed to work once it is
+completely implemented. Keep in mind that the current state of the code may not
+live up to this promise.
+
 BiTE always shows the most appropriate view for each type of user actions. One
 example is the visual grouping of commands, their outputs and the prompt under
 which they were issued. This clue lets you notice quicker which operations took
 place in the same folder, assuming the prompt contains the current working
 directory. This feature is called *prompt color seam*.
+
+See the following design sketch for an illustration.
+
+![Design Sketch](doc/visual-design.svg)
 
 In contrast to bash, bite provides a multi-line input field. Press Shift-Return
 to break the current line.  In multi-line mode, both Return and Shift-Return
@@ -172,6 +182,10 @@ commands and the outputs of those.
 For reading program output, BiTE provides search and comparison capabilities
 that would otherwise require additional programs like `more` or `diff`. Also,
 the output can be saved to file.
+
+BiTE also separates the regular output and error output into separate views.
+They can be switched with Ctrl-Space (for the last command) and
+Shift-Ctrl-Space (for all programs).
 
 For interacting with text-based interfaces, BiTE automatically provides a
 separate tab for the interface to run in.
@@ -249,7 +263,9 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
+* [ ] Make GUI font configurable.
 * [ ] Bug: Bash source $() does not work correctly
+* [ ] neofetch doesn't display correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
 * [ ] Merge history during save
