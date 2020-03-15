@@ -142,7 +142,7 @@ pub fn main() {
     let (receiver, reader_barrier, bash_barrier) = match model::bash::start() {
         Err(err) => {
             error!("Can't start integrated bash: {}", err);
-            println!("Can't start integrated bash: {}", err);
+            bite_write_output(&format!("Can't start integrated bash: {}", err));
             ::std::process::exit(1);
         }
         Ok(r) => r,
@@ -152,7 +152,7 @@ pub fn main() {
     let mut gui = match ::view::Gui::new(receiver) {
         Err(err) => {
             error!("Can't init GUI: {}", err);
-            println!("Can't init GUI: {}", err);
+            bite_write_output(&format!("Can't init GUI: {}", err));
             ::std::process::exit(1);
         }
         Ok(g) => g,
