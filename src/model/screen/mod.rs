@@ -1484,13 +1484,15 @@ impl Screen {
             }
             Action::EraseCharacters(n) => {
                 // Overwrite the next n characters with fresh cells
+                let c = self.cursor;
+                self.cursor.x += n as isize;
                 self.make_room();
+                self.cursor = c;
                 let n = if self.fixed_size {
                     cmp::max(0,cmp::min(n as isize,self.width()-self.cursor.x))
                 } else {
                     n as isize
                 };
-                let c = self.cursor;
                 let row_index = self.matrix.cell_index(c.x, c.y);
                 let cell = self.clone_cell(' ');
                 for offset in 0 .. n {
