@@ -84,6 +84,10 @@ impl ComposeCommandPresenter {
                 // Run the compiled instructions
                 let interaction_handle = self.commons.interpreter.run(line_with_nl, instructions);
                 // Wait for the command to finish
+                trace!(
+                    "Switch to ExecuteCommandPresenter, {:?}",
+                    interaction_handle
+                );
                 return (
                     ExecuteCommandPresenter::new(self.commons, interaction_handle),
                     PresenterCommand::Redraw,

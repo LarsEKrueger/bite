@@ -58,7 +58,7 @@ pub struct Interpreter {
     is_running: Arc<AtomicBool>,
 
     /// List of active jobs
-    jobs: jobs::SharedJobs,
+    pub jobs: jobs::SharedJobs,
 }
 
 /// Processing function that gets input from the mutex

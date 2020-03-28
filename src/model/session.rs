@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex};
 
 use super::iterators::*;
 use super::response::*;
-use super::screen::{AddBytesResult, Matrix};
+use super::screen::{AddBytesResult, Event, Matrix, Screen};
 
 use tools::shared_item;
 
@@ -63,8 +63,10 @@ struct Interaction {
     visible: OutputVisibility,
     /// status of the command
     running_status: RunningStatus,
-    /// Which response to use for TUI mode
-    tui_mode: OutputVisibility,
+    /// True if TUI is running
+    tui_mode: bool,
+    /// Screen used for TUI mode
+    pub tui_screen: Screen,
 }
 
 /// A number of commands that are executed with the same prompt string.
@@ -115,7 +117,8 @@ impl Interaction {
             errors: Response::new(),
             visible: OutputVisibility::Output,
             running_status: RunningStatus::Unknown,
-            tui_mode: OutputVisibility::None,
+            tui_mode: false,
+            tui_screen: Screen::new(),
         }
     }
 
@@ -287,6 +290,14 @@ impl Session {
             },
         ))
     }
+
+    pub fn tui_screen<'a>(&'a self, handle: InteractionHandle) -> Option<&Screen> {
+        if handle.0 < self.interactions.len() {
+            Some(&self.interactions[handle.0].tui_screen)
+        } else {
+            None
+        }
+    }
 }
 
 impl SharedSession {
@@ -367,45 +378,36 @@ impl SharedSession {
     pub fn add_bytes(&mut self, stream: OutputVisibility, handle: InteractionHandle, bytes: &[u8]) {
         let mut needs_redraw = false;
         self.interaction_mut(handle, (), |interaction| {
-            let mut new_tui_mode = OutputVisibility::None;
             // TUI mode overrides stream
-            let (mut response, mut is_tui_mode) = match interaction.tui_mode {
-                OutputVisibility::None => match stream {
-                    OutputVisibility::None => return,
-                    OutputVisibility::Output => (&mut interaction.output, false),
-                    OutputVisibility::Error => (&mut interaction.errors, false),
-                },
-                OutputVisibility::Output => (&mut interaction.output, true),
-                OutputVisibility::Error => (&mut interaction.errors, true),
-            };
-            // Process the bytes
             let mut work = bytes;
             while work.len() != 0 {
-                match response.add_bytes(work) {
-                    AddBytesResult::AllDone => break,
-                    AddBytesResult::ShowStream(new_work) => {
-                        needs_redraw = true;
-                        work = new_work;
+                if interaction.tui_mode {
+                    // Add the bytes to the screen
+                    for b in work {
+                        // TODO: Handle the events correctly.
+                        let _ = interaction.tui_screen.add_byte(*b);
                     }
-                    AddBytesResult::StartTui(new_work) => {
-                        // If no TUI mode is set, set it to stream and make the response
-                        // fixed-size. If the new tui_mode is different from the existing, ignore
-                        // the change.
-                        if !is_tui_mode {
-                            new_tui_mode = stream;
-                            is_tui_mode = true;
-                            response = match stream {
-                                OutputVisibility::None => return,
-                                OutputVisibility::Output => &mut interaction.output,
-                                OutputVisibility::Error => &mut interaction.errors,
-                            };
+                    return;
+                } else {
+                    let response = match stream {
+                        OutputVisibility::None => return,
+                        OutputVisibility::Output => &mut interaction.output,
+                        OutputVisibility::Error => &mut interaction.errors,
+                    };
+                    // Process the bytes
+                    match response.add_bytes(work) {
+                        AddBytesResult::AllDone => break,
+                        AddBytesResult::ShowStream(new_work) => {
+                            needs_redraw = true;
+                            work = new_work;
                         }
-                        work = new_work;
+                        AddBytesResult::StartTui(new_work) => {
+                            interaction.tui_mode = true;
+                            work = new_work;
+                        }
                     }
                 }
             }
-            // Update the interaction
-            interaction.tui_mode = new_tui_mode;
         });
         // Update the session
         self.session_mut((), |s| s.needs_redraw |= needs_redraw);
@@ -420,9 +422,9 @@ impl SharedSession {
     }
 
     /// Check if the given interaction is still running
-    pub fn is_running(&self, handle: InteractionHandle) -> bool {
+    pub fn has_exited(&self, handle: InteractionHandle) -> bool {
         self.interaction(handle, false, |i| {
-            if let RunningStatus::Running = i.running_status {
+            if let RunningStatus::Exited(_) = i.running_status {
                 true
             } else {
                 false
@@ -445,8 +447,8 @@ impl SharedSession {
     }
 
     /// Check if the given interaction is in TUI mode
-    pub fn is_tui(&mut self, handle: InteractionHandle) -> bool {
-        self.interaction_mut(handle, false, |i| i.tui_mode != OutputVisibility::None)
+    pub fn is_tui(&self, handle: InteractionHandle) -> bool {
+        self.interaction(handle, false, |i| i.tui_mode)
     }
 
     /// Cycle the visibility of an interaction

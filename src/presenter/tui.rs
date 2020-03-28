@@ -22,22 +22,15 @@
 //! does not archive its output.
 
 use super::*;
-use model::session::{InteractionHandle, RunningStatus};
-use std::cmp;
+use model::session::InteractionHandle;
 
 /// Presenter to run commands and send input to their stdin.
 pub struct TuiExecuteCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
 
-    /// Terminal screen
-    screen: Screen,
-
     /// Current interaction
     current_interaction: InteractionHandle,
-
-    /// Prompt to set. If None, we didn't receive one yet
-    next_prompt: Option<Matrix>,
 }
 
 impl TuiExecuteCommandPresenter {
@@ -45,44 +38,32 @@ impl TuiExecuteCommandPresenter {
         commons: Box<PresenterCommons>,
         current_interaction: InteractionHandle,
     ) -> Box<Self> {
-        let mut s = Screen::new();
-        s.make_room_for(
-            (cmp::max(commons.window_width, 1) - 1) as isize,
-            (cmp::max(commons.window_height, 1) - 1) as isize,
-        );
-        s.fixed_size();
         let presenter = TuiExecuteCommandPresenter {
             commons,
-            screen: s,
             current_interaction,
-            next_prompt: None,
         };
 
         Box::new(presenter)
     }
 
-    fn deconstruct(self) -> (Box<PresenterCommons>, InteractionHandle, Option<Matrix>) {
-        (self.commons, self.current_interaction, self.next_prompt)
+    fn deconstruct(self) -> (Box<PresenterCommons>, InteractionHandle) {
+        (self.commons, self.current_interaction)
     }
 
-    fn add_bytes_to_screen(mut self: Box<Self>, bytes: &[u8]) -> (Box<dyn SubPresenter>, &[u8]) {
-        for (_i, b) in bytes.iter().enumerate() {
-            match self.screen.add_byte(*b) {
-                // TODO: Handle end of TUI mode
-                _ => {}
-            };
-        }
-        (self, b"")
-    }
-
-    fn send_string(&self, send: &str) -> PresenterCommand {
-        // TODO: Send to job
+    fn send_string(&mut self, send: &str) -> PresenterCommand {
+        self.commons
+            .interpreter
+            .jobs
+            .write_stdin(self.current_interaction, send.as_bytes());
         PresenterCommand::Redraw
     }
 
-    fn send_term_info(&self, cap_name: &str) -> PresenterCommand {
+    fn send_term_info(&mut self, cap_name: &str) -> PresenterCommand {
         if let Some(cap_str) = self.commons.term_info.strings.get(cap_name) {
-            // TODO: Send to job
+            self.commons
+                .interpreter
+                .jobs
+                .write_stdin(self.current_interaction, cap_str);
             PresenterCommand::Redraw
         } else {
             PresenterCommand::Unknown
@@ -90,7 +71,7 @@ impl TuiExecuteCommandPresenter {
     }
 
     fn send_term_info_shift(
-        &self,
+        &mut self,
         shifted: bool,
         cap_normal: &str,
         cap_shifted: &str,
@@ -123,24 +104,33 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     }
 
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        if !self.commons.session.is_running(self.current_interaction) {
-            let (mut commons, _, _) = self.deconstruct();
+        let is_running = !self.commons.session.has_exited(self.current_interaction);
+        trace!(
+            "TuiExecuteCommandPresenter::end_polling {:?}: is_running = {}",
+            self.current_interaction,
+            is_running
+        );
+        if !is_running {
+            let (commons, _) = self.deconstruct();
+            trace!("Switch to ComposeCommandPresenter");
             return (ComposeCommandPresenter::new(commons), true);
         }
-        (self, false)
+        (self, needs_marking)
     }
 
     /// Return the lines to be presented.
-    fn line_iter<'a>(&'a self, _session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
-        let ref s = self.screen;
-        Box::new(s.line_iter_full().zip(0..).map(move |(line, nr)| {
-            let cursor_x = if s.cursor_y() == nr {
-                Some(s.cursor_x() as usize)
-            } else {
-                None
-            };
-            LineItem::new(line, LineType::Tui, cursor_x, 0)
-        }))
+    fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+        match session.tui_screen(self.current_interaction) {
+            Some(s) => Box::new(s.line_iter_full().zip(0..).map(move |(line, nr)| {
+                let cursor_x = if s.cursor_y() == nr {
+                    Some(s.cursor_x() as usize)
+                } else {
+                    None
+                };
+                LineItem::new(line, LineType::Tui, cursor_x, 0)
+            })),
+            None => Box::new(std::iter::empty()),
+        }
     }
 
     fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
@@ -149,7 +139,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
-        self: Box<Self>,
+        mut self: Box<Self>,
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> (Box<dyn SubPresenter>, PresenterCommand) {
@@ -179,7 +169,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
                 self.send_term_info_shift(shifted, "kdch1", "kDC")
             }
             ((_, _, _), SpecialKey::Backspace) => self.send_term_info("kbs"),
-            ((_, _, _), SpecialKey::Tab) => self.send_string("\x08"),
+            ((_, _, _), SpecialKey::Tab) => self.send_term_info("tab"),
 
             ((_, _, _), _) => {
                 // For all other keys, do nothing as they can't be represented in a TUI.
@@ -212,7 +202,7 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         }
     }
 
-    fn event_text(self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
         self.send_string(s);
         (self, PresenterCommand::Redraw)
     }

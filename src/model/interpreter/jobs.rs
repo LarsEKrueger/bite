@@ -714,4 +714,18 @@ impl SharedJobs {
             let _ = write(stdin, bytes);
         }
     }
+
+    /// Send some bytes to any job
+    ///
+    /// Does nothing if there is no foreground job
+    pub fn write_stdin(&mut self, interaction_handle: InteractionHandle, bytes: &[u8]) {
+        if let Some(stdin) = self.jobs(None, |jobs| {
+            jobs.job_table
+                .get(&interaction_handle)
+                .map(|job| job.stdin_bite_side)
+        }) {
+            // TODO: Check result
+            let _ = write(stdin, bytes);
+        }
+    }
 }

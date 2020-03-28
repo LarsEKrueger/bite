@@ -101,13 +101,35 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        let is_running = self.commons.session.is_running(self.current_interaction);
-        trace!(
-            "ExecuteCommandPresenter::end_polling: is_running = {}",
-            is_running
-        );
-        if !is_running {
-            return (ComposeCommandPresenter::new(self.commons), true);
+        {
+            let has_exited = self.commons.session.has_exited(self.current_interaction);
+            trace!(
+                "ExecuteCommandPresenter::end_polling {:?}: has_exited = {}",
+                self.current_interaction,
+                has_exited
+            );
+            if has_exited {
+                return (ComposeCommandPresenter::new(self.commons), true);
+            }
+        }
+        {
+            // Still running, maybe switched to TUI mode?
+            let is_tui = self.commons.session.is_tui(self.current_interaction);
+            trace!(
+                "ExecuteCommandPresenter::end_polling {:?}: is_tui = {}",
+                self.current_interaction,
+                is_tui
+            );
+            if is_tui {
+                trace!(
+                    "Switch to TuiExecuteCommandPresenter, {:?}",
+                    self.current_interaction
+                );
+                return (
+                    TuiExecuteCommandPresenter::new(self.commons, self.current_interaction),
+                    true,
+                );
+            }
         }
         (self, needs_marking)
     }
