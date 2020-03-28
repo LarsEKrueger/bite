@@ -111,6 +111,9 @@ impl Interaction {
     ///
     /// The command is a vector of cells as to support syntax coloring later.
     pub fn new(command: Matrix) -> Self {
+        let mut tui_screen = Screen::new();
+        tui_screen.make_room_for(79, 24);
+        tui_screen.fixed_size();
         Self {
             command,
             output: Response::new(),
@@ -118,7 +121,7 @@ impl Interaction {
             visible: OutputVisibility::Output,
             running_status: RunningStatus::Unknown,
             tui_mode: false,
-            tui_screen: Screen::new(),
+            tui_screen,
         }
     }
 
