@@ -920,10 +920,7 @@ fn word_before_cursor() {
 
 #[test]
 fn erase_character_at_eol() {
-  Test::e(b"Hello\x1b[10X")
-      .cp(5,0)
-      .width(16)
-      .height(1);
+    Test::e(b"Hello\x1b[10X").cp(5, 0).width(16).height(1);
 }
 
 // TODO: Test for protected
