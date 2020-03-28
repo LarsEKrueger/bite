@@ -607,8 +607,7 @@ impl Screen {
         )
     }
 
-    /// Scan backwards from cursor to the first whitespace
-    pub fn word_before_cursor(&mut self) -> String {
+    fn index_word_before_cursor(&mut self) -> usize {
         self.make_room();
         // End at the beginning of the line
         let start_index = self.matrix.cell_index(0, self.cursor.y) as usize;
@@ -627,7 +626,24 @@ impl Screen {
                 break;
             }
         }
+        current_index
+    }
+
+    /// Scan backwards from cursor to the first whitespace
+    pub fn word_before_cursor(&mut self) -> String {
+        let current_index = self.index_word_before_cursor();
+        let cursor_index = self.cursor_index() as usize;
         self.collect_text(current_index, cursor_index)
+    }
+
+    pub fn delete_word_before_cursor(&mut self) {
+        let current_index = self.index_word_before_cursor();
+        let cell = self.clone_cell(' ');
+        let cursor_index = self.cursor_index() as usize;
+        for index in current_index..cursor_index {
+            self.matrix.cells[index] = cell;
+        }
+        self.cursor.x -= (cursor_index - current_index) as isize;
     }
 
     pub fn replace(&mut self, s: &str, stay_there: bool) {

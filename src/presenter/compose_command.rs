@@ -155,8 +155,10 @@ impl ComposeCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
             ((false, true, false), SpecialKey::Left) => {
-                // TODO: Delete the last word
-                (self, PresenterCommand::Unknown)
+                self.commons.text_input.delete_word_before_cursor();
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
+                (self, PresenterCommand::Redraw)
             }
             ((false, false, false), SpecialKey::Right) => {
                 // Take the first character from the current prediction
@@ -172,8 +174,26 @@ impl ComposeCommandPresenter {
                 }
             }
             ((false, true, false), SpecialKey::Right) => {
-                // TODO: Take the first word from the current prediction
-                (self, PresenterCommand::Unknown)
+                let items = self.predict();
+                self.fix_selected_prediction(items.len());
+                let item = &items[self.selected_prediction];
+                let mut cs = item.chars();
+                // Skip any initial spaces
+                while let Some(c) = cs.next() {
+                    self.commons_mut().text_input_add_characters(&c.to_string());
+                    if c != ' ' {
+                        break;
+                    }
+                }
+                // Take non-spaces
+                while let Some(c) = cs.next() {
+                    if c == ' ' {
+                        break;
+                    }
+                    self.commons_mut().text_input_add_characters(&c.to_string());
+                }
+                self.to_last_line();
+                (self, PresenterCommand::Redraw)
             }
 
             ((false, false, false), SpecialKey::Up) => {
