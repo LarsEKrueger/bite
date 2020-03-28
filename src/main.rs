@@ -113,13 +113,10 @@ fn panic_hook(info: &PanicInfo) {
         }
         _ => format!("bite panicked: {:?}\n", info),
     };
-    bite_write_output(err_msg.as_str());
-
     let bt = backtrace::Backtrace::new();
     use std::fmt::Write;
     let mut msg = String::new();
     let _ = write!(msg, "{:?}", bt);
-    bite_write_output(msg.as_str());
     error!("Error:{}\nStack Trace:\n{}", err_msg, msg);
 }
 
