@@ -239,7 +239,7 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn event_normal_key(
-        self: Box<Self>,
+        mut self: Box<Self>,
         mod_state: &ModifierState,
         letter: u8,
     ) -> (Box<dyn SubPresenter>, PresenterCommand) {
@@ -248,12 +248,20 @@ impl SubPresenter for ExecuteCommandPresenter {
                 // Control-only
                 match letter {
                     b'c' => {
-                        // TODO: Kill the last job if it is still running
+                        // Kill the last job if it is still running
+                        self.commons
+                            .interpreter
+                            .jobs
+                            .terminate(self.current_interaction);
                         return (self, PresenterCommand::Redraw);
                     }
 
                     b'd' => {
-                        // TODO: Send to running program
+                        // Send to running program
+                        self.commons
+                            .interpreter
+                            .jobs
+                            .write_stdin(self.current_interaction, b"\x04");
                         return (self, PresenterCommand::Redraw);
                     }
                     _ => {}

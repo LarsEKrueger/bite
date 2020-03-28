@@ -34,7 +34,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
-use std::thread::{sleep, spawn, JoinHandle};
+use std::thread::{spawn, JoinHandle};
 use std::time::Duration;
 use termios::os::target::*;
 use termios::*;
@@ -56,15 +56,15 @@ struct Jobs {
 #[derive(Clone)]
 pub struct SharedJobs(Arc<Mutex<Jobs>>);
 
-/// std::process::Child that can be shared between threads
-type SharedChild = Arc<Mutex<Child>>;
-
 /// Public info about the job.
 ///
 /// Most internal info is stored in threads and can be kept private.
 pub struct Job {
     /// Pseudo terminal handle for sending data to stdin of the whole pipeline.
     stdin_bite_side: RawFd,
+
+    /// Children for termination
+    children: Arc<Mutex<Vec<Child>>>,
 }
 
 /// Handles for the Pseudo Terminals
@@ -306,111 +306,6 @@ fn read_data(
     }
 }
 
-/// Wait for a child to finish.
-///
-/// This needs to be implemented by polling as not to drop stdin.
-fn wait_for_child(
-    mut jobs: SharedJobs,
-    child: SharedChild,
-    mut session: SharedSession,
-    interactionHandle: InteractionHandle,
-) {
-    let time_between_polls = Duration::from_millis(10);
-    let mut error_reported = false;
-    loop {
-        if let Ok(mut child) = child.lock() {
-            match child.try_wait().map_err(as_description) {
-                Ok(Some(es)) => {
-                    session.set_running_status(interactionHandle, RunningStatus::Exited(es));
-                    break;
-                }
-                Err(msg) => {
-                    if !error_reported {
-                        session.add_bytes(
-                            OutputVisibility::Error,
-                            interactionHandle,
-                            b"BiTE: Failed to poll for exit code. Cause: ",
-                        );
-                        session.add_bytes(
-                            OutputVisibility::Error,
-                            interactionHandle,
-                            msg.as_bytes(),
-                        );
-                        session.add_bytes(OutputVisibility::Error, interactionHandle, b"\n");
-                        error_reported = true;
-                    }
-                    session.set_running_status(interactionHandle, RunningStatus::Unknown);
-                }
-                _ => {}
-            }
-        }
-        sleep(time_between_polls);
-    }
-
-    // Remove job from table
-    jobs.jobs_mut((), |jobs| {
-        if let Some(fg_interaction_handle) = jobs.foreground {
-            if fg_interaction_handle == interactionHandle {
-                jobs.foreground = None;
-            }
-        }
-        jobs.job_table.remove(&interactionHandle);
-    });
-}
-
-/// Start a command and set up the reader threads
-///
-/// This is the core of Job::new.
-fn start_command<I, S>(
-    session: SharedSession,
-    interactionHandle: InteractionHandle,
-    program: S,
-    args: I,
-) -> Result<(SharedChild, RawFd), String>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    let handles = create_terminals()?;
-
-    let child = Command::new(program)
-        .args(args)
-        .stdin(unsafe { Stdio::from_raw_fd(handles.stdin_s) })
-        .stderr(unsafe { Stdio::from_raw_fd(handles.stderr_s) })
-        .stdout(unsafe { Stdio::from_raw_fd(handles.stdout_s) })
-        .spawn()
-        .map_err(as_description)?;
-
-    {
-        let stdout_m = handles.stdout_m;
-        let stdout_session = session.clone();
-        spawn(move || {
-            read_data(
-                stdout_m,
-                stdout_session,
-                interactionHandle,
-                OutputVisibility::Output,
-            )
-        });
-    }
-
-    {
-        let stderr_m = handles.stderr_m;
-        let stderr_session = session.clone();
-        spawn(move || {
-            read_data(
-                stderr_m,
-                stderr_session,
-                interactionHandle,
-                OutputVisibility::Error,
-            )
-        });
-    }
-
-    let child = Arc::new(Mutex::new(child));
-    Ok((child, handles.stdin_m))
-}
-
 impl std::fmt::Debug for ProgramOrBuiltin {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -595,7 +490,19 @@ impl SharedJobs {
         mut builder: PipelineBuilder,
     ) -> ExitStatus {
         // Store job for later interaction in job table
+        let children = {
+            let children = builder
+                .children
+                .drain(0..)
+                .filter_map(|cot| match cot {
+                    ChildOrThread::Child(c) => Some(c),
+                    _ => None,
+                })
+                .collect();
+            Arc::new(Mutex::new(children))
+        };
         let job = Job {
+            children: children.clone(),
             stdin_bite_side: builder.stdin_bite_side,
         };
         let interaction_handle = builder.interaction_handle;
@@ -605,16 +512,20 @@ impl SharedJobs {
             j.job_table.insert(interaction_handle, job);
         });
 
+        let mut reader_threads = Vec::new();
+
         // Start a reader thread for each stderr
         for e in builder.stderr {
             let session = session.clone();
-            spawn(move || read_data(e, session, interaction_handle, OutputVisibility::Error));
+            let jh =
+                spawn(move || read_data(e, session, interaction_handle, OutputVisibility::Error));
+            reader_threads.push(jh);
         }
 
         // Start a reader thread for the last stdout
         if let Some(stdout) = builder.stdout_bite_side {
             let session = session.clone();
-            spawn(move || {
+            let jh = spawn(move || {
                 read_data(
                     stdout,
                     session,
@@ -622,67 +533,66 @@ impl SharedJobs {
                     OutputVisibility::Output,
                 )
             });
+            reader_threads.push(jh);
+        }
+
+        // Wait for the reader threads to complete. This doesn't require locking the mutex around
+        // the children.
+        for t in reader_threads.drain(0..) {
+            if let Err(e) = t.join() {
+                debug!("Error waiting for reader thread: »{:?}«", e);
+            }
         }
 
         // Wait for each child, report on the exit code of each failing program. Keep the exit code
         // of the last failing program.
         let mut exit_status = ExitStatusExt::from_raw(0);
-        for (i, c) in builder.children.drain(0..).enumerate() {
-            match c {
-                ChildOrThread::Child(mut c) => {
-                    match c.wait() {
-                        Err(e) => {
-                            debug!("Error waiting for child: »{:?}«", e);
-                        }
-                        Ok(es) => {
-                            if !es.success() {
-                                match (es.code(), es.signal()) {
-                                    (Some(c), Some(s)) => {
-                                        session.add_bytes( OutputVisibility::Error, interaction_handle,
-                                                           format!( "BiTE: Pipeline command #{} failed with exit code {:} and signal {:}\n", i, c, s).as_bytes());
-                                    }
-                                    (Some(_c), None) => {
-                                        // Normal case, do nothing.
-                                    }
-                                    (None, Some(s)) => {
-                                        session.add_bytes(
-                                            OutputVisibility::Error,
-                                            interaction_handle,
-                                            format!(
-                                                "BiTE: Pipeline command #{} failed with signal {:}\n",
-                                                i, s
-                                            )
-                                            .as_bytes(),
-                                            );
-                                    }
-                                    (None, None) => {
-                                        session.add_bytes(
-                                            OutputVisibility::Error,
-                                            interaction_handle,
-                                            format!(
-                                                "BiTE: Pipeline command #{} failed for unknown reasons\n",
-                                                i
-                                            )
-                                            .as_bytes(),
-                                            );
-                                    }
-                                }
-                                exit_status = es;
-                            }
-                        }
-                    }
-                }
-                ChildOrThread::Thread(t) => match t.join() {
+        if let Ok(mut children) = children.lock() {
+            for (i, mut c) in children.drain(0..).enumerate() {
+                match c.wait() {
                     Err(e) => {
-                        debug!("Error waiting for thread of builtin: »{:?}«", e);
+                        debug!("Error waiting for child: »{:?}«", e);
                     }
                     Ok(es) => {
                         if !es.success() {
+                            match (es.code(), es.signal()) {
+                                (Some(c), Some(s)) => {
+                                    session.add_bytes( OutputVisibility::Error, interaction_handle,
+                                                       format!( "BiTE: Pipeline command #{} failed with exit code {:} and signal {:}\n", i, c, s).as_bytes());
+                                }
+                                (Some(_c), None) => {
+                                    // Normal case, do nothing.
+                                }
+                                (None, Some(s)) => {
+                                    session.add_bytes(
+                                        OutputVisibility::Error,
+                                        interaction_handle,
+                                        format!(
+                                            "BiTE: Pipeline command #{} failed with signal {:}\n",
+                                            i, s
+                                        )
+                                        .as_bytes(),
+                                    );
+                                }
+                                (None, None) => {
+                                    session.add_bytes(
+                                        OutputVisibility::Error,
+                                        interaction_handle,
+                                        format!(
+                                            "BiTE: Pipeline command #{} failed for unknown reasons\n",
+                                            i
+                                        )
+                                        .as_bytes(),
+                                        );
+                                }
+                            }
                             exit_status = es;
                         }
                     }
-                },
+                }
             }
+        } else {
+            debug!("Cannot lock child process handle mutex. Exit status might be incorrect.");
         }
 
         session.set_running_status(interaction_handle, RunningStatus::Exited(exit_status));
@@ -726,6 +636,24 @@ impl SharedJobs {
         }) {
             // TODO: Check result
             let _ = write(stdin, bytes);
+        }
+    }
+
+    /// Terminate everything that is running in the given interaction
+    ///
+    /// Does nothing if nothing is running
+    pub fn terminate(&mut self, interaction_handle: InteractionHandle) {
+        if let Some(children) = self.jobs(None, |jobs| {
+            jobs.job_table
+                .get(&interaction_handle)
+                .map(|job| job.children.clone())
+        }) {
+            if let Ok(mut children) = children.lock() {
+                for c in children.iter_mut() {
+                    // Silently kill the process
+                    let _ = c.kill();
+                }
+            }
         }
     }
 }
