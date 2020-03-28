@@ -390,6 +390,7 @@ impl SharedSession {
                         // TODO: Handle the events correctly.
                         let _ = interaction.tui_screen.add_byte(*b);
                     }
+                    needs_redraw = true;
                     return;
                 } else {
                     let response = match stream {
