@@ -251,20 +251,25 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Launch foreground program using Job.
     * [X] Implement Jobs
     * [X] Extend parser to backgrounding (non-pipe)
-    * [ ] Launch background program using Jobs
-    * [ ] Extend parser and Job to launch pipes
+    * [X] Launch background program using Jobs
+    * [X] Extend parser and Job to launch pipes
     * [X] Add quick switching of last command's output screens
-* [ ] 0.10 Tabs for TUIs, incl. automatic backgrounding
+* [ ] 0.10 Make GUI font configurable
+      * [ ] Set variables
+      * [ ] Run ini file in top-level interpreter
+      * [ ] Load font from variable
+* [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
     * [ ] propagate window size changes to TUI
     * [ ] Allow multiple views.
-* [ ] 0.11 Join parsing and completion
-* [ ] 0.12 Draw GUI using Xft
-* [ ] 0.13 Implement all Screen Actions
-* [ ] 0.14 Redesign user interface
-* [ ] 0.15 Redesign SW architecture
+* [ ] 0.12 Join parsing and completion
+* [ ] 0.13 Draw GUI using Xft
+* [ ] 0.14 Implement all Screen Actions
+* [ ] 0.15 Redesign user interface
+* [ ] 0.16 Redesign SW architecture
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
+* [ ] Bug: neofetch doesn't display correctly
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
 * [ ] Bug: Bash source $() does not work correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
