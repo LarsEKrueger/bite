@@ -110,8 +110,7 @@ trait SubPresenter {
     /// Extract the commons and forget the presenter
     fn to_commons(self) -> Box<PresenterCommons>;
 
-    fn set_exit_status(self: &mut Self, exit_status: ExitStatus);
-    fn set_next_prompt(self: &mut Self, bytes: &[u8]);
+    /// Determine if there's a reason to switch presenters or redraw the screen
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool);
 
     /// Return an iterator of lines to be drawn.

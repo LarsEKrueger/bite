@@ -100,16 +100,6 @@ impl SubPresenter for ExecuteCommandPresenter {
         self.commons
     }
 
-    fn set_exit_status(self: &mut Self, exit_status: ExitStatus) {
-        self.commons
-            .session
-            .set_running_status(self.current_interaction, RunningStatus::Exited(exit_status));
-    }
-
-    fn set_next_prompt(self: &mut Self, bytes: &[u8]) {
-        self.next_prompt = Some(Screen::one_line_matrix(bytes));
-    }
-
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         let is_running = self.commons.session.is_running(self.current_interaction);
         trace!(

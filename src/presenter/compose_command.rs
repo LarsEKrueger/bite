@@ -471,22 +471,7 @@ impl SubPresenter for ComposeCommandPresenter {
         self.commons
     }
 
-    fn set_exit_status(self: &mut Self, _exit_status: ExitStatus) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-    }
-
-    fn set_next_prompt(self: &mut Self, _bytes: &[u8]) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-    }
-
     fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
         (self, false)
     }
 
