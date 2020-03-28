@@ -272,32 +272,6 @@ impl ComposeCommandPresenter {
                 self.commons_mut().text_input.move_right(1);
                 (self, PresenterCommand::Redraw)
             }
-            ((false, false, false), SpecialKey::Up) => {
-                if self.is_multi_line() {
-                    self.text_input().move_up(1);
-                    (self, PresenterCommand::Redraw)
-                } else {
-                    // Go to history browse mode without search.
-                    (
-                        // TODO: Use own history
-                        self,
-                        PresenterCommand::Redraw,
-                    )
-                }
-            }
-            ((false, false, false), SpecialKey::Down) => {
-                if self.is_multi_line() {
-                    self.text_input().move_down(1);
-                    (self, PresenterCommand::Redraw)
-                } else {
-                    (
-                        // Go to history browse mode without search.
-                        // TODO: Use own history
-                        self,
-                        PresenterCommand::Redraw,
-                    )
-                }
-            }
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
@@ -309,21 +283,6 @@ impl ComposeCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
-            ((false, false, false), SpecialKey::PageUp) => {
-                // Nothing -> Prefix search
-                let prefix = {
-                    let ref mut text_input = self.commons.text_input;
-                    let prefix = text_input.text_before_cursor();
-                    text_input.reset();
-                    text_input.place_str(&prefix);
-                    prefix
-                };
-                (
-                    // TODO: Use own history
-                    self,
-                    PresenterCommand::Redraw,
-                )
-            }
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
@@ -333,21 +292,6 @@ impl ComposeCommandPresenter {
                 (self, PresenterCommand::Redraw)
             }
 
-            ((false, false, false), SpecialKey::PageDown) => {
-                // Nothing -> Prefix search
-                let prefix = {
-                    let ref mut text_input = self.commons.text_input;
-                    let prefix = text_input.text_before_cursor();
-                    text_input.reset();
-                    text_input.place_str(&prefix);
-                    prefix
-                };
-                (
-                    // TODO: Use own history
-                    self,
-                    PresenterCommand::Redraw,
-                )
-            }
             ((false, false, false), SpecialKey::Home) => {
                 self.commons.text_input.move_left_edge();
                 (self, PresenterCommand::Redraw)
