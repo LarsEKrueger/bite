@@ -239,6 +239,9 @@ impl Runner {
     pub fn run(&mut self, instructions: Arc<Instructions>, interaction: InteractionHandle) {
         let end = instructions.len();
         self.run_sub_set(instructions, interaction, 0, end);
+        // If the instructions were all background commands, the running status is still unset
+        // here.
+        self.session.fix_running_status( interaction);
     }
 
     fn run_sub_set(
