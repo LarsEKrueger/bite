@@ -314,6 +314,7 @@ fn read_data(
         }
     }
     trace!("Done reading data from file descriptor {}", fd);
+    let _ = close(fd);
 }
 
 impl std::fmt::Debug for ProgramOrBuiltin {
