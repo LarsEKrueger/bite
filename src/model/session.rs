@@ -413,8 +413,9 @@ impl SharedSession {
                     }
                 }
             }
+            // Make new output show up
+            interaction.visible = stream;
         });
-        // Update the session
         self.session_mut((), |s| s.needs_redraw |= needs_redraw);
     }
 
