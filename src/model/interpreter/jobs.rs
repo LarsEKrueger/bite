@@ -24,7 +24,8 @@ use nix::pty::{grantpt, posix_openpt, ptsname, unlockpt};
 use nix::sys::select::{select, FdSet};
 use nix::sys::stat::Mode;
 use nix::sys::time::{TimeVal, TimeValLike};
-use nix::unistd::{close, read, write};
+use nix::unistd::{close, read, write, Pid};
+use nix::sys::wait::{waitpid,WaitStatus};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::File;
@@ -283,27 +284,36 @@ fn read_data(
     interactionHandle: InteractionHandle,
     stream: OutputVisibility,
 ) {
+    trace!("Reading data from file descriptor {}", fd);
     // The loop will exit on error
     loop {
         // If there is input, read it.
         let mut rdfs = FdSet::new();
         rdfs.insert(fd);
+        let mut exfs = FdSet::new();
+        exfs.insert(fd);
         let mut timeout = TimeVal::milliseconds(20);
-        let data_available = match select(None, Some(&mut rdfs), None, None, Some(&mut timeout)) {
+        let data_available = match select(None, Some(&mut rdfs), None, Some(&mut exfs), Some(&mut timeout)) {
             Ok(0) | Err(_) => false,
             Ok(_) => true,
         };
-
         if data_available {
+            trace!("read_data maybe got data: {:?}, {:?}", rdfs, exfs);
             let mut buffer = [0; 4096];
-            if let Ok(len) = read(fd, &mut buffer) {
-                session.add_bytes(stream, interactionHandle, &buffer[0..len]);
-            } else {
-                // There was some serious error reading from command, so drop everything and leave.
-                break;
+            match read(fd, &mut buffer) {
+                Ok(len) => {
+                    session.add_bytes(stream, interactionHandle, &buffer[0..len]);
+                },
+                Err(err) => {
+                    // There was some serious error reading from command, so drop everything and
+                    // leave. This is a first detector if a program exited.
+                    debug!("Stopped reading from file descriptor {} due to {:?}", fd, err);
+                    break;
+                }
             }
         }
     }
+    trace!("Done reading data from file descriptor {}", fd);
 }
 
 impl std::fmt::Debug for ProgramOrBuiltin {
@@ -537,63 +547,36 @@ impl SharedJobs {
             reader_threads.push(jh);
         }
 
-        // Wait for the reader threads to complete. This doesn't require locking the mutex around
-        // the children.
-        for t in reader_threads.drain(0..) {
-            if let Err(e) = t.join() {
-                debug!("Error waiting for reader thread: »{:?}«", e);
-            }
-        }
+        // Waiting for the reader threads to complete  doesn't require locking the mutex around
+        // the children, but it also does not catch all cases (e.g. gvim going into background)
+        // because the file handle might be passed down to the forked process and still be open.
+        //
+        // Instead, get the process ids and call waitpid.
+        let pids = if let Ok(mut children) = children.lock() {
+            children.iter().map( |c| c.id()).collect()
+        } else {
+            debug!("Cannot lock child process handle mutex. Exit status might be incorrect.");
+            Vec::new()
+        };
+
+        trace!("Waiting for pids {:?}", pids);
 
         // Wait for each child, report on the exit code of each failing program. Keep the exit code
         // of the last failing program.
         let mut exit_status = ExitStatusExt::from_raw(0);
-        if let Ok(mut children) = children.lock() {
-            for (i, mut c) in children.drain(0..).enumerate() {
-                match c.wait() {
-                    Err(e) => {
-                        debug!("Error waiting for child: »{:?}«", e);
-                    }
-                    Ok(es) => {
-                        if !es.success() {
-                            match (es.code(), es.signal()) {
-                                (Some(c), Some(s)) => {
-                                    session.add_bytes( OutputVisibility::Error, interaction_handle,
-                                                       format!( "BiTE: Pipeline command #{} failed with exit code {:} and signal {:}\n", i, c, s).as_bytes());
-                                }
-                                (Some(_c), None) => {
-                                    // Normal case, do nothing.
-                                }
-                                (None, Some(s)) => {
-                                    session.add_bytes(
-                                        OutputVisibility::Error,
-                                        interaction_handle,
-                                        format!(
-                                            "BiTE: Pipeline command #{} failed with signal {:}\n",
-                                            i, s
-                                        )
-                                        .as_bytes(),
-                                    );
-                                }
-                                (None, None) => {
-                                    session.add_bytes(
-                                        OutputVisibility::Error,
-                                        interaction_handle,
-                                        format!(
-                                            "BiTE: Pipeline command #{} failed for unknown reasons\n",
-                                            i
-                                        )
-                                        .as_bytes(),
-                                        );
-                                }
-                            }
-                            exit_status = es;
-                        }
-                    }
+        for pid in pids.iter() {
+            trace!("Waiting for pid {:?}", pid);
+            match waitpid(Some(Pid::from_raw(*pid as i32)), None) {
+                Err(e) => {
+                    debug!("Error waiting for pid: »{:?}«", e);
+                }
+                Ok(WaitStatus::Exited(_,es)) => {
+                    exit_status = ExitStatusExt::from_raw(es);
+                }
+                ret => {
+                    debug!("waitpid returned with unexpected reason: {:?}", ret);
                 }
             }
-        } else {
-            debug!("Cannot lock child process handle mutex. Exit status might be incorrect.");
         }
 
         // Remove job from table
