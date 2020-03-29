@@ -374,6 +374,7 @@ impl PipelineBuilder {
                 let mut cmd = Command::new(s);
 
                 cmd.args(args)
+                    .env("TERM", "xterm")
                     .stdin(unsafe { Stdio::from_raw_fd(self.prev_stdout) });
 
                 // If stderr isn't redirected, it will go out to the pts directly.
