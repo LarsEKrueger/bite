@@ -21,7 +21,6 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
 use std::sync::{Arc, Mutex};
 
 use super::iterators::*;
@@ -424,17 +423,6 @@ impl SharedSession {
         self.interaction_mut(handle, (), |i| {
             i.running_status = status;
             i.show_potential_errors();
-        });
-    }
-
-    /// Set the exit status to OK if not already Exited
-    pub fn fix_running_status(&mut self, handle: InteractionHandle) {
-        self.interaction_mut(handle, (), |i| {
-            if let RunningStatus::Exited(_) = i.running_status {
-            // Do nothing
-            } else {
-                i.running_status = RunningStatus::Exited(ExitStatusExt::from_raw(0));
-            }
         });
     }
 

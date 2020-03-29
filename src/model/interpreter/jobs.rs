@@ -596,8 +596,6 @@ impl SharedJobs {
             debug!("Cannot lock child process handle mutex. Exit status might be incorrect.");
         }
 
-        session.set_running_status(interaction_handle, RunningStatus::Exited(exit_status));
-
         // Remove job from table
         self.jobs_mut((), |jobs| {
             if let Some(fg_interaction_handle) = jobs.foreground {

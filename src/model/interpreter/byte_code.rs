@@ -18,7 +18,7 @@
 
 //! Byte Code for Shell Scripts
 
-use super::super::session::{InteractionHandle, OutputVisibility, SharedSession};
+use super::super::session::{InteractionHandle, OutputVisibility, SharedSession, RunningStatus};
 use super::data_stack::Stack;
 use super::jobs;
 use super::parser::{
@@ -237,11 +237,10 @@ impl Runner {
 
     /// Run the instructions
     pub fn run(&mut self, instructions: Arc<Instructions>, interaction: InteractionHandle) {
+        self.last_exit_status = ExitStatusExt::from_raw(0);
         let end = instructions.len();
         self.run_sub_set(instructions, interaction, 0, end);
-        // If the instructions were all background commands, the running status is still unset
-        // here.
-        self.session.fix_running_status( interaction);
+        self.session.set_running_status(interaction, RunningStatus::Exited(self.last_exit_status));
     }
 
     fn run_sub_set(
