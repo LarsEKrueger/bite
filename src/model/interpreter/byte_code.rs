@@ -251,10 +251,11 @@ impl Runner {
         start: usize,
         end: usize,
     ) {
+        trace!("Running subset [{},{}] of {:?}", start, end, instructions);
         let mut ip = start;
         while (start <= ip) && (ip < end) {
             let i = &instructions[ip];
-            trace!("Instruction {:?}", i);
+            trace!("Instruction {} in {:?}: {:?}", ip, instructions, i);
             match i {
                 Instruction::Begin => {
                     if self.current_pipeline.is_some() {
@@ -356,7 +357,7 @@ impl Runner {
                     let mut clone_self = Runner::new(self.session.clone(), self.jobs.clone());
                     let clone_instructions = instructions.clone();
                     let clone_start = ip + 1;
-                    let clone_end = ip + 1 + len;
+                    let clone_end = ip + len;
                     spawn(move || {
                         clone_self.run_sub_set(
                             clone_instructions,
@@ -382,6 +383,7 @@ impl Runner {
             }
             ip += 1;
         }
+        trace!("Done running subset [{},{}] of {:?}", start, end, instructions);
     }
 }
 
