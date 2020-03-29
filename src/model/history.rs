@@ -81,12 +81,12 @@ impl History {
     /// Return list of predictions
     pub fn predict(&self, dir: &str, start: &String) -> Vec<String> {
         if let Some(ec) = self.0.get(dir) {
-            trace!(
-                "history of »{}« starting with »{}«: {:?}",
-                dir,
-                start,
-                ec
-            );
+            // trace!(
+            //     "history of »{}« starting with »{}«: {:?}",
+            //     dir,
+            //     start,
+            //     ec
+            // );
             ec.predict(start)
         } else {
             Vec::new()
