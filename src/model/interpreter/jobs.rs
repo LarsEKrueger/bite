@@ -244,6 +244,7 @@ fn read_data(
     stream: OutputVisibility,
 ) {
     trace!("Reading data from file descriptor {}", fd);
+    session.register_thread( interactionHandle);
     // The loop will exit on error
     loop {
         // If there is input, read it.
@@ -282,6 +283,7 @@ fn read_data(
         }
     }
     trace!("Done reading data from file descriptor {}", fd);
+    session.unregister_thread( interactionHandle);
     let _ = close(fd);
 }
 

@@ -67,6 +67,9 @@ struct Interaction {
     tui_mode: bool,
     /// Screen used for TUI mode
     pub tui_screen: Screen,
+
+    /// Number of threads that feed data into the interaction.
+    threads: usize,
 }
 
 /// A number of commands that are executed with the same prompt string.
@@ -122,6 +125,7 @@ impl Interaction {
             running_status: RunningStatus::Unknown,
             tui_mode: false,
             tui_screen,
+            threads: 0,
         }
     }
 
@@ -176,6 +180,15 @@ impl Interaction {
             self.visible = OutputVisibility::Output;
         } else if self.has_errors() {
             self.show_errors();
+        }
+    }
+
+    /// If there is data in the TUI screen, add it to the end of output
+    pub fn exit_cleanup( &mut self) {
+        if self.tui_mode {
+            for l in self.tui_screen.line_iter() {
+                self.output.lines.push(l.to_vec());
+            }
         }
     }
 }
@@ -487,6 +500,22 @@ impl SharedSession {
                 inter.visible = ov.clone();
             }
         })
+    }
+
+    /// Increment the number of threads that feed data into an interaction
+    pub fn register_thread(&mut self, handle: InteractionHandle) {
+      self.interaction_mut( handle, (), |i| i.threads = i.threads.saturating_add( 1) );
+    }
+
+    /// Decrement the number of threads that feed data into an interaction. If the number becomes
+    /// zero, do exit clean up on the interaction.
+    pub fn unregister_thread(&mut self, handle: InteractionHandle) {
+      self.interaction_mut( handle, (), |i| { 
+          i.threads = i.threads.saturating_sub( 1); 
+          if i.threads == 0 {
+              i.exit_cleanup();
+          }
+      });
     }
 }
 
