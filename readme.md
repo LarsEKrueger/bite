@@ -270,6 +270,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
+* [X] Bug: `git push && git push somewhere` runs second command if first one fails
 * [ ] History: Sort in reverse (best match at the bottom)
 * [ ] History: Use order of commands for sorting (length of look-ahead?)
 * [ ] History: Handle multi-line entries

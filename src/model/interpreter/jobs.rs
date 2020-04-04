@@ -31,7 +31,6 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
-use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
@@ -244,7 +243,7 @@ fn read_data(
     stream: OutputVisibility,
 ) {
     trace!("Reading data from file descriptor {}", fd);
-    session.register_thread( interactionHandle);
+    session.register_thread(interactionHandle);
     // The loop will exit on error
     loop {
         // If there is input, read it.
@@ -283,7 +282,7 @@ fn read_data(
         }
     }
     trace!("Done reading data from file descriptor {}", fd);
-    session.unregister_thread( interactionHandle);
+    session.unregister_thread(interactionHandle);
     let _ = close(fd);
 }
 
@@ -317,12 +316,11 @@ impl PipelineBuilder {
 
     /// Set the name of the next program to launch
     pub fn set_program(&mut self, name: String) {
-        if let ProgramOrBuiltin::Nothing = self.next_program {
-            error!(
-                "Overwriting program »{:?}« with »{}«",
-                self.next_program, name
-            );
-        }
+        trace!(
+            "Overwriting program »{:?}« with »{}«",
+            self.next_program,
+            name
+        );
         self.next_program = if let Some(b) = builtins::runner(&name) {
             ProgramOrBuiltin::Builtin(b)
         } else {
@@ -462,11 +460,7 @@ impl SharedJobs {
     }
 
     /// Run a pipeline in foreground until completion
-    pub fn foreground_job(
-        &mut self,
-        session: SharedSession,
-        mut builder: PipelineBuilder,
-    ) -> ExitStatus {
+    pub fn foreground_job(&mut self, session: SharedSession, mut builder: PipelineBuilder) -> i32 {
         // Store job for later interaction in job table
         let children = {
             let children = builder
@@ -530,7 +524,7 @@ impl SharedJobs {
 
         // Wait for each child, report on the exit code of each failing program. Keep the exit code
         // of the last failing program.
-        let mut exit_status = ExitStatusExt::from_raw(0);
+        let mut exit_status = 0;
         for pid in pids.iter() {
             trace!("Waiting for pid {:?}", pid);
             match waitpid(Some(Pid::from_raw(*pid as i32)), None) {
@@ -538,7 +532,7 @@ impl SharedJobs {
                     debug!("Error waiting for pid: »{:?}«", e);
                 }
                 Ok(WaitStatus::Exited(_, es)) => {
-                    exit_status = ExitStatusExt::from_raw(es);
+                    exit_status = es;
                 }
                 ret => {
                     debug!("waitpid returned with unexpected reason: {:?}", ret);

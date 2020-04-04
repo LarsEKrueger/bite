@@ -138,7 +138,7 @@ pub struct Runner {
     current_pipeline: Option<jobs::PipelineBuilder>,
 
     /// ExitStatus of last foreground program. TODO: Make shell variable.
-    last_exit_status: ExitStatus,
+    last_exit_status: i32,
 
     /// Data stack
     data_stack: Stack,
@@ -213,7 +213,7 @@ impl Runner {
             launchpad: Launchpad::new(),
             current_pipeline: None,
             data_stack: Stack::new(),
-            last_exit_status: ExitStatusExt::from_raw(0),
+            last_exit_status: 0,
         }
     }
 
@@ -237,11 +237,13 @@ impl Runner {
 
     /// Run the instructions
     pub fn run(&mut self, instructions: Arc<Instructions>, interaction: InteractionHandle) {
-        self.last_exit_status = ExitStatusExt::from_raw(0);
+        self.last_exit_status = 0;
         let end = instructions.len();
         self.run_sub_set(instructions, interaction, 0, end);
-        self.session
-            .set_running_status(interaction, RunningStatus::Exited(self.last_exit_status));
+        self.session.set_running_status(
+            interaction,
+            RunningStatus::Exited(ExitStatusExt::from_raw(self.last_exit_status)),
+        );
     }
 
     fn run_sub_set(
@@ -308,13 +310,20 @@ impl Runner {
                     let maybe_pb = std::mem::replace(&mut self.current_pipeline, None);
                     if let Some(pb) = maybe_pb {
                         self.last_exit_status = self.jobs.foreground_job(self.session.clone(), pb);
+                        trace!("set last_exit_status {:?}", self.last_exit_status);
                     } else {
                         error!("No pipeline builder in ForegroundJob");
                     }
                 }
 
                 Instruction::Success => {
-                    self.data_stack.push_bool(self.last_exit_status.success());
+                    let success = self.last_exit_status == 0;
+                    trace!(
+                        "check last_exit_status {:?} -> success {:?}",
+                        self.last_exit_status,
+                        success
+                    );
+                    self.data_stack.push_bool(success);
                 }
 
                 Instruction::Not => {
