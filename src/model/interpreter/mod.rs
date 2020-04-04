@@ -20,10 +20,8 @@
 //!
 //! Processes the source, starts jobs etc.
 
-use super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
-use std::os::unix::process::ExitStatusExt;
+use super::session::{InteractionHandle, SharedSession};
 use std::path::PathBuf;
-use std::process::ExitStatus;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;

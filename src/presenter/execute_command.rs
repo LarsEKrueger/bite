@@ -20,7 +20,7 @@
 
 use super::tui::TuiExecuteCommandPresenter;
 use super::*;
-use model::session::{InteractionHandle, OutputVisibility, RunningStatus};
+use model::session::InteractionHandle;
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]

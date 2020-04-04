@@ -23,7 +23,6 @@
 
 use std::cmp;
 use std::fmt::{Display, Formatter};
-use std::process::ExitStatus;
 
 use term::terminfo::TermInfo;
 

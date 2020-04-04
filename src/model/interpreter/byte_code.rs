@@ -18,7 +18,7 @@
 
 //! Byte Code for Shell Scripts
 
-use super::super::session::{InteractionHandle, OutputVisibility, SharedSession, RunningStatus};
+use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
 use super::data_stack::Stack;
 use super::jobs;
 use super::parser::{
@@ -240,7 +240,8 @@ impl Runner {
         self.last_exit_status = ExitStatusExt::from_raw(0);
         let end = instructions.len();
         self.run_sub_set(instructions, interaction, 0, end);
-        self.session.set_running_status(interaction, RunningStatus::Exited(self.last_exit_status));
+        self.session
+            .set_running_status(interaction, RunningStatus::Exited(self.last_exit_status));
     }
 
     fn run_sub_set(
@@ -382,7 +383,12 @@ impl Runner {
             }
             ip += 1;
         }
-        trace!("Done running subset [{},{}] of {:?}", start, end, instructions);
+        trace!(
+            "Done running subset [{},{}] of {:?}",
+            start,
+            end,
+            instructions
+        );
     }
 }
 

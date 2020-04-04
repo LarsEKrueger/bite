@@ -24,8 +24,8 @@ use nix::pty::{grantpt, posix_openpt, ptsname, unlockpt};
 use nix::sys::select::{select, FdSet};
 use nix::sys::stat::Mode;
 use nix::sys::time::{TimeVal, TimeValLike};
+use nix::sys::wait::{waitpid, WaitStatus};
 use nix::unistd::{close, read, write, Pid};
-use nix::sys::wait::{waitpid,WaitStatus};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::File;
@@ -36,11 +36,10 @@ use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread::{spawn, JoinHandle};
-use std::time::Duration;
 use termios::os::target::*;
 use termios::*;
 
-use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
+use super::super::session::{InteractionHandle, OutputVisibility, SharedSession};
 use super::builtins;
 use super::builtins::BuiltinRunner;
 
@@ -66,23 +65,6 @@ pub struct Job {
 
     /// Children for termination
     children: Arc<Mutex<Vec<Child>>>,
-}
-
-/// Handles for the Pseudo Terminals
-#[derive(Debug)]
-pub struct PtsHandles {
-    /// Stdin PTS master (bite side)
-    stdin_m: RawFd,
-    /// Stdin PTS slave (command side)
-    stdin_s: RawFd,
-    /// Stdout PTS master (bite side)
-    stdout_m: RawFd,
-    /// Stdout PTS slave (command side)
-    stdout_s: RawFd,
-    /// Stderr PTS master (bite side)
-    stderr_m: RawFd,
-    /// Stderr PTS slave (command side)
-    stderr_s: RawFd,
 }
 
 /// Pair of PTS handles
@@ -243,29 +225,6 @@ fn create_terminal(termios: Termios) -> Result<(RawFd, RawFd), String> {
     Ok((ptsm, sfd))
 }
 
-/// Create handles for stdin, stdout, stderr as pseudo terminals.
-///
-/// Might fail with an error message.
-fn create_terminals() -> Result<PtsHandles, String> {
-    // Create an initial termios struct
-    let mut termios = default_termios();
-    fixup_termios(&mut termios);
-
-    // Create the pts pairs
-    let (stdin_m, stdin_s) = create_terminal(termios)?;
-    let (stdout_m, stdout_s) = create_terminal(termios)?;
-    let (stderr_m, stderr_s) = create_terminal(termios)?;
-
-    Ok(PtsHandles {
-        stdin_m,
-        stdin_s,
-        stdout_m,
-        stdout_s,
-        stderr_m,
-        stderr_s,
-    })
-}
-
 /// Create a pair of PTS handles
 fn create_handle_pair() -> Result<PtsPair, String> {
     let mut termios = default_termios();
@@ -293,7 +252,13 @@ fn read_data(
         let mut exfs = FdSet::new();
         exfs.insert(fd);
         let mut timeout = TimeVal::milliseconds(20);
-        let data_available = match select(None, Some(&mut rdfs), None, Some(&mut exfs), Some(&mut timeout)) {
+        let data_available = match select(
+            None,
+            Some(&mut rdfs),
+            None,
+            Some(&mut exfs),
+            Some(&mut timeout),
+        ) {
             Ok(0) | Err(_) => false,
             Ok(_) => true,
         };
@@ -303,11 +268,14 @@ fn read_data(
             match read(fd, &mut buffer) {
                 Ok(len) => {
                     session.add_bytes(stream, interactionHandle, &buffer[0..len]);
-                },
+                }
                 Err(err) => {
                     // There was some serious error reading from command, so drop everything and
                     // leave. This is a first detector if a program exited.
-                    debug!("Stopped reading from file descriptor {} due to {:?}", fd, err);
+                    debug!(
+                        "Stopped reading from file descriptor {} due to {:?}",
+                        fd, err
+                    );
                     break;
                 }
             }
@@ -327,10 +295,6 @@ impl std::fmt::Debug for ProgramOrBuiltin {
             }
         }
     }
-}
-
-fn is_valid_fd(fd: RawFd) -> bool {
-    nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_GETFL).is_ok()
 }
 
 impl PipelineBuilder {
@@ -498,7 +462,7 @@ impl SharedJobs {
     /// Run a pipeline in foreground until completion
     pub fn foreground_job(
         &mut self,
-        mut session: SharedSession,
+        session: SharedSession,
         mut builder: PipelineBuilder,
     ) -> ExitStatus {
         // Store job for later interaction in job table
@@ -553,8 +517,8 @@ impl SharedJobs {
         // because the file handle might be passed down to the forked process and still be open.
         //
         // Instead, get the process ids and call waitpid.
-        let pids = if let Ok(mut children) = children.lock() {
-            children.iter().map( |c| c.id()).collect()
+        let pids = if let Ok(children) = children.lock() {
+            children.iter().map(|c| c.id()).collect()
         } else {
             debug!("Cannot lock child process handle mutex. Exit status might be incorrect.");
             Vec::new()
@@ -571,7 +535,7 @@ impl SharedJobs {
                 Err(e) => {
                     debug!("Error waiting for pid: »{:?}«", e);
                 }
-                Ok(WaitStatus::Exited(_,es)) => {
+                Ok(WaitStatus::Exited(_, es)) => {
                     exit_status = ExitStatusExt::from_raw(es);
                 }
                 ret => {

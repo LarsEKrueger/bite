@@ -255,17 +255,6 @@ impl Session {
         })
     }
 
-    /// Set the exit status of an interaction
-    ///
-    /// This is an obsolete method
-    pub fn set_exit_status(&mut self, handle: InteractionHandle, status: ExitStatus) {
-        self.interaction_mut(handle, (), |i| {
-            i.running_status = RunningStatus::Exited(status);
-            i.show_potential_errors();
-        });
-    }
-
-
     /// Return an iterator over the currently visible items.
     pub fn line_iter<'a>(
         &'a self,
@@ -421,6 +410,7 @@ impl SharedSession {
 
     /// Set the running status of an interaction
     pub fn set_running_status(&mut self, handle: InteractionHandle, status: RunningStatus) {
+        trace!("Set Running Status of {:?} to {:?}", handle, status);
         self.interaction_mut(handle, (), |i| {
             i.running_status = status;
             i.show_potential_errors();
