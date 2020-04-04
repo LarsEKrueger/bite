@@ -20,7 +20,6 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
 
 use super::iterators::*;
@@ -44,7 +43,7 @@ pub enum OutputVisibility {
 pub enum RunningStatus {
     Running,
     Unknown,
-    Exited(ExitStatus),
+    Exited(i32),
 }
 
 /// A command and its output.
@@ -173,7 +172,7 @@ impl Interaction {
     /// If there are errors, show them.
     pub fn show_potential_errors(&mut self) {
         let failure = match self.running_status {
-            RunningStatus::Exited(es) => !es.success(),
+            RunningStatus::Exited(es) => es != 0,
             _ => false,
         };
         if !failure {

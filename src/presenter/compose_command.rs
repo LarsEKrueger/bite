@@ -104,10 +104,9 @@ impl ComposeCommandPresenter {
                     interaction_handle,
                     msg.as_bytes(),
                 );
-                self.commons.session.set_running_status(
-                    interaction_handle,
-                    RunningStatus::Exited(ExitStatusExt::from_raw(1)),
-                );
+                self.commons
+                    .session
+                    .set_running_status(interaction_handle, RunningStatus::Exited(1));
                 self.commons
                     .session
                     .set_visibility(interaction_handle, OutputVisibility::Error);

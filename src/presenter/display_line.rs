@@ -101,21 +101,21 @@ impl<'a> DisplayLine<'a> {
                 (OutputVisibility::Error, RunningStatus::Unknown) => &*ERROR_UNKNOWN_PREFIX,
 
                 (OutputVisibility::None, RunningStatus::Exited(es)) => {
-                    if es.success() {
+                    if *es == 0 {
                         &*NONE_OK_PREFIX
                     } else {
                         &*NONE_FAIL_PREFIX
                     }
                 }
                 (OutputVisibility::Output, RunningStatus::Exited(es)) => {
-                    if es.success() {
+                    if *es == 0 {
                         &*OUTPUT_OK_PREFIX
                     } else {
                         &*OUTPUT_FAIL_PREFIX
                     }
                 }
                 (OutputVisibility::Error, RunningStatus::Exited(es)) => {
-                    if es.success() {
+                    if *es == 0 {
                         &*ERROR_OK_PREFIX
                     } else {
                         &*ERROR_FAIL_PREFIX

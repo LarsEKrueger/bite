@@ -25,8 +25,6 @@ use super::parser::{
     AbstractSyntaxTree, BackgroundMode, Command, LogicalOperator, Pipeline, PipelineCommand,
     PipelineOperator,
 };
-use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
 use std::sync::Arc;
 use std::thread::spawn;
 
@@ -240,10 +238,8 @@ impl Runner {
         self.last_exit_status = 0;
         let end = instructions.len();
         self.run_sub_set(instructions, interaction, 0, end);
-        self.session.set_running_status(
-            interaction,
-            RunningStatus::Exited(ExitStatusExt::from_raw(self.last_exit_status)),
-        );
+        self.session
+            .set_running_status(interaction, RunningStatus::Exited(self.last_exit_status));
     }
 
     fn run_sub_set(
