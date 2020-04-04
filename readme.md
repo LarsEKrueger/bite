@@ -270,13 +270,16 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
+* [ ] History: Sort in reverse (best match at the bottom)
+* [ ] History: Use order of commands for sorting (length of look-ahead?)
+* [ ] History: Handle multi-line entries
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
-* [ ] Bug: Bash source $() does not work correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
 * [ ] Merge history during save
 * [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
+    * [ ] Show Input, Output, Error in sequence, allow for filtering
 * [ ] Make the command line arguments of a program fold out
 * [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
 * [ ] Syntax highlighting in input line
@@ -284,16 +287,10 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] Implement mouse tracking sequences more cleanly
 * [ ] Handle sub parameters correctly
 * [ ] Mapping from session to LineItems should be done in Presenter
-* [X] Do not create interactions for empty lines
-* [X] Bug: Handle rectangular area parameters correctly, reduce copy/paste
-* [X] Indicate return code of a completed program in the GUI
-* [X] Scroll follows output during program execution
-* [X] Shutdown bash cleanly
-* [X] Show the full command line of a program
-* [X] Use impl Trait for iterators
-* [X] Put proper bug reporting email address in error.rs
+* [X] ~~Bug: Bash source $() does not work correctly~~ Cancelled. No more bash used.
 
 # Ideas
+* History: Draw between prompt and input box instead of overlay
 * Integrate mosh functionality
 * Command line editor with vim keys (starts in insert mode)
 * Syntax highlighting for output
@@ -303,7 +300,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * Allow hyperlinks in output
 * Draw errors / hyperlinks as QR code
 * Display history / completion as Overlays
-* No keypress for history/completion. Pick the right overlay automatically, depending on the situation.
+* [X] No keypress for history/completion. Pick the right overlay automatically, depending on the situation.
     * Use PgUp/Down for scrolling
 * Automatically update prompt above command input (e.g. run interpreter on already-parsed string)
 * Show output and errors side-by-side
