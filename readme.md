@@ -254,6 +254,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Launch background program using Jobs
     * [X] Extend parser and Job to launch pipes
     * [X] Add quick switching of last command's output screens
+    * [ ] Bug: neofetch doesn't display correctly: Add TUI screen to output at end of program
 * [ ] 0.10 Make GUI font configurable
       * [ ] Set variables
       * [ ] Run ini file in top-level interpreter
@@ -269,7 +270,6 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
-* [ ] Bug: neofetch doesn't display correctly
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
 * [ ] Bug: Bash source $() does not work correctly
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
