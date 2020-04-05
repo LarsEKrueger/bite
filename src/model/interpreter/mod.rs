@@ -20,7 +20,7 @@
 //!
 //! Processes the source, starts jobs etc.
 
-use super::session::{InteractionHandle, SharedSession};
+use super::session::{InteractionHandle, OutputVisibility, SharedSession};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -208,5 +208,54 @@ impl Interpreter {
             "getting current work directory",
             PathBuf::from("."),
         )
+    }
+
+    /// Run a script in a given interaction
+    fn run_script(&mut self, script_name: &PathBuf, interaction_handle: InteractionHandle) {
+        match std::fs::File::open(script_name) {
+            Ok(mut file) => {
+                let mut content = String::new();
+                use std::io::Read;
+                match file.read_to_string(&mut content) {
+                    Ok(_) => {
+                        // TODO: Parse the content of the file
+                    }
+                    Err(e) => {
+                        self.session.add_bytes(
+                            OutputVisibility::Error,
+                            interaction_handle,
+                            format!(
+                                "BiTE: Error reading script »{}«: {}",
+                                script_name.to_string_lossy(),
+                                e
+                            )
+                            .as_bytes(),
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                self.session.add_bytes(
+                    OutputVisibility::Error,
+                    interaction_handle,
+                    format!(
+                        "BiTE: Error opening script »{}«: {}",
+                        script_name.to_string_lossy(),
+                        e
+                    )
+                    .as_bytes(),
+                );
+            }
+        }
+    }
+
+    /// Run an init script in a new interaction
+    pub fn run_init_script(&mut self, script_name: &PathBuf) -> InteractionHandle {
+        trace!("Want to run init script »{:?}«", script_name);
+        let interaction = self
+            .session
+            .add_interaction(Screen::one_line_matrix(b"Startup"));
+        self.run_script(script_name, interaction);
+        interaction
     }
 }

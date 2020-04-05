@@ -66,7 +66,6 @@ struct Interaction {
     tui_mode: bool,
     /// Screen used for TUI mode
     pub tui_screen: Screen,
-
     /// Number of threads that feed data into the interaction.
     threads: usize,
 }
@@ -513,6 +512,36 @@ impl SharedSession {
             i.threads = i.threads.saturating_sub(1);
             if i.threads == 0 {
                 i.exit_cleanup();
+            }
+        });
+    }
+
+    /// Print the interaction to the respective streams
+    pub fn print_interaction(&mut self, handle: InteractionHandle) {
+        self.interaction(handle, (), |interaction| {
+            use std::io::Write;
+            let mut b = [0; 4];
+            {
+                let stdout = std::io::stdout();
+                let mut stdout = stdout.lock();
+                let _ = stdout.write(b"BiTE startup stdout output\n");
+                for l in interaction.output.lines.iter() {
+                    for c in l {
+                        let _ = stdout.write(c.code_point().encode_utf8(&mut b).as_bytes());
+                    }
+                    let _ = stdout.write(b"\n");
+                }
+            }
+            {
+                let stderr = std::io::stderr();
+                let mut stderr = stderr.lock();
+                let _ = stderr.write(b"BiTE startup stderr output\n");
+                for l in interaction.errors.lines.iter() {
+                    for c in l {
+                        let _ = stderr.write(c.code_point().encode_utf8(&mut b).as_bytes());
+                    }
+                    let _ = stderr.write(b"\n");
+                }
             }
         });
     }

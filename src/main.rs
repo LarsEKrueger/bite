@@ -84,6 +84,9 @@ extern crate backtrace;
 /// Name of the file to store the history
 const BITE_HISTFILENAME: &str = ".bitehistory";
 
+/// Name of the init script
+const BITE_INIFILE: &str = ".biterc";
+
 fn panic_hook(info: &PanicInfo) {
     let err_msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
         (Some(msg), Some(loc)) => {
@@ -141,13 +144,29 @@ pub fn main() {
     }
 
     let params = ::tools::commandline::CommandLine::parse();
+    debug!("Command line {:?}", params);
 
-    #[cfg(debug_assertions)]
-    info!("{:?}", params);
+    // Create the session
+    let mut session =
+        model::session::SharedSession::new(model::screen::Screen::one_line_matrix(b"System"));
+
+    // Start interpreter in a thread
+    let mut interpreter = model::interpreter::Interpreter::new(session.clone());
+
+    // Run the ini script
+    let home = std::env::var("HOME").unwrap_or(".".to_string());
+    {
+        let mut biterc_name = PathBuf::from(home.clone());
+        biterc_name.push(BITE_INIFILE);
+        let handle = interpreter.run_init_script(&biterc_name);
+
+        // There is no GUI yet. In order to see the stdout/stderr of the ini script for debugging,
+        // possible contents of the interaction will be printed after the script is done.
+        session.print_interaction(handle);
+    }
 
     // Load the history
     let history = {
-        let home = std::env::var("HOME").unwrap_or(".".to_string());
         let mut bitehist_name = PathBuf::from(home);
         bitehist_name.push(BITE_HISTFILENAME);
 
@@ -162,13 +181,6 @@ pub fn main() {
             }
         }
     };
-
-    // Create the session
-    let session =
-        model::session::SharedSession::new(model::screen::Screen::one_line_matrix(b"System"));
-
-    // Start interpreter in a thread
-    let interpreter = model::interpreter::Interpreter::new(session.clone());
 
     // Start the gui
     let mut gui = match ::view::Gui::new(session, interpreter, history) {
