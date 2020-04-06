@@ -196,13 +196,29 @@ background job (i.e. `b &`), the output block of `b` will grow even though `c`
 came after it.  This ensures that the output of `b` is captured is a way that
 it do not interfere with foreground operations.
 
-If a background job is a text-based interface, BiTE will fork itself to open a
-separate window in which the text-based interface is shown as if it was a
-foreground job.
+If a background job is a text-based interface (TUI), BiTE will run and render it in a
+normal interaction like a background job that is a not a TUI. Each background
+TUI can be switched to with Ctrl-Tab and Shift-Ctrl-Tab.
 
-The regular bash functionality will be implemented by linking to the nearly
-unmodified bash source code and calling this C code from rust code. This can
-serve as a basis for rewriting some or all parts of bash in rust.
+All regular bash functionality will be implemented over time in rust.
+
+## Lessons Learned
+
+This section contains a list of experiences with experimental features.
+
+### Autocompletion from History: Convenient
+
+In case, the autocompletion makes a correct or near-correct prediction, less
+effort is required to enter a command.
+
+### Most-frequently Command: Inconvenient
+
+Using the number of times a command has been run isn't a good predictor of
+which command will be run next. Especially when developing software, a few
+commands will be called disproportionally infrequent, but usually in the same
+order (e.g. `git commit` followed by `git push`).
+
+The sequence of commands there needs to be taken into account too.
 
 # Planned Features, Step 2
 
