@@ -273,7 +273,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Bug: neofetch doesn't display correctly: Add TUI screen to output at end of program
     * [ ] Bug: Termination of first command after background command isn't noticed
 * [ ] 0.10 Make GUI font configurable
-      * [ ] Run ini file in top-level interpreter
+      * [X] Run ini file in top-level interpreter
       * [ ] Set variables
       * [ ] Load font from variable
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
