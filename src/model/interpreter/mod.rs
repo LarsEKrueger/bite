@@ -20,7 +20,7 @@
 //!
 //! Processes the source, starts jobs etc.
 
-use super::session::{InteractionHandle, OutputVisibility, SharedSession};
+use super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -218,7 +218,33 @@ impl Interpreter {
                 use std::io::Read;
                 match file.read_to_string(&mut content) {
                     Ok(_) => {
-                        // TODO: Parse the content of the file
+                        // Parse the content of the file
+                        match self.parse_script(&content) {
+                            Ok(instructions) => {
+                                // Send the instructions to the interpreter
+                                let mut input = self.input.1.lock().unwrap();
+                                *input = Some((instructions, interaction_handle));
+                                trace!("Set input");
+                                self.input.0.notify_one();
+                                trace!("Sent notification");
+                            }
+                            Err(msg) => {
+                                self.session.add_bytes(
+                                    OutputVisibility::Error,
+                                    interaction_handle,
+                                    format!(
+                                        "BiTE: Error parsing script »{}«: {}",
+                                        script_name.to_string_lossy(),
+                                        msg
+                                    )
+                                    .as_bytes(),
+                                );
+                                self.session.set_running_status(
+                                    interaction_handle,
+                                    RunningStatus::Exited(1),
+                                );
+                            }
+                        }
                     }
                     Err(e) => {
                         self.session.add_bytes(
@@ -231,6 +257,8 @@ impl Interpreter {
                             )
                             .as_bytes(),
                         );
+                        self.session
+                            .set_running_status(interaction_handle, RunningStatus::Exited(1));
                     }
                 }
             }
@@ -245,6 +273,8 @@ impl Interpreter {
                     )
                     .as_bytes(),
                 );
+                self.session
+                    .set_running_status(interaction_handle, RunningStatus::Exited(1));
             }
         }
     }
