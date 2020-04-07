@@ -118,6 +118,7 @@ fn panic_hook(info: &PanicInfo) {
     let mut msg = String::new();
     let _ = write!(msg, "{:?}", bt);
     error!("Error:{}\nStack Trace:\n{}", err_msg, msg);
+    ::std::process::exit(2);
 }
 
 /// Main function that starts the program.
