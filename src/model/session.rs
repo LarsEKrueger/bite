@@ -22,6 +22,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
+use super::interpreter::jobs::Job;
 use super::iterators::*;
 use super::response::*;
 use super::screen::{AddBytesResult, Matrix, Screen};
@@ -50,7 +51,6 @@ pub enum RunningStatus {
 ///
 /// This is just a visual representation of a command and not connected to a running process in any
 /// way.
-#[derive(PartialEq)]
 struct Interaction {
     /// Visual representation of the command that was called to create these responses
     command: Matrix,
@@ -66,9 +66,10 @@ struct Interaction {
     tui_mode: bool,
     /// Screen used for TUI mode
     pub tui_screen: Screen,
-
     /// Number of threads that feed data into the interaction.
     threads: usize,
+    /// Job currently writing output to this interaction
+    job: Option<Job>,
 }
 
 /// A number of commands that are executed with the same prompt string.
@@ -125,6 +126,7 @@ impl Interaction {
             tui_mode: false,
             tui_screen,
             threads: 0,
+            job: None,
         }
     }
 
@@ -303,6 +305,16 @@ impl Session {
             None
         }
     }
+
+    /// Add a new interaction to the latest conversation.
+    fn add_interaction_to_last(&mut self, command: Matrix) -> InteractionHandle {
+        let handle = InteractionHandle(self.interactions.len());
+        self.interactions.push(Interaction::new(command));
+        if let Some(current) = self.conversations.last_mut() {
+            current.interactions.push(handle);
+        }
+        handle
+    }
 }
 
 impl SharedSession {
@@ -356,12 +368,45 @@ impl SharedSession {
     /// Add a new interaction to the latest conversation.
     pub fn add_interaction(&mut self, command: Matrix) -> InteractionHandle {
         self.session_mut(InteractionHandle(std::usize::MAX), |s| {
-            let handle = InteractionHandle(s.interactions.len());
-            s.interactions.push(Interaction::new(command));
-            if let Some(current) = s.conversations.last_mut() {
-                current.interactions.push(handle);
+            s.add_interaction_to_last(command)
+        })
+    }
+
+    /// Create an interaction in the same conversation as the given one
+    pub fn create_sub_interaction(
+        &mut self,
+        parent_handle: InteractionHandle,
+    ) -> InteractionHandle {
+        self.session_mut(InteractionHandle(std::usize::MAX), |s| {
+            // Find the conversation that contains the parent interaction
+            // Iterative over a conversations and their index
+            let maybe_conversation = s.conversations.iter_mut().find(|c| {
+                // If the index of the parent interaction is found in this conversation, return its index.
+                c.interactions
+                    .iter()
+                    .position(|inter| *inter == parent_handle)
+                    .is_some()
+            });
+            if let Some(conversation) = maybe_conversation {
+                // Found a conversation, add an interaction
+                let handle = InteractionHandle(s.interactions.len());
+                // Derive the command from the parent interaction
+                let mut command =
+                    Screen::new_from_matrix(s.interactions[parent_handle.0].command.clone());
+                command.move_right_edge();
+                let _ = command.add_bytes(format!(" # [{}]", handle.0).as_bytes());
+
+                s.interactions.push(Interaction::new(command.freeze()));
+                conversation.interactions.push(handle);
+                handle
+            } else {
+                // No conversation found, add one to the last
+                error!(
+                    "No conversation found containing interaction {:?}",
+                    parent_handle
+                );
+                s.add_interaction_to_last(Screen::one_line_matrix(b"Unknown background program"))
             }
-            handle
         })
     }
 
@@ -515,6 +560,31 @@ impl SharedSession {
                 i.exit_cleanup();
             }
         });
+    }
+
+    /// Set the current job of an interaction
+    pub fn set_job(&mut self, handle: InteractionHandle, job: Option<Job>) {
+        self.interaction_mut(handle, (), |i| i.job = job)
+    }
+
+    /// Terminate the current job of an interaction
+    pub fn terminate(&mut self, handle: InteractionHandle) {
+        self.interaction_mut(handle, (), |i| {
+            if let Some(ref mut job) = i.job {
+                job.terminate();
+            }
+        })
+    }
+
+    /// Send some bytes to the current job of an interaction
+    ///
+    /// Does nothing if there is no job
+    pub fn write_stdin(&mut self, handle: InteractionHandle, bytes: &[u8]) {
+        self.interaction_mut(handle, (), |i| {
+            if let Some(ref mut job) = i.job {
+                job.write_stdin(bytes);
+            }
+        })
     }
 }
 

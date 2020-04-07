@@ -109,6 +109,10 @@ impl SubPresenter for ExecuteCommandPresenter {
             //     has_exited
             // );
             if has_exited {
+                debug!(
+                    "Switch to ComposeCommandPresenter, {:?}",
+                    self.current_interaction
+                );
                 return (ComposeCommandPresenter::new(self.commons), true);
             }
         }
@@ -158,8 +162,8 @@ impl SubPresenter for ExecuteCommandPresenter {
                 self.commons.text_input.reset();
                 self.commons.text_input.make_room();
                 self.commons
-                    .interpreter
-                    .write_stdin_foreground(line.as_bytes());
+                    .session
+                    .write_stdin(self.current_interaction, line.as_bytes());
                 (self, PresenterCommand::Redraw)
             }
 
@@ -249,18 +253,14 @@ impl SubPresenter for ExecuteCommandPresenter {
                 match letter {
                     b'c' => {
                         // Kill the last job if it is still running
-                        self.commons
-                            .interpreter
-                            .jobs
-                            .terminate(self.current_interaction);
+                        self.commons.session.terminate(self.current_interaction);
                         return (self, PresenterCommand::Redraw);
                     }
 
                     b'd' => {
                         // Send to running program
                         self.commons
-                            .interpreter
-                            .jobs
+                            .session
                             .write_stdin(self.current_interaction, b"\x04");
                         return (self, PresenterCommand::Redraw);
                     }

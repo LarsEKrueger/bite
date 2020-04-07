@@ -88,13 +88,11 @@ pub enum Instruction {
 
     /// Run the program on the launch pad.
     ///
-    /// Connect the last stdout to stdin. Remember stderr / stdin for the next program.
+    /// Connect the last stdout to stdin. Remember stderr / stdin for the next program. The last
+    /// command in the pipeline blocks until the pipeline is complete.
     ///
     /// Parameter: true if this is the last command of the pipeline
     Exec(bool),
-
-    /// Wait for program to complete. Read from all remaining pipes until all programs close.
-    ForegroundJob,
 
     /// If the last command was a success, put true on the stack
     Success,
@@ -126,17 +124,11 @@ pub struct Runner {
     /// Session to write output to
     session: SharedSession,
 
-    /// Job list
-    pub jobs: jobs::SharedJobs,
-
     /// Argument stacks for constructing arguments
     launchpad: Launchpad,
 
     /// Job being started
     current_pipeline: Option<jobs::PipelineBuilder>,
-
-    /// ExitStatus of last foreground program. TODO: Make shell variable.
-    last_exit_status: i32,
 
     /// Data stack
     data_stack: Stack,
@@ -204,15 +196,22 @@ impl Launchpad {
 }
 
 impl Runner {
-    pub fn new(session: SharedSession, jobs: jobs::SharedJobs) -> Self {
+    pub fn new(session: SharedSession) -> Self {
         Self {
             session,
-            jobs,
             launchpad: Launchpad::new(),
             current_pipeline: None,
             data_stack: Stack::new(),
-            last_exit_status: 0,
         }
+    }
+
+    /// Print a prefixed error message
+    fn report_error(&mut self, interaction: InteractionHandle, msg: &str) {
+        self.session.add_bytes(
+            OutputVisibility::Error,
+            interaction,
+            format!("BiTE: {}", msg).as_bytes(),
+        );
     }
 
     fn check_error<T, F>(
@@ -225,21 +224,18 @@ impl Runner {
     {
         match res {
             Ok(value) => f(self, value),
-            Err(msg) => self.session.add_bytes(
-                OutputVisibility::Error,
-                interaction,
-                format!("BiTE: {}", msg).as_bytes(),
-            ),
+            Err(msg) => self.report_error(interaction, &msg),
         }
     }
 
-    /// Run the instructions
+    /// Run the instructions.
+    ///
+    /// This function will block until all intstructions are done
     pub fn run(&mut self, instructions: Arc<Instructions>, interaction: InteractionHandle) {
-        self.last_exit_status = 0;
         let end = instructions.len();
-        self.run_sub_set(instructions, interaction, 0, end);
+        let last_exit_status = self.run_sub_set(instructions, interaction, 0, end);
         self.session
-            .set_running_status(interaction, RunningStatus::Exited(self.last_exit_status));
+            .set_running_status(interaction, RunningStatus::Exited(last_exit_status));
     }
 
     fn run_sub_set(
@@ -248,9 +244,10 @@ impl Runner {
         interaction: InteractionHandle,
         start: usize,
         end: usize,
-    ) {
+    ) -> i32 {
         trace!("Running subset [{},{}] of {:?}", start, end, instructions);
         let mut ip = start;
+        let mut last_exit_status = 0;
         while (start <= ip) && (ip < end) {
             let i = &instructions[ip];
             trace!("Instruction {} in {:?}: {:?}", ip, instructions, i);
@@ -294,29 +291,34 @@ impl Runner {
                     self.launchpad.finalize_words();
                     if let Some(ref mut pb) = self.current_pipeline {
                         let args = self.launchpad.args.drain(0..).map(|mut w| w.remove(0));
+                        // Start the pipeline
                         let res = pb.start(*is_last, args);
                         self.check_error(interaction, res, |_, _| {});
                     } else {
                         error!("No pipeline builder in Exec");
                     }
+                    // On the last program of the pipeline, wait for the pipeline to complete
+                    if *is_last {
+                        let pb = std::mem::replace(&mut self.current_pipeline, None);
+                        if let Some(pb) = pb {
+                            // Set the current job in the session
+                            self.session.set_job(interaction, Some(pb.create_job()));
+                            // If that worked, wait for the command to complete
+                            last_exit_status = pb.wait(self.session.clone(), interaction);
+                            self.session.set_job(interaction, None);
+                        } else {
+                            error!("No pipeline builder in Exec of last command");
+                        }
+                    }
+
                     self.launchpad.clear();
                 }
 
-                Instruction::ForegroundJob => {
-                    let maybe_pb = std::mem::replace(&mut self.current_pipeline, None);
-                    if let Some(pb) = maybe_pb {
-                        self.last_exit_status = self.jobs.foreground_job(self.session.clone(), pb);
-                        trace!("set last_exit_status {:?}", self.last_exit_status);
-                    } else {
-                        error!("No pipeline builder in ForegroundJob");
-                    }
-                }
-
                 Instruction::Success => {
-                    let success = self.last_exit_status == 0;
+                    let success = last_exit_status == 0;
                     trace!(
                         "check last_exit_status {:?} -> success {:?}",
-                        self.last_exit_status,
+                        last_exit_status,
                         success
                     );
                     self.data_stack.push_bool(success);
@@ -359,16 +361,24 @@ impl Runner {
 
                 Instruction::BackgroundJob(len) => {
                     // Create background job
-                    let mut clone_self = Runner::new(self.session.clone(), self.jobs.clone());
+
+                    // First, create a new interaction
+                    let new_handle = self.session.create_sub_interaction(interaction);
+
+                    let mut clone_self = Runner::new(self.session.clone());
                     let clone_instructions = instructions.clone();
                     let clone_start = ip + 1;
                     let clone_end = ip + len;
                     spawn(move || {
-                        clone_self.run_sub_set(
+                        let last_exit_status = clone_self.run_sub_set(
                             clone_instructions,
-                            interaction,
+                            new_handle,
                             clone_start,
                             clone_end,
+                        );
+                        clone_self.session.set_running_status(
+                            new_handle,
+                            RunningStatus::Exited(last_exit_status),
                         );
                     });
 
@@ -394,6 +404,7 @@ impl Runner {
             end,
             instructions
         );
+        last_exit_status
     }
 }
 
@@ -440,7 +451,6 @@ fn compile_pipeline<'a>(
         let is_last = (ind + 1) == num_commands;
         compile_command(instructions, cmd, is_last)?;
     }
-    instructions.push(Instruction::ForegroundJob);
     match pipeline.operator {
         LogicalOperator::Nothing => {
             // Do nothing
@@ -563,7 +573,6 @@ mod tests {
                 Instruction::Lit("ij".to_string()),
                 Instruction::Word,
                 Instruction::Exec(true),
-                Instruction::ForegroundJob,
                 Instruction::Success,
                 Instruction::Not,
                 Instruction::JumpIfNot(7),
@@ -572,7 +581,6 @@ mod tests {
                 Instruction::Word,
                 Instruction::SetProgram,
                 Instruction::Exec(true),
-                Instruction::ForegroundJob,
             ]
         );
     }
@@ -583,7 +591,7 @@ mod tests {
         assert_eq!(
             instructions,
             vec![
-                Instruction::BackgroundJob(26),
+                Instruction::BackgroundJob(24),
                 Instruction::Begin,
                 Instruction::Lit("ab".to_string()),
                 Instruction::Word,
@@ -599,7 +607,6 @@ mod tests {
                 Instruction::Lit("ij".to_string()),
                 Instruction::Word,
                 Instruction::Exec(true),
-                Instruction::ForegroundJob,
                 Instruction::Success,
                 Instruction::Not,
                 Instruction::JumpIfNot(7),
@@ -608,7 +615,6 @@ mod tests {
                 Instruction::Word,
                 Instruction::SetProgram,
                 Instruction::Exec(true),
-                Instruction::ForegroundJob,
                 Instruction::Begin,
                 Instruction::Lit("xy".to_string()),
                 Instruction::Word,
@@ -616,7 +622,6 @@ mod tests {
                 Instruction::Lit("z".to_string()),
                 Instruction::Word,
                 Instruction::Exec(true),
-                Instruction::ForegroundJob,
             ]
         );
     }
