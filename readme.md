@@ -271,7 +271,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Extend parser and Job to launch pipes
     * [X] Add quick switching of last command's output screens
     * [X] Bug: neofetch doesn't display correctly: Add TUI screen to output at end of program
-    * [ ] Bug: Termination of first command after background command isn't noticed
+    * [X] Bug: Termination of first command after background command isn't noticed if background programm is still running
 * [ ] 0.10 Make GUI font configurable
       * [X] Run ini file in top-level interpreter
       * [ ] Set variables

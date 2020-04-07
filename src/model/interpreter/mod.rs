@@ -32,7 +32,7 @@ use tools::logging::unwrap_log;
 mod builtins;
 mod byte_code;
 mod data_stack;
-mod jobs;
+pub mod jobs;
 mod parser;
 
 pub struct Interpreter {
@@ -54,9 +54,6 @@ pub struct Interpreter {
 
     /// Atomic to stop the interpreter
     is_running: Arc<AtomicBool>,
-
-    /// List of active jobs
-    pub jobs: jobs::SharedJobs,
 }
 
 /// Processing function that gets input from the mutex
@@ -70,7 +67,6 @@ fn interpreter_loop(
 ) {
     while is_running.load(Ordering::Acquire) {
         trace!("Waiting for new command");
-        assert!(!runner.jobs.has_foreground());
         // Wait for condition variable and extract the string and the interaction handle.
         let (instructions, interaction_handle) = {
             // The lock must not be held for too long to allow other threads to check the readiness.
@@ -97,13 +93,11 @@ impl Interpreter {
     pub fn new(session: SharedSession) -> Self {
         let is_running = Arc::new(AtomicBool::new(true));
         let input = Arc::new((Condvar::new(), Mutex::new(None)));
-        let jobs = jobs::SharedJobs::new();
         let thread = {
             let session = session.clone();
             let is_running = is_running.clone();
             let input = input.clone();
-            let jobs = jobs.clone();
-            let runner = byte_code::Runner::new(session, jobs);
+            let runner = byte_code::Runner::new(session);
             std::thread::Builder::new()
                 .name("interpreter".to_string())
                 .spawn(move || interpreter_loop(runner, is_running, input))
@@ -115,7 +109,6 @@ impl Interpreter {
             thread,
             input,
             is_running,
-            jobs,
         }
     }
 
@@ -179,13 +172,6 @@ impl Interpreter {
         self.input.0.notify_one();
         trace!("Sent notification");
         interaction
-    }
-
-    /// Send some bytes to the foreground job
-    ///
-    /// Does nothing if there is no foreground job
-    pub fn write_stdin_foreground(&mut self, bytes: &[u8]) {
-        self.jobs.write_stdin_foreground(bytes);
     }
 
     /// Shut down the interpreter.

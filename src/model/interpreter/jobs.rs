@@ -22,18 +22,17 @@ use libc::c_uchar;
 use nix::fcntl::{open, OFlag};
 use nix::pty::{grantpt, posix_openpt, ptsname, unlockpt};
 use nix::sys::select::{select, FdSet};
+use nix::sys::signal::{kill, Signal};
 use nix::sys::stat::Mode;
 use nix::sys::time::{TimeVal, TimeValLike};
 use nix::sys::wait::{waitpid, WaitStatus};
 use nix::unistd::{close, read, write, Pid};
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::sync::{Arc, Mutex};
 use std::thread::{spawn, JoinHandle};
 use termios::os::target::*;
 use termios::*;
@@ -41,19 +40,6 @@ use termios::*;
 use super::super::session::{InteractionHandle, OutputVisibility, SharedSession};
 use super::builtins;
 use super::builtins::BuiltinRunner;
-
-use tools::shared_item;
-
-struct Jobs {
-    /// Handle of foreground job
-    foreground: Option<InteractionHandle>,
-
-    /// Table to access jobs from their interaction handle
-    job_table: HashMap<InteractionHandle, Job>,
-}
-
-#[derive(Clone)]
-pub struct SharedJobs(Arc<Mutex<Jobs>>);
 
 /// Public info about the job.
 ///
@@ -63,7 +49,7 @@ pub struct Job {
     stdin_bite_side: RawFd,
 
     /// Children for termination
-    children: Arc<Mutex<Vec<Child>>>,
+    children: Vec<u32>,
 }
 
 /// Pair of PTS handles
@@ -431,71 +417,38 @@ impl PipelineBuilder {
             }
         }
     }
-}
 
-impl SharedJobs {
-    pub fn new() -> Self {
-        Self(shared_item::new(Jobs {
-            foreground: None,
-            job_table: HashMap::new(),
-        }))
+    /// Construct an iterator to yield the pids of the child programs
+    fn child_pids<'a>(&'a self) -> impl Iterator<Item = u32> + 'a {
+        self.children.iter().filter_map(|cot| match cot {
+            ChildOrThread::Child(c) => Some(c.id()),
+            _ => None,
+        })
     }
 
-    fn jobs_mut<F, R>(&mut self, default: R, f: F) -> R
-    where
-        F: FnOnce(&mut Jobs) -> R,
-    {
-        shared_item::item_mut(&mut self.0, default, f)
+    /// Construct a Job to be stored in the session
+    pub fn create_job(&self) -> Job {
+        Job {
+            children: self.child_pids().collect(),
+            stdin_bite_side: self.stdin_bite_side,
+        }
     }
 
-    fn jobs<F, R>(&self, default: R, f: F) -> R
-    where
-        F: FnOnce(&Jobs) -> R,
-    {
-        shared_item::item(&self.0, default, f)
-    }
-
-    pub fn has_foreground(&self) -> bool {
-        self.jobs(false, |j| j.foreground.is_some())
-    }
-
-    /// Run a pipeline in foreground until completion
-    pub fn foreground_job(&mut self, session: SharedSession, mut builder: PipelineBuilder) -> i32 {
-        // Store job for later interaction in job table
-        let children = {
-            let children = builder
-                .children
-                .drain(0..)
-                .filter_map(|cot| match cot {
-                    ChildOrThread::Child(c) => Some(c),
-                    _ => None,
-                })
-                .collect();
-            Arc::new(Mutex::new(children))
-        };
-        let job = Job {
-            children: children.clone(),
-            stdin_bite_side: builder.stdin_bite_side,
-        };
-        let interaction_handle = builder.interaction_handle;
-        // Store interaction handle as foreground
-        self.jobs_mut((), |j| {
-            j.foreground = Some(interaction_handle);
-            j.job_table.insert(interaction_handle, job);
-        });
-
+    // Run the programs in the pipeline to completion, return the exit status of the last program
+    pub fn wait(self, session: SharedSession, interaction_handle: InteractionHandle) -> i32 {
         let mut reader_threads = Vec::new();
 
         // Start a reader thread for each stderr
-        for e in builder.stderr {
+        for e in self.stderr.iter() {
             let session = session.clone();
+            let e = *e;
             let jh =
                 spawn(move || read_data(e, session, interaction_handle, OutputVisibility::Error));
             reader_threads.push(jh);
         }
 
         // Start a reader thread for the last stdout
-        if let Some(stdout) = builder.stdout_bite_side {
+        if let Some(stdout) = self.stdout_bite_side {
             let session = session.clone();
             let jh = spawn(move || {
                 read_data(
@@ -508,26 +461,17 @@ impl SharedJobs {
             reader_threads.push(jh);
         }
 
+        let mut exit_status = 0;
         // Waiting for the reader threads to complete  doesn't require locking the mutex around
         // the children, but it also does not catch all cases (e.g. gvim going into background)
         // because the file handle might be passed down to the forked process and still be open.
         //
         // Instead, get the process ids and call waitpid.
-        let pids = if let Ok(children) = children.lock() {
-            children.iter().map(|c| c.id()).collect()
-        } else {
-            debug!("Cannot lock child process handle mutex. Exit status might be incorrect.");
-            Vec::new()
-        };
-
-        trace!("Waiting for pids {:?}", pids);
-
-        // Wait for each child, report on the exit code of each failing program. Keep the exit code
-        // of the last failing program.
-        let mut exit_status = 0;
-        for pid in pids.iter() {
+        for pid in self.child_pids() {
+            // Wait for each child, report on the exit code of each failing program. Keep the exit code
+            // of the last failing program.
             trace!("Waiting for pid {:?}", pid);
-            match waitpid(Some(Pid::from_raw(*pid as i32)), None) {
+            match waitpid(Some(Pid::from_raw(pid as i32)), None) {
                 Err(e) => {
                     debug!("Error waiting for pid: »{:?}«", e);
                 }
@@ -539,64 +483,20 @@ impl SharedJobs {
                 }
             }
         }
-
-        // Remove job from table
-        self.jobs_mut((), |jobs| {
-            if let Some(fg_interaction_handle) = jobs.foreground {
-                if fg_interaction_handle == interaction_handle {
-                    jobs.foreground = None;
-                }
-            }
-            jobs.job_table.remove(&interaction_handle);
-        });
         exit_status
     }
+}
 
-    /// Send some bytes to the foreground job
-    ///
-    /// Does nothing if there is no foreground job
-    pub fn write_stdin_foreground(&mut self, bytes: &[u8]) {
-        if let Some(Some(stdin)) = self.jobs(None, |jobs| {
-            jobs.foreground.map(|interaction_handle| {
-                jobs.job_table
-                    .get(&interaction_handle)
-                    .map(|job| job.stdin_bite_side)
-            })
-        }) {
-            // TODO: Check result
-            let _ = write(stdin, bytes);
+impl Job {
+    /// Terminate all the programs
+    pub fn terminate(&self) {
+        for pid in self.children.iter() {
+            let _ = kill(Pid::from_raw(*pid as i32), Some(Signal::SIGTERM));
         }
     }
 
-    /// Send some bytes to any job
-    ///
-    /// Does nothing if there is no foreground job
-    pub fn write_stdin(&mut self, interaction_handle: InteractionHandle, bytes: &[u8]) {
-        if let Some(stdin) = self.jobs(None, |jobs| {
-            jobs.job_table
-                .get(&interaction_handle)
-                .map(|job| job.stdin_bite_side)
-        }) {
-            // TODO: Check result
-            let _ = write(stdin, bytes);
-        }
-    }
-
-    /// Terminate everything that is running in the given interaction
-    ///
-    /// Does nothing if nothing is running
-    pub fn terminate(&mut self, interaction_handle: InteractionHandle) {
-        if let Some(children) = self.jobs(None, |jobs| {
-            jobs.job_table
-                .get(&interaction_handle)
-                .map(|job| job.children.clone())
-        }) {
-            if let Ok(mut children) = children.lock() {
-                for c in children.iter_mut() {
-                    // Silently kill the process
-                    let _ = c.kill();
-                }
-            }
-        }
+    /// Send some bytes to the stdin of this job
+    pub fn write_stdin(&mut self, bytes: &[u8]) {
+        let _ = write(self.stdin_bite_side, bytes);
     }
 }

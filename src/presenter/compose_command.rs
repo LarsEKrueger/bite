@@ -23,8 +23,6 @@ use super::execute_command::ExecuteCommandPresenter;
 use super::*;
 use model::session::{OutputVisibility, RunningStatus};
 
-use std::os::unix::process::ExitStatusExt;
-
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
     /// Common data.

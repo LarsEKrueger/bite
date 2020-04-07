@@ -52,8 +52,7 @@ impl TuiExecuteCommandPresenter {
 
     fn send_string(&mut self, send: &str) -> PresenterCommand {
         self.commons
-            .interpreter
-            .jobs
+            .session
             .write_stdin(self.current_interaction, send.as_bytes());
         PresenterCommand::Redraw
     }
@@ -61,8 +60,7 @@ impl TuiExecuteCommandPresenter {
     fn send_term_info(&mut self, cap_name: &str) -> PresenterCommand {
         if let Some(cap_str) = self.commons.term_info.strings.get(cap_name) {
             self.commons
-                .interpreter
-                .jobs
+                .session
                 .write_stdin(self.current_interaction, cap_str);
             PresenterCommand::Redraw
         } else {

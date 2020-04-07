@@ -464,6 +464,29 @@ impl Screen {
         }
     }
 
+    /// Create a new screen from the given matrix
+    pub fn new_from_matrix(matrix: Matrix) -> Self {
+        Self {
+            matrix,
+            cursor: Cursor::new(),
+            saved_cursor: Cursor::new(),
+            attributes: Attributes::empty(),
+            colors: INITIAL_COLORS,
+            parser: Parser::new(),
+            fixed_size: false,
+            last_char: ' ',
+            scroll_region: None,
+            gsets: [
+                CharSet::UsAscii,
+                CharSet::UsAscii,
+                CharSet::Latin1,
+                CharSet::UsAscii,
+            ],
+            curgl: ScsType::G0,
+            curgr: ScsType::G2,
+        }
+    }
+
     /// Direct conversion to one-line vector of cells
     pub fn one_line_cell_vec(line: &[u8]) -> Vec<Cell> {
         if line.is_empty() {
