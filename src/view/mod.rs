@@ -30,7 +30,7 @@ use x11::keysym::*;
 use x11::xlib::*;
 
 use model::history::History;
-use model::interpreter::Interpreter;
+use model::interpreter::InteractiveInterpreter;
 use model::iterators::LineType;
 use model::screen::Cell;
 use model::session::SharedSession;
@@ -205,7 +205,7 @@ impl Gui {
     /// detected at startup.
     pub fn new(
         session: SharedSession,
-        interpreter: Interpreter,
+        interpreter: InteractiveInterpreter,
         history: History,
     ) -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
@@ -877,7 +877,7 @@ impl Gui {
     }
 
     /// Frees all X resources and get back the owned objects
-    pub fn finish(self) -> (Interpreter, History) {
+    pub fn finish(self) -> (InteractiveInterpreter, History) {
         unsafe {
             XDestroyIC(self.xic);
             XCloseIM(self.xim);

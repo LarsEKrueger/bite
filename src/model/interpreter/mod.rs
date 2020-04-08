@@ -35,7 +35,15 @@ mod data_stack;
 pub mod jobs;
 mod parser;
 
-pub struct Interpreter {
+pub struct StartupInterpreter {
+    /// Session to print output to.
+    session: SharedSession,
+
+    /// Interpreter State to be initialized by the init scripts.
+    runner: byte_code::Runner,
+}
+
+pub struct InteractiveInterpreter {
     /// Session to print output to.
     session: SharedSession,
 
@@ -88,112 +96,47 @@ fn interpreter_loop(
     }
 }
 
-impl Interpreter {
-    /// Create a new interpreter. This will spawn a thread.
-    pub fn new(session: SharedSession) -> Self {
-        let is_running = Arc::new(AtomicBool::new(true));
-        let input = Arc::new((Condvar::new(), Mutex::new(None)));
-        let thread = {
-            let session = session.clone();
-            let is_running = is_running.clone();
-            let input = input.clone();
-            let runner = byte_code::Runner::new(session);
-            std::thread::Builder::new()
-                .name("interpreter".to_string())
-                .spawn(move || interpreter_loop(runner, is_running, input))
-                .unwrap()
-        };
+/// Parse a (partial) script and either return the byte code array or an error message
+pub fn parse_script(script: &String) -> Result<byte_code::Instructions, String> {
+    let mut instructions: byte_code::Instructions = Vec::new();
 
-        Self {
-            session,
-            thread,
-            input,
-            is_running,
-        }
-    }
-
-    /// Check if the interpreter is ready for a new command.
-    pub fn is_ready(&self) -> bool {
-        self.input.1.lock().unwrap().is_none()
-    }
-
-    /// Parse a (partial) script and either return the byte code array or an error message
-    pub fn parse_script(&self, script: &String) -> Result<byte_code::Instructions, String> {
-        let mut instructions: byte_code::Instructions = Vec::new();
-
-        let mut input = parser::Span::new(script);
-        while !input.fragment.is_empty() {
-            match parser::script(input) {
-                Ok((rest, ast)) => {
-                    // Compile AST into instructions
-                    byte_code::compile(&mut instructions, ast)?;
-                    input = rest;
-                }
-                Err(nom::Err::Incomplete(needed)) => {
-                    // TODO: Create error message
-                    let mut msg = String::new();
-                    msg.push_str(&format!("Incomplete: {:?}", needed));
-                    return Err(msg);
-                }
-                Err(nom::Err::Error(code)) => {
-                    // TODO: Create error message
-                    let mut msg = String::new();
-                    msg.push_str(&format!("Error: {:?}", code));
-                    return Err(msg);
-                }
-                Err(nom::Err::Failure(code)) => {
-                    // TODO: Create error message
-                    let mut msg = String::new();
-                    msg.push_str(&format!("Failure: {:?}", code));
-                    return Err(msg);
-                }
+    let mut input = parser::Span::new(script);
+    while !input.fragment.is_empty() {
+        match parser::script(input) {
+            Ok((rest, ast)) => {
+                // Compile AST into instructions
+                byte_code::compile(&mut instructions, ast)?;
+                input = rest;
+            }
+            Err(nom::Err::Incomplete(needed)) => {
+                // TODO: Create error message
+                let mut msg = String::new();
+                msg.push_str(&format!("Incomplete: {:?}", needed));
+                return Err(msg);
+            }
+            Err(nom::Err::Error(code)) => {
+                // TODO: Create error message
+                let mut msg = String::new();
+                msg.push_str(&format!("Error: {:?}", code));
+                return Err(msg);
+            }
+            Err(nom::Err::Failure(code)) => {
+                // TODO: Create error message
+                let mut msg = String::new();
+                msg.push_str(&format!("Failure: {:?}", code));
+                return Err(msg);
             }
         }
-
-        Ok(instructions)
     }
 
-    /// Execute a set of instructions.
-    ///
-    /// If the interpreter is still busy with another one, this call will block. The output of any
-    /// command started from this call will be added to the given interaction.
-    pub fn run(
-        &mut self,
-        command: String,
-        instructions: byte_code::Instructions,
-    ) -> InteractionHandle {
-        trace!("Want to run »{}«", command);
-        let interaction = self
-            .session
-            .add_interaction(Screen::one_line_matrix(command.as_bytes()));
-        let mut input = self.input.1.lock().unwrap();
-        *input = Some((instructions, interaction));
-        trace!("Set input");
-        self.input.0.notify_one();
-        trace!("Sent notification");
-        interaction
-    }
+    Ok(instructions)
+}
 
-    /// Shut down the interpreter.
-    ///
-    /// This function will block until the interpreter has completed the last command.
-    pub fn shutdown(self) {
-        self.is_running.store(false, Ordering::Release);
-        {
-            let mut input = self.input.1.lock().unwrap();
-            *input = Some((Vec::new(), InteractionHandle::INVALID));
-        }
-        self.input.0.notify_one();
-        let _ = self.thread.join();
-    }
-
-    /// Get the current working directory
-    pub fn get_cwd(&self) -> PathBuf {
-        unwrap_log(
-            nix::unistd::getcwd(),
-            "getting current work directory",
-            PathBuf::from("."),
-        )
+impl StartupInterpreter {
+    /// Create a new interpreter.
+    pub fn new(session: SharedSession) -> Self {
+        let runner = byte_code::Runner::new(session.clone());
+        Self { session, runner }
     }
 
     /// Run a script in a given interaction
@@ -205,14 +148,10 @@ impl Interpreter {
                 match file.read_to_string(&mut content) {
                     Ok(_) => {
                         // Parse the content of the file
-                        match self.parse_script(&content) {
+                        match parse_script(&content) {
                             Ok(instructions) => {
-                                // Send the instructions to the interpreter
-                                let mut input = self.input.1.lock().unwrap();
-                                *input = Some((instructions, interaction_handle));
-                                trace!("Set input");
-                                self.input.0.notify_one();
-                                trace!("Sent notification");
+                                // Send the instructions to the runner
+                                self.runner.run(Arc::new(instructions), interaction_handle);
                             }
                             Err(msg) => {
                                 self.session.add_bytes(
@@ -273,5 +212,80 @@ impl Interpreter {
             .add_interaction(Screen::one_line_matrix(b"Startup"));
         self.run_script(script_name, interaction);
         interaction
+    }
+
+    /// Start the interpreter threat and transfer the interpreter state to it.
+    ///
+    /// Return the interface to this thread
+    pub fn complete_startup(self) -> InteractiveInterpreter {
+        let is_running = Arc::new(AtomicBool::new(true));
+        let input = Arc::new((Condvar::new(), Mutex::new(None)));
+        let thread = {
+            let session = self.session.clone();
+            let is_running = is_running.clone();
+            let input = input.clone();
+            let runner = self.runner;
+            std::thread::Builder::new()
+                .name("interpreter".to_string())
+                .spawn(move || interpreter_loop(runner, is_running, input))
+                .unwrap()
+        };
+
+        InteractiveInterpreter {
+            session: self.session,
+            thread,
+            input,
+            is_running,
+        }
+    }
+}
+
+impl InteractiveInterpreter {
+    /// Check if the interpreter is ready for a new command.
+    pub fn is_ready(&self) -> bool {
+        self.input.1.lock().unwrap().is_none()
+    }
+
+    /// Execute a set of instructions.
+    ///
+    /// If the interpreter is still busy with another one, this call will block. The output of any
+    /// command started from this call will be added to the given interaction.
+    pub fn run(
+        &mut self,
+        command: String,
+        instructions: byte_code::Instructions,
+    ) -> InteractionHandle {
+        trace!("Want to run »{}«", command);
+        let interaction = self
+            .session
+            .add_interaction(Screen::one_line_matrix(command.as_bytes()));
+        let mut input = self.input.1.lock().unwrap();
+        *input = Some((instructions, interaction));
+        trace!("Set input");
+        self.input.0.notify_one();
+        trace!("Sent notification");
+        interaction
+    }
+
+    /// Shut down the interpreter.
+    ///
+    /// This function will block until the interpreter has completed the last command.
+    pub fn shutdown(self) {
+        self.is_running.store(false, Ordering::Release);
+        {
+            let mut input = self.input.1.lock().unwrap();
+            *input = Some((Vec::new(), InteractionHandle::INVALID));
+        }
+        self.input.0.notify_one();
+        let _ = self.thread.join();
+    }
+
+    /// Get the current working directory
+    pub fn get_cwd(&self) -> PathBuf {
+        unwrap_log(
+            nix::unistd::getcwd(),
+            "getting current work directory",
+            PathBuf::from("."),
+        )
     }
 }

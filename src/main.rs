@@ -151,8 +151,8 @@ pub fn main() {
     let mut session =
         model::session::SharedSession::new(model::screen::Screen::one_line_matrix(b"System"));
 
-    // Start interpreter in a thread
-    let mut interpreter = model::interpreter::Interpreter::new(session.clone());
+    // Start interpreter for processing the init script
+    let mut interpreter = model::interpreter::StartupInterpreter::new(session.clone());
 
     // Run the ini script
     let home = std::env::var("HOME").unwrap_or(".".to_string());
@@ -165,6 +165,9 @@ pub fn main() {
         // possible contents of the interaction will be printed after the script is done.
         session.print_interaction(handle);
     }
+
+    // Transfer the interpreter to the background threat
+    let mut interpreter = interpreter.complete_startup();
 
     // Load the history
     let history = {

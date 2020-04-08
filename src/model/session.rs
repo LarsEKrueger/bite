@@ -22,10 +22,10 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
+use super::interpreter::jobs::Job;
 use super::iterators::*;
 use super::response::*;
 use super::screen::{AddBytesResult, Matrix, Screen};
-use super::interpreter::jobs::Job;
 
 use tools::shared_item;
 
@@ -186,10 +186,13 @@ impl Interaction {
 
     /// If there is data in the TUI screen, add it to the end of output
     pub fn exit_cleanup(&mut self) {
+        trace!("exit cleanup on interaction");
         if self.tui_mode {
             for l in self.tui_screen.line_iter() {
                 self.output.lines.push(l.to_vec());
             }
+            self.tui_mode = false;
+            self.tui_screen.reset();
         }
     }
 }
@@ -548,7 +551,10 @@ impl SharedSession {
 
     /// Increment the number of threads that feed data into an interaction
     pub fn register_thread(&mut self, handle: InteractionHandle) {
-        self.interaction_mut(handle, (), |i| i.threads = i.threads.saturating_add(1));
+        self.interaction_mut(handle, (), |i| {
+            i.threads = i.threads.saturating_add(1);
+            trace!("Register thread on {:?}: {} threads", handle, i.threads);
+        });
     }
 
     /// Decrement the number of threads that feed data into an interaction. If the number becomes
@@ -556,6 +562,7 @@ impl SharedSession {
     pub fn unregister_thread(&mut self, handle: InteractionHandle) {
         self.interaction_mut(handle, (), |i| {
             i.threads = i.threads.saturating_sub(1);
+            trace!("Unregister thread on {:?}: {} threads", handle, i.threads);
             if i.threads == 0 {
                 i.exit_cleanup();
             }
@@ -591,7 +598,6 @@ impl SharedSession {
             }
         });
     }
-
 
     /// Set the current job of an interaction
     pub fn set_job(&mut self, handle: InteractionHandle, job: Option<Job>) {
