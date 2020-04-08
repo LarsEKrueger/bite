@@ -25,6 +25,7 @@ use std::sync::{Arc, Mutex};
 use super::iterators::*;
 use super::response::*;
 use super::screen::{AddBytesResult, Matrix, Screen};
+use super::interpreter::jobs::Job;
 
 use tools::shared_item;
 
