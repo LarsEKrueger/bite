@@ -56,6 +56,24 @@ Page Up/Down        | Search History                           | ...
 Ctrl-Space          | Toggle output visibility of last command | Toggle output visibility of current command
 Shift-Ctrl-Space    | Toggle output visibility of all commands | Toggle output visibility of all commands
 
+## Configuration
+
+Just like bash, BiTE is configured by user-defined start script. This script is
+looked for in `$HOME/.biterc` and executed as a shell script. All commands are
+allowed and the execution is blocking, i.e. the GUI starts after the script is
+run. Therefore, the script shouldn't perform any long-running actions.
+
+BiTE is configured using environment variables. They do not need to be exported.
+
+The following code lists the default values for all variables.
+
+```
+# Name of an X11 Core Font. Use xfontsel to create the name.
+# If the variable is not set or the font does not exits, the default value will
+# be tried.
+BITE_FONT=-*-courier-medium-r-*-*-20-*-*-*-*-*-iso10646-*
+```
+
 # How to build this program
 
 Please understand this software is in a very early stage. Many features are
@@ -275,7 +293,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 0.10 Make GUI font configurable
       * [X] Run ini file in top-level interpreter
       * [X] Set variables
-      * [ ] Load font from variable
+      * [X] Load font from variable
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
     * [ ] propagate window size changes to TUI
     * [ ] Allow multiple views.
