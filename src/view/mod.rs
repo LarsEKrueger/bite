@@ -22,7 +22,7 @@
 
 use std::cmp;
 use std::collections::HashMap;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::ptr::{null, null_mut};
 use std::time::{Duration, SystemTime};
@@ -30,7 +30,7 @@ use x11::keysym::*;
 use x11::xlib::*;
 
 use model::history::History;
-use model::interpreter::Interpreter;
+use model::interpreter::InteractiveInterpreter;
 use model::iterators::LineType;
 use model::screen::Cell;
 use model::session::SharedSession;
@@ -144,6 +144,8 @@ pub struct Gui {
 }
 
 /// Default font to draw the output
+///
+/// This font is tried if the user-specified font isn't found.
 const FONTNAME: &'static str = "-*-courier-medium-r-*-*-20-*-*-*-*-*-iso10646-*\0";
 
 /// Create the input context.
@@ -185,6 +187,37 @@ lazy_static! {
     };
 }
 
+fn create_font_set(display: *mut Display, font_name: &str) -> XFontSet {
+    let mut missing_charset_list_return: *mut *mut c_char = null_mut();
+    let mut missing_charset_count_return: c_int = 0;
+    let mut def_string_return: *mut c_char = null_mut();
+
+    let font_set = unsafe {
+        XCreateFontSet(
+            display,
+            font_name as *const str as *const [c_char] as *const c_char,
+            &mut missing_charset_list_return,
+            &mut missing_charset_count_return,
+            &mut def_string_return,
+        )
+    };
+
+    if font_set == null_mut() {
+        error!("Can't find font »{}«", font_name);
+    } else {
+        info!(
+            "{} fonts missing while looking for »{}«: ",
+            missing_charset_count_return, font_name
+        );
+        for i_font in 0..missing_charset_count_return {
+            let name =
+                unsafe { CStr::from_ptr(*(missing_charset_list_return.offset(i_font as isize))) };
+            info!("Missing font '{}'", name.to_str().unwrap());
+        }
+    }
+    font_set
+}
+
 impl Gui {
     /// Open a server connection and prepare for event processing.
     ///
@@ -199,14 +232,15 @@ impl Gui {
     ///
     /// # Safety
     ///
-    /// Uses a lot of unsage functions as the server communication is done in C.
+    /// Uses a lot of unsafe functions as the server communication is done in C.
     ///
     /// Not all return codes are checked (yet), so might cause crashes that could have been
     /// detected at startup.
     pub fn new(
         session: SharedSession,
-        interpreter: Interpreter,
+        interpreter: InteractiveInterpreter,
         history: History,
+        user_font_name: Option<String>,
     ) -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
         let WM_DELETE_WINDOW = cstr!("WM_DELETE_WINDOW");
@@ -269,6 +303,7 @@ impl Gui {
 
             // Call XCreateIC through C because I can't get the sentinel NULL working from rust
             // FFI.
+            // TODO: Use this rust version.
             // let xic = XCreateIC(
             //     xim,
             //     XNInputStyle,
@@ -287,35 +322,35 @@ impl Gui {
             XSetBackground(display, gc, black_pixel);
             XSetForeground(display, gc, 0xFFD700);
 
-            let mut missing_charset_list_return: *mut *mut c_char = null_mut();
-            let mut missing_charset_count_return: c_int = 0;
-            let mut def_string_return: *mut c_char = null_mut();
-
-            let font_set = XCreateFontSet(
-                display,
-                FONTNAME as *const str as *const [c_char] as *const c_char,
-                &mut missing_charset_list_return,
-                &mut missing_charset_count_return,
-                &mut def_string_return,
-            );
+            let font_set = {
+                let mut font_set = null_mut();
+                // Try to load the user-specified font first
+                if let Some(mut user_font_name) = user_font_name {
+                    user_font_name.push('\0');
+                    font_set = create_font_set(display, &user_font_name);
+                }
+                // Try the hardcoded fallback font.
+                if font_set == null_mut() {
+                    font_set = create_font_set(display, FONTNAME);
+                }
+                font_set
+            };
 
             if font_set == null_mut() {
-                return Err(String::from("Can't find specified font"));
-            }
-
-            println!("{} fonts missing", missing_charset_count_return);
-            for i_font in 0..missing_charset_count_return {
-                let name = CStr::from_ptr(*(missing_charset_list_return.offset(i_font as isize)));
-                println!("Missing font '{}'", name.to_str().unwrap());
+                return Err("Can't find any usable font.".to_string());
             }
 
             let mut xfonts: *mut *mut XFontStruct = null_mut();
             let mut font_names: *mut *mut c_char = null_mut();
             let font_extents = XExtentsOfFontSet(font_set);
             let fnum = XFontsOfFontSet(font_set, &mut xfonts, &mut font_names);
-            println!("{} fonts found", fnum);
+            info!("{} fonts found", fnum);
             let mut asc = 0;
             for i in 0..fnum {
+                info!(
+                    "font: {}",
+                    CStr::from_ptr(*(font_names.offset(i as isize))).to_string_lossy()
+                );
                 let xfp = *(xfonts.offset(i as isize));
                 asc = cmp::max(asc, (*xfp).ascent);
             }
@@ -877,7 +912,7 @@ impl Gui {
     }
 
     /// Frees all X resources and get back the owned objects
-    pub fn finish(self) -> (Interpreter, History) {
+    pub fn finish(self) -> (InteractiveInterpreter, History) {
         unsafe {
             XDestroyIC(self.xic);
             XCloseIM(self.xim);

@@ -36,7 +36,7 @@ use self::compose_command::*;
 use self::display_line::*;
 use model::error::*;
 use model::history::History;
-use model::interpreter::Interpreter;
+use model::interpreter::InteractiveInterpreter;
 use model::iterators::*;
 use model::screen::*;
 use model::session::{Session, SharedSession};
@@ -152,7 +152,7 @@ pub struct PresenterCommons {
     session: SharedSession,
 
     /// Interpreter to run things
-    interpreter: Interpreter,
+    interpreter: InteractiveInterpreter,
 
     /// Width of the window in characters
     window_width: usize,
@@ -230,7 +230,7 @@ impl PresenterCommons {
     /// This will be passed from sub-presenter to sub-presenter on state changes.
     pub fn new(
         session: SharedSession,
-        interpreter: Interpreter,
+        interpreter: InteractiveInterpreter,
         history: History,
         term_info: TermInfo,
     ) -> Result<Self> {
@@ -286,7 +286,7 @@ impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
     pub fn new(
         session: SharedSession,
-        interpreter: Interpreter,
+        interpreter: InteractiveInterpreter,
         history: History,
         term_info: TermInfo,
     ) -> Result<Self> {
@@ -296,7 +296,7 @@ impl Presenter {
     }
 
     /// Clean up and get back the interpreter
-    pub fn finish(self) -> (Interpreter, History) {
+    pub fn finish(self) -> (InteractiveInterpreter, History) {
         let commons = self.0.unwrap().finish();
         (commons.interpreter, commons.history)
     }

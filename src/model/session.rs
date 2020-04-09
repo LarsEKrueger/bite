@@ -186,10 +186,13 @@ impl Interaction {
 
     /// If there is data in the TUI screen, add it to the end of output
     pub fn exit_cleanup(&mut self) {
+        trace!("exit cleanup on interaction");
         if self.tui_mode {
             for l in self.tui_screen.line_iter() {
                 self.output.lines.push(l.to_vec());
             }
+            self.tui_mode = false;
+            self.tui_screen.reset();
         }
     }
 }
@@ -548,7 +551,10 @@ impl SharedSession {
 
     /// Increment the number of threads that feed data into an interaction
     pub fn register_thread(&mut self, handle: InteractionHandle) {
-        self.interaction_mut(handle, (), |i| i.threads = i.threads.saturating_add(1));
+        self.interaction_mut(handle, (), |i| {
+            i.threads = i.threads.saturating_add(1);
+            trace!("Register thread on {:?}: {} threads", handle, i.threads);
+        });
     }
 
     /// Decrement the number of threads that feed data into an interaction. If the number becomes
@@ -556,8 +562,39 @@ impl SharedSession {
     pub fn unregister_thread(&mut self, handle: InteractionHandle) {
         self.interaction_mut(handle, (), |i| {
             i.threads = i.threads.saturating_sub(1);
+            trace!("Unregister thread on {:?}: {} threads", handle, i.threads);
             if i.threads == 0 {
                 i.exit_cleanup();
+            }
+        });
+    }
+
+    /// Print the interaction to the respective streams
+    pub fn print_interaction(&mut self, handle: InteractionHandle) {
+        self.interaction(handle, (), |interaction| {
+            use std::io::Write;
+            let mut b = [0; 4];
+            {
+                let stdout = std::io::stdout();
+                let mut stdout = stdout.lock();
+                let _ = stdout.write(b"BiTE startup stdout output\n");
+                for l in interaction.output.lines.iter() {
+                    for c in l {
+                        let _ = stdout.write(c.code_point().encode_utf8(&mut b).as_bytes());
+                    }
+                    let _ = stdout.write(b"\n");
+                }
+            }
+            {
+                let stderr = std::io::stderr();
+                let mut stderr = stderr.lock();
+                let _ = stderr.write(b"BiTE startup stderr output\n");
+                for l in interaction.errors.lines.iter() {
+                    for c in l {
+                        let _ = stderr.write(c.code_point().encode_utf8(&mut b).as_bytes());
+                    }
+                    let _ = stderr.write(b"\n");
+                }
             }
         });
     }

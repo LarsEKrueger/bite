@@ -21,6 +21,7 @@
 use super::completion::CompleteCommandPresenter;
 use super::execute_command::ExecuteCommandPresenter;
 use super::*;
+use model::interpreter::parse_script;
 use model::session::{OutputVisibility, RunningStatus};
 
 /// Presenter to input and run commands.
@@ -74,7 +75,7 @@ impl ComposeCommandPresenter {
         line_with_nl.push('\n');
 
         // Check if the input parses
-        match self.commons.interpreter.parse_script(&line_with_nl) {
+        match parse_script(&line_with_nl) {
             Ok(instructions) => {
                 // Put the command in the history
                 let cwd = self.commons.interpreter.get_cwd();

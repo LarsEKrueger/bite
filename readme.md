@@ -56,6 +56,24 @@ Page Up/Down        | Search History                           | ...
 Ctrl-Space          | Toggle output visibility of last command | Toggle output visibility of current command
 Shift-Ctrl-Space    | Toggle output visibility of all commands | Toggle output visibility of all commands
 
+## Configuration
+
+Just like bash, BiTE is configured by user-defined start script. This script is
+looked for in `$HOME/.biterc` and executed as a shell script. All commands are
+allowed and the execution is blocking, i.e. the GUI starts after the script is
+run. Therefore, the script shouldn't perform any long-running actions.
+
+BiTE is configured using environment variables. They do not need to be exported.
+
+The following code lists the default values for all variables.
+
+```
+# Name of an X11 Core Font. Use xfontsel to create the name.
+# If the variable is not set or the font does not exits, the default value will
+# be tried.
+BITE_FONT=-*-courier-medium-r-*-*-20-*-*-*-*-*-iso10646-*
+```
+
 # How to build this program
 
 Please understand this software is in a very early stage. Many features are
@@ -273,9 +291,9 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Bug: neofetch doesn't display correctly: Add TUI screen to output at end of program
     * [X] Bug: Termination of first command after background command isn't noticed if background programm is still running
 * [ ] 0.10 Make GUI font configurable
-      * [ ] Set variables
-      * [ ] Run ini file in top-level interpreter
-      * [ ] Load font from variable
+      * [X] Run ini file in top-level interpreter
+      * [X] Set variables
+      * [X] Load font from variable
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
     * [ ] propagate window size changes to TUI
     * [ ] Allow multiple views.
@@ -287,10 +305,14 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
-* [X] Bug: `git push && git push somewhere` runs second command if first one fails
+* [ ] Add error reporting function to Session and use it in Interpreter
+* [ ] Simplify and unify error handling
+    * [ ] Check if adding session to InteractionHandle makes code simpler
 * [ ] History: Sort in reverse (best match at the bottom)
 * [ ] History: Use order of commands for sorting (length of look-ahead?)
 * [ ] History: Handle multi-line entries
+* [ ] History: Predict beginning of command
+* [ ] Session: Use previous visibility settings for repeated commands
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
@@ -306,6 +328,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] Handle sub parameters correctly
 * [ ] Mapping from session to LineItems should be done in Presenter
 * [X] ~~Bug: Bash source $() does not work correctly~~ Cancelled. No more bash used.
+* [X] Bug: `git push && git push somewhere` runs second command if first one fails
 
 # Ideas
 * History: Draw between prompt and input box instead of overlay
