@@ -274,7 +274,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Bug: Termination of first command after background command isn't noticed if background programm is still running
 * [ ] 0.10 Make GUI font configurable
       * [X] Run ini file in top-level interpreter
-      * [ ] Set variables
+      * [X] Set variables
       * [ ] Load font from variable
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
     * [ ] propagate window size changes to TUI
@@ -288,7 +288,8 @@ The *1.x* versions will provide an improved UX while working towards the progres
 
 # TODOs
 * [ ] Add error reporting function to Session and use it in Interpreter
-* [ ] Check if add session to InteractionHandle makes code simpler
+* [ ] Simplify and unify error handling
+    * [ ] Check if adding session to InteractionHandle makes code simpler
 * [ ] History: Sort in reverse (best match at the bottom)
 * [ ] History: Use order of commands for sorting (length of look-ahead?)
 * [ ] History: Handle multi-line entries
