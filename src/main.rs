@@ -166,6 +166,11 @@ pub fn main() {
         session.print_interaction(handle);
     }
 
+    trace!(
+        "variables after startup: {:?}",
+        interpreter.runner.shell_stack
+    );
+
     // Transfer the interpreter to the background thread
     let mut interpreter = interpreter.complete_startup();
 

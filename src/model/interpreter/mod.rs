@@ -34,13 +34,16 @@ mod byte_code;
 mod data_stack;
 pub mod jobs;
 mod parser;
+mod variables;
+
+use self::variables::ContextStack;
 
 pub struct StartupInterpreter {
     /// Session to print output to.
     session: SharedSession,
 
     /// Interpreter State to be initialized by the init scripts.
-    runner: byte_code::Runner,
+    pub runner: byte_code::Runner,
 }
 
 pub struct InteractiveInterpreter {
@@ -135,7 +138,9 @@ pub fn parse_script(script: &String) -> Result<byte_code::Instructions, String> 
 impl StartupInterpreter {
     /// Create a new interpreter.
     pub fn new(session: SharedSession) -> Self {
-        let runner = byte_code::Runner::new(session.clone());
+        let mut shell_stack = ContextStack::new();
+        shell_stack.import_from_environment();
+        let runner = byte_code::Runner::new(session.clone(), shell_stack);
         Self { session, runner }
     }
 

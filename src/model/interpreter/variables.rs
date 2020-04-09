@@ -21,35 +21,30 @@
 use boolinator::Boolinator;
 use std::collections::HashMap;
 
-use model::bash::script_parser;
 use model::error::{Error, Result};
 
 use std::ffi::OsString;
 
-/// Stack of variables.
+/// Stack of contexts / frames, i.e. dictionaries of variables.
 ///
-///
-pub struct Stack {
+/// TODO: Caching of env and CDPATH
+#[derive(Clone, Debug)]
+pub struct ContextStack {
     frames: Vec<Context>,
-    remake_export_env: bool,
 }
 
 /// A stack frame, named context as in bash.
-///
-/// TODO: Does scope have to be signed?
+#[derive(Clone, Debug)]
 pub struct Context {
-    _name: String,
-    _scope: i32,
+    name: String,
     ctxType: ContextType,
-    _has_locals: bool,
-    _has_tempvars: bool,
     variables: HashMap<String, Variable>,
 }
 
 /// The type of the context.
 ///
 /// There should be only one global frame at the bottom of the stack.
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum ContextType {
     Global,
     Function,
@@ -58,6 +53,7 @@ pub enum ContextType {
 }
 
 /// A variable and its flags.
+#[derive(Clone, Debug)]
 pub struct Variable {
     value: VariableValue,
     read_only: bool,
@@ -67,6 +63,7 @@ pub struct Variable {
 
 /// The value of a variable.
 ///
+#[derive(Clone, Debug)]
 pub struct VariableValue {
     _vtype: VariableType,
     value: String,
@@ -75,31 +72,28 @@ pub struct VariableValue {
 /// The type of the variable.
 ///
 /// This mostly influences the setters.
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug)]
 pub enum VariableType {
     // Integer,
     String,
 }
 
-impl Stack {
+impl ContextStack {
     pub fn new() -> Self {
         Self {
-            frames: vec![Context::new(ContextType::Global, "", 0)],
-            remake_export_env: false,
+            frames: vec![Context::new(ContextType::Global, "")],
         }
     }
 
     pub fn import_from_environment(&mut self) -> Result<()> {
-        let mut remake_export_env = false;
         for (key, value) in ::std::env::vars() {
             let mut temp_var = self.bind_variable(&key, &value)?;
             temp_var.set_exported(true);
-            if !script_parser::legal_identifier(&key) {
-                temp_var.set_invisible();
-            }
-            remake_export_env = true;
+            // TODO: Check that key is an identifier
+            // if !script_parser::legal_identifier(&key) {
+            //     temp_var.set_invisible();
+            // }
         }
-        self.remake_export_env = remake_export_env;
         Ok(())
     }
 
@@ -223,9 +217,7 @@ impl Stack {
             let pos = self.frames.len() - 1 - pos;
             &mut self.frames[pos]
         } else {
-            let l = self.frames.len();
-            self.frames
-                .push(Context::new(ContextType::Temp, "", (l) as i32));
+            self.frames.push(Context::new(ContextType::Temp, ""));
             self.frames.last_mut().unwrap()
         }
     }
@@ -247,13 +239,10 @@ impl Stack {
 }
 
 impl Context {
-    fn new(ctxType: ContextType, name: &str, scope: i32) -> Self {
+    fn new(ctxType: ContextType, name: &str) -> Self {
         Self {
-            _name: String::from(name),
-            _scope: scope,
+            name: String::from(name),
             ctxType,
-            _has_locals: false,
-            _has_tempvars: false,
             variables: HashMap::new(),
         }
     }

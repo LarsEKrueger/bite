@@ -1566,9 +1566,8 @@ mod tests {
             Ok((
                 span(11, 1, ""),
                 AbstractSyntaxTree::Assignments(vec![
-                                                (span(0, 1, "ab"), span(3, 1, "cd")),
-                                                (span(6, 1, "ef"), span(9, 1, "gh")),
-
+                    (span(0, 1, "ab"), span(3, 1, "cd")),
+                    (span(6, 1, "ef"), span(9, 1, "gh")),
                 ])
             ))
         );

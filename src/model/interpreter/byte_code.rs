@@ -25,6 +25,8 @@ use super::parser::{
     AbstractSyntaxTree, BackgroundMode, Command, LogicalOperator, Pipeline, PipelineCommand,
     PipelineOperator,
 };
+use super::variables::ContextStack;
+
 use std::sync::Arc;
 use std::thread::spawn;
 
@@ -135,8 +137,13 @@ pub struct Runner {
     /// Job being started
     current_pipeline: Option<jobs::PipelineBuilder>,
 
-    /// Data stack
+    /// Data stack for evaluation of instructions.
+    ///
+    /// This is not visible to the script.
     data_stack: Stack,
+
+    /// Stack frames of the running shell script.
+    pub shell_stack: ContextStack,
 }
 
 /// The array of stacks to construct command line arguments
@@ -201,12 +208,13 @@ impl Launchpad {
 }
 
 impl Runner {
-    pub fn new(session: SharedSession) -> Self {
+    pub fn new(session: SharedSession, shell_stack: ContextStack) -> Self {
         Self {
             session,
             launchpad: Launchpad::new(),
             current_pipeline: None,
             data_stack: Stack::new(),
+            shell_stack,
         }
     }
 
@@ -370,7 +378,11 @@ impl Runner {
                     // First, create a new interaction
                     let new_handle = self.session.create_sub_interaction(interaction);
 
-                    let mut clone_self = Runner::new(self.session.clone());
+                    // Then, spawn a thread with a new runner
+
+                    // TODO: Compress the stack to one level
+                    let clone_stack = self.shell_stack.clone();
+                    let mut clone_self = Runner::new(self.session.clone(), clone_stack);
                     let clone_instructions = instructions.clone();
                     let clone_start = ip + 1;
                     let clone_end = ip + len;
@@ -401,7 +413,18 @@ impl Runner {
                     if self.launchpad.args.len() == 2 {
                         let var = self.launchpad.args.remove(0).remove(0);
                         let val = self.launchpad.args.remove(0).remove(0);
-                    // TODO: Store in current stack frame
+                        match self.shell_stack.bind_variable(&var, &val) {
+                            Ok(_) => {
+                                // Nothing to do
+                            }
+                            Err(err) => {
+                                error!(
+                                    "Can't set variable »{}« to »{}« due to {:?}",
+                                    var, val, err
+                                );
+                                self.report_error(interaction, &err.readable(""));
+                            }
+                        }
                     } else {
                         error!(
                             "Launchpad doesn't contain exactly two words for assignment: {:?}",
