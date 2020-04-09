@@ -171,8 +171,15 @@ pub fn main() {
         interpreter.runner.shell_stack
     );
 
+    // Extract the configured font name
+    let fontname = interpreter
+        .runner
+        .shell_stack
+        .find_variable("BITE_FONT")
+        .map(|v| v.as_string().clone());
+
     // Transfer the interpreter to the background thread
-    let mut interpreter = interpreter.complete_startup();
+    let interpreter = interpreter.complete_startup();
 
     // Load the history
     let history = {
@@ -192,7 +199,7 @@ pub fn main() {
     };
 
     // Start the gui
-    let mut gui = match ::view::Gui::new(session, interpreter, history) {
+    let mut gui = match ::view::Gui::new(session, interpreter, history, fontname) {
         Err(err) => {
             error!("Can't init GUI: {}", err);
             println!("Can't init GUI: {}", err);
