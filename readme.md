@@ -287,10 +287,13 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
-* [X] Bug: `git push && git push somewhere` runs second command if first one fails
+* [ ] Add error reporting function to Session and use it in Interpreter
+* [ ] Check if add session to InteractionHandle makes code simpler
 * [ ] History: Sort in reverse (best match at the bottom)
 * [ ] History: Use order of commands for sorting (length of look-ahead?)
 * [ ] History: Handle multi-line entries
+* [ ] History: Predict beginning of command
+* [ ] Session: Use previous visibility settings for repeated commands
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
@@ -306,6 +309,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] Handle sub parameters correctly
 * [ ] Mapping from session to LineItems should be done in Presenter
 * [X] ~~Bug: Bash source $() does not work correctly~~ Cancelled. No more bash used.
+* [X] Bug: `git push && git push somewhere` runs second command if first one fails
 
 # Ideas
 * History: Draw between prompt and input box instead of overlay

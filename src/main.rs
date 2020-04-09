@@ -166,7 +166,7 @@ pub fn main() {
         session.print_interaction(handle);
     }
 
-    // Transfer the interpreter to the background threat
+    // Transfer the interpreter to the background thread
     let mut interpreter = interpreter.complete_startup();
 
     // Load the history
