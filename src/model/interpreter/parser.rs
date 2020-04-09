@@ -38,6 +38,10 @@ pub enum AbstractSyntaxTree<'a> {
     Comment(Span<'a>),
     /// One or more external programs that depend on each other's exit code.
     Logical(Vec<Pipeline<'a>>, BackgroundMode),
+    /// Standalone assignements, a number of them can be made at the same time
+    ///
+    /// (variable name, value)
+    Assignments(Vec<(Span<'a>, Span<'a>)>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -95,7 +99,7 @@ pub enum Command<'a> {
 ///
 /// The parser expects a line terminator as the last character.
 pub fn script(input: Span) -> IResult<Span, AbstractSyntaxTree> {
-    alt((empty_line, comment, logical))(input)
+    alt((empty_line, comment, assignments, logical))(input)
 }
 
 /// Version of nom's separated_list that can fix the last parsed output by the value of the
@@ -325,7 +329,17 @@ fn word(input: Span) -> IResult<Span, Span> {
 }
 
 fn word_letter(input: Span) -> IResult<Span, char> {
-    none_of(" \n\t\"\'|&;()<>")(input)
+    none_of(" \n\t\"\'|&;()<>=")(input)
+}
+
+fn single_assignment(input: Span) -> IResult<Span, (Span, Span)> {
+    map(tuple((word, tag("="), word)), |(var, _, val)| (var, val))(input)
+}
+
+fn assignments(input: Span) -> IResult<Span, AbstractSyntaxTree> {
+    map(separated_nonempty_list(space1, single_assignment), |asgn| {
+        AbstractSyntaxTree::Assignments(asgn)
+    })(input)
 }
 
 //   /* Reserved words.  Members of the first group are only recognized
@@ -1537,6 +1551,25 @@ mod tests {
                     ],
                     BackgroundMode::Background
                 )
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_assignments() {
+        assert_eq!(
+            single_assignment(Span::new("ab=cd")),
+            Ok((span(5, 1, ""), (span(0, 1, "ab"), span(3, 1, "cd")),))
+        );
+        assert_eq!(
+            assignments(Span::new("ab=cd ef=gh")),
+            Ok((
+                span(11, 1, ""),
+                AbstractSyntaxTree::Assignments(vec![
+                                                (span(0, 1, "ab"), span(3, 1, "cd")),
+                                                (span(6, 1, "ef"), span(9, 1, "gh")),
+
+                ])
             ))
         );
     }

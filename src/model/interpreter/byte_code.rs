@@ -115,6 +115,11 @@ pub enum Instruction {
 
     /// Placeholder for redirection
     Redirect,
+
+    /// Assign a value to a variable.
+    ///
+    /// Take the last two words on the lauchpad for variable name and value
+    Assign,
 }
 
 /// The byte code interpreter.
@@ -392,6 +397,20 @@ impl Runner {
                     }
                 }
 
+                Instruction::Assign => {
+                    if self.launchpad.args.len() == 2 {
+                        let var = self.launchpad.args.remove(0).remove(0);
+                        let val = self.launchpad.args.remove(0).remove(0);
+                    // TODO: Store in current stack frame
+                    } else {
+                        error!(
+                            "Launchpad doesn't contain exactly two words for assignment: {:?}",
+                            self.launchpad
+                        );
+                    }
+                    self.launchpad.clear();
+                }
+
                 _ => {
                     error!("Unhandled instruction {:?}", i);
                 }
@@ -507,6 +526,15 @@ pub fn compile<'a>(
                 }
             }
         }
+        AbstractSyntaxTree::Assignments(asgn) => {
+            for (var, val) in asgn {
+                instructions.push(Instruction::Lit(var.to_string()));
+                instructions.push(Instruction::Word);
+                instructions.push(Instruction::Lit(val.to_string()));
+                instructions.push(Instruction::Word);
+                instructions.push(Instruction::Assign);
+            }
+        }
     }
 
     Ok(())
@@ -575,7 +603,7 @@ mod tests {
                 Instruction::Exec(true),
                 Instruction::Success,
                 Instruction::Not,
-                Instruction::JumpIfNot(7),
+                Instruction::JumpIfNot(6),
                 Instruction::Begin,
                 Instruction::Lit("stuff".to_string()),
                 Instruction::Word,
@@ -609,7 +637,7 @@ mod tests {
                 Instruction::Exec(true),
                 Instruction::Success,
                 Instruction::Not,
-                Instruction::JumpIfNot(7),
+                Instruction::JumpIfNot(6),
                 Instruction::Begin,
                 Instruction::Lit("stuff".to_string()),
                 Instruction::Word,
