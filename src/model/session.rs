@@ -109,6 +109,15 @@ pub struct SharedSession(pub Arc<Mutex<Session>>);
 #[derive(PartialEq, Clone, Copy, Debug, Eq, Hash)]
 pub struct InteractionHandle(usize);
 
+impl RunningStatus {
+    pub fn is_running(&self) -> bool {
+        match self {
+            Self::Exited(_) => false,
+            _ => true,
+        }
+    }
+}
+
 impl Interaction {
     /// Create a new command without any output yet.
     ///
@@ -623,6 +632,65 @@ impl SharedSession {
             }
         })
     }
+
+    /// Find the next interaction (with wrap-around) that is a TUI and still running.
+    ///
+    /// Return None if none such interaction can be found.
+    pub fn next_running_tui(&self, handle:InteractionHandle) -> Option<InteractionHandle> {
+        self.session( None, |s| {
+            let mut index = handle.0;
+            // If the start index was invalid, quit right now. This covers the case when there are
+            // no interactions.
+            if index >= s.interactions.len() {
+                return None;
+            }
+            loop {
+                // Go to the next interaction and wrap around if necessary
+                index += 1;
+                if index >= s.interactions.len() {
+                    index = 0;
+                }
+                // If the index reached the start index, no suitable interaction was found.
+                if index == handle.0 {
+                  return None;
+                }
+                // If the interaction at the index is a TUI and still running, return the index.
+                if s.interactions[index].tui_mode && s.interactions[index].running_status.is_running() {
+                    return Some(InteractionHandle(index));
+                }
+            }
+        })
+    }
+
+    /// Find the previous interaction (with wrap-around) that is a TUI and still running.
+    ///
+    /// Return None if none such interaction can be found.
+    pub fn prev_running_tui(&self, handle:InteractionHandle) -> Option<InteractionHandle> {
+        self.session( None, |s| {
+            let mut index = handle.0;
+            // If the start index was invalid, quit right now. This covers the case when there are
+            // no interactions.
+            if index >= s.interactions.len() {
+                return None;
+            }
+            loop {
+                // Go to the previous interaction and wrap around if necessary
+                if index ==  0 {
+                    index = s.interactions.len();
+                }
+                index -= 1;
+                // If the index reached the start index, no suitable interaction was found.
+                if index == handle.0 {
+                  return None;
+                }
+                // If the interaction at the index is a TUI and still running, return the index.
+                if s.interactions[index].tui_mode && s.interactions[index].running_status.is_running() {
+                    return Some(InteractionHandle(index));
+                }
+            }
+        })
+    }
+
 }
 
 #[cfg(test)]
