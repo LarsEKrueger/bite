@@ -277,26 +277,14 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [X] 0.7 Foreground TUIs
 * [X] 0.8 Completion
 * [X] 0.9 Display output of (non-interactive) background programs
-    * [X] Allow Session to collect output into non-current interactions
-    * [X] BUG: Shows prompt in ExecuteCommandPresenter
-    * [X] Implement Job
-    * [X] Move TUI detection from presenter to session
-    * [X] Switch to internal parser, remove dependency on bash. Limit grammar to builtins (`cd`) and foreground program launch (non-pipe).
-    * [X] Launch foreground program using Job.
-    * [X] Implement Jobs
-    * [X] Extend parser to backgrounding (non-pipe)
-    * [X] Launch background program using Jobs
-    * [X] Extend parser and Job to launch pipes
-    * [X] Add quick switching of last command's output screens
-    * [X] Bug: neofetch doesn't display correctly: Add TUI screen to output at end of program
-    * [X] Bug: Termination of first command after background command isn't noticed if background programm is still running
-* [ ] 0.10 Make GUI font configurable
+* [X] 0.10 Make GUI font configurable
       * [X] Run ini file in top-level interpreter
       * [X] Set variables
       * [X] Load font from variable
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
+    * [ ] Ctrl-Tab through the still running TUIs
+    * [ ] Allow the foreground program to be selected again
     * [ ] propagate window size changes to TUI
-    * [ ] Allow multiple views.
 * [ ] 0.12 Join parsing and completion
 * [ ] 0.13 Draw GUI using Xft
 * [ ] 0.14 Implement all Screen Actions
