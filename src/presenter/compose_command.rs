@@ -20,6 +20,7 @@
 
 use super::completion::CompleteCommandPresenter;
 use super::execute_command::ExecuteCommandPresenter;
+use super::tui::TuiExecuteCommandPresenter;
 use super::*;
 use model::interpreter::parse_script;
 use model::session::{OutputVisibility, RunningStatus};
@@ -370,6 +371,32 @@ impl ComposeCommandPresenter {
                             )
                         }
                     }
+                }
+            }
+            // Ctrl-Tab => Switch to next running TUI if there is one
+            ((false, true, false), SpecialKey::Tab) => {
+                let next_tui = self.commons.session.next_running_tui(None);
+                trace!("Ctrl-Tab next_tui: {:?}", next_tui);
+                if let Some(next_tui) = next_tui {
+                    (
+                        TuiExecuteCommandPresenter::new(self.commons, next_tui, None),
+                        PresenterCommand::Redraw,
+                    )
+                } else {
+                    (self, PresenterCommand::Redraw)
+                }
+            }
+            // Shift-Ctrl-Tab => Switch to previous running TUI if there is one
+            ((true, true, false), SpecialKey::Tab) => {
+                let next_tui = self.commons.session.prev_running_tui(None);
+                trace!("Shift-Ctrl-Tab: next_tui: {:?}", next_tui);
+                if let Some(next_tui) = next_tui {
+                    (
+                        TuiExecuteCommandPresenter::new(self.commons, next_tui, None),
+                        PresenterCommand::Redraw,
+                    )
+                } else {
+                    (self, PresenterCommand::Redraw)
                 }
             }
 

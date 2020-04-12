@@ -130,7 +130,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     self.current_interaction
                 );
                 return (
-                    TuiExecuteCommandPresenter::new(self.commons, self.current_interaction),
+                    TuiExecuteCommandPresenter::new(self.commons, self.current_interaction, None),
                     true,
                 );
             }
@@ -214,6 +214,47 @@ impl SubPresenter for ExecuteCommandPresenter {
             ((false, false, false), SpecialKey::Backspace) => {
                 self.commons.text_input.delete_left();
                 (self, PresenterCommand::Redraw)
+            }
+
+            // Ctrl-Tab => Switch to next running TUI if there is one
+            ((false, true, false), SpecialKey::Tab) => {
+                let next_tui = self
+                    .commons
+                    .session
+                    .next_running_tui(Some(self.current_interaction));
+                trace!("Ctrl-Tab next_tui: {:?}", next_tui);
+                if let Some(next_tui) = next_tui {
+                    (
+                        TuiExecuteCommandPresenter::new(
+                            self.commons,
+                            next_tui,
+                            Some(self.current_interaction),
+                        ),
+                        PresenterCommand::Redraw,
+                    )
+                } else {
+                    (self, PresenterCommand::Redraw)
+                }
+            }
+            // Shift-Ctrl-Tab => Switch to previous running TUI if there is one
+            ((true, true, false), SpecialKey::Tab) => {
+                let next_tui = self
+                    .commons
+                    .session
+                    .prev_running_tui(Some(self.current_interaction));
+                trace!("Shift-Ctrl-Tab: next_tui: {:?}", next_tui);
+                if let Some(next_tui) = next_tui {
+                    (
+                        TuiExecuteCommandPresenter::new(
+                            self.commons,
+                            next_tui,
+                            Some(self.current_interaction),
+                        ),
+                        PresenterCommand::Redraw,
+                    )
+                } else {
+                    (self, PresenterCommand::Redraw)
+                }
             }
 
             // Ctrl-Space: cycle current interaction's output

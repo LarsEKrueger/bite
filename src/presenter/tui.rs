@@ -21,6 +21,7 @@
 //! Same functionality as ExecuteCommandPresenter, but maintains a single, non-resizable screen and
 //! does not archive its output.
 
+use super::execute_command::ExecuteCommandPresenter;
 use super::*;
 use model::session::InteractionHandle;
 
@@ -31,17 +32,25 @@ pub struct TuiExecuteCommandPresenter {
 
     /// Current interaction
     current_interaction: InteractionHandle,
+
+    /// Interaction to return to when leaving this view. None: ComposeCommandPresenter
+    return_interaction: Option<InteractionHandle>,
 }
 
 impl TuiExecuteCommandPresenter {
     pub fn new(
         commons: Box<PresenterCommons>,
         current_interaction: InteractionHandle,
+        return_interaction: Option<InteractionHandle>,
     ) -> Box<Self> {
-        let presenter = TuiExecuteCommandPresenter {
+        let mut presenter = TuiExecuteCommandPresenter {
             commons,
             current_interaction,
+            return_interaction,
         };
+
+        // Show all lines
+        presenter.commons.last_line_shown = presenter.commons.window_height;
 
         Box::new(presenter)
     }
@@ -103,11 +112,11 @@ impl SubPresenter for TuiExecuteCommandPresenter {
 
     fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
         let is_running = !self.commons.session.has_exited(self.current_interaction);
-        trace!(
-            "TuiExecuteCommandPresenter::end_polling {:?}: is_running = {}",
-            self.current_interaction,
-            is_running
-        );
+        // trace!(
+        //     "TuiExecuteCommandPresenter::end_polling {:?}: is_running = {}",
+        //     self.current_interaction,
+        //     is_running
+        // );
         if !is_running {
             let (commons, _) = self.deconstruct();
             trace!("Switch to ComposeCommandPresenter");
@@ -127,7 +136,10 @@ impl SubPresenter for TuiExecuteCommandPresenter {
                 };
                 LineItem::new(line, LineType::Tui, cursor_x, 0)
             })),
-            None => Box::new(std::iter::empty()),
+            None => {
+                error!("Got empty screen for {:?}", self.current_interaction);
+                Box::new(std::iter::empty())
+            }
         }
     }
 
@@ -167,7 +179,62 @@ impl SubPresenter for TuiExecuteCommandPresenter {
                 self.send_term_info_shift(shifted, "kdch1", "kDC")
             }
             ((_, _, _), SpecialKey::Backspace) => self.send_term_info("kbs"),
-            ((_, _, _), SpecialKey::Tab) => self.send_term_info("tab"),
+            ((false, false, false), SpecialKey::Tab) => self.send_term_info("tab"),
+
+            // Ctrl-Tab => Switch to next running TUI if there is one
+            ((false, true, false), SpecialKey::Tab) => {
+                let next_tui = self
+                    .commons
+                    .session
+                    .next_running_tui(Some(self.current_interaction));
+                trace!("Ctrl-Tab next_tui: {:?}", next_tui);
+                if let Some(next_tui) = next_tui {
+                    self.current_interaction = next_tui;
+                    PresenterCommand::Redraw
+                } else {
+                    // None found, return to the previous presenter
+                    if let Some(return_interaction) = self.return_interaction {
+                        // Previous interaction found -> return to ExecuteCommandPresenter
+                        return (
+                            ExecuteCommandPresenter::new(self.commons, return_interaction),
+                            PresenterCommand::Redraw,
+                        );
+                    } else {
+                        // No previous interaction -> return ComposeCommandPresenter
+                        return (
+                            ComposeCommandPresenter::new(self.commons),
+                            PresenterCommand::Redraw,
+                        );
+                    }
+                }
+            }
+            // Shift-Ctrl-Tab => Switch to previous running TUI if there is one
+            ((true, true, false), SpecialKey::Tab) => {
+                let next_tui = self
+                    .commons
+                    .session
+                    .prev_running_tui(Some(self.current_interaction));
+                trace!("Shift-Ctrl-Tab: next_tui: {:?}", next_tui);
+                if let Some(next_tui) = next_tui {
+                    self.current_interaction = next_tui;
+                    PresenterCommand::Redraw
+                } else {
+                    // None found, return to the previous presenter
+                    if let Some(return_interaction) = self.return_interaction {
+                        // Previous interaction found -> return to ExecuteCommandPresenter
+                        return (
+                            ExecuteCommandPresenter::new(self.commons, return_interaction),
+                            PresenterCommand::Redraw,
+                        );
+                    } else {
+                        // No previous interaction -> return ComposeCommandPresenter
+                        return (
+                            ComposeCommandPresenter::new(self.commons),
+                            PresenterCommand::Redraw,
+                        );
+                    }
+                }
+            }
 
             ((_, _, _), _) => {
                 // For all other keys, do nothing as they can't be represented in a TUI.

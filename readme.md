@@ -282,7 +282,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
       * [X] Set variables
       * [X] Load font from variable
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
-    * [ ] Ctrl-Tab through the still running TUIs
+    * [X] Ctrl-Tab through the still running TUIs
     * [ ] Allow the foreground program to be selected again
     * [ ] propagate window size changes to TUI
 * [ ] 0.12 Join parsing and completion

@@ -645,24 +645,42 @@ impl SharedSession {
 
     /// Find the next interaction (with wrap-around) that is a TUI and still running.
     ///
+    /// handle: None => Start at the end
+    ///
     /// Return None if none such interaction can be found.
-    pub fn next_running_tui(&self, handle: InteractionHandle) -> Option<InteractionHandle> {
+    pub fn next_running_tui(&self, handle: Option<InteractionHandle>) -> Option<InteractionHandle> {
         self.session(None, |s| {
-            let mut index = handle.0;
             // If the start index was invalid, quit right now. This covers the case when there are
             // no interactions.
-            if index >= s.interactions.len() {
-                return None;
-            }
+            let start_index = match handle {
+                None => {
+                    if s.interactions.len() == 0 {
+                        return None;
+                    }
+                    // Start past the end to catch the TUI in the last entry
+                    s.interactions.len()
+                }
+                Some(handle) => {
+                    let index = handle.0;
+                    if index >= s.interactions.len() {
+                        return None;
+                    }
+                    index
+                }
+            };
+            let mut index = start_index;
+            let mut wrapped = false;
             loop {
+                // If the index reached the start index, no suitable interaction was found.
+                // Checking this first prevents an infinite loop when starting with handle=None.
+                if (index == start_index) && wrapped {
+                    return None;
+                }
                 // Go to the next interaction and wrap around if necessary
                 index += 1;
                 if index >= s.interactions.len() {
                     index = 0;
-                }
-                // If the index reached the start index, no suitable interaction was found.
-                if index == handle.0 {
-                    return None;
+                    wrapped = true;
                 }
                 // If the interaction at the index is a TUI and still running, return the index.
                 if s.interactions[index].tui_mode
@@ -676,25 +694,41 @@ impl SharedSession {
 
     /// Find the previous interaction (with wrap-around) that is a TUI and still running.
     ///
+    /// handle: None => start at the beginning
+    ///
     /// Return None if none such interaction can be found.
-    pub fn prev_running_tui(&self, handle: InteractionHandle) -> Option<InteractionHandle> {
+    pub fn prev_running_tui(&self, handle: Option<InteractionHandle>) -> Option<InteractionHandle> {
         self.session(None, |s| {
-            let mut index = handle.0;
-            // If the start index was invalid, quit right now. This covers the case when there are
-            // no interactions.
-            if index >= s.interactions.len() {
-                return None;
-            }
+            let start_index = match handle {
+                None => {
+                    if s.interactions.len() == 0 {
+                        return None;
+                    }
+                    // Start past the end to catch the TUI in the last entry
+                    s.interactions.len()
+                }
+                Some(handle) => {
+                    let index = handle.0;
+                    if index >= s.interactions.len() {
+                        return None;
+                    }
+                    index
+                }
+            };
+            let mut index = start_index;
+            let mut wrapped = false;
             loop {
+                // If the index reached the start index, no suitable interaction was found.
+                // Checking this first prevents an infinite loop when starting with handle=None.
+                if (index == start_index) && wrapped {
+                    return None;
+                }
                 // Go to the previous interaction and wrap around if necessary
                 if index == 0 {
                     index = s.interactions.len();
+                    wrapped = true;
                 }
                 index -= 1;
-                // If the index reached the start index, no suitable interaction was found.
-                if index == handle.0 {
-                    return None;
-                }
                 // If the interaction at the index is a TUI and still running, return the index.
                 if s.interactions[index].tui_mode
                     && s.interactions[index].running_status.is_running()
