@@ -155,11 +155,20 @@ impl Interaction {
         prompt_hash: u64,
     ) -> impl Iterator<Item = LineItem<'a>> {
         // We always have the command, regardless if there is any output to show.
+        let show_resp = !self.tui_mode;
         let resp_lines = self
             .visible_response()
             .map(|r| r.line_iter(prompt_hash))
             .into_iter()
-            .flat_map(|i| i);
+            .flat_map(|i| i)
+            .filter(move |_| show_resp);
+
+        let show_tui = self.tui_mode;
+        let tui_lines = self
+            .tui_screen
+            .line_iter()
+            .map(move |line| LineItem::new(&line[..], LineType::Output, None, prompt_hash))
+            .filter(move |_| show_tui);
 
         let visible = self.visible;
         let lt = LineType::Command(visible, handle, self.running_status.clone());
@@ -168,6 +177,7 @@ impl Interaction {
             .line_iter()
             .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
             .chain(resp_lines)
+            .chain(tui_lines)
     }
 
     /// Check if there are any error lines.
@@ -636,8 +646,8 @@ impl SharedSession {
     /// Find the next interaction (with wrap-around) that is a TUI and still running.
     ///
     /// Return None if none such interaction can be found.
-    pub fn next_running_tui(&self, handle:InteractionHandle) -> Option<InteractionHandle> {
-        self.session( None, |s| {
+    pub fn next_running_tui(&self, handle: InteractionHandle) -> Option<InteractionHandle> {
+        self.session(None, |s| {
             let mut index = handle.0;
             // If the start index was invalid, quit right now. This covers the case when there are
             // no interactions.
@@ -652,10 +662,12 @@ impl SharedSession {
                 }
                 // If the index reached the start index, no suitable interaction was found.
                 if index == handle.0 {
-                  return None;
+                    return None;
                 }
                 // If the interaction at the index is a TUI and still running, return the index.
-                if s.interactions[index].tui_mode && s.interactions[index].running_status.is_running() {
+                if s.interactions[index].tui_mode
+                    && s.interactions[index].running_status.is_running()
+                {
                     return Some(InteractionHandle(index));
                 }
             }
@@ -665,8 +677,8 @@ impl SharedSession {
     /// Find the previous interaction (with wrap-around) that is a TUI and still running.
     ///
     /// Return None if none such interaction can be found.
-    pub fn prev_running_tui(&self, handle:InteractionHandle) -> Option<InteractionHandle> {
-        self.session( None, |s| {
+    pub fn prev_running_tui(&self, handle: InteractionHandle) -> Option<InteractionHandle> {
+        self.session(None, |s| {
             let mut index = handle.0;
             // If the start index was invalid, quit right now. This covers the case when there are
             // no interactions.
@@ -675,22 +687,23 @@ impl SharedSession {
             }
             loop {
                 // Go to the previous interaction and wrap around if necessary
-                if index ==  0 {
+                if index == 0 {
                     index = s.interactions.len();
                 }
                 index -= 1;
                 // If the index reached the start index, no suitable interaction was found.
                 if index == handle.0 {
-                  return None;
+                    return None;
                 }
                 // If the interaction at the index is a TUI and still running, return the index.
-                if s.interactions[index].tui_mode && s.interactions[index].running_status.is_running() {
+                if s.interactions[index].tui_mode
+                    && s.interactions[index].running_status.is_running()
+                {
                     return Some(InteractionHandle(index));
                 }
             }
         })
     }
-
 }
 
 #[cfg(test)]
