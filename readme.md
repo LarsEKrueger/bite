@@ -238,6 +238,26 @@ order (e.g. `git commit` followed by `git push`).
 
 The sequence of commands there needs to be taken into account too.
 
+### Just pressing Return starts command from history: Inconvenient
+
+As the Return key starts the full command even if only a part of the history
+entry has been taken into the input field, using a part of the history entry is
+difficult and violates the principle of least surprise.
+
+Thus, three different options on partial matches need to be provided:
+
+* Start the whole history entry unmodified
+* Ignore the history entry and start the command in the input field as-is
+* Take parts of the history entry
+
+Options:
+
+* The Levenshtein distance between the input and the history entries could be used.
+* The `!` notation could be used/extended.
+* The previous 5 commands (and possibly directories separately) could be
+  displayed above the input field. Pressing the UP key on the first line of the
+  input field would switch to history browsing/searching.
+
 # Planned Features, Step 2
 
 ## Progress Information
