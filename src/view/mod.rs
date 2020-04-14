@@ -393,7 +393,7 @@ impl Gui {
                 needs_redraw: true,
                 redraw_time: SystemTime::now(),
 
-                gate: polling::Gate::new(::std::time::Duration::from_millis(1)),
+                gate: polling::Gate::new(::std::time::Duration::from_millis(20)),
 
                 colors,
                 prompt_colors,
