@@ -483,6 +483,9 @@ impl PipelineBuilder {
                 }
             }
         }
+        // Close bite's side of stdin
+        let _ = close(self.stdin_bite_side);
+
         exit_status
     }
 }
