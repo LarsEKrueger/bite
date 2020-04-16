@@ -72,6 +72,8 @@ extern crate termios;
 use std::panic::PanicInfo;
 use std::path::PathBuf;
 
+use nix::sys::signal;
+
 pub mod model;
 pub mod presenter;
 pub mod tools;
@@ -133,6 +135,10 @@ fn panic_hook(info: &PanicInfo) {
 
 /// Main function that starts the program.
 pub fn main() {
+    // Deactivate SIGHUP and SIGCONT as they might be sent by children when they end
+    unsafe { signal::signal(signal::Signal::SIGHUP, signal::SigHandler::SigIgn) }.unwrap();
+    unsafe { signal::signal(signal::Signal::SIGCONT, signal::SigHandler::SigIgn) }.unwrap();
+
     // Initialise env_logger first
     let _ = std::env::var("BITE_LOG").and_then(|bite_log| {
         let _ = flexi_logger::Logger::with_str(bite_log)
