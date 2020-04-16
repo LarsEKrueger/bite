@@ -151,7 +151,7 @@ fn fallback_termios() -> Termios {
 /// Create a default termios struct either from /dev/tty or from built-in values.
 fn default_termios() -> Termios {
     if let Ok(ttyfd) = open(Path::new("/dev/tty"), OFlag::O_RDWR, Mode::empty()) {
-        info!("Could open /dev/tty for termios");
+        info!("Opened /dev/tty for termios");
         let termios = Termios::from_fd(ttyfd);
         let _ = close(ttyfd);
         if let Ok(termios) = termios {
