@@ -65,7 +65,6 @@ extern crate bitflags;
 #[macro_use]
 extern crate log;
 extern crate flexi_logger;
-use flexi_logger::Duplicate;
 
 extern crate term;
 extern crate termios;
@@ -139,7 +138,6 @@ pub fn main() {
         let _ = flexi_logger::Logger::with_str(bite_log)
             .format(flexi_logger::with_thread)
             .log_to_file()
-            .duplicate_to_stderr(Duplicate::All)
             .start();
         info!("Logging is ready");
         Ok(())
