@@ -96,6 +96,7 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+        trace!("ExecuteCommandPresenter::line_iter");
         Box::new(
             session
                 .line_iter(false)
@@ -104,6 +105,7 @@ impl SubPresenter for ExecuteCommandPresenter {
     }
 
     fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+        trace!("ExecuteCommandPresenter::get_overlay");
         None
     }
 

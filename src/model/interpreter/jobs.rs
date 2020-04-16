@@ -332,6 +332,7 @@ impl PipelineBuilder {
                 Err("Internal error".to_string())
             }
             ProgramOrBuiltin::Program(s) => {
+                trace!("start program »{:}«", s);
                 let mut cmd = Command::new(s);
 
                 cmd.args(args)
@@ -356,6 +357,7 @@ impl PipelineBuilder {
                     cmd.stdout(Stdio::piped());
                 }
 
+                trace!("about to spawn »{:}«", s);
                 let child = cmd.spawn().map_err(as_description)?;
 
                 // Get the last stdout, then keep the child for waiting, then check if the pipe
@@ -370,12 +372,14 @@ impl PipelineBuilder {
                 // If this isn't the last command in a pipe, keep the stdout around for the next
                 // command as stdin.
                 if !is_last {
+                    trace!("prev_stdout: {:?}", prev_stdout);
                     self.prev_stdout = prev_stdout?;
                 }
 
                 Ok(())
             }
             ProgramOrBuiltin::Builtin(b) => {
+                trace!("start builtin");
                 // stdin isn't used and can be closed.
                 let _ = nix::unistd::close(self.prev_stdout);
 
@@ -403,6 +407,7 @@ impl PipelineBuilder {
                 // Insert a fake argv[0]. Replace with name of builtin if that is important.
                 args.insert(0, "builtin".to_string());
                 let b = b.clone();
+                trace!("about to spawn thread");
                 let t = spawn(move || {
                     b(
                         args,
@@ -410,6 +415,7 @@ impl PipelineBuilder {
                         &mut unsafe { File::from_raw_fd(stderr_pair.command_side) },
                     )
                 });
+                trace!("thread spawned");
 
                 self.children.push(ChildOrThread::Thread(t));
 

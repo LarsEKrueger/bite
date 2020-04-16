@@ -302,6 +302,7 @@ impl Runner {
                 Instruction::Exec(is_last) => {
                     // finalize the words to have single strings
                     self.launchpad.finalize_words();
+                    trace!("Launchpad: {:?}", self.launchpad);
                     if let Some(ref mut pb) = self.current_pipeline {
                         let args = self.launchpad.args.drain(0..).map(|mut w| w.remove(0));
                         // Start the pipeline

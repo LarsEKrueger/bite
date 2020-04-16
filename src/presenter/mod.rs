@@ -191,7 +191,7 @@ pub struct Presenter {
 /// Each value is named like the struct it represents
 ///
 /// TODO: Implement InspectOutputCommandPresenter and FocusExecuteCommandPresenter
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum SubPresenterType {
     ComposeCommandPresenter,
     ExecuteCommandPresenter(InteractionHandle),
@@ -327,11 +327,13 @@ impl Presenter {
 
     /// Access sub-presenter read-only for dynamic dispatch
     fn d(&self) -> &Box<dyn SubPresenter> {
+        trace!("d(): {:?}", self.subpresenter.is_some());
         self.subpresenter.as_ref().unwrap()
     }
 
     /// Access sub-presenter read-write for dynamic dispatch
     fn dm(&mut self) -> &mut Box<dyn SubPresenter> {
+        trace!("dm(): {:?}", self.subpresenter.is_some());
         self.subpresenter.as_mut().unwrap()
     }
 
@@ -426,6 +428,7 @@ impl Presenter {
         // If the new sp_type is different than the old one, transfer ownership from one to the
         // other.
         if sp_type != self.sp_type {
+            trace!("Switching to subpresenter {:?}", sp_type);
             self.sp_type = sp_type;
             // The GUI also needs to be redrawn if the presenter was changed.
             redraw = true;
@@ -440,6 +443,7 @@ impl Presenter {
                     TuiExecuteCommandPresenter::new(commons, handle)
                 }
             });
+            trace!("Switched to subpresenter {:?}", self.sp_type);
         }
         redraw
     }

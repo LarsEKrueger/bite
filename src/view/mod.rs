@@ -713,7 +713,9 @@ impl Gui {
     /// Waits for events and dispatches then to the presenter or to itself.
     pub fn main_loop(&mut self) {
         loop {
+            trace!("main_loop: Wait before gate");
             self.gate.wait();
+            trace!("main_loop: Gate passed");
 
             if self.presenter.prepare_cycle() {
                 self.gate.mark();

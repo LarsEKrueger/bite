@@ -60,6 +60,7 @@ fn change_dir(mut dir: String, _stdout: &mut dyn Write, stderr: &mut dyn Write) 
 ///
 /// cd [dir]
 pub fn run(words: Vec<String>, stdout: &mut dyn Write, stderr: &mut dyn Write) -> ExitStatus {
+    trace!("builtin change_dir begins");
     let mut dir = String::new();
 
     let parse_res = {
@@ -70,10 +71,12 @@ pub fn run(words: Vec<String>, stdout: &mut dyn Write, stderr: &mut dyn Write) -
 
         ap.parse(words, stdout, stderr)
     };
+    trace!("builtin change_dir processed command line: dir={}", dir);
     let ret_code = match parse_res {
         Ok(()) => change_dir(dir, stdout, stderr),
         Err(ret_code) => ret_code,
     };
 
+    trace!("builtin change_dir completed");
     ExitStatusExt::from_raw(ret_code)
 }

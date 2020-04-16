@@ -65,6 +65,7 @@ extern crate bitflags;
 #[macro_use]
 extern crate log;
 extern crate flexi_logger;
+use flexi_logger::Duplicate;
 
 extern crate term;
 extern crate termios;
@@ -88,6 +89,13 @@ const BITE_HISTFILENAME: &str = ".bitehistory";
 const BITE_INIFILE: &str = ".biterc";
 
 fn panic_hook(info: &PanicInfo) {
+    {
+        use std::io::Write;
+        let stderr = std::io::stderr();
+        let mut stderr = stderr.lock();
+        let _ = stderr.write(b"BiTE panicked!!\n");
+    }
+    eprintln!("BiTE panicked!");
     let err_msg = match (info.payload().downcast_ref::<&str>(), info.location()) {
         (Some(msg), Some(loc)) => {
             error!(
@@ -131,6 +139,7 @@ pub fn main() {
         let _ = flexi_logger::Logger::with_str(bite_log)
             .format(flexi_logger::with_thread)
             .log_to_file()
+            .duplicate_to_stderr(Duplicate::All)
             .start();
         info!("Logging is ready");
         Ok(())
@@ -160,7 +169,7 @@ pub fn main() {
         let mut biterc_name = PathBuf::from(home.clone());
         biterc_name.push(BITE_INIFILE);
         let handle = interpreter.run_init_script(&biterc_name);
-
+        trace!("Init script completed");
         // There is no GUI yet. In order to see the stdout/stderr of the ini script for debugging,
         // possible contents of the interaction will be printed after the script is done.
         session.print_interaction(handle);
