@@ -304,6 +304,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
     * [X] Ctrl-Tab through the still running TUIs
     * [X] Allow the foreground program to be selected again
+    * [ ] Simplify scrolling (None = show last, Some = show that line)
     * [ ] propagate window size changes to TUI
 * [ ] 0.12 Join parsing and completion
 * [ ] 0.13 Draw GUI using Xft
