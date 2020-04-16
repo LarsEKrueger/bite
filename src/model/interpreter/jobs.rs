@@ -198,10 +198,13 @@ fn fixup_termios(termios: &mut Termios) {
 fn create_terminal(termios: Termios) -> Result<(RawFd, RawFd), String> {
     let ptsm =
         posix_openpt(OFlag::O_RDWR | OFlag::O_EXCL | OFlag::O_NONBLOCK).map_err(as_description)?;
+    trace!("PTY: bite side fd {:?}", ptsm);
     grantpt(&ptsm).map_err(as_description)?;
     unlockpt(&ptsm).map_err(as_description)?;
     let sname = unsafe { ptsname(&ptsm).map_err(as_description) }?;
+    trace!("PTY: command side name {}", sname);
     let sfd = open(Path::new(&sname), OFlag::O_RDWR, Mode::empty()).map_err(as_description)?;
+    trace!("PTY: command side fd {}", sfd);
 
     let ptsm = ptsm.into_raw_fd();
     tcsetattr(sfd, TCSANOW, &termios).map_err(as_description)?;
