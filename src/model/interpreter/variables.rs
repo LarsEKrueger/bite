@@ -87,7 +87,7 @@ impl ContextStack {
 
     pub fn import_from_environment(&mut self) -> Result<()> {
         for (key, value) in ::std::env::vars() {
-            let mut temp_var = self.bind_variable(&key, &value)?;
+            let temp_var = self.bind_variable(&key, &value)?;
             temp_var.set_exported(true);
             // TODO: Check that key is an identifier
             // if !script_parser::legal_identifier(&key) {
