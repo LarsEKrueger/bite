@@ -474,11 +474,9 @@ impl PipelineBuilder {
         // Waiting for the reader threads to complete  doesn't require locking the mutex around
         // the children, but it also does not catch all cases (e.g. gvim going into background)
         // because the file handle might be passed down to the forked process and still be open.
-        trace!("Waiting for reader threads");
-        for t in reader_threads {
-            let _ = t.join();
-        }
-        trace!("All reader threads completed");
+        //
+        // In case of gvim, waiting for the reader threads is actually bad as it would
+        // (incorrectly) block until gvim exits.
         //
         // Instead, get the process ids and call waitpid.
         for pid in self.child_pids() {
