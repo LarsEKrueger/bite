@@ -11,13 +11,11 @@ type of interaction. Events are converted in the view to the appropriate method
 calls of the presenters. The presenters query and update the model.
 
 The [model](src/model/mod.rs) is comprised mainly of the
-[session](src/model/session.rs) and the [bash interpreter](src/model/bash.rs).
+[session](src/model/session.rs) and the [bash interpreter](src/model/interpreter/mod.rs).
 Together they form the interactive shell.
 
-The bash interpreter is a slightly modified version of the original bash
-source, running in a separate thread. It reads its input from a line buffer and
-is blocked there until new input arrived. Although bash is full of global
-variables without any mutex, the interaction for filling the input buffer from
-e.g. session output is reasonably safe. When the shell starts an external
-(foreground) program, the input/output streams are also read by separate
-Rust threads that communicate safely via Rust channel.
+The bash interpreter is a complete reimplementation of bash in rust. After
+startup, the interpreter operates in a separate thread that is controlled by a
+front-end to care of the communication between front-end and back-end.  This
+allows the back-end to block while the main GUI thread (the front-end)
+continues to run.
