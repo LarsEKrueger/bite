@@ -21,7 +21,6 @@
 //! Same functionality as ExecuteCommandPresenter, but maintains a single, non-resizable screen and
 //! does not archive its output.
 
-use super::execute_command::ExecuteCommandPresenter;
 use super::*;
 use model::session::InteractionHandle;
 
@@ -29,24 +28,18 @@ use model::session::InteractionHandle;
 pub struct TuiExecuteCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
-
     /// Current interaction
     current_interaction: InteractionHandle,
-
-    /// Interaction to return to when leaving this view. None: ComposeCommandPresenter
-    return_interaction: Option<InteractionHandle>,
 }
 
 impl TuiExecuteCommandPresenter {
     pub fn new(
         commons: Box<PresenterCommons>,
         current_interaction: InteractionHandle,
-        return_interaction: Option<InteractionHandle>,
     ) -> Box<Self> {
         let mut presenter = TuiExecuteCommandPresenter {
             commons,
             current_interaction,
-            return_interaction,
         };
 
         // Show all lines
@@ -106,25 +99,6 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         &mut self.commons
     }
 
-    fn to_commons(self) -> Box<PresenterCommons> {
-        self.commons
-    }
-
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        let is_running = !self.commons.session.has_exited(self.current_interaction);
-        // trace!(
-        //     "TuiExecuteCommandPresenter::end_polling {:?}: is_running = {}",
-        //     self.current_interaction,
-        //     is_running
-        // );
-        if !is_running {
-            let (commons, _) = self.deconstruct();
-            trace!("Switch to ComposeCommandPresenter");
-            return (ComposeCommandPresenter::new(commons), true);
-        }
-        (self, needs_marking)
-    }
-
     /// Return the lines to be presented.
     fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         match session.tui_screen(self.current_interaction) {
@@ -149,11 +123,11 @@ impl SubPresenter for TuiExecuteCommandPresenter {
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
-        mut self: Box<Self>,
+        &mut self,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
-        let cmd = match (mod_state.as_tuple(), key) {
+    ) -> PresenterCommand {
+        match (mod_state.as_tuple(), key) {
             ((_, _, _), SpecialKey::Escape) => {
                 // TODO: Send key to program
                 PresenterCommand::Redraw
@@ -181,94 +155,74 @@ impl SubPresenter for TuiExecuteCommandPresenter {
             ((_, _, _), SpecialKey::Backspace) => self.send_term_info("kbs"),
             ((false, false, false), SpecialKey::Tab) => self.send_term_info("tab"),
 
-            // Ctrl-Tab => Switch to next running TUI if there is one
-            ((false, true, false), SpecialKey::Tab) => {
-                let next_tui = self
-                    .commons
-                    .session
-                    .next_running_tui(Some(self.current_interaction));
-                trace!("Ctrl-Tab next_tui: {:?}", next_tui);
-                if let Some(next_tui) = next_tui {
-                    self.current_interaction = next_tui;
-                    PresenterCommand::Redraw
-                } else {
-                    // None found, return to the previous presenter
-                    if let Some(return_interaction) = self.return_interaction {
-                        // Previous interaction found -> return to ExecuteCommandPresenter
-                        return (
-                            ExecuteCommandPresenter::new(self.commons, return_interaction),
-                            PresenterCommand::Redraw,
-                        );
-                    } else {
-                        // No previous interaction -> return ComposeCommandPresenter
-                        return (
-                            ComposeCommandPresenter::new(self.commons),
-                            PresenterCommand::Redraw,
-                        );
-                    }
-                }
-            }
-            // Shift-Ctrl-Tab => Switch to previous running TUI if there is one
-            ((true, true, false), SpecialKey::Tab) => {
-                let next_tui = self
-                    .commons
-                    .session
-                    .prev_running_tui(Some(self.current_interaction));
-                trace!("Shift-Ctrl-Tab: next_tui: {:?}", next_tui);
-                if let Some(next_tui) = next_tui {
-                    self.current_interaction = next_tui;
-                    PresenterCommand::Redraw
-                } else {
-                    // None found, return to the previous presenter
-                    if let Some(return_interaction) = self.return_interaction {
-                        // Previous interaction found -> return to ExecuteCommandPresenter
-                        return (
-                            ExecuteCommandPresenter::new(self.commons, return_interaction),
-                            PresenterCommand::Redraw,
-                        );
-                    } else {
-                        // No previous interaction -> return ComposeCommandPresenter
-                        return (
-                            ComposeCommandPresenter::new(self.commons),
-                            PresenterCommand::Redraw,
-                        );
-                    }
-                }
-            }
-
+            //           // Ctrl-Tab => Switch to next running TUI if there is one
+            //           ((false, true, false), SpecialKey::Tab) => {
+            //               let next_tui = self
+            //                   .commons
+            //                   .session
+            //                   .next_running_tui(Some(self.current_interaction));
+            //               trace!("Ctrl-Tab next_tui: {:?}", next_tui);
+            //               if let Some(next_tui) = next_tui {
+            //                   self.current_interaction = next_tui;
+            //                   PresenterCommand::Redraw
+            //               } else {
+            //                   // None found, return to the previous presenter
+            //                   if let Some(return_interaction) = self.return_interaction {
+            //                       // Previous interaction found -> return to ExecuteCommandPresenter
+            //                       return (
+            //                           ExecuteCommandPresenter::new(self.commons, return_interaction),
+            //                           PresenterCommand::Redraw,
+            //                       );
+            //                   } else {
+            //                       // No previous interaction -> return ComposeCommandPresenter
+            //                       return (
+            //                           ComposeCommandPresenter::new(self.commons),
+            //                           PresenterCommand::Redraw,
+            //                       );
+            //                   }
+            //               }
+            //           }
+            //           // Shift-Ctrl-Tab => Switch to previous running TUI if there is one
+            //           ((true, true, false), SpecialKey::Tab) => {
+            //               let next_tui = self
+            //                   .commons
+            //                   .session
+            //                   .prev_running_tui(Some(self.current_interaction));
+            //               trace!("Shift-Ctrl-Tab: next_tui: {:?}", next_tui);
+            //               if let Some(next_tui) = next_tui {
+            //                   self.current_interaction = next_tui;
+            //                   PresenterCommand::Redraw
+            //               } else {
+            //                   // No previous interaction -> return ComposeCommandPresenter
+            //                   return (
+            //                       ComposeCommandPresenter::new(self.commons),
+            //                       PresenterCommand::Redraw,
+            //                   );
+            //               }
+            //           }
             ((_, _, _), _) => {
                 // For all other keys, do nothing as they can't be represented in a TUI.
                 PresenterCommand::Unknown
             }
-        };
-        (self, cmd)
+        }
     }
 
     /// Handle the event when a modifier and a letter/number is pressed.
-    fn event_normal_key(
-        self: Box<Self>,
-        mod_state: &ModifierState,
-        letter: u8,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
         match (mod_state.as_tuple(), letter) {
-            _ => (self, PresenterCommand::Unknown),
+            _ => PresenterCommand::Unknown,
         }
     }
 
     /// Handle the event when the mouse was pushed and released at the same position.
-    fn handle_click(
-        mut self: Box<Self>,
-        button: usize,
-        _x: usize,
-        y: usize,
-    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
+    fn handle_click(&mut self, button: usize, _x: usize, y: usize) -> NeedRedraw {
         match (clicked_line_type(&mut *self, y), button) {
-            _ => (self, NeedRedraw::No),
+            _ => NeedRedraw::No,
         }
     }
 
-    fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn event_text(&mut self, s: &str) -> PresenterCommand {
         self.send_string(s);
-        (self, PresenterCommand::Redraw)
+        PresenterCommand::Redraw
     }
 }

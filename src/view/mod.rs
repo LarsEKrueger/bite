@@ -22,7 +22,7 @@
 
 use std::cmp;
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::ptr::{null, null_mut};
 use std::time::{Duration, SystemTime};
@@ -712,11 +712,10 @@ impl Gui {
     ///
     /// Waits for events and dispatches then to the presenter or to itself.
     pub fn main_loop(&mut self) {
-        // TODO: Allow the presenter to exit the loop
         loop {
             self.gate.wait();
 
-            if NeedRedraw::Yes == self.presenter.poll_interaction() {
+            if self.presenter.prepare_cycle() {
                 self.gate.mark();
                 self.mark_redraw();
             }

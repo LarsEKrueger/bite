@@ -65,12 +65,18 @@ pub struct InteractiveInterpreter {
 
     /// Atomic to stop the interpreter
     is_running: Arc<AtomicBool>,
+
+    /// In which interaction is the interpreter running code
+    ///
+    /// None: Interpreter is waiting for commands.
+    is_busy: Arc<Mutex<Option<InteractionHandle>>>,
 }
 
 /// Processing function that gets input from the mutex
 fn interpreter_loop(
     mut runner: byte_code::Runner,
     is_running: Arc<AtomicBool>,
+    is_busy: Arc<Mutex<Option<InteractionHandle>>>,
     input: Arc<(
         Condvar,
         Mutex<Option<(byte_code::Instructions, InteractionHandle)>>,
@@ -95,7 +101,9 @@ fn interpreter_loop(
 
         trace!("Got instructions: »{:?}«", instructions);
 
+        *is_busy.lock().unwrap() = Some(interaction_handle);
         runner.run(Arc::new(instructions), interaction_handle);
+        *is_busy.lock().unwrap() = None;
     }
 }
 
@@ -139,7 +147,7 @@ impl StartupInterpreter {
     /// Create a new interpreter.
     pub fn new(session: SharedSession) -> Self {
         let mut shell_stack = ContextStack::new();
-        shell_stack.import_from_environment();
+        let _ = shell_stack.import_from_environment();
         let runner = byte_code::Runner::new(session.clone(), shell_stack);
         Self { session, runner }
     }
@@ -224,15 +232,16 @@ impl StartupInterpreter {
     /// Return the interface to this thread
     pub fn complete_startup(self) -> InteractiveInterpreter {
         let is_running = Arc::new(AtomicBool::new(true));
+        let is_busy = Arc::new(Mutex::new(None));
         let input = Arc::new((Condvar::new(), Mutex::new(None)));
         let thread = {
-            let session = self.session.clone();
             let is_running = is_running.clone();
+            let is_busy = is_busy.clone();
             let input = input.clone();
             let runner = self.runner;
             std::thread::Builder::new()
                 .name("interpreter".to_string())
-                .spawn(move || interpreter_loop(runner, is_running, input))
+                .spawn(move || interpreter_loop(runner, is_running, is_busy, input))
                 .unwrap()
         };
 
@@ -241,6 +250,7 @@ impl StartupInterpreter {
             thread,
             input,
             is_running,
+            is_busy,
         }
     }
 }
@@ -292,5 +302,11 @@ impl InteractiveInterpreter {
             "getting current work directory",
             PathBuf::from("."),
         )
+    }
+
+    /// Check if the interpreter is busy
+    pub fn is_busy(&self) -> Option<InteractionHandle> {
+        let handle = *self.is_busy.lock().unwrap();
+        handle
     }
 }

@@ -18,9 +18,6 @@
 
 //! Sub presenter for composing commands.
 
-use super::completion::CompleteCommandPresenter;
-use super::execute_command::ExecuteCommandPresenter;
-use super::tui::TuiExecuteCommandPresenter;
 use super::*;
 use model::interpreter::parse_script;
 use model::session::{OutputVisibility, RunningStatus};
@@ -67,7 +64,7 @@ impl ComposeCommandPresenter {
         &mut self.commons.text_input
     }
 
-    fn execute_input(mut self: Box<Self>) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn execute_input(&mut self) -> PresenterCommand {
         let line = self.commons.text_input.extract_text_without_last_nl();
         self.commons.text_input.reset();
         self.commons.text_input.make_room();
@@ -82,16 +79,7 @@ impl ComposeCommandPresenter {
                 let cwd = self.commons.interpreter.get_cwd();
                 self.commons.history.enter(&cwd.to_string_lossy(), &line);
                 // Run the compiled instructions
-                let interaction_handle = self.commons.interpreter.run(line_with_nl, instructions);
-                // Wait for the command to finish
-                trace!(
-                    "Switch to ExecuteCommandPresenter, {:?}",
-                    interaction_handle
-                );
-                return (
-                    ExecuteCommandPresenter::new(self.commons, interaction_handle),
-                    PresenterCommand::Redraw,
-                );
+                let _interaction_handle = self.commons.interpreter.run(line_with_nl, instructions);
             }
             Err(msg) => {
                 // Create a fake interaction, print the error, set the return code to error
@@ -115,7 +103,7 @@ impl ComposeCommandPresenter {
             }
         }
 
-        (self, PresenterCommand::Redraw)
+        PresenterCommand::Redraw
     }
 
     /// Fix the selected_prediction to cope with changes in the number of items
@@ -135,10 +123,10 @@ impl ComposeCommandPresenter {
     }
 
     fn event_special_key_prediction(
-        mut self: Box<Self>,
+        &mut self,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    ) -> PresenterCommand {
         match (mod_state.as_tuple(), key) {
             // (shift,control,meta)
             ((false, false, false), SpecialKey::Enter) => {
@@ -155,13 +143,13 @@ impl ComposeCommandPresenter {
                 self.commons.text_input.delete_left();
                 let items = self.predict();
                 self.fix_selected_prediction(items.len());
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             ((false, true, false), SpecialKey::Left) => {
                 self.commons.text_input.delete_word_before_cursor();
                 let items = self.predict();
                 self.fix_selected_prediction(items.len());
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Right) => {
                 // Take the first character from the current prediction
@@ -171,9 +159,9 @@ impl ComposeCommandPresenter {
                 if let Some(c) = item.chars().next() {
                     self.commons_mut().text_input_add_characters(&c.to_string());
                     self.to_last_line();
-                    (self, PresenterCommand::Redraw)
+                    PresenterCommand::Redraw
                 } else {
-                    (self, PresenterCommand::Unknown)
+                    PresenterCommand::Unknown
                 }
             }
             ((false, true, false), SpecialKey::Right) => {
@@ -196,7 +184,7 @@ impl ComposeCommandPresenter {
                     self.commons_mut().text_input_add_characters(&c.to_string());
                 }
                 self.to_last_line();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Up) => {
@@ -204,7 +192,7 @@ impl ComposeCommandPresenter {
                 if self.selected_prediction > 0 {
                     self.selected_prediction -= 1;
                 }
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Down) => {
                 // Increment the selection index
@@ -213,7 +201,7 @@ impl ComposeCommandPresenter {
                 if self.selected_prediction + 1 < items.len() {
                     self.selected_prediction += 1;
                 }
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Home) => {
@@ -222,7 +210,7 @@ impl ComposeCommandPresenter {
                 self.commons.text_input.make_room();
                 let items = self.predict();
                 self.fix_selected_prediction(items.len());
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::End) => {
@@ -232,7 +220,7 @@ impl ComposeCommandPresenter {
                 let item = &items[self.selected_prediction];
                 self.commons_mut().text_input_add_characters(item);
                 self.to_last_line();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             _ => self.event_special_key_normal(mod_state, key),
@@ -240,16 +228,16 @@ impl ComposeCommandPresenter {
     }
 
     fn event_special_key_normal(
-        mut self: Box<Self>,
+        &mut self,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    ) -> PresenterCommand {
         match (mod_state.as_tuple(), key) {
             // (shift,control,meta)
             ((false, false, false), SpecialKey::Enter) => {
                 if self.is_multi_line() {
                     self.commons_mut().text_input.break_line();
-                    (self, PresenterCommand::Redraw)
+                    PresenterCommand::Redraw
                 } else {
                     self.execute_input()
                 }
@@ -257,23 +245,23 @@ impl ComposeCommandPresenter {
             ((true, false, false), SpecialKey::Enter) => {
                 // Shift-Enter -> Break the line and thereby start multi-line editing
                 self.commons_mut().text_input.break_line();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             ((false, true, false), SpecialKey::Enter) => {
                 // Ctrl-Enter -> Start the command in multi-line mode
                 if self.is_multi_line() {
                     self.execute_input()
                 } else {
-                    (self, PresenterCommand::Unknown)
+                    PresenterCommand::Unknown
                 }
             }
             ((false, false, false), SpecialKey::Left) => {
                 self.commons_mut().text_input.move_left(1);
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Right) => {
                 self.commons_mut().text_input.move_right(1);
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
@@ -283,7 +271,7 @@ impl ComposeCommandPresenter {
                 } else {
                     self.commons.last_line_shown = 0;
                 }
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((true, false, false), SpecialKey::PageDown) => {
@@ -292,17 +280,17 @@ impl ComposeCommandPresenter {
                 let n = self.line_iter_count();
                 self.commons.last_line_shown =
                     ::std::cmp::min(n, self.commons.last_line_shown + middle);
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Home) => {
                 self.commons.text_input.move_left_edge();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::End) => {
                 self.text_input().move_end_of_line();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Delete) => {
@@ -311,7 +299,7 @@ impl ComposeCommandPresenter {
                 } else {
                     self.commons.text_input.delete_character();
                 }
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Backspace) => {
@@ -324,89 +312,63 @@ impl ComposeCommandPresenter {
                 } else {
                     self.commons.text_input.delete_left();
                 }
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
-            ((false, false, false), SpecialKey::Tab) => {
-                // TODO: This needs to be cleaned up.
-                let word = self.text_input().word_before_cursor();
-                let word_chars = word.chars().count();
-
-                // Remember if the word started with ./ because glob removes that.
-                let dot_slash = if word.starts_with("./") { "./" } else { "" };
-
-                // Find all files and folders that match '<word>*'
-                match glob::glob(&(word.clone() + "*")) {
-                    Err(_) => (self, PresenterCommand::Unknown),
-                    Ok(g) => {
-                        // Get the matches after word
-                        let matches: Vec<String> = g
-                            .filter_map(std::result::Result::ok)
-                            .map(|path| {
-                                let mut p = dot_slash.to_string();
-                                p.push_str(&path.display().to_string());
-                                // If the path is a directory, add a slash.
-                                if path.is_dir() {
-                                    p.push_str("/");
-                                }
-                                p
-                            })
-                            .collect();
-
-                        // If there is only one match, insert that
-                        if matches.len() == 1 {
-                            // Delete the beginning
-                            self.text_input().move_left(word_chars as isize);
-                            for _i in 0..word_chars {
-                                self.text_input().delete_character();
-                            }
-                            // Put the match there
-                            self.text_input().place_str(&matches[0]);
-                            (self, PresenterCommand::Redraw)
-                        } else {
-                            // Otherwise make the user pick
-                            (
-                                CompleteCommandPresenter::new(self.commons, word, matches),
-                                PresenterCommand::Redraw,
-                            )
-                        }
-                    }
-                }
-            }
-            // Ctrl-Tab => Switch to next running TUI if there is one
-            ((false, true, false), SpecialKey::Tab) => {
-                let next_tui = self.commons.session.next_running_tui(None);
-                trace!("Ctrl-Tab next_tui: {:?}", next_tui);
-                if let Some(next_tui) = next_tui {
-                    (
-                        TuiExecuteCommandPresenter::new(self.commons, next_tui, None),
-                        PresenterCommand::Redraw,
-                    )
-                } else {
-                    (self, PresenterCommand::Redraw)
-                }
-            }
-            // Shift-Ctrl-Tab => Switch to previous running TUI if there is one
-            ((true, true, false), SpecialKey::Tab) => {
-                let next_tui = self.commons.session.prev_running_tui(None);
-                trace!("Shift-Ctrl-Tab: next_tui: {:?}", next_tui);
-                if let Some(next_tui) = next_tui {
-                    (
-                        TuiExecuteCommandPresenter::new(self.commons, next_tui, None),
-                        PresenterCommand::Redraw,
-                    )
-                } else {
-                    (self, PresenterCommand::Redraw)
-                }
-            }
+            //           ((false, false, false), SpecialKey::Tab) => {
+            //               // TODO: This needs to be cleaned up.
+            //               let word = self.text_input().word_before_cursor();
+            //               let word_chars = word.chars().count();
+            //
+            //               // Remember if the word started with ./ because glob removes that.
+            //               let dot_slash = if word.starts_with("./") { "./" } else { "" };
+            //
+            //               // Find all files and folders that match '<word>*'
+            //               match glob::glob(&(word.clone() + "*")) {
+            //                   Err(_) => (self, PresenterCommand::Unknown),
+            //                   Ok(g) => {
+            //                       // Get the matches after word
+            //                       let matches: Vec<String> = g
+            //                           .filter_map(std::result::Result::ok)
+            //                           .map(|path| {
+            //                               let mut p = dot_slash.to_string();
+            //                               p.push_str(&path.display().to_string());
+            //                               // If the path is a directory, add a slash.
+            //                               if path.is_dir() {
+            //                                   p.push_str("/");
+            //                               }
+            //                               p
+            //                           })
+            //                           .collect();
+            //
+            //                       // If there is only one match, insert that
+            //                       if matches.len() == 1 {
+            //                           // Delete the beginning
+            //                           self.text_input().move_left(word_chars as isize);
+            //                           for _i in 0..word_chars {
+            //                               self.text_input().delete_character();
+            //                           }
+            //                           // Put the match there
+            //                           self.text_input().place_str(&matches[0]);
+            //                           (self, PresenterCommand::Redraw)
+            //                       } else {
+            //                           // Otherwise make the user pick
+            //                           (
+            //                               CompleteCommandPresenter::new(self.commons, word, matches),
+            //                               PresenterCommand::Redraw,
+            //                           )
+            //                       }
+            //                   }
+            //               }
+            //           }
 
             // Ctrl-Space: cycle last interaction's output
             ((false, true, false), SpecialKey::Space) => {
                 if let Some(interaction_handle) = self.commons.session.last_interaction() {
                     self.commons.session.cycle_visibility(interaction_handle);
-                    (self, PresenterCommand::Redraw)
+                    PresenterCommand::Redraw
                 } else {
-                    (self, PresenterCommand::Unknown)
+                    PresenterCommand::Unknown
                 }
             }
             // Shift-Ctrl-Space: cycle all interaction's output
@@ -416,13 +378,13 @@ impl ComposeCommandPresenter {
                     if let Some(ov) = self.commons.session.get_visibility(interaction_handle) {
                         self.commons.session.set_visibility_all(ov);
                     }
-                    (self, PresenterCommand::Redraw)
+                    PresenterCommand::Redraw
                 } else {
-                    (self, PresenterCommand::Unknown)
+                    PresenterCommand::Unknown
                 }
             }
 
-            _ => (self, PresenterCommand::Unknown),
+            _ => PresenterCommand::Unknown,
         }
     }
 }
@@ -438,14 +400,6 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons> {
         &mut self.commons
-    }
-
-    fn to_commons(self) -> Box<PresenterCommons> {
-        self.commons
-    }
-
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        (self, false)
     }
 
     fn line_iter<'a>(
@@ -487,25 +441,19 @@ impl SubPresenter for ComposeCommandPresenter {
     /// Handle a click.
     ///
     /// If a command was clicked, cycle through the visibility of output and error.
-    fn handle_click(
-        mut self: Box<Self>,
-        button: usize,
-        x: usize,
-        y: usize,
-    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
-        let redraw = if check_response_clicked(&mut *self, button, x, y) {
+    fn handle_click(&mut self, button: usize, x: usize, y: usize) -> NeedRedraw {
+        if check_response_clicked(&mut *self, button, x, y) {
             NeedRedraw::Yes
         } else {
             NeedRedraw::No
-        };
-        (self, redraw)
+        }
     }
 
     fn event_special_key(
-        self: Box<Self>,
+        &mut self,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    ) -> PresenterCommand {
         if self.commons.text_input.cursor_at_end() {
             if !self.predict().is_empty() {
                 return self.event_special_key_prediction(mod_state, key);
@@ -518,37 +466,29 @@ impl SubPresenter for ComposeCommandPresenter {
     ///
     /// If Ctrl-R is pressed, go to history browse mode with search for contained strings.
     /// If Ctrl-D is pressed, quit bite.
-    fn event_normal_key(
-        mut self: Box<Self>,
-        mod_state: &ModifierState,
-        letter: u8,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
         match (mod_state.as_tuple(), letter) {
-            ((false, true, false), b'd') => (self, PresenterCommand::Exit),
-            ((false, true, false), b'r') => {
-                // Control-R -> Start interactive history search
-                let prefix = {
-                    let ref mut text_input = self.commons.text_input;
-                    let prefix = text_input.text_before_cursor();
-                    text_input.reset();
-                    text_input.place_str(&prefix);
-                    prefix
-                };
-                (
-                    // TODO: Use own history
-                    self,
-                    PresenterCommand::Redraw,
-                )
-            }
-            _ => (self, PresenterCommand::Unknown),
+            ((false, true, false), b'd') => PresenterCommand::Exit,
+            //           ((false, true, false), b'r') => {
+            //               // Control-R -> Start interactive history search
+            //               let prefix = {
+            //                   let ref mut text_input = self.commons.text_input;
+            //                   let prefix = text_input.text_before_cursor();
+            //                   text_input.reset();
+            //                   text_input.place_str(&prefix);
+            //                   prefix
+            //               };
+            //                   PresenterCommand::Redraw,
+            //           }
+            _ => PresenterCommand::Unknown,
         }
     }
 
-    fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn event_text(&mut self, s: &str) -> PresenterCommand {
         self.commons_mut().text_input_add_characters(s);
         self.to_last_line();
         let items = self.predict();
         self.fix_selected_prediction(items.len());
-        (self, PresenterCommand::Redraw)
+        PresenterCommand::Redraw
     }
 }

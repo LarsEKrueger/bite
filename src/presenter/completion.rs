@@ -100,17 +100,6 @@ impl SubPresenter for CompleteCommandPresenter {
         &mut self.commons
     }
 
-    fn to_commons(self) -> Box<PresenterCommons> {
-        self.commons
-    }
-
-    fn end_polling(self: Box<Self>, _needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        // This should not happen. If it does happen, someone is generating output while the shell
-        // is waiting for commands.
-        // TODO: Log this occurance.
-        (self, false)
-    }
-
     fn line_iter<'a>(&'a self, _session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
             self.completions

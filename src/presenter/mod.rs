@@ -26,20 +26,22 @@ use std::fmt::{Display, Formatter};
 
 use term::terminfo::TermInfo;
 
-mod completion;
+//mod completion;
 mod compose_command;
 pub mod display_line;
 mod execute_command;
 mod tui;
 
-use self::compose_command::*;
+use self::compose_command::ComposeCommandPresenter;
 use self::display_line::*;
+use self::execute_command::ExecuteCommandPresenter;
+use self::tui::TuiExecuteCommandPresenter;
 use model::error::*;
 use model::history::History;
 use model::interpreter::InteractiveInterpreter;
 use model::iterators::*;
 use model::screen::*;
-use model::session::{Session, SharedSession};
+use model::session::{InteractionHandle, Session, SharedSession};
 
 /// GUI agnostic representation of the modifier keys
 #[derive(Debug)]
@@ -106,12 +108,6 @@ trait SubPresenter {
     /// Provide write access to the data that is common to the presenter in all modi.
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons>;
 
-    /// Extract the commons and forget the presenter
-    fn to_commons(self) -> Box<PresenterCommons>;
-
-    /// Determine if there's a reason to switch presenters or redraw the screen
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool);
-
     /// Return an iterator of lines to be drawn.
     ///
     /// Access to the line iterator requires unlocking the session mutex outside the SubPresenter.
@@ -122,28 +118,19 @@ trait SubPresenter {
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
-        self: Box<Self>,
+        &mut self,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand);
+    ) -> PresenterCommand;
 
     /// Handle the event when a modifier and a letter/number is pressed.
-    fn event_normal_key(
-        self: Box<Self>,
-        mod_state: &ModifierState,
-        letter: u8,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand);
+    fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand;
 
     /// Handle input of normal text
-    fn event_text(self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand);
+    fn event_text(&mut self, s: &str) -> PresenterCommand;
 
     /// Handle the event when the mouse was pushed and released at the same position.
-    fn handle_click(
-        self: Box<Self>,
-        button: usize,
-        x: usize,
-        y: usize,
-    ) -> (Box<dyn SubPresenter>, NeedRedraw);
+    fn handle_click(&mut self, button: usize, x: usize, y: usize) -> NeedRedraw;
 }
 
 /// Data that is common to all presenter views.
@@ -182,7 +169,34 @@ pub struct PresenterCommons {
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
-pub struct Presenter(Option<Box<dyn SubPresenter>>);
+pub struct Presenter {
+    /// The interaction that should be shown fullscreen
+    ///
+    /// If
+    /// * None and interpreter is busy: Show ExecuteCommandPresenter
+    /// * None and interpreter is free: Show ComposeCommandPresenter
+    /// * Some(i) and i is running and i is tui: Show TuiExecuteCommandPresenter
+    /// * Some(i) and i is running and i is not tui: Show FocusExecuteCommandPresenter (not implemented yet)
+    /// * Some(i) and i is not running: Show InspectOutputCommandPresenter (not implemented yet)
+    focused_interaction: Option<InteractionHandle>,
+
+    /// Sub-presenter to handle the current view
+    subpresenter: Option<Box<dyn SubPresenter>>,
+    /// Current sub-presenter type
+    sp_type: SubPresenterType,
+}
+
+/// Enum to fake C++'s typeof
+///
+/// Each value is named like the struct it represents
+///
+/// TODO: Implement InspectOutputCommandPresenter and FocusExecuteCommandPresenter
+#[derive(PartialEq)]
+enum SubPresenterType {
+    ComposeCommandPresenter,
+    ExecuteCommandPresenter(InteractionHandle),
+    TuiExecuteCommandPresenter(InteractionHandle),
+}
 
 pub const OVERLAY_RAD: usize = 3;
 
@@ -290,25 +304,35 @@ impl Presenter {
         history: History,
         term_info: TermInfo,
     ) -> Result<Self> {
-        Ok(Presenter(Some(ComposeCommandPresenter::new(Box::new(
-            PresenterCommons::new(session, interpreter, history, term_info)?,
-        )))))
+        let commons = Box::new(PresenterCommons::new(
+            session,
+            interpreter,
+            history,
+            term_info,
+        )?);
+        let subpresenter = ComposeCommandPresenter::new(commons);
+        let presenter = Presenter {
+            focused_interaction: None,
+            subpresenter: Some(subpresenter),
+            sp_type: SubPresenterType::ComposeCommandPresenter,
+        };
+        Ok(presenter)
     }
 
     /// Clean up and get back the interpreter
     pub fn finish(self) -> (InteractiveInterpreter, History) {
-        let commons = self.0.unwrap().finish();
+        let commons = self.subpresenter.unwrap().finish();
         (commons.interpreter, commons.history)
     }
 
     /// Access sub-presenter read-only for dynamic dispatch
     fn d(&self) -> &Box<dyn SubPresenter> {
-        self.0.as_ref().unwrap()
+        self.subpresenter.as_ref().unwrap()
     }
 
     /// Access sub-presenter read-write for dynamic dispatch
     fn dm(&mut self) -> &mut Box<dyn SubPresenter> {
-        self.0.as_mut().unwrap()
+        self.subpresenter.as_mut().unwrap()
     }
 
     /// Access the common fields read-only
@@ -329,25 +353,13 @@ impl Presenter {
         iter.count()
     }
 
-    // /// Call an event handler in the sub-presenter.
-    // ///
-    // /// Update the sub-presenter if it was changed.
-    // fn dispatch<T: Fn(Box<SubPresenter>) -> Box<SubPresenter>>(&mut self, f: T) {
-    //     let sp = ::std::mem::replace(&mut self.0, None);
-    //     let new_sp = f(sp.unwrap());
-    //     self.0 = Some(new_sp);
-    // }
-
     /// Call an event handler with an additional return value in the sub-presenter.
     ///
     /// Update the sub-presenter if it was changed.
-    fn dispatch_res<R, T: Fn(Box<dyn SubPresenter>) -> (Box<dyn SubPresenter>, R)>(
-        &mut self,
-        f: T,
-    ) -> R {
-        let sp = ::std::mem::replace(&mut self.0, None);
-        let (new_sp, res) = f(sp.unwrap());
-        self.0 = Some(new_sp);
+    fn dispatch<R, T: Fn(&Box<dyn SubPresenter>) -> R>(&mut self, def: R, f: T) -> R {
+        let sp = ::std::mem::replace(&mut self.subpresenter, None);
+        let res = if let Some(ref sp) = sp { f(sp) } else { def };
+        self.subpresenter = sp;
         res
     }
 
@@ -362,24 +374,74 @@ impl Presenter {
         self.cm().last_line_shown = len;
     }
 
-    /// Poll the session if new data arrived from a running command.
+    /// Prepare the presenter for the new cycle.
     ///
-    /// Tell the view that is should it redraw itself soon.
-    pub fn poll_interaction(&mut self) -> NeedRedraw {
-        let last_line_visible_pre = self.last_line_visible();
-        let needs_redraw = self.dispatch_res(|sp| {
-            let mut presenter = sp;
-            let needs_marking = presenter.commons_mut().session.check_redraw();
-            presenter.end_polling(needs_marking)
-        });
-        if last_line_visible_pre {
-            self.to_last_line();
+    /// Return true if a redraw is required.
+    pub fn prepare_cycle(&mut self) -> bool {
+        // Determine which sub-presenter show be used
+        // If focused_interaction is
+        // * None and interpreter is busy: Show ExecuteCommandPresenter
+        // * None and interpreter is free: Show ComposeCommandPresenter
+        // * Some(i) and i is running and i is tui: Show TuiExecuteCommandPresenter
+        // * Some(i) and i is running and i is not tui: Show FocusExecuteCommandPresenter (not implemented yet)
+        // * Some(i) and i is not running: Show InspectOutputCommandPresenter (not implemented yet)
+
+        let sp_type = match self.focused_interaction {
+            None => self
+                .c()
+                .interpreter
+                .is_busy()
+                .map_or(SubPresenterType::ComposeCommandPresenter, |h| {
+                    SubPresenterType::ExecuteCommandPresenter(h)
+                }),
+            Some(handle) => {
+                if self.c().session.has_exited(handle) {
+                    // TODO: Implement InspectOutputCommandPresenter
+                    self.focused_interaction = None;
+                    self.c()
+                        .interpreter
+                        .is_busy()
+                        .map_or(SubPresenterType::ComposeCommandPresenter, |h| {
+                            SubPresenterType::ExecuteCommandPresenter(h)
+                        })
+                } else {
+                    if self.c().session.is_tui(handle) {
+                        SubPresenterType::TuiExecuteCommandPresenter(handle)
+                    } else {
+                        // TODO: Implement FocusExecuteCommandPresenter
+                        self.focused_interaction = None;
+                        self.c()
+                            .interpreter
+                            .is_busy()
+                            .map_or(SubPresenterType::ComposeCommandPresenter, |h| {
+                                SubPresenterType::ExecuteCommandPresenter(h)
+                            })
+                    }
+                }
+            }
+        };
+
+        // The GUI needs to be redrawn if the session has been changed.
+        let mut redraw = self.dm().commons_mut().session.check_redraw();
+        // If the new sp_type is different than the old one, transfer ownership from one to the
+        // other.
+        if sp_type != self.sp_type {
+            self.sp_type = sp_type;
+            // The GUI also needs to be redrawn if the presenter was changed.
+            redraw = true;
+            let old_sp = std::mem::replace(&mut self.subpresenter, None);
+            let commons = old_sp.unwrap().finish();
+            self.subpresenter = Some(match self.sp_type {
+                SubPresenterType::ComposeCommandPresenter => ComposeCommandPresenter::new(commons),
+                SubPresenterType::ExecuteCommandPresenter(handle) => {
+                    ExecuteCommandPresenter::new(commons, handle)
+                }
+                SubPresenterType::TuiExecuteCommandPresenter(handle) => {
+                    TuiExecuteCommandPresenter::new(commons, handle)
+                }
+            });
         }
-        if needs_redraw {
-            NeedRedraw::Yes
-        } else {
-            NeedRedraw::No
-        }
+        redraw
     }
 
     /// Handle the View event when the window size changes.
@@ -427,19 +489,30 @@ impl Presenter {
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> PresenterCommand {
-        self.dispatch_res(|sp| sp.event_special_key(mod_state, key))
+        match (mod_state.as_tuple(), key) {
+            // Ctrl-Tab => Switch to next running TUI if there is one
+            ((false, true, false), SpecialKey::Tab) => {
+                let current_focus = self.focused_interaction;
+                let next_focus = self.c().session.next_running_tui(current_focus);
+                trace!("Ctrl-Tab next_focus: {:?}", next_focus);
+                self.focused_interaction = next_focus;
+                return PresenterCommand::Redraw;
+            }
+            _ => {}
+        }
+        self.dm().event_special_key(mod_state, key)
     }
 
     /// Dispatch the event that Modifier+Letter was pressed.
     pub fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
-        self.dispatch_res(|sp| sp.event_normal_key(mod_state, letter))
+        self.dm().event_normal_key(mod_state, letter)
     }
 
     /// Handle the event that some text was entered.
     ///
     /// TODO: Handle escape sequences
     pub fn event_text(&mut self, s: &str) -> PresenterCommand {
-        self.dispatch_res(|sp| sp.event_text(s))
+        self.dm().event_text(s)
     }
 
     /// Handle the event that a mouse button was pressed.
@@ -468,12 +541,16 @@ impl Presenter {
         if let Some((down_btn, down_x, down_y)) = self.c().button_down {
             if down_btn == btn && down_x == x && down_y == y {
                 self.cm().button_down = None;
-                return self.dispatch_res(|sp| sp.handle_click(btn, x, y));
+                return self.dm().handle_click(btn, x, y);
             }
         }
         NeedRedraw::No
     }
 
+    /// Call the drawing function for the given screen rows
+    ///
+    /// This is required as the session mutex must be locked and thus an iterator cannot be
+    /// returned.
     pub fn display_lines<F>(&self, start_row: i32, end_row: i32, mut f: F)
     where
         F: FnMut(i32, &DisplayLine),

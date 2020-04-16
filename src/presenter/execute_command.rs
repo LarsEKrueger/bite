@@ -18,7 +18,6 @@
 
 //! Sub presenter for executing programs.
 
-use super::tui::TuiExecuteCommandPresenter;
 use super::*;
 use model::session::InteractionHandle;
 
@@ -96,48 +95,6 @@ impl SubPresenter for ExecuteCommandPresenter {
         &mut self.commons
     }
 
-    fn to_commons(self) -> Box<PresenterCommons> {
-        self.commons
-    }
-
-    fn end_polling(self: Box<Self>, needs_marking: bool) -> (Box<dyn SubPresenter>, bool) {
-        {
-            let has_exited = self.commons.session.has_exited(self.current_interaction);
-            // trace!(
-            //     "ExecuteCommandPresenter::end_polling {:?}: has_exited = {}",
-            //     self.current_interaction,
-            //     has_exited
-            // );
-            if has_exited {
-                debug!(
-                    "Switch to ComposeCommandPresenter, {:?}",
-                    self.current_interaction
-                );
-                return (ComposeCommandPresenter::new(self.commons), true);
-            }
-        }
-        {
-            // Still running, maybe switched to TUI mode?
-            let is_tui = self.commons.session.is_tui(self.current_interaction);
-            // trace!(
-            //     "ExecuteCommandPresenter::end_polling {:?}: is_tui = {}",
-            //     self.current_interaction,
-            //     is_tui
-            // );
-            if is_tui {
-                debug!(
-                    "Switch to TuiExecuteCommandPresenter, {:?}",
-                    self.current_interaction
-                );
-                return (
-                    TuiExecuteCommandPresenter::new(self.commons, self.current_interaction, None),
-                    true,
-                );
-            }
-        }
-        (self, needs_marking)
-    }
-
     fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
         Box::new(
             session
@@ -152,10 +109,10 @@ impl SubPresenter for ExecuteCommandPresenter {
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
-        mut self: Box<Self>,
+        &mut self,
         mod_state: &ModifierState,
         key: &SpecialKey,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    ) -> PresenterCommand {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Enter) => {
                 let line = self.commons.text_input.extract_text();
@@ -164,16 +121,16 @@ impl SubPresenter for ExecuteCommandPresenter {
                 self.commons
                     .session
                     .write_stdin(self.current_interaction, line.as_bytes());
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Left) => {
                 self.commons_mut().text_input.move_left(1);
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Right) => {
                 self.commons_mut().text_input.move_right(1);
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((true, false, false), SpecialKey::PageUp) => {
@@ -184,7 +141,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 } else {
                     self.commons.last_line_shown = 0;
                 }
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((true, false, false), SpecialKey::PageDown) => {
@@ -193,68 +150,27 @@ impl SubPresenter for ExecuteCommandPresenter {
                 let n = self.line_iter_count();
                 self.commons.last_line_shown =
                     ::std::cmp::min(n, self.commons.last_line_shown + middle);
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Home) => {
                 self.commons.text_input.move_left_edge();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::End) => {
                 self.commons.text_input.move_right_edge();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Delete) => {
                 self.commons.text_input.delete_character();
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Backspace) => {
                 self.commons.text_input.delete_left();
-                (self, PresenterCommand::Redraw)
-            }
-
-            // Ctrl-Tab => Switch to next running TUI if there is one
-            ((false, true, false), SpecialKey::Tab) => {
-                let next_tui = self
-                    .commons
-                    .session
-                    .next_running_tui(Some(self.current_interaction));
-                trace!("Ctrl-Tab next_tui: {:?}", next_tui);
-                if let Some(next_tui) = next_tui {
-                    (
-                        TuiExecuteCommandPresenter::new(
-                            self.commons,
-                            next_tui,
-                            Some(self.current_interaction),
-                        ),
-                        PresenterCommand::Redraw,
-                    )
-                } else {
-                    (self, PresenterCommand::Redraw)
-                }
-            }
-            // Shift-Ctrl-Tab => Switch to previous running TUI if there is one
-            ((true, true, false), SpecialKey::Tab) => {
-                let next_tui = self
-                    .commons
-                    .session
-                    .prev_running_tui(Some(self.current_interaction));
-                trace!("Shift-Ctrl-Tab: next_tui: {:?}", next_tui);
-                if let Some(next_tui) = next_tui {
-                    (
-                        TuiExecuteCommandPresenter::new(
-                            self.commons,
-                            next_tui,
-                            Some(self.current_interaction),
-                        ),
-                        PresenterCommand::Redraw,
-                    )
-                } else {
-                    (self, PresenterCommand::Redraw)
-                }
+                PresenterCommand::Redraw
             }
 
             // Ctrl-Space: cycle current interaction's output
@@ -262,7 +178,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                 self.commons
                     .session
                     .cycle_visibility(self.current_interaction);
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
             // Shift-Ctrl-Space: cycle all interaction's output
             ((true, true, false), SpecialKey::Space) => {
@@ -276,18 +192,14 @@ impl SubPresenter for ExecuteCommandPresenter {
                 {
                     self.commons.session.set_visibility_all(ov);
                 }
-                (self, PresenterCommand::Redraw)
+                PresenterCommand::Redraw
             }
 
-            _ => (self, PresenterCommand::Unknown),
+            _ => PresenterCommand::Unknown,
         }
     }
 
-    fn event_normal_key(
-        mut self: Box<Self>,
-        mod_state: &ModifierState,
-        letter: u8,
-    ) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
         match mod_state.as_tuple() {
             (false, true, false) => {
                 // Control-only
@@ -295,7 +207,7 @@ impl SubPresenter for ExecuteCommandPresenter {
                     b'c' => {
                         // Kill the last job if it is still running
                         self.commons.session.terminate(self.current_interaction);
-                        return (self, PresenterCommand::Redraw);
+                        PresenterCommand::Redraw
                     }
 
                     b'd' => {
@@ -303,35 +215,28 @@ impl SubPresenter for ExecuteCommandPresenter {
                         self.commons
                             .session
                             .write_stdin(self.current_interaction, b"\x04");
-                        return (self, PresenterCommand::Redraw);
+                        PresenterCommand::Redraw
                     }
-                    _ => {}
+                    _ => PresenterCommand::Unknown,
                 }
             }
-            _ => {}
+            _ => PresenterCommand::Unknown,
         }
-        (self, PresenterCommand::Unknown)
     }
 
     /// Handle a click.
     ///
     /// If a command was clicked, cycle through the visibility of output and error.
-    fn handle_click(
-        mut self: Box<Self>,
-        button: usize,
-        x: usize,
-        y: usize,
-    ) -> (Box<dyn SubPresenter>, NeedRedraw) {
-        let redraw = if check_response_clicked(&mut *self, button, x, y) {
+    fn handle_click(&mut self, button: usize, x: usize, y: usize) -> NeedRedraw {
+        if check_response_clicked(&mut *self, button, x, y) {
             NeedRedraw::Yes
         } else {
             NeedRedraw::No
-        };
-        (self, redraw)
+        }
     }
 
-    fn event_text(mut self: Box<Self>, s: &str) -> (Box<dyn SubPresenter>, PresenterCommand) {
+    fn event_text(&mut self, s: &str) -> PresenterCommand {
         self.commons_mut().text_input_add_characters(s);
-        (self, PresenterCommand::Redraw)
+        PresenterCommand::Redraw
     }
 }
