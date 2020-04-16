@@ -303,7 +303,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
       * [X] Load font from variable
 * [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
     * [X] Ctrl-Tab through the still running TUIs
-    * [ ] Allow the foreground program to be selected again
+    * [X] Allow the foreground program to be selected again
     * [ ] propagate window size changes to TUI
 * [ ] 0.12 Join parsing and completion
 * [ ] 0.13 Draw GUI using Xft
@@ -320,7 +320,10 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] History: Use order of commands for sorting (length of look-ahead?)
 * [ ] History: Handle multi-line entries
 * [ ] History: Predict beginning of command
+* [ ] Use separate History in ExecuteCommandPresenter
 * [ ] Session: Use previous visibility settings for repeated commands
+* [ ] Search .biterc according to XDG Config Spec
+* [ ] Place .bitehistory according to XDG Config Spec
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
 * [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
