@@ -31,9 +31,8 @@ use x11::xlib::*;
 
 use model::history::History;
 use model::interpreter::InteractiveInterpreter;
-use model::iterators::LineType;
 use model::screen::Cell;
-use model::session::SharedSession;
+use model::session::{LineType, SharedSession};
 use presenter::display_line::*;
 use presenter::*;
 use tools::polling;

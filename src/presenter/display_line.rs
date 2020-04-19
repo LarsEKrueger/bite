@@ -21,7 +21,7 @@
 //! Each line consists of segments that have the same color.
 
 use super::*;
-use model::session::{OutputVisibility, RunningStatus};
+use model::session::{LineItem, LineType, OutputVisibility, RunningStatus};
 use std::borrow::Cow;
 
 /// Item for the output iterator to be shown by the GUI.

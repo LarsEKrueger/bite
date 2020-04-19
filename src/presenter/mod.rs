@@ -21,7 +21,6 @@
 //! The presenter dispatches all events to sub-presenters that handle different views, e.g. command
 //! composition or history browsing.
 
-use std::cmp;
 use std::fmt::{Display, Formatter};
 
 use term::terminfo::TermInfo;
@@ -39,9 +38,11 @@ use self::tui::TuiExecuteCommandPresenter;
 use model::error::*;
 use model::history::History;
 use model::interpreter::InteractiveInterpreter;
-use model::iterators::*;
 use model::screen::*;
-use model::session::{InteractionHandle, Session, SharedSession};
+use model::session::{
+    ConversationLocator, InteractionHandle, InteractionLocator, LineItem, LineType,
+    MaybeSessionLocator, ResponseLocator, Session, SessionLocator, SharedSession,
+};
 
 /// GUI agnostic representation of the modifier keys
 #[derive(Debug)]
@@ -110,11 +111,18 @@ trait SubPresenter {
 
     /// Return an iterator of lines to be drawn.
     ///
+    /// The iterator must begin at start_row (0<= start_row < PresenterCommand::window_height).
+    ///
     /// Access to the line iterator requires unlocking the session mutex outside the SubPresenter.
-    fn line_iter<'a>(&'a self, &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a>;
+    //   fn line_iter<'a>(
+    //       &'a self,
+    //       &'a Session,
+    //       start_row: i32,
+    //       end_row: i32,
+    //   ) -> Box<dyn Iterator<Item = LineItem> + 'a>;
 
     /// Return info about the overlay to be be drawn.
-    fn get_overlay(&self, &Session) -> Option<(Vec<String>, usize, usize, i32)>;
+    //fn get_overlay(&self, &Session) -> Option<(Vec<String>, usize, usize, i32)>;
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
@@ -155,8 +163,13 @@ pub struct PresenterCommons {
     /// Index post the lowest line that is displayed.
     ///
     /// This is the index of first line that is not shown, i.e. the one below the end of the
-    /// screen.
-    last_line_shown: usize,
+    /// visible section.
+    ///
+    /// As the input and history fields will occupy the lowest lines on the screen, they don't need
+    /// to be taken into account in the scrolling, i.e. scrolling only affects the session.
+    ///
+    /// In order to simplify the most common case (show everything), this is marked as None.
+    session_end_line: Option<SessionLocator>,
 
     /// Currently edited input line
     text_input: Screen,
@@ -258,19 +271,73 @@ impl PresenterCommons {
             window_height: 0,
             button_down: None,
             text_input,
-            last_line_shown: 0,
+            session_end_line: None,
             history,
             term_info,
         })
     }
 
-    /// Compute the index of the first line to be shown.
-    pub fn start_line(&self) -> usize {
-        if self.last_line_shown > self.window_height {
-            self.last_line_shown - self.window_height
-        } else {
-            0
+    /// Create a locator at the end of the session
+    fn locate_end(session: &Session) -> MaybeSessionLocator {
+        session.locate_at_last_prompt_end()
+    }
+
+    /// Create a new locator that is n lines above the initial one
+    ///
+    /// Does not wrap around.
+    ///
+    /// This function encodes the order in which session elements are drawn. It needs to be kept in
+    /// sync with locate_down.
+    fn locate_up(session: &Session, loc: &SessionLocator, mut lines: usize) -> MaybeSessionLocator {
+        // Go step by step to the next border until lines has been reduced to 0.
+        let mut loc = loc.clone();
+        while lines > 0 {
+            if loc.is_start_line() {
+                // Where we want to go depends on where we are.
+                match loc.in_conversation {
+                    // Prompt -> End of last interaction in conversation
+                    ConversationLocator::Prompt(_) => {
+                        if let Some(new_loc) = session.locate_at_conversation_end(&loc) {
+                            loc = session.locate_at_output_end(&new_loc)?
+                        }
+                    }
+                    // Interaction command -> Previous interaction / conversation
+                    ConversationLocator::Interaction(_, InteractionLocator::Command(_)) => {
+                        if let Some(new_loc) = session.locate_at_previous_interaction(&loc) {
+                            // There was a previous interaction -> End of output
+                            loc = session.locate_at_output_end(&new_loc)?;
+                        } else {
+                            // No previous interaction -> End of previous conversation
+                            if let Some(new_loc) = session.locate_at_previous_conversation(&loc) {
+                                loc = session.locate_at_prompt_end(&new_loc)?;
+                            }
+                        }
+                    }
+                    ConversationLocator::Interaction(_, InteractionLocator::Tui(_)) => {}
+                    ConversationLocator::Interaction(
+                        _,
+                        InteractionLocator::Response(ResponseLocator::Lines(_)),
+                    ) => {}
+                    ConversationLocator::Interaction(
+                        _,
+                        InteractionLocator::Response(ResponseLocator::Screen(_)),
+                    ) => {}
+                }
+            } else {
+                loc.dec_line(&mut lines);
+            }
         }
+        Some(loc)
+    }
+
+    /// Create a new locator that is n lines below the initial one
+    ///
+    /// Does not wrap around.
+    ///
+    /// This function encodes the order in which session elements are drawn. It needs to be kept in
+    /// sync with locate_up.
+    fn locate_down(session: &Session, line: &SessionLocator, n: usize) -> MaybeSessionLocator {
+        None
     }
 
     pub fn input_line_iter(&self) -> impl Iterator<Item = LineItem> {
@@ -293,6 +360,37 @@ impl PresenterCommons {
             screen.insert_character();
             screen.place_char(c);
         }
+    }
+
+    /// Change session_end_line by going up n lines. This encodes the order of lines.
+    pub fn scroll_up(&mut self, n: usize) {
+        if let Some(ref mut line) = self.session_end_line {
+            let session = self.session.0.lock().unwrap();
+            if let Some(new_line) = Self::locate_up(&session, line, n) {
+                *line = new_line;
+            }
+        } else {
+            // Initialize past the end of the session, then correct
+            let session = self.session.0.lock().unwrap();
+            if let Some(line) = Self::locate_end(&session) {
+                if let Some(line) = Self::locate_up(&session, &line, n) {
+                    self.session_end_line = Some(line);
+                }
+            }
+        }
+    }
+
+    pub fn scroll_down(&mut self, n: usize) {
+        if let Some(ref mut loc) = self.session_end_line {
+            let session = self.session.0.lock().unwrap();
+            if let Some(new_loc) = Self::locate_down(&session, loc, n) {
+                *loc = new_loc;
+            }
+        }
+    }
+
+    pub fn to_last_line(&mut self) {
+        self.session_end_line = None;
     }
 }
 
@@ -345,35 +443,6 @@ impl Presenter {
     /// Access the common fields read-write
     fn cm(&mut self) -> &mut PresenterCommons {
         self.dm().commons_mut().as_mut()
-    }
-
-    /// Count the number of items of line_iter would return at most
-    fn line_iter_count(&self) -> usize {
-        let session = self.c().session.clone();
-        let session = session.0.lock().unwrap();
-        let iter = self.d().line_iter(&session);
-        iter.count()
-    }
-
-    /// Call an event handler with an additional return value in the sub-presenter.
-    ///
-    /// Update the sub-presenter if it was changed.
-    fn dispatch<R, T: Fn(&Box<dyn SubPresenter>) -> R>(&mut self, def: R, f: T) -> R {
-        let sp = ::std::mem::replace(&mut self.subpresenter, None);
-        let res = if let Some(ref sp) = sp { f(sp) } else { def };
-        self.subpresenter = sp;
-        res
-    }
-
-    /// Check if the view is scrolled down to the bottom to facilitate auto-scrolling.
-    fn last_line_visible(&self) -> bool {
-        self.line_iter_count() == self.c().last_line_shown
-    }
-
-    /// Ensure that the last line is visible, even if the number of lines was changed.
-    fn to_last_line(&mut self) {
-        let len = self.line_iter_count();
-        self.cm().last_line_shown = len;
     }
 
     /// Prepare the presenter for the new cycle.
@@ -469,23 +538,17 @@ impl Presenter {
     /// Handle the event that the window was scrolled down.
     pub fn event_scroll_down(&mut self, mod_state: ModifierState) -> NeedRedraw {
         if mod_state.none_pressed() {
-            if self.c().last_line_shown < self.line_iter_count() {
-                self.cm().last_line_shown += 1;
-                return NeedRedraw::Yes;
-            }
+            self.cm().scroll_down(1);
         }
-        NeedRedraw::No
+        NeedRedraw::Yes
     }
 
     /// Handle the event that the window was scrolled up.
     pub fn event_scroll_up(&mut self, mod_state: ModifierState) -> NeedRedraw {
         if mod_state.none_pressed() {
-            if self.c().last_line_shown > self.c().window_height {
-                self.cm().last_line_shown -= 1;
-                return NeedRedraw::Yes;
-            }
+            self.cm().scroll_up(1);
         }
-        NeedRedraw::No
+        NeedRedraw::Yes
     }
 
     pub fn event_special_key(
@@ -559,56 +622,52 @@ impl Presenter {
     where
         F: FnMut(i32, &DisplayLine),
     {
-        let start_line = self.c().start_line();
         let session = self.c().session.clone();
         let session = session.0.lock().unwrap();
-        let iter = self.d().line_iter(&session);
-        let mut row = start_row;
-        for line in iter.skip(start_line).into_iter().map(DisplayLine::from) {
-            if row >= end_row {
-                break;
-            }
-            f(row, &line);
-            row += 1;
-        }
+        //       let iter = self.d().line_iter(&session, start_row, end_row);
+        //       for (row_offs, line) in iter.map(DisplayLine::from).enumerate() {
+        //           let row = start_row + (row_offs as i32);
+        //           f(row, &line);
+        //       }
     }
 
     pub fn display_overlay<F>(&self, mut f: F)
     where
         F: FnMut(i32, i32, usize, &[String]),
     {
-        let start_line = self.c().start_line();
-        let session = self.c().session.clone();
-        let session = session.0.lock().unwrap();
-        if let Some((items, selection, cursor_row, cursor_col)) = self.d().get_overlay(&session) {
-            let screen_row_cursor = (cursor_row - start_line) as i32;
-            let item_start_index = if selection > OVERLAY_RAD {
-                selection - OVERLAY_RAD
-            } else {
-                0
-            };
-            let item_end_index = cmp::min(items.len(), selection + OVERLAY_RAD + 1);
-            let rad_selection = selection - item_start_index;
-            let top = screen_row_cursor - (rad_selection as i32);
+        //    let session = self.c().session.clone();
+        //    let session = session.0.lock().unwrap();
+        //    if let Some((items, selection, cursor_row, cursor_col)) = self.d().get_overlay(&session) {
+        //        let screen_row_cursor = (cursor_row - start_line) as i32;
+        //        let item_start_index = if selection > OVERLAY_RAD {
+        //            selection - OVERLAY_RAD
+        //        } else {
+        //            0
+        //        };
+        //        let item_end_index = cmp::min(items.len(), selection + OVERLAY_RAD + 1);
+        //        let rad_selection = selection - item_start_index;
+        //        let top = screen_row_cursor - (rad_selection as i32);
 
-            f(
-                cursor_col,
-                top,
-                rad_selection,
-                &items[item_start_index..item_end_index],
-            );
-        }
+        //        f(
+        //            cursor_col,
+        //            top,
+        //            rad_selection,
+        //            &items[item_start_index..item_end_index],
+        //        );
+        //    }
     }
 }
 
 /// Get the line type of the line clicked.
 fn clicked_line_type<T: SubPresenter>(pres: &mut T, y: usize) -> Option<LineType> {
     // Find the item that was clicked
-    let click_line_index = pres.commons().start_line() + y;
     let session = pres.commons_mut().session.clone();
     let session = session.0.lock().unwrap();
-    let maybe_line = pres.line_iter(&session).nth(click_line_index);
-    maybe_line.map(|i| i.is_a)
+    //   let maybe_line = pres
+    //       .line_iter(&session, 0, pres.commons().window_height as i32)
+    //       .nth(y);
+    //   maybe_line.map(|i| i.is_a)
+    None
 }
 
 /// Check if the response selector has been clicked and update the visibility flags

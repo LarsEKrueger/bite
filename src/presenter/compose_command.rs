@@ -33,28 +33,22 @@ pub struct ComposeCommandPresenter {
 
 impl ComposeCommandPresenter {
     /// Allocate a sub-presenter for command composition and input to running programs.
-    pub fn new(commons: Box<PresenterCommons>) -> Box<Self> {
+    pub fn new(mut commons: Box<PresenterCommons>) -> Box<Self> {
+        commons.to_last_line();
         let mut presenter = ComposeCommandPresenter {
             commons,
             selected_prediction: 0,
         };
-        presenter.to_last_line();
         Box::new(presenter)
     }
 
     /// Count the number of items of line_iter would return at most
-    fn line_iter_count(&self) -> usize {
-        let session = self.commons.session.clone();
-        let session = session.0.lock().unwrap();
-        let iter = self.line_iter(&session);
-        iter.count()
-    }
-
-    /// Make the last line visible.
-    fn to_last_line(&mut self) {
-        let cnt = self.line_iter_count();
-        self.commons.last_line_shown = cnt;
-    }
+    //   fn line_iter_count(&self) -> usize {
+    //       let session = self.commons.session.clone();
+    //       let session = session.0.lock().unwrap();
+    //       let iter = self.line_iter(&session);
+    //       iter.count()
+    //   }
 
     fn is_multi_line(&self) -> bool {
         self.commons.text_input.height() > 1
@@ -135,7 +129,7 @@ impl ComposeCommandPresenter {
                 self.fix_selected_prediction(items.len());
                 let item = &items[self.selected_prediction];
                 self.commons_mut().text_input_add_characters(item);
-                self.to_last_line();
+                self.commons_mut().to_last_line();
                 self.execute_input()
             }
             ((false, false, false), SpecialKey::Left) => {
@@ -158,7 +152,6 @@ impl ComposeCommandPresenter {
                 let item = &items[self.selected_prediction];
                 if let Some(c) = item.chars().next() {
                     self.commons_mut().text_input_add_characters(&c.to_string());
-                    self.to_last_line();
                     PresenterCommand::Redraw
                 } else {
                     PresenterCommand::Unknown
@@ -183,7 +176,6 @@ impl ComposeCommandPresenter {
                     }
                     self.commons_mut().text_input_add_characters(&c.to_string());
                 }
-                self.to_last_line();
                 PresenterCommand::Redraw
             }
 
@@ -219,7 +211,6 @@ impl ComposeCommandPresenter {
                 self.fix_selected_prediction(items.len());
                 let item = &items[self.selected_prediction];
                 self.commons_mut().text_input_add_characters(item);
-                self.to_last_line();
                 PresenterCommand::Redraw
             }
 
@@ -266,20 +257,14 @@ impl ComposeCommandPresenter {
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                if self.commons.last_line_shown > middle {
-                    self.commons.last_line_shown -= middle;
-                } else {
-                    self.commons.last_line_shown = 0;
-                }
+                self.commons.scroll_up(middle);
                 PresenterCommand::Redraw
             }
 
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                let n = self.line_iter_count();
-                self.commons.last_line_shown =
-                    ::std::cmp::min(n, self.commons.last_line_shown + middle);
+                self.commons.scroll_down(middle);
                 PresenterCommand::Redraw
             }
 
@@ -402,41 +387,43 @@ impl SubPresenter for ComposeCommandPresenter {
         &mut self.commons
     }
 
-    fn line_iter<'a>(
-        &'a self,
-        session: &'a Session,
-    ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
-        Box::new(
-            session
-                .line_iter(true)
-                .chain(self.commons.input_line_iter()),
-        )
-    }
+    //   fn line_iter<'a>(
+    //       &'a self,
+    //       session: &'a Session,
+    //       start_row: i32,
+    //       end_row: i32,
+    //   ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
+    //       Box::new(
+    //           session
+    //               .line_iter(true)
+    //               .chain(self.commons.input_line_iter()),
+    //       )
+    //   }
 
     /// If the cursor at the end of the input, and there are predictions, display them.
-    fn get_overlay(&self, session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
-        if self.commons.text_input.cursor_at_end() {
-            trace!("ComposeCommandPresenter::get_overlay at end");
-            let row =
-                session.line_iter(true).count() + (self.commons.text_input.cursor_y() as usize);
-            let line = self.commons.text_input.extract_text_without_last_nl();
-            trace!("line: »{}«", line);
+    //  fn get_overlay(&self, session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+    //      if self.commons.text_input.cursor_at_end() {
+    //          trace!("ComposeCommandPresenter::get_overlay at end");
+    //          let row =
+    //              session.line_iter(true).count() + (self.commons.text_input.cursor_y() as usize);
+    //          let line = self.commons.text_input.extract_text_without_last_nl();
+    //          trace!("line: »{}«", line);
 
-            // Get cwd
-            let cwd = self.commons.interpreter.get_cwd();
+    //          // Get cwd
+    //          let cwd = self.commons.interpreter.get_cwd();
 
-            let items = self.commons.history.predict(&cwd.to_string_lossy(), &line);
-            trace!("items: »{:?}«", items);
-            Some((
-                items,
-                self.selected_prediction,
-                row,
-                self.commons.text_input.cursor_x() as i32,
-            ))
-        } else {
-            None
-        }
-    }
+    //          let items = self.commons.history.predict(&cwd.to_string_lossy(), &line);
+    //          trace!("items: »{:?}«", items);
+    //          Some((
+    //              items,
+    //              self.selected_prediction,
+    //              row,
+    //              self.commons.text_input.cursor_x() as i32,
+    //          ))
+    //      } else {
+    //          None
+    //      }
+    //  }
 
     /// Handle a click.
     ///
@@ -486,7 +473,6 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn event_text(&mut self, s: &str) -> PresenterCommand {
         self.commons_mut().text_input_add_characters(s);
-        self.to_last_line();
         let items = self.predict();
         self.fix_selected_prediction(items.len());
         PresenterCommand::Redraw

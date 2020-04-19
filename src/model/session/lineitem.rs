@@ -18,8 +18,8 @@
 
 //! Various iterators and their items as used in the model.
 
-use super::screen::*;
-use super::session::{InteractionHandle, OutputVisibility, RunningStatus};
+use super::{InteractionHandle, OutputVisibility, RunningStatus};
+use model::screen::Cell;
 
 use std::borrow::Cow;
 

@@ -18,69 +18,29 @@
 
 //! Organizes the past and current programs and their outputs.
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+mod conversation;
+mod interaction;
+mod lineitem;
+mod locator;
+mod response;
+
 use std::sync::{Arc, Mutex};
 
-use super::interpreter::jobs::Job;
-use super::iterators::*;
-use super::response::*;
-use super::screen::{AddBytesResult, Matrix, Screen};
-
+use model::interpreter::jobs::Job;
+use model::screen::{AddBytesResult, Matrix, Screen};
 use tools::shared_item;
 
-/// Which output is visible.
-///
-/// The GUI concept dictates that at most one output (stdout or stderr) is visible.
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum OutputVisibility {
-    None,
-    Output,
-    Error,
-}
+pub use self::interaction::{OutputVisibility, RunningStatus};
+pub use self::lineitem::{LineItem, LineType};
+pub use self::locator::{ConversationLocator, InteractionLocator, ResponseLocator};
+pub use self::locator::{MaybeSessionLocator, SessionLocator};
 
-/// Running status of an interaction
-#[derive(PartialEq, Debug, Clone)]
-pub enum RunningStatus {
-    Running,
-    Unknown,
-    Exited(i32),
-}
+use self::conversation::Conversation;
+use self::interaction::Interaction;
 
-/// A command and its output.
-///
-/// This is just a visual representation of a command and not connected to a running process in any
-/// way.
-struct Interaction {
-    /// Visual representation of the command that was called to create these responses
-    command: Matrix,
-    /// Collected stdout lines
-    output: Response,
-    /// Collected stderr lines
-    errors: Response,
-    /// Which response to show
-    visible: OutputVisibility,
-    /// status of the command
-    running_status: RunningStatus,
-    /// True if TUI is running
-    tui_mode: bool,
-    /// Screen used for TUI mode
-    pub tui_screen: Screen,
-    /// Number of threads that feed data into the interaction.
-    threads: usize,
-    /// Job currently writing output to this interaction
-    job: Option<Job>,
-}
-
-/// A number of commands that are executed with the same prompt string.
-struct Conversation {
-    /// List of programs and their outputs for this prompt.
-    interactions: Vec<InteractionHandle>,
-    /// The prompt for this conversation.
-    prompt: Matrix,
-    /// Hash value of the prompt for displaying a color
-    prompt_hash: u64,
-}
+/// Session that can be shared between threads
+#[derive(Clone)]
+pub struct SharedSession(pub Arc<Mutex<Session>>);
 
 /// An ordered list of conversations.
 ///
@@ -97,10 +57,6 @@ pub struct Session {
     needs_redraw: bool,
 }
 
-/// Session that can be shared between threads
-#[derive(Clone)]
-pub struct SharedSession(pub Arc<Mutex<Session>>);
-
 /// Index of an interaction in a session.
 ///
 /// While there will be usually less than 2^64 interactions in a session, this is a usize to avoid
@@ -108,128 +64,6 @@ pub struct SharedSession(pub Arc<Mutex<Session>>);
 /// runs out of indices.
 #[derive(PartialEq, Clone, Copy, Debug, Eq, Hash)]
 pub struct InteractionHandle(usize);
-
-impl RunningStatus {
-    pub fn is_running(&self) -> bool {
-        match self {
-            Self::Exited(_) => false,
-            _ => true,
-        }
-    }
-}
-
-impl Interaction {
-    /// Create a new command without any output yet.
-    ///
-    /// The command is a vector of cells as to support syntax coloring later.
-    pub fn new(command: Matrix) -> Self {
-        let mut tui_screen = Screen::new();
-        tui_screen.make_room_for(79, 24);
-        tui_screen.fixed_size();
-        Self {
-            command,
-            output: Response::new(),
-            errors: Response::new(),
-            visible: OutputVisibility::Output,
-            running_status: RunningStatus::Unknown,
-            tui_mode: false,
-            tui_screen,
-            threads: 0,
-            job: None,
-        }
-    }
-
-    /// Get the visible response, if any.
-    fn visible_response(&self) -> Option<&Response> {
-        match self.visible {
-            OutputVisibility::None => None,
-            OutputVisibility::Output => Some(&self.output),
-            OutputVisibility::Error => Some(&self.errors),
-        }
-    }
-
-    /// Get the iterator over the items in this interaction.
-    fn line_iter<'a>(
-        &'a self,
-        handle: InteractionHandle,
-        prompt_hash: u64,
-    ) -> impl Iterator<Item = LineItem<'a>> {
-        // We always have the command, regardless if there is any output to show.
-        let show_resp = !self.tui_mode;
-        let resp_lines = self
-            .visible_response()
-            .map(|r| r.line_iter(prompt_hash))
-            .into_iter()
-            .flat_map(|i| i)
-            .filter(move |_| show_resp);
-
-        let show_tui = self.tui_mode;
-        let tui_lines = self
-            .tui_screen
-            .line_iter()
-            .map(move |line| LineItem::new(&line[..], LineType::Output, None, prompt_hash))
-            .filter(move |_| show_tui);
-
-        let visible = self.visible;
-        let lt = LineType::Command(visible, handle, self.running_status.clone());
-
-        self.command
-            .line_iter()
-            .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
-            .chain(resp_lines)
-            .chain(tui_lines)
-    }
-
-    /// Check if there are any error lines.
-    fn has_errors(&self) -> bool {
-        !self.errors.lines.is_empty()
-    }
-
-    /// Make the error lines visible
-    pub fn show_errors(&mut self) {
-        self.visible = OutputVisibility::Error;
-    }
-
-    /// If there are errors, show them.
-    pub fn show_potential_errors(&mut self) {
-        let failure = match self.running_status {
-            RunningStatus::Exited(es) => es != 0,
-            _ => false,
-        };
-        if !failure {
-            self.visible = OutputVisibility::Output;
-        } else if self.has_errors() {
-            self.show_errors();
-        }
-    }
-
-    /// If there is data in the TUI screen, add it to the end of output
-    pub fn exit_cleanup(&mut self) {
-        trace!("exit cleanup on interaction");
-        if self.tui_mode {
-            for l in self.tui_screen.line_iter() {
-                self.output.lines.push(l.to_vec());
-            }
-            self.tui_mode = false;
-            self.tui_screen.reset();
-        }
-    }
-}
-
-impl Conversation {
-    /// Creates a new conversation without any interactions.
-    pub fn new(prompt: Matrix) -> Conversation {
-        let mut h = DefaultHasher::new();
-        prompt.hash(&mut h);
-        let prompt_hash = h.finish();
-
-        Conversation {
-            prompt,
-            interactions: vec![],
-            prompt_hash,
-        }
-    }
-}
 
 impl InteractionHandle {
     pub const INVALID: Self = InteractionHandle(std::usize::MAX);
@@ -243,6 +77,126 @@ impl Session {
             interactions: vec![],
             needs_redraw: true,
         }
+    }
+
+    /// Return a locator at the end of the prompt of the last conversation.
+    ///
+    /// Operates on a session to force locking the SharedSession in order to stay consistent.
+    ///
+    /// Returns None if session is empty.
+    pub fn locate_at_last_prompt_end(&self) -> MaybeSessionLocator {
+        let conversations = self.conversations.len();
+        if conversations > 0 {
+            let conversation = conversations - 1;
+            let prompt_lines = self.conversations[conversation].prompt.rows() as usize;
+            let in_conversation = ConversationLocator::Prompt(prompt_lines);
+            return Some(SessionLocator {
+                conversation,
+                in_conversation,
+            });
+        }
+        None
+    }
+
+    /// Return a locator at the last interaction in the given conversation
+    ///
+    /// Operates on a session to force locking the SharedSession in order to stay consistent.
+    ///
+    /// Returns None if locator doesn't have a valid conversation index.
+    pub fn locate_at_conversation_end(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            let interactions = self.conversations[loc.conversation].interactions.len();
+            if interactions > 0 {
+                return Some(SessionLocator {
+                    conversation: loc.conversation,
+                    in_conversation: ConversationLocator::Interaction(
+                        interactions - 1,
+                        InteractionLocator::Command(0),
+                    ),
+                });
+            }
+        }
+        None
+    }
+
+    pub fn locate_at_previous_interaction(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if let ConversationLocator::Interaction(interaction, _) = loc.in_conversation {
+            if interaction > 0 {
+                return Some(SessionLocator {
+                    conversation: loc.conversation,
+                    in_conversation: ConversationLocator::Interaction(
+                        interaction - 1,
+                        InteractionLocator::Command(0),
+                    ),
+                });
+            }
+        }
+        None
+    }
+
+    /// Return a locator and the end of the output of the current interaction
+    pub fn locate_at_output_end(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            if let ConversationLocator::Interaction(interaction, _) = loc.in_conversation {
+                if interaction < self.conversations[loc.conversation].interactions.len() {
+                    let interaction_handle =
+                        self.conversations[loc.conversation].interactions[interaction];
+                    // If an interaction is a TUI, refer to the screen. Otherwise refer to the
+                    // response. This is an invariant that is independent of the display order.
+                    let interaction = &self.interactions[interaction_handle.0];
+                    let in_interaction = if interaction.tui_mode {
+                        InteractionLocator::Tui(interaction.tui_screen.height() as usize)
+                    } else {
+                        // Use the visible response. If there is none, go to the last line of the
+                        // command.
+                        if let Some(response) = interaction.visible_response() {
+                            // This is another invariant: If the screen is height = 0, use the lines.
+                            let screen_height = response.screen.height() as usize;
+                            let in_response = if screen_height == 0 {
+                                ResponseLocator::Lines(response.lines.len())
+                            } else {
+                                ResponseLocator::Screen(screen_height)
+                            };
+                            InteractionLocator::Response(in_response)
+                        } else {
+                            // No response visible: Go to last line of command
+                            InteractionLocator::Command(interaction.command.rows() as usize)
+                        }
+                    };
+                    let in_conversation =
+                        ConversationLocator::Interaction(interaction_handle.0, in_interaction);
+                    return Some(SessionLocator {
+                        conversation: loc.conversation,
+                        in_conversation,
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    /// Return the beginning of the prompt of the previous conversation
+    pub fn locate_at_previous_conversation(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation > 0 {
+            return Some(SessionLocator {
+                conversation: loc.conversation - 1,
+                in_conversation: ConversationLocator::Prompt(0),
+            });
+        }
+        None
+    }
+
+    /// Return a locator at the end of the prompt of a conversation
+    pub fn locate_at_prompt_end(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            let prompt_lines = self.conversations[loc.conversation].prompt.rows() as usize;
+            let in_conversation = ConversationLocator::Prompt(prompt_lines);
+            return Some(SessionLocator {
+                conversation: loc.conversation,
+                in_conversation,
+            });
+        }
+        None
     }
 
     /// Quick access to an interaction by handle.
@@ -291,42 +245,42 @@ impl Session {
         })
     }
 
-    /// Return an iterator over the currently visible items.
-    pub fn line_iter<'a>(
-        &'a self,
-        show_last_prompt: bool,
-    ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
-        let num_conversations = self.conversations.len();
-        Box::new(self.conversations.iter().enumerate().flat_map(
-            move |(conversation_index, conversation)| {
-                let prompt_hash = conversation.prompt_hash;
-                let is_last_conv = (conversation_index + 1) >= num_conversations;
-                let show_this_prompt = !is_last_conv || show_last_prompt;
-
-                conversation
-                    .interactions
-                    .iter()
-                    .flat_map(move |interHandle| {
-                        self.interactions[interHandle.0].line_iter(*interHandle, prompt_hash)
-                    })
-                    .chain(
-                        conversation
-                            .prompt
-                            .line_iter()
-                            .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash))
-                            .take_while(move |_| show_this_prompt),
-                    )
-            },
-        ))
-    }
-
-    pub fn tui_screen<'a>(&'a self, handle: InteractionHandle) -> Option<&Screen> {
-        if handle.0 < self.interactions.len() {
-            Some(&self.interactions[handle.0].tui_screen)
-        } else {
-            None
-        }
-    }
+    // Return an iterator over the currently visible items.
+    //   pub fn line_iter<'a>(
+    //       &'a self,
+    //       show_last_prompt: bool,
+    //   ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
+    //       let num_conversations = self.conversations.len();
+    //       Box::new(self.conversations.iter().enumerate().flat_map(
+    //           move |(conversation_index, conversation)| {
+    //               let prompt_hash = conversation.prompt_hash;
+    //               let is_last_conv = (conversation_index + 1) >= num_conversations;
+    //               let show_this_prompt = !is_last_conv || show_last_prompt;
+    //
+    //               conversation
+    //                   .interactions
+    //                   .iter()
+    //                   .flat_map(move |interHandle| {
+    //                       self.interactions[interHandle.0].line_iter(*interHandle, prompt_hash)
+    //                   })
+    //                   .chain(
+    //                       conversation
+    //                           .prompt
+    //                           .line_iter()
+    //                           .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash))
+    //                           .take_while(move |_| show_this_prompt),
+    //                   )
+    //           },
+    //       ))
+    //   }
+    //
+    //   pub fn tui_screen<'a>(&'a self, handle: InteractionHandle) -> Option<&Screen> {
+    //       if handle.0 < self.interactions.len() {
+    //           Some(&self.interactions[handle.0].tui_screen)
+    //       } else {
+    //           None
+    //       }
+    //   }
 
     /// Add a new interaction to the latest conversation.
     fn add_interaction_to_last(&mut self, command: Matrix) -> InteractionHandle {
@@ -673,12 +627,58 @@ impl SharedSession {
             }
         })
     }
+
+    // Return the number of visible lines in the given interaction
+    //   pub fn count_visible_lines(&self, handle: InteractionHandle) -> usize {
+    //       self.interaction(handle, 0, |interaction| {
+    //           interaction
+    //               .visible_response()
+    //               .map_or(0, |r| r.count_lines())
+    //       })
+    //   }
+    //
+    //   /// Return last line of last interaction if there is one
+    //   pub fn last_interaction_line(&self) -> Option<(InteractionHandle, usize)> {
+    //       self.session(None, |s| {
+    //           if s.interactions.len() > 0 {
+    //               let n = s.interactions.len() - 1;
+    //               let l = s.interactions[n]
+    //                   .visible_response()
+    //                   .map_or(0, |r| r.count_lines());
+    //               Some((InteractionHandle(n), l))
+    //           } else {
+    //               None
+    //           }
+    //       })
+    //   }
+
+    // Return the last line of the previous interaction if there is one
+    //  pub fn interaction_line_before(
+    //      &self,
+    //      handle: InteractionHandle,
+    //  ) -> Option<(InteractionHandle, usize)> {
+    //      self.session(None, |s| {
+    //          if handle.0 > 0 {
+    //              let n = handle.0 - 1;
+    //              if n < s.interactions.len() {
+    //                  let l = s.interactions[n]
+    //                      .visible_response()
+    //                      .map_or(0, |r| r.count_lines());
+    //                  Some((InteractionHandle(n), l))
+    //              } else {
+    //                  None
+    //              }
+    //          } else {
+    //              None
+    //          }
+    //      })
+    //  }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::response::tests::check;
     use super::super::screen::Screen;
+    use super::response::tests::check;
     use super::*;
 
     fn new_test_session(prompt: &[u8]) -> SharedSession {
@@ -687,97 +687,97 @@ mod tests {
         )))))
     }
 
-    #[test]
-    fn line_iter() {
-        let mut session = new_test_session(b"prompt 1");
-
-        let inter_1_1 = session.add_interaction(Screen::one_line_matrix(b"command 1.1"));
-        session.add_bytes(
-            OutputVisibility::Output,
-            inter_1_1,
-            b"output 1.1.1\noutput 1.1.2\n",
-        );
-        let inter_1_2 = session.add_interaction(Screen::one_line_matrix(b"command 1.2"));
-        session.add_bytes(
-            OutputVisibility::Output,
-            inter_1_2,
-            b"output 1.2.1\noutput 1.2.2\n",
-        );
-
-        session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
-        let inter_2_1 = session.add_interaction(Screen::one_line_matrix(b"command 2.1"));
-        session.add_bytes(
-            OutputVisibility::Output,
-            inter_2_1,
-            b"output 2.1.1\noutput 2.1.2\n",
-        );
-        let inter_2_2 = session.add_interaction(Screen::one_line_matrix(b"command 2.2"));
-        session.add_bytes(
-            OutputVisibility::Output,
-            inter_2_2,
-            b"output 2.2.1\noutput 2.2.2\n",
-        );
-
-        session.session_mut((), |s| {
-            assert_eq!(s.conversations.len(), 2);
-            assert_eq!(s.conversations[0].interactions.len(), 2);
-            assert_eq!(s.conversations[1].interactions.len(), 2);
-        });
-
-        let session = session.0.lock().unwrap();
-        let mut li = session.line_iter(true);
-        check(
-            li.next(),
-            LineType::Command(
-                OutputVisibility::Output,
-                InteractionHandle { 0: 0 },
-                RunningStatus::Unknown,
-            ),
-            None,
-            "command 1.1",
-        );
-        check(li.next(), LineType::Output, None, "output 1.1.1");
-        check(li.next(), LineType::Output, None, "output 1.1.2");
-        check(
-            li.next(),
-            LineType::Command(
-                OutputVisibility::Output,
-                InteractionHandle { 0: 1 },
-                RunningStatus::Unknown,
-            ),
-            None,
-            "command 1.2",
-        );
-        check(li.next(), LineType::Output, None, "output 1.2.1");
-        check(li.next(), LineType::Output, None, "output 1.2.2");
-        check(li.next(), LineType::Prompt, None, "prompt 1");
-
-        check(
-            li.next(),
-            LineType::Command(
-                OutputVisibility::Output,
-                InteractionHandle { 0: 2 },
-                RunningStatus::Unknown,
-            ),
-            None,
-            "command 2.1",
-        );
-        check(li.next(), LineType::Output, None, "output 2.1.1");
-        check(li.next(), LineType::Output, None, "output 2.1.2");
-        check(
-            li.next(),
-            LineType::Command(
-                OutputVisibility::Output,
-                InteractionHandle { 0: 3 },
-                RunningStatus::Unknown,
-            ),
-            None,
-            "command 2.2",
-        );
-        check(li.next(), LineType::Output, None, "output 2.2.1");
-        check(li.next(), LineType::Output, None, "output 2.2.2");
-        check(li.next(), LineType::Prompt, None, "prompt 2");
-        assert_eq!(li.next(), None);
-    }
+    //   #[test]
+    //   fn line_iter() {
+    //       let mut session = new_test_session(b"prompt 1");
+    //
+    //       let inter_1_1 = session.add_interaction(Screen::one_line_matrix(b"command 1.1"));
+    //       session.add_bytes(
+    //           OutputVisibility::Output,
+    //           inter_1_1,
+    //           b"output 1.1.1\noutput 1.1.2\n",
+    //       );
+    //       let inter_1_2 = session.add_interaction(Screen::one_line_matrix(b"command 1.2"));
+    //       session.add_bytes(
+    //           OutputVisibility::Output,
+    //           inter_1_2,
+    //           b"output 1.2.1\noutput 1.2.2\n",
+    //       );
+    //
+    //       session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
+    //       let inter_2_1 = session.add_interaction(Screen::one_line_matrix(b"command 2.1"));
+    //       session.add_bytes(
+    //           OutputVisibility::Output,
+    //           inter_2_1,
+    //           b"output 2.1.1\noutput 2.1.2\n",
+    //       );
+    //       let inter_2_2 = session.add_interaction(Screen::one_line_matrix(b"command 2.2"));
+    //       session.add_bytes(
+    //           OutputVisibility::Output,
+    //           inter_2_2,
+    //           b"output 2.2.1\noutput 2.2.2\n",
+    //       );
+    //
+    //       session.session_mut((), |s| {
+    //           assert_eq!(s.conversations.len(), 2);
+    //           assert_eq!(s.conversations[0].interactions.len(), 2);
+    //           assert_eq!(s.conversations[1].interactions.len(), 2);
+    //       });
+    //
+    //       let session = session.0.lock().unwrap();
+    //       let mut li = session.line_iter(true);
+    //       check(
+    //           li.next(),
+    //           LineType::Command(
+    //               OutputVisibility::Output,
+    //               InteractionHandle { 0: 0 },
+    //               RunningStatus::Unknown,
+    //           ),
+    //           None,
+    //           "command 1.1",
+    //       );
+    //       check(li.next(), LineType::Output, None, "output 1.1.1");
+    //       check(li.next(), LineType::Output, None, "output 1.1.2");
+    //       check(
+    //           li.next(),
+    //           LineType::Command(
+    //               OutputVisibility::Output,
+    //               InteractionHandle { 0: 1 },
+    //               RunningStatus::Unknown,
+    //           ),
+    //           None,
+    //           "command 1.2",
+    //       );
+    //       check(li.next(), LineType::Output, None, "output 1.2.1");
+    //       check(li.next(), LineType::Output, None, "output 1.2.2");
+    //       check(li.next(), LineType::Prompt, None, "prompt 1");
+    //
+    //       check(
+    //           li.next(),
+    //           LineType::Command(
+    //               OutputVisibility::Output,
+    //               InteractionHandle { 0: 2 },
+    //               RunningStatus::Unknown,
+    //           ),
+    //           None,
+    //           "command 2.1",
+    //       );
+    //       check(li.next(), LineType::Output, None, "output 2.1.1");
+    //       check(li.next(), LineType::Output, None, "output 2.1.2");
+    //       check(
+    //           li.next(),
+    //           LineType::Command(
+    //               OutputVisibility::Output,
+    //               InteractionHandle { 0: 3 },
+    //               RunningStatus::Unknown,
+    //           ),
+    //           None,
+    //           "command 2.2",
+    //       );
+    //       check(li.next(), LineType::Output, None, "output 2.2.1");
+    //       check(li.next(), LineType::Output, None, "output 2.2.2");
+    //       check(li.next(), LineType::Prompt, None, "prompt 2");
+    //       assert_eq!(li.next(), None);
+    //   }
 
 }

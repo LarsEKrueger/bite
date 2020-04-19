@@ -22,7 +22,7 @@
 //! does not archive its output.
 
 use super::*;
-use model::session::InteractionHandle;
+use model::session::{InteractionHandle, LineItem, LineType};
 
 /// Presenter to run commands and send input to their stdin.
 pub struct TuiExecuteCommandPresenter {
@@ -41,9 +41,6 @@ impl TuiExecuteCommandPresenter {
             commons,
             current_interaction,
         };
-
-        // Show all lines
-        presenter.commons.last_line_shown = presenter.commons.window_height;
 
         Box::new(presenter)
     }
@@ -100,26 +97,31 @@ impl SubPresenter for TuiExecuteCommandPresenter {
     }
 
     /// Return the lines to be presented.
-    fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
-        match session.tui_screen(self.current_interaction) {
-            Some(s) => Box::new(s.line_iter_full().zip(0..).map(move |(line, nr)| {
-                let cursor_x = if s.cursor_y() == nr {
-                    Some(s.cursor_x() as usize)
-                } else {
-                    None
-                };
-                LineItem::new(line, LineType::Tui, cursor_x, 0)
-            })),
-            None => {
-                error!("Got empty screen for {:?}", self.current_interaction);
-                Box::new(std::iter::empty())
-            }
-        }
-    }
-
-    fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
-        None
-    }
+    //   fn line_iter<'a>(
+    //       &'a self,
+    //       session: &'a Session,
+    //       start_row: i32,
+    //       end_row: i32,
+    //   ) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+    //       match session.tui_screen(self.current_interaction) {
+    //           Some(s) => Box::new(s.line_iter_full().zip(0..).map(move |(line, nr)| {
+    //               let cursor_x = if s.cursor_y() == nr {
+    //                   Some(s.cursor_x() as usize)
+    //               } else {
+    //                   None
+    //               };
+    //               LineItem::new(line, LineType::Tui, cursor_x, 0)
+    //           })),
+    //           None => {
+    //               error!("Got empty screen for {:?}", self.current_interaction);
+    //               Box::new(std::iter::empty())
+    //           }
+    //       }
+    //   }
+    //
+    //   fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+    //       None
+    //   }
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(

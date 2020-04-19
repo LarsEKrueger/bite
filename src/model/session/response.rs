@@ -20,8 +20,8 @@
 //!
 //! Consists of the lines are read from either stdout or stderr.
 
-use super::iterators::*;
-use super::screen::*;
+use super::{LineItem, LineType};
+use model::screen::{AddBytesResult, Cell, Event, Screen};
 
 /// The full output of a program
 #[derive(PartialEq)]
@@ -30,7 +30,7 @@ pub struct Response {
     pub lines: Vec<Vec<Cell>>,
 
     /// A temporary screen we add data to until they can be archived in *lines*.
-    screen: Screen,
+    pub screen: Screen,
 }
 
 impl Response {
@@ -98,6 +98,11 @@ impl Response {
             .iter()
             .map(move |l| LineItem::new(&l[..], LineType::Output, None, prompt_hash))
             .chain(screen_lines)
+    }
+
+    /// Number of lines line_iter would return
+    pub fn count_lines(&self) -> usize {
+        (self.screen.height() as usize) + self.lines.len()
     }
 
     /// Return a correctly typed iterator without any data in it.

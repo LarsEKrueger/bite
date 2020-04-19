@@ -37,45 +37,39 @@ pub struct ExecuteCommandPresenter {
 #[allow(dead_code)]
 impl ExecuteCommandPresenter {
     pub fn new(
-        commons: Box<PresenterCommons>,
+        mut commons: Box<PresenterCommons>,
         current_interaction: InteractionHandle,
     ) -> Box<Self> {
-        let mut presenter = ExecuteCommandPresenter {
+        commons.to_last_line();
+        let presenter = ExecuteCommandPresenter {
             commons,
             current_interaction,
             next_prompt: None,
         };
-        presenter.to_last_line();
         Box::new(presenter)
     }
 
     pub fn new_with_interaction(
-        commons: Box<PresenterCommons>,
+        mut commons: Box<PresenterCommons>,
         current_interaction: InteractionHandle,
         next_prompt: Option<Matrix>,
     ) -> Box<Self> {
-        let mut presenter = ExecuteCommandPresenter {
+        commons.to_last_line();
+        let presenter = ExecuteCommandPresenter {
             commons,
             current_interaction,
             next_prompt,
         };
-        presenter.to_last_line();
         Box::new(presenter)
     }
 
     /// Count the number of items of line_iter would return at most
-    fn line_iter_count(&self) -> usize {
-        let session = self.commons.session.clone();
-        let session = session.0.lock().unwrap();
-        let iter = self.line_iter(&session);
-        iter.count()
-    }
-
-    /// Ensure that the last line is visible, even if the number of lines was changed.
-    fn to_last_line(&mut self) {
-        let len = self.line_iter_count();
-        self.commons.last_line_shown = len;
-    }
+    //   fn line_iter_count(&self) -> usize {
+    //       let session = self.commons.session.clone();
+    //       let session = session.0.lock().unwrap();
+    //       let iter = self.line_iter(&session);
+    //       iter.count()
+    //   }
 
     fn deconstruct(self) -> (Box<PresenterCommons>, InteractionHandle) {
         (self.commons, self.current_interaction)
@@ -95,19 +89,24 @@ impl SubPresenter for ExecuteCommandPresenter {
         &mut self.commons
     }
 
-    fn line_iter<'a>(&'a self, session: &'a Session) -> Box<dyn Iterator<Item = LineItem> + 'a> {
-        trace!("ExecuteCommandPresenter::line_iter");
-        Box::new(
-            session
-                .line_iter(false)
-                .chain(self.commons.input_line_iter()),
-        )
-    }
-
-    fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
-        trace!("ExecuteCommandPresenter::get_overlay");
-        None
-    }
+    //   fn line_iter<'a>(
+    //       &'a self,
+    //       session: &'a Session,
+    //       start_row: i32,
+    //       end_row: i32,
+    //   ) -> Box<dyn Iterator<Item = LineItem> + 'a> {
+    //       trace!("ExecuteCommandPresenter::line_iter");
+    //       Box::new(
+    //           session
+    //               .line_iter(false)
+    //               .chain(self.commons.input_line_iter()),
+    //       )
+    //   }
+    //
+    //   fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
+    //       trace!("ExecuteCommandPresenter::get_overlay");
+    //       None
+    //   }
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
@@ -138,20 +137,14 @@ impl SubPresenter for ExecuteCommandPresenter {
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                if self.commons.last_line_shown > middle {
-                    self.commons.last_line_shown -= middle;
-                } else {
-                    self.commons.last_line_shown = 0;
-                }
+                self.commons.scroll_up(middle);
                 PresenterCommand::Redraw
             }
 
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                let n = self.line_iter_count();
-                self.commons.last_line_shown =
-                    ::std::cmp::min(n, self.commons.last_line_shown + middle);
+                self.commons.scroll_down(middle);
                 PresenterCommand::Redraw
             }
 
