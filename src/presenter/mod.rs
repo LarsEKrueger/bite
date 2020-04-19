@@ -21,15 +21,16 @@
 //! The presenter dispatches all events to sub-presenters that handle different views, e.g. command
 //! composition or history browsing.
 
-use std::fmt::{Display, Formatter};
-
-use term::terminfo::TermInfo;
-
-//mod completion;
 mod compose_command;
 pub mod display_line;
 mod execute_command;
 mod tui;
+
+#[cfg(test)]
+mod test;
+
+use std::fmt::{Display, Formatter};
+use term::terminfo::TermInfo;
 
 use self::compose_command::ComposeCommandPresenter;
 use self::display_line::*;
@@ -71,6 +72,11 @@ pub enum SpecialKey {
     Space,
 }
 
+/// A GUI callback that is called once per line drawn
+pub trait DrawLineTrait {
+    fn draw_line(&self, usize, &DisplayLine);
+}
+
 /// Represent a boolean with the semantics 'does the GUI need to be redrawn'.
 #[derive(PartialEq, Eq)]
 pub enum NeedRedraw {
@@ -109,17 +115,10 @@ trait SubPresenter {
     /// Provide write access to the data that is common to the presenter in all modi.
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons>;
 
-    /// Return an iterator of lines to be drawn.
+    /// Call the display callback on every line
     ///
-    /// The iterator must begin at start_row (0<= start_row < PresenterCommand::window_height).
-    ///
-    /// Access to the line iterator requires unlocking the session mutex outside the SubPresenter.
-    //   fn line_iter<'a>(
-    //       &'a self,
-    //       &'a Session,
-    //       start_row: i32,
-    //       end_row: i32,
-    //   ) -> Box<dyn Iterator<Item = LineItem> + 'a>;
+    /// Must not lock PresenterCommons::session or a deadlock ensues
+    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait);
 
     /// Return info about the overlay to be be drawn.
     //fn get_overlay(&self, &Session) -> Option<(Vec<String>, usize, usize, i32)>;
@@ -392,6 +391,14 @@ impl PresenterCommons {
     pub fn to_last_line(&mut self) {
         self.session_end_line = None;
     }
+
+    /// Return a session locator that refers to the first of n lines to draw
+    fn start_line(&self, session: &Session, n: usize) -> MaybeSessionLocator {
+        self.session_end_line
+            .clone()
+            .or_else(|| Self::locate_end(&session))
+            .and_then(|loc| Self::locate_up(&session, &loc, n))
+    }
 }
 
 impl Presenter {
@@ -618,17 +625,10 @@ impl Presenter {
     ///
     /// This is required as the session mutex must be locked and thus an iterator cannot be
     /// returned.
-    pub fn display_lines<F>(&self, start_row: i32, end_row: i32, mut f: F)
-    where
-        F: FnMut(i32, &DisplayLine),
-    {
+    pub fn display_lines(&self, draw_line: &dyn DrawLineTrait) {
         let session = self.c().session.clone();
         let session = session.0.lock().unwrap();
-        //       let iter = self.d().line_iter(&session, start_row, end_row);
-        //       for (row_offs, line) in iter.map(DisplayLine::from).enumerate() {
-        //           let row = start_row + (row_offs as i32);
-        //           f(row, &line);
-        //       }
+        self.d().display_lines(&session, draw_line);
     }
 
     pub fn display_overlay<F>(&self, mut f: F)

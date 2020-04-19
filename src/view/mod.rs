@@ -34,7 +34,9 @@ use model::interpreter::InteractiveInterpreter;
 use model::screen::Cell;
 use model::session::{LineType, SharedSession};
 use presenter::display_line::*;
-use presenter::*;
+use presenter::{
+    DrawLineTrait, ModifierState, NeedRedraw, Presenter, PresenterCommand, SpecialKey,
+};
 use tools::polling;
 
 use term::terminfo::TermInfo;
@@ -215,6 +217,22 @@ fn create_font_set(display: *mut Display, font_name: &str) -> XFontSet {
         }
     }
     font_set
+}
+
+struct DrawLine<'a>(&'a Gui);
+
+impl<'a> DrawLineTrait for DrawLine<'a> {
+    fn draw_line(&self, row: usize, line: &DisplayLine) {
+        self.0.draw_line(row as i32, line);
+    }
+}
+
+struct DrawCursor<'a>(&'a Gui);
+
+impl<'a> DrawLineTrait for DrawCursor<'a> {
+    fn draw_line(&self, row: usize, line: &DisplayLine) {
+        self.0.draw_cursor(row as i32, line);
+    }
 }
 
 impl Gui {
@@ -480,6 +498,40 @@ impl Gui {
         }
     }
 
+    fn draw_cursor(&self, row: i32, line: &DisplayLine) {
+        if let Some(cursor_col) = line.cursor_col {
+            // Draw a cursor if requested
+            let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
+            let y = self.line_height * row + LINE_PADDING;
+
+            if self.cursor_on && self.have_focus {
+                unsafe {
+                    XFillRectangle(
+                        self.display,
+                        self.window,
+                        self.gc,
+                        x,
+                        y,
+                        self.font_width as u32,
+                        self.line_height as u32,
+                    );
+                }
+            } else {
+                unsafe {
+                    XDrawRectangle(
+                        self.display,
+                        self.window,
+                        self.gc,
+                        x,
+                        y,
+                        self.font_width as u32,
+                        self.line_height as u32,
+                    );
+                }
+            }
+        }
+    }
+
     /// Draw a single colored cell at the given character position
     pub fn draw_cell(&self, column: i32, row: i32, cell: &Cell) {
         let x = self.font_width * column + COLOR_SEAM_WIDTH;
@@ -526,17 +578,13 @@ impl Gui {
     /// Render the current presentation to the window.
     ///
     /// Redraws the whole window, not just the exposed rectangle.
-    pub fn render(&self) {
-        let lines_per_window = self.lines_per_window();
-
+    pub fn render(&mut self) {
         unsafe { XClearWindow(self.display, self.window) };
         // TODO: Set colors
 
         // Draw the text
-        self.presenter
-            .display_lines(0, lines_per_window as i32, |row, line| {
-                self.draw_line(row, &line);
-            });
+        let p = &self.presenter;
+        p.display_lines(&DrawLine(self));
 
         // Draw the overlay if there is one
         self.presenter
@@ -613,40 +661,7 @@ impl Gui {
             });
 
         // Draw any cursor on top of that
-        self.presenter
-            .display_lines(0, lines_per_window as i32, |row, line| {
-                if let Some(cursor_col) = line.cursor_col {
-                    // Draw a cursor if requested
-                    let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
-                    let y = self.line_height * row + LINE_PADDING;
-
-                    if self.cursor_on && self.have_focus {
-                        unsafe {
-                            XFillRectangle(
-                                self.display,
-                                self.window,
-                                self.gc,
-                                x,
-                                y,
-                                self.font_width as u32,
-                                self.line_height as u32,
-                            );
-                        }
-                    } else {
-                        unsafe {
-                            XDrawRectangle(
-                                self.display,
-                                self.window,
-                                self.gc,
-                                x,
-                                y,
-                                self.font_width as u32,
-                                self.line_height as u32,
-                            );
-                        }
-                    }
-                }
-            });
+        self.presenter.display_lines(&mut DrawCursor(&self));
     }
 
     /// Compute the number of lines in the window, rounded down.

@@ -21,14 +21,14 @@
 //! This module does not prescribe an order in which the lines are to be rendered.
 
 /// Describe where in which part of a response the line is.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ResponseLocator {
     Lines(usize),
     Screen(usize),
 }
 
 /// Describe where in which part of an interaction the line is.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum InteractionLocator {
     Command(usize),
     Tui(usize),
@@ -38,7 +38,7 @@ pub enum InteractionLocator {
 }
 
 /// Describe where in which part of a converation the line is.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ConversationLocator {
     /// Index of interaction and position in it.
     Interaction(usize, InteractionLocator),
@@ -49,7 +49,7 @@ pub enum ConversationLocator {
 ///
 /// This assumes that responses are only extended at the end to keep referring to the same line
 /// when the locator doesn't change its value.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SessionLocator {
     /// Index of conversation
     pub conversation: usize,
@@ -65,9 +65,7 @@ impl SessionLocator {
     /// Decrement the line parameter in each element by at most `lines`.
     ///
     /// `lines` is updated by the respective amount.
-    ///
-    /// Return true if line has been set to zero.
-    pub fn dec_line(&mut self, lines: &mut usize) -> bool {
+    pub fn dec_line(&mut self, lines: &mut usize) {
         match self.in_conversation {
             ConversationLocator::Prompt(ref mut line)
             | ConversationLocator::Interaction(_, InteractionLocator::Command(ref mut line))
@@ -83,11 +81,9 @@ impl SessionLocator {
                 if lines <= line {
                     *line -= *lines;
                     *lines = 0;
-                    false
                 } else {
                     *lines -= *line;
                     *line = 0;
-                    true
                 }
             }
         }
@@ -96,7 +92,7 @@ impl SessionLocator {
     /// Check if the `line` parameter is zero.
     ///
     /// Return true if line is zero.
-    pub fn is_start_line(&mut self) -> bool {
+    pub fn is_start_line(&self) -> bool {
         match self.in_conversation {
             ConversationLocator::Prompt(line)
             | ConversationLocator::Interaction(_, InteractionLocator::Command(line))

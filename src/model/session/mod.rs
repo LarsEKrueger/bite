@@ -23,6 +23,8 @@ mod interaction;
 mod lineitem;
 mod locator;
 mod response;
+#[cfg(test)]
+pub mod test;
 
 use std::sync::{Arc, Mutex};
 
@@ -245,15 +247,41 @@ impl Session {
         })
     }
 
-    // Return an iterator over the currently visible items.
-    //   pub fn line_iter<'a>(
-    //       &'a self,
-    //       show_last_prompt: bool,
-    //   ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
-    //       let num_conversations = self.conversations.len();
-    //       Box::new(self.conversations.iter().enumerate().flat_map(
+    /// Return a LineItem for the given locator position
+    pub fn display_line<'a>(&'a self, loc: &SessionLocator) -> Option<LineItem<'a>> {
+        if loc.conversation < self.conversations.len() {
+            let conversation = &self.conversations[loc.conversation];
+            let prompt_hash = conversation.prompt_hash;
+            match loc.in_conversation {
+                ConversationLocator::Prompt(line) => {
+                    if line < (conversation.prompt.rows() as usize) {
+                        return Some(LineItem::new(
+                            conversation.prompt.compacted_row_slice(line as isize),
+                            LineType::Prompt,
+                            None,
+                            prompt_hash,
+                        ));
+                    }
+                }
+                ConversationLocator::Interaction(
+                    interaction,
+                    InteractionLocator::Command(line),
+                ) => {}
+                ConversationLocator::Interaction(interaction, InteractionLocator::Tui(_)) => {}
+                ConversationLocator::Interaction(
+                    interaction,
+                    InteractionLocator::Response(ResponseLocator::Lines(_)),
+                ) => {}
+                ConversationLocator::Interaction(
+                    interaction,
+                    InteractionLocator::Response(ResponseLocator::Screen(_)),
+                ) => {}
+            }
+        }
+        None
+    }
+
     //           move |(conversation_index, conversation)| {
-    //               let prompt_hash = conversation.prompt_hash;
     //               let is_last_conv = (conversation_index + 1) >= num_conversations;
     //               let show_this_prompt = !is_last_conv || show_last_prompt;
     //
@@ -267,7 +295,7 @@ impl Session {
     //                       conversation
     //                           .prompt
     //                           .line_iter()
-    //                           .map(move |r| LineItem::new(r, LineType::Prompt, None, prompt_hash))
+    //                           .map(move |r| LineItem::new(r,
     //                           .take_while(move |_| show_this_prompt),
     //                   )
     //           },
@@ -673,111 +701,4 @@ impl SharedSession {
     //          }
     //      })
     //  }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::screen::Screen;
-    use super::response::tests::check;
-    use super::*;
-
-    fn new_test_session(prompt: &[u8]) -> SharedSession {
-        SharedSession(Arc::new(Mutex::new(Session::new(Screen::one_line_matrix(
-            prompt,
-        )))))
-    }
-
-    //   #[test]
-    //   fn line_iter() {
-    //       let mut session = new_test_session(b"prompt 1");
-    //
-    //       let inter_1_1 = session.add_interaction(Screen::one_line_matrix(b"command 1.1"));
-    //       session.add_bytes(
-    //           OutputVisibility::Output,
-    //           inter_1_1,
-    //           b"output 1.1.1\noutput 1.1.2\n",
-    //       );
-    //       let inter_1_2 = session.add_interaction(Screen::one_line_matrix(b"command 1.2"));
-    //       session.add_bytes(
-    //           OutputVisibility::Output,
-    //           inter_1_2,
-    //           b"output 1.2.1\noutput 1.2.2\n",
-    //       );
-    //
-    //       session.new_conversation(Screen::one_line_matrix(b"prompt 2"));
-    //       let inter_2_1 = session.add_interaction(Screen::one_line_matrix(b"command 2.1"));
-    //       session.add_bytes(
-    //           OutputVisibility::Output,
-    //           inter_2_1,
-    //           b"output 2.1.1\noutput 2.1.2\n",
-    //       );
-    //       let inter_2_2 = session.add_interaction(Screen::one_line_matrix(b"command 2.2"));
-    //       session.add_bytes(
-    //           OutputVisibility::Output,
-    //           inter_2_2,
-    //           b"output 2.2.1\noutput 2.2.2\n",
-    //       );
-    //
-    //       session.session_mut((), |s| {
-    //           assert_eq!(s.conversations.len(), 2);
-    //           assert_eq!(s.conversations[0].interactions.len(), 2);
-    //           assert_eq!(s.conversations[1].interactions.len(), 2);
-    //       });
-    //
-    //       let session = session.0.lock().unwrap();
-    //       let mut li = session.line_iter(true);
-    //       check(
-    //           li.next(),
-    //           LineType::Command(
-    //               OutputVisibility::Output,
-    //               InteractionHandle { 0: 0 },
-    //               RunningStatus::Unknown,
-    //           ),
-    //           None,
-    //           "command 1.1",
-    //       );
-    //       check(li.next(), LineType::Output, None, "output 1.1.1");
-    //       check(li.next(), LineType::Output, None, "output 1.1.2");
-    //       check(
-    //           li.next(),
-    //           LineType::Command(
-    //               OutputVisibility::Output,
-    //               InteractionHandle { 0: 1 },
-    //               RunningStatus::Unknown,
-    //           ),
-    //           None,
-    //           "command 1.2",
-    //       );
-    //       check(li.next(), LineType::Output, None, "output 1.2.1");
-    //       check(li.next(), LineType::Output, None, "output 1.2.2");
-    //       check(li.next(), LineType::Prompt, None, "prompt 1");
-    //
-    //       check(
-    //           li.next(),
-    //           LineType::Command(
-    //               OutputVisibility::Output,
-    //               InteractionHandle { 0: 2 },
-    //               RunningStatus::Unknown,
-    //           ),
-    //           None,
-    //           "command 2.1",
-    //       );
-    //       check(li.next(), LineType::Output, None, "output 2.1.1");
-    //       check(li.next(), LineType::Output, None, "output 2.1.2");
-    //       check(
-    //           li.next(),
-    //           LineType::Command(
-    //               OutputVisibility::Output,
-    //               InteractionHandle { 0: 3 },
-    //               RunningStatus::Unknown,
-    //           ),
-    //           None,
-    //           "command 2.2",
-    //       );
-    //       check(li.next(), LineType::Output, None, "output 2.2.1");
-    //       check(li.next(), LineType::Output, None, "output 2.2.2");
-    //       check(li.next(), LineType::Prompt, None, "prompt 2");
-    //       assert_eq!(li.next(), None);
-    //   }
-
 }

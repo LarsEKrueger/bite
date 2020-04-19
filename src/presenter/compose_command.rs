@@ -42,14 +42,6 @@ impl ComposeCommandPresenter {
         Box::new(presenter)
     }
 
-    /// Count the number of items of line_iter would return at most
-    //   fn line_iter_count(&self) -> usize {
-    //       let session = self.commons.session.clone();
-    //       let session = session.0.lock().unwrap();
-    //       let iter = self.line_iter(&session);
-    //       iter.count()
-    //   }
-
     fn is_multi_line(&self) -> bool {
         self.commons.text_input.height() > 1
     }
@@ -387,18 +379,46 @@ impl SubPresenter for ComposeCommandPresenter {
         &mut self.commons
     }
 
-    //   fn line_iter<'a>(
-    //       &'a self,
-    //       session: &'a Session,
-    //       start_row: i32,
-    //       end_row: i32,
-    //   ) -> Box<dyn Iterator<Item = LineItem<'a>> + 'a> {
-    //       Box::new(
-    //           session
-    //               .line_iter(true)
-    //               .chain(self.commons.input_line_iter()),
-    //       )
-    //   }
+    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {
+        // Draw the session
+        let input_height = self.commons.text_input.height() as usize;
+        // TODO: Handle window heights smaller than input_height
+        let session_height = self.commons.window_height - input_height;
+        trace!(
+            "display_lines: input_height = {}, session_height = {}",
+            input_height,
+            session_height
+        );
+        if let Some(mut loc) = self.commons.start_line(session, session_height) {
+            trace!("display_lines: loc={:?}", loc);
+            let mut row = 0;
+            while (row as usize) < session_height {
+                if let Some(display_line) = session.display_line(&loc) {
+                    draw_line.draw_line(row, &DisplayLine::from(display_line));
+                }
+                row += 1;
+                if let Some(new_loc) = PresenterCommons::locate_down(session, &loc, 1) {
+                    loc = new_loc;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Draw the text input
+        let input_start = session_height;
+        for (offs, cells) in self.commons.text_input.line_iter().enumerate() {
+            let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
+                Some(self.commons.text_input.cursor_x() as usize)
+            } else {
+                None
+            };
+            draw_line.draw_line(
+                input_start + offs,
+                &DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0)),
+            );
+        }
+    }
 
     /// If the cursor at the end of the input, and there are predictions, display them.
     //  fn get_overlay(&self, session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {

@@ -62,18 +62,6 @@ impl ExecuteCommandPresenter {
         };
         Box::new(presenter)
     }
-
-    /// Count the number of items of line_iter would return at most
-    //   fn line_iter_count(&self) -> usize {
-    //       let session = self.commons.session.clone();
-    //       let session = session.0.lock().unwrap();
-    //       let iter = self.line_iter(&session);
-    //       iter.count()
-    //   }
-
-    fn deconstruct(self) -> (Box<PresenterCommons>, InteractionHandle) {
-        (self.commons, self.current_interaction)
-    }
 }
 
 impl SubPresenter for ExecuteCommandPresenter {
@@ -89,20 +77,8 @@ impl SubPresenter for ExecuteCommandPresenter {
         &mut self.commons
     }
 
-    //   fn line_iter<'a>(
-    //       &'a self,
-    //       session: &'a Session,
-    //       start_row: i32,
-    //       end_row: i32,
-    //   ) -> Box<dyn Iterator<Item = LineItem> + 'a> {
-    //       trace!("ExecuteCommandPresenter::line_iter");
-    //       Box::new(
-    //           session
-    //               .line_iter(false)
-    //               .chain(self.commons.input_line_iter()),
-    //       )
-    //   }
-    //
+    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {}
+
     //   fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
     //       trace!("ExecuteCommandPresenter::get_overlay");
     //       None
