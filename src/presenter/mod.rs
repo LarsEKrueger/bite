@@ -312,15 +312,19 @@ impl PresenterCommons {
                             }
                         }
                     }
-                    ConversationLocator::Interaction(_, InteractionLocator::Tui(_)) => {}
-                    ConversationLocator::Interaction(
+                    // Output -> Last Line of Command
+                    ConversationLocator::Interaction(_, InteractionLocator::Tui(_))
+                    | ConversationLocator::Interaction(
                         _,
                         InteractionLocator::Response(ResponseLocator::Lines(_)),
-                    ) => {}
+                    ) => loc = session.locate_at_command_end(&loc)?,
+                    // Screen -> Last line of lines
                     ConversationLocator::Interaction(
                         _,
                         InteractionLocator::Response(ResponseLocator::Screen(_)),
-                    ) => {}
+                    ) => {
+                        loc = session.locate_at_lines_end(&loc)?;
+                    }
                 }
             } else {
                 loc.dec_line(&mut lines);

@@ -136,18 +136,19 @@ impl Session {
         None
     }
 
-    /// Return a locator and the end of the output of the current interaction
+    /// Return a locator at the end of the output of the current interaction
     pub fn locate_at_output_end(&self, loc: &SessionLocator) -> MaybeSessionLocator {
         if loc.conversation < self.conversations.len() {
-            if let ConversationLocator::Interaction(interaction, _) = loc.in_conversation {
-                if interaction < self.conversations[loc.conversation].interactions.len() {
+            if let ConversationLocator::Interaction(interaction_index, _) = loc.in_conversation {
+                if interaction_index < self.conversations[loc.conversation].interactions.len() {
                     let interaction_handle =
-                        self.conversations[loc.conversation].interactions[interaction];
+                        self.conversations[loc.conversation].interactions[interaction_index];
                     // If an interaction is a TUI, refer to the screen. Otherwise refer to the
                     // response. This is an invariant that is independent of the display order.
                     let interaction = &self.interactions[interaction_handle.0];
                     let in_interaction = if interaction.tui_mode {
-                        InteractionLocator::Tui(interaction.tui_screen.height() as usize)
+                        let tui_height = interaction.tui_screen.height() as usize;
+                        InteractionLocator::Tui(tui_height)
                     } else {
                         // Use the visible response. If there is none, go to the last line of the
                         // command.
@@ -161,12 +162,75 @@ impl Session {
                             };
                             InteractionLocator::Response(in_response)
                         } else {
+                            let command_height = interaction.command.rows() as usize;
                             // No response visible: Go to last line of command
-                            InteractionLocator::Command(interaction.command.rows() as usize)
+                            InteractionLocator::Command(command_height)
                         }
                     };
                     let in_conversation =
-                        ConversationLocator::Interaction(interaction_handle.0, in_interaction);
+                        ConversationLocator::Interaction(interaction_index, in_interaction);
+                    return Some(SessionLocator {
+                        conversation: loc.conversation,
+                        in_conversation,
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    /// Return a locator at the end of the archived lines of the current interaction
+    pub fn locate_at_lines_end(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            if let ConversationLocator::Interaction(interaction_index, _) = loc.in_conversation {
+                if interaction_index < self.conversations[loc.conversation].interactions.len() {
+                    let interaction_handle =
+                        self.conversations[loc.conversation].interactions[interaction_index];
+                    // If an interaction is a TUI, refer to the screen. Otherwise refer to the
+                    // response. This is an invariant that is independent of the display order.
+                    let interaction = &self.interactions[interaction_handle.0];
+                    let in_interaction = if interaction.tui_mode {
+                        let tui_height = interaction.tui_screen.height() as usize;
+                        InteractionLocator::Tui(tui_height)
+                    } else {
+                        // Use the visible response. If there is none, go to the last line of the
+                        // command.
+                        if let Some(response) = interaction.visible_response() {
+                            InteractionLocator::Response(ResponseLocator::Lines(
+                                response.lines.len(),
+                            ))
+                        } else {
+                            let command_height = interaction.command.rows() as usize;
+                            // No response visible: Go to last line of command
+                            InteractionLocator::Command(command_height)
+                        }
+                    };
+                    let in_conversation =
+                        ConversationLocator::Interaction(interaction_index, in_interaction);
+                    return Some(SessionLocator {
+                        conversation: loc.conversation,
+                        in_conversation,
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    /// Return a locator at the end of the command of the current interaction
+    pub fn locate_at_command_end(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            if let ConversationLocator::Interaction(interaction_index, _) = loc.in_conversation {
+                if interaction_index < self.conversations[loc.conversation].interactions.len() {
+                    let interaction_handle =
+                        self.conversations[loc.conversation].interactions[interaction_index];
+                    // If an interaction is a TUI, refer to the screen. Otherwise refer to the
+                    // response. This is an invariant that is independent of the display order.
+                    let interaction = &self.interactions[interaction_handle.0];
+                    let command_height = interaction.command.rows() as usize;
+                    let in_interaction = InteractionLocator::Command(command_height);
+                    let in_conversation =
+                        ConversationLocator::Interaction(interaction_index, in_interaction);
                     return Some(SessionLocator {
                         conversation: loc.conversation,
                         in_conversation,
@@ -252,30 +316,82 @@ impl Session {
         if loc.conversation < self.conversations.len() {
             let conversation = &self.conversations[loc.conversation];
             let prompt_hash = conversation.prompt_hash;
-            match loc.in_conversation {
+            match &loc.in_conversation {
                 ConversationLocator::Prompt(line) => {
-                    if line < (conversation.prompt.rows() as usize) {
+                    if *line < (conversation.prompt.rows() as usize) {
                         return Some(LineItem::new(
-                            conversation.prompt.compacted_row_slice(line as isize),
+                            conversation.prompt.compacted_row_slice(*line as isize),
                             LineType::Prompt,
                             None,
                             prompt_hash,
                         ));
                     }
                 }
-                ConversationLocator::Interaction(
-                    interaction,
-                    InteractionLocator::Command(line),
-                ) => {}
-                ConversationLocator::Interaction(interaction, InteractionLocator::Tui(_)) => {}
-                ConversationLocator::Interaction(
-                    interaction,
-                    InteractionLocator::Response(ResponseLocator::Lines(_)),
-                ) => {}
-                ConversationLocator::Interaction(
-                    interaction,
-                    InteractionLocator::Response(ResponseLocator::Screen(_)),
-                ) => {}
+                ConversationLocator::Interaction(interaction_index, interaction_locator) => {
+                    if *interaction_index < conversation.interactions.len() {
+                        let interaction_handle = &conversation.interactions[*interaction_index];
+                        if interaction_handle.0 < self.interactions.len() {
+                            let interaction = &self.interactions[interaction_handle.0];
+                            match interaction_locator {
+                                InteractionLocator::Command(line) => {
+                                    if *line < (interaction.command.rows() as usize) {
+                                        let lt = LineType::Command(
+                                            interaction.visible,
+                                            *interaction_handle,
+                                            interaction.running_status.clone(),
+                                        );
+                                        return Some(LineItem::new(
+                                            interaction.command.compacted_row_slice(*line as isize),
+                                            lt,
+                                            None,
+                                            prompt_hash,
+                                        ));
+                                    }
+                                }
+                                InteractionLocator::Tui(line) => {
+                                    if *line < (interaction.tui_screen.height() as usize) {
+                                        return Some(LineItem::new(
+                                            interaction
+                                                .tui_screen
+                                                .compacted_row_slice(*line as isize),
+                                            LineType::Output,
+                                            None,
+                                            prompt_hash,
+                                        ));
+                                    }
+                                }
+                                InteractionLocator::Response(ResponseLocator::Lines(line)) => {
+                                    return interaction.visible_response().and_then(|r| {
+                                        if *line < r.lines.len() {
+                                            Some(LineItem::new(
+                                                &r.lines[*line][..],
+                                                LineType::Output,
+                                                None,
+                                                conversation.prompt_hash,
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    });
+                                }
+                                InteractionLocator::Response(ResponseLocator::Screen(line)) => {
+                                    return interaction.visible_response().and_then(|r| {
+                                        if *line < r.screen.height() as usize {
+                                            Some(LineItem::new(
+                                                &r.screen.compacted_row_slice(*line as isize),
+                                                LineType::Output,
+                                                None,
+                                                conversation.prompt_hash,
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         None

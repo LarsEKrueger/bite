@@ -84,7 +84,7 @@ fn locator() {
     session.add_bytes(
         OutputVisibility::Output,
         inter_2_2,
-        b"output 2.2.1\noutput 2.2.2\n",
+        b"output 2.2.1\noutput 2.2.2",
     );
 
     let session = session.0.lock().unwrap();
@@ -97,7 +97,7 @@ fn locator() {
             in_conversation: ConversationLocator::Prompt(2)
         })
     );
-    let bwd_gt: [GroundTruth; 4] = [
+    let bwd_gt: [GroundTruth; 15] = [
         (
             SessionLocator {
                 conversation: 1,
@@ -116,8 +116,8 @@ fn locator() {
             SessionLocator {
                 conversation: 1,
                 in_conversation: ConversationLocator::Interaction(
-                    3,
-                    InteractionLocator::Response(ResponseLocator::Lines(1)),
+                    1,
+                    InteractionLocator::Response(ResponseLocator::Screen(0)),
                 ),
             },
             "output 2.2.2",
@@ -126,16 +126,123 @@ fn locator() {
             SessionLocator {
                 conversation: 1,
                 in_conversation: ConversationLocator::Interaction(
-                    3,
+                    1,
                     InteractionLocator::Response(ResponseLocator::Lines(0)),
                 ),
             },
             "output 2.2.1",
         ),
+        (
+            SessionLocator {
+                conversation: 1,
+                in_conversation: ConversationLocator::Interaction(
+                    1,
+                    InteractionLocator::Command(0),
+                ),
+            },
+            "command 2.2",
+        ),
+        (
+            SessionLocator {
+                conversation: 1,
+                in_conversation: ConversationLocator::Interaction(
+                    0,
+                    InteractionLocator::Response(ResponseLocator::Lines(1)),
+                ),
+            },
+            "output 2.1.2",
+        ),
+        (
+            SessionLocator {
+                conversation: 1,
+                in_conversation: ConversationLocator::Interaction(
+                    0,
+                    InteractionLocator::Response(ResponseLocator::Lines(0)),
+                ),
+            },
+            "output 2.1.1",
+        ),
+        (
+            SessionLocator {
+                conversation: 1,
+                in_conversation: ConversationLocator::Interaction(
+                    0,
+                    InteractionLocator::Command(0),
+                ),
+            },
+            "command 2.1",
+        ),
+        (
+            SessionLocator {
+                conversation: 0,
+                in_conversation: ConversationLocator::Prompt(0),
+            },
+            "prompt 1",
+        ),
+        (
+            SessionLocator {
+                conversation: 0,
+                in_conversation: ConversationLocator::Interaction(
+                    1,
+                    InteractionLocator::Response(ResponseLocator::Lines(1)),
+                ),
+            },
+            "output 1.2.2",
+        ),
+        (
+            SessionLocator {
+                conversation: 0,
+                in_conversation: ConversationLocator::Interaction(
+                    1,
+                    InteractionLocator::Response(ResponseLocator::Lines(0)),
+                ),
+            },
+            "output 1.2.1",
+        ),
+        (
+            SessionLocator {
+                conversation: 0,
+                in_conversation: ConversationLocator::Interaction(
+                    1,
+                    InteractionLocator::Command(0),
+                ),
+            },
+            "command 1.2",
+        ),
+        (
+            SessionLocator {
+                conversation: 0,
+                in_conversation: ConversationLocator::Interaction(
+                    0,
+                    InteractionLocator::Response(ResponseLocator::Lines(1)),
+                ),
+            },
+            "output 1.1.2",
+        ),
+        (
+            SessionLocator {
+                conversation: 0,
+                in_conversation: ConversationLocator::Interaction(
+                    0,
+                    InteractionLocator::Response(ResponseLocator::Lines(0)),
+                ),
+            },
+            "output 1.1.1",
+        ),
+        (
+            SessionLocator {
+                conversation: 0,
+                in_conversation: ConversationLocator::Interaction(
+                    0,
+                    InteractionLocator::Command(0),
+                ),
+            },
+            "command 1.1",
+        ),
     ];
 
     for i in 0..bwd_gt.len() {
-        println!("  Locator working backwards, step {}", 1+i);
+        println!("  Locator working backwards, step {}", 1 + i);
         let loc = PresenterCommons::locate_up(&session, loc.as_ref().unwrap(), 1 + i);
         assert_eq!(loc, Some(bwd_gt[i].0.clone()));
         assert_eq!(
