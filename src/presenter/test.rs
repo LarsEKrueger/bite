@@ -97,6 +97,8 @@ fn locator() {
             in_conversation: ConversationLocator::Prompt(2)
         })
     );
+
+    // Test the backwards iterator
     let bwd_gt: [GroundTruth; 15] = [
         (
             SessionLocator {
@@ -251,6 +253,39 @@ fn locator() {
                 .expect("display_line should work")
                 .text),
             bwd_gt[i].1
+        );
+    }
+
+    // Test the forward iterator
+    let fwd_loc = PresenterCommons::locate_up(&session, loc.as_ref().unwrap(), bwd_gt.len())
+        .expect("going to the start should have worked");
+    assert_eq!(
+        fwd_loc,
+        bwd_gt
+            .last()
+            .map(|g| g.0.clone())
+            .expect("there should be at least one entry in bwd_gt")
+    );
+    assert_eq!(
+        c2s(session
+            .display_line(&fwd_loc)
+            .expect("display_line should work")
+            .text),
+        bwd_gt
+            .last()
+            .expect("there should be at least one entry in bwd_gt")
+            .1
+    );
+    for i in 1..bwd_gt.len() {
+        println!("  Locator working forward, step {}", i);
+        let loc = PresenterCommons::locate_down(&session, &fwd_loc, i);
+        assert_eq!(loc, Some(bwd_gt[bwd_gt.len() - 1 - i].0.clone()));
+        assert_eq!(
+            c2s(session
+                .display_line(loc.as_ref().unwrap())
+                .expect("display_line should work")
+                .text),
+            bwd_gt[bwd_gt.len() - 1 - i].1
         );
     }
 }

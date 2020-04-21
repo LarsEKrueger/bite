@@ -265,6 +265,202 @@ impl Session {
         None
     }
 
+    /// Return a locator at the first line of the command of the first interaction of the next conversation
+    pub fn locate_at_next_conversation(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        let conversation_index = loc.conversation + 1;
+        if conversation_index < self.conversations.len() {
+            let in_conversation =
+                ConversationLocator::Interaction(0, InteractionLocator::Command(0));
+            return Some(SessionLocator {
+                conversation: conversation_index,
+                in_conversation,
+            });
+        }
+        None
+    }
+
+    /// Return a locator at the start of the output of the current interaction
+    pub fn locate_at_output_start(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            let conversation = &self.conversations[loc.conversation];
+            if let ConversationLocator::Interaction(interaction_index, _) = loc.in_conversation {
+                if interaction_index < conversation.interactions.len() {
+                    let interaction_handle =
+                        self.conversations[loc.conversation].interactions[interaction_index];
+                    if interaction_handle.0 < self.interactions.len() {
+                        let interaction = &self.interactions[interaction_handle.0];
+                        let interaction_locator = if interaction.tui_mode {
+                            InteractionLocator::Tui(0)
+                        } else {
+                            InteractionLocator::Response(ResponseLocator::Lines(0))
+                        };
+                        let in_conversation = ConversationLocator::Interaction(
+                            interaction_index,
+                            interaction_locator,
+                        );
+                        return Some(SessionLocator {
+                            conversation: loc.conversation,
+                            in_conversation,
+                        });
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Return a locator at the start of the next interaction
+    pub fn locate_at_next_interaction(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            let conversation = &self.conversations[loc.conversation];
+            if let ConversationLocator::Interaction(interaction_index, _) = loc.in_conversation {
+                let interaction_index = interaction_index + 1;
+                if interaction_index < conversation.interactions.len() {
+                    let in_conversation = ConversationLocator::Interaction(
+                        interaction_index,
+                        InteractionLocator::Command(0),
+                    );
+                    return Some(SessionLocator {
+                        conversation: loc.conversation,
+                        in_conversation,
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    /// Return a locator at the start of the prompt of the current conversation
+    pub fn locate_at_prompt_start(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            let in_conversation = ConversationLocator::Prompt(0);
+            return Some(SessionLocator {
+                conversation: loc.conversation,
+                in_conversation,
+            });
+        }
+        None
+    }
+
+    /// Return a locator at the start of the screen of the current interaction
+    pub fn locate_at_screen_start(&self, loc: &SessionLocator) -> MaybeSessionLocator {
+        if loc.conversation < self.conversations.len() {
+            let conversation = &self.conversations[loc.conversation];
+            if let ConversationLocator::Interaction(interaction_index, _) = loc.in_conversation {
+                if interaction_index < conversation.interactions.len() {
+                    let in_conversation = ConversationLocator::Interaction(
+                        interaction_index,
+                        InteractionLocator::Response(ResponseLocator::Screen(0)),
+                    );
+                    return Some(SessionLocator {
+                        conversation: loc.conversation,
+                        in_conversation,
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    /// Check if the locator is past the element
+    ///
+    /// Returns None if invalid
+    pub fn locator_is_end_line(&self, loc: &SessionLocator) -> Option<bool> {
+        if loc.conversation < self.conversations.len() {
+            let conversation = &self.conversations[loc.conversation];
+            match &loc.in_conversation {
+                ConversationLocator::Prompt(line) => {
+                    return Some(
+                        *line >= (self.conversations[loc.conversation].prompt.rows() as usize),
+                    )
+                }
+                ConversationLocator::Interaction(interaction_index, interaction_locator) => {
+                    if *interaction_index < conversation.interactions.len() {
+                        let interaction_handle = &conversation.interactions[*interaction_index];
+                        if interaction_handle.0 < self.interactions.len() {
+                            let interaction = &self.interactions[interaction_handle.0];
+                            match &interaction_locator {
+                                InteractionLocator::Command(line) => {
+                                    return Some(*line >= (interaction.command.rows() as usize))
+                                }
+                                InteractionLocator::Tui(line) => {
+                                    return Some(
+                                        *line >= (interaction.tui_screen.height() as usize),
+                                    )
+                                }
+                                InteractionLocator::Response(ResponseLocator::Lines(line)) => {
+                                    return interaction
+                                        .visible_response()
+                                        .and_then(|r| Some(*line >= r.lines.len()))
+                                        .or(Some(true))
+                                }
+                                InteractionLocator::Response(ResponseLocator::Screen(line)) => {
+                                    return interaction
+                                        .visible_response()
+                                        .and_then(|r| Some(*line >= (r.screen.height() as usize)))
+                                        .or(Some(true))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Increment the line field in a locator
+    pub fn locator_inc_line(&self, loc: &mut SessionLocator, lines: &mut usize) {
+        if loc.conversation < self.conversations.len() {
+            let conversation = &self.conversations[loc.conversation];
+            let maybe_line_count: Option<(&mut usize, usize)> = match &mut loc.in_conversation {
+                ConversationLocator::Prompt(line) => Some((
+                    line,
+                    (self.conversations[loc.conversation].prompt.rows() as usize),
+                )),
+                ConversationLocator::Interaction(interaction_index, interaction_locator) => {
+                    if *interaction_index < conversation.interactions.len() {
+                        let interaction_handle = &conversation.interactions[*interaction_index];
+                        if interaction_handle.0 < self.interactions.len() {
+                            let interaction = &self.interactions[interaction_handle.0];
+                            match interaction_locator {
+                                InteractionLocator::Command(line) => {
+                                    Some((line, (interaction.command.rows() as usize)))
+                                }
+                                InteractionLocator::Tui(line) => {
+                                    Some((line, (interaction.tui_screen.height() as usize)))
+                                }
+                                InteractionLocator::Response(ResponseLocator::Lines(line)) => {
+                                    interaction
+                                        .visible_response()
+                                        .and_then(|r| Some((line, r.lines.len())))
+                                }
+                                InteractionLocator::Response(ResponseLocator::Screen(line)) => {
+                                    interaction
+                                        .visible_response()
+                                        .and_then(|r| Some((line, (r.screen.height() as usize))))
+                                }
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+            };
+            if let Some((line, count)) = maybe_line_count {
+                if *line + *lines <= count {
+                    *line += *lines;
+                    *lines = 0;
+                } else {
+                    *lines -= (count - *line);
+                    *line = count;
+                }
+            }
+        }
+    }
+
     /// Quick access to an interaction by handle.
     ///
     /// Returns the default for illegal handles.

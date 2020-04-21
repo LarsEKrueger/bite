@@ -339,8 +339,54 @@ impl PresenterCommons {
     ///
     /// This function encodes the order in which session elements are drawn. It needs to be kept in
     /// sync with locate_up.
-    fn locate_down(session: &Session, line: &SessionLocator, n: usize) -> MaybeSessionLocator {
-        None
+    fn locate_down(
+        session: &Session,
+        loc: &SessionLocator,
+        mut lines: usize,
+    ) -> MaybeSessionLocator {
+        // Go step by step to the next border until lines has been reduced to 0.
+        let mut loc = loc.clone();
+        loop {
+            session.locator_inc_line(&mut loc, &mut lines);
+            if session.locator_is_end_line(&loc)? {
+                // Where we want to go depends on where we are.
+                match loc.in_conversation {
+                    // Prompt -> First command in next conversation
+                    ConversationLocator::Prompt(_) => {
+                        loc = session.locate_at_next_conversation(&loc)?;
+                    }
+                    // Interaction command -> First output line
+                    ConversationLocator::Interaction(_, InteractionLocator::Command(_)) => {
+                        loc = session.locate_at_output_start(&loc)?;
+                    }
+                    // Output --> First line of command in next interaction or conversation prompt.
+                    ConversationLocator::Interaction(
+                        _,
+                        InteractionLocator::Response(ResponseLocator::Screen(_)),
+                    )
+                    | ConversationLocator::Interaction(_, InteractionLocator::Tui(_)) => {
+                        if let Some(new_loc) = session.locate_at_next_interaction(&loc) {
+                            // There was a next interaction
+                            loc = new_loc;
+                        } else {
+                            // Start of conversation prompt
+                            loc = session.locate_at_prompt_start(&loc)?;
+                        }
+                    }
+                    // Lines -> Screen of same interaction
+                    ConversationLocator::Interaction(
+                        _,
+                        InteractionLocator::Response(ResponseLocator::Lines(_)),
+                    ) => {
+                        loc = session.locate_at_screen_start(&loc)?;
+                        // If the screen is empty, the next iteration will fix it.
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+        Some(loc)
     }
 
     pub fn input_line_iter(&self) -> impl Iterator<Item = LineItem> {
