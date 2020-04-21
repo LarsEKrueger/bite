@@ -291,6 +291,7 @@ impl PresenterCommons {
         // Go step by step to the next border until lines has been reduced to 0.
         let mut loc = loc.clone();
         while lines > 0 {
+            let loc_before = loc.clone();
             if loc.is_start_line() {
                 // Where we want to go depends on where we are.
                 match loc.in_conversation {
@@ -328,6 +329,9 @@ impl PresenterCommons {
                 }
             } else {
                 loc.dec_line(&mut lines);
+            }
+            if loc_before == loc {
+                break;
             }
         }
         Some(loc)
@@ -427,14 +431,13 @@ impl PresenterCommons {
                 }
             }
         }
+        // TOOD: Limit to scrollable area
     }
 
     pub fn scroll_down(&mut self, n: usize) {
         if let Some(ref mut loc) = self.session_end_line {
             let session = self.session.0.lock().unwrap();
-            if let Some(new_loc) = Self::locate_down(&session, loc, n) {
-                *loc = new_loc;
-            }
+            self.session_end_line = Self::locate_down(&session, loc, n);
         }
     }
 
