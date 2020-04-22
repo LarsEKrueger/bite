@@ -65,7 +65,7 @@ const PROMPT_SEAM_WIDTH: u32 = 16;
 const COMMAND_SEAM_WIDTH: u32 = 12;
 
 /// Width in pixel of colored seam to draw the prompt color for an input line.
-const INPUT_SEAM_WIDTH: u32 = 10;
+const INPUT_SEAM_WIDTH: u32 = 0;
 
 /// Number of pixels between text and next line
 const LINE_PADDING: i32 = 1;

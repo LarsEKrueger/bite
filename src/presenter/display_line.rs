@@ -58,7 +58,7 @@ lazy_static! {
     static ref ERROR_UNKNOWN_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "E? ".as_bytes());
 
     static ref TUI_PREFIX : Vec<Cell> = Vec::new();
-    static ref INPUT_PREFIX : Vec<Cell> = Vec::new();
+    static ref INPUT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " $ ".as_bytes());
     static ref MENU_DECO_PREFIX : Vec<Cell> = Vec::new();
     static ref MENU_SELECT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec(b"==> ");
     static ref MENU_ITEM_PREFIX : Vec<Cell> = Screen::one_line_cell_vec(b"    ");
