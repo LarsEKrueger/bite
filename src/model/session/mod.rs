@@ -631,6 +631,16 @@ impl Session {
         }
         handle
     }
+
+    pub fn tui_screen<'a>(&'a self, handle: &InteractionHandle) -> Option<&'a Screen> {
+        if handle.0 < self.interactions.len() {
+            let interaction = &self.interactions[handle.0];
+            if interaction.tui_mode {
+                return Some(&self.interactions[handle.0].tui_screen);
+            }
+        }
+        None
+    }
 }
 
 impl SharedSession {
@@ -967,50 +977,4 @@ impl SharedSession {
             }
         })
     }
-
-    // Return the number of visible lines in the given interaction
-    //   pub fn count_visible_lines(&self, handle: InteractionHandle) -> usize {
-    //       self.interaction(handle, 0, |interaction| {
-    //           interaction
-    //               .visible_response()
-    //               .map_or(0, |r| r.count_lines())
-    //       })
-    //   }
-    //
-    //   /// Return last line of last interaction if there is one
-    //   pub fn last_interaction_line(&self) -> Option<(InteractionHandle, usize)> {
-    //       self.session(None, |s| {
-    //           if s.interactions.len() > 0 {
-    //               let n = s.interactions.len() - 1;
-    //               let l = s.interactions[n]
-    //                   .visible_response()
-    //                   .map_or(0, |r| r.count_lines());
-    //               Some((InteractionHandle(n), l))
-    //           } else {
-    //               None
-    //           }
-    //       })
-    //   }
-
-    // Return the last line of the previous interaction if there is one
-    //  pub fn interaction_line_before(
-    //      &self,
-    //      handle: InteractionHandle,
-    //  ) -> Option<(InteractionHandle, usize)> {
-    //      self.session(None, |s| {
-    //          if handle.0 > 0 {
-    //              let n = handle.0 - 1;
-    //              if n < s.interactions.len() {
-    //                  let l = s.interactions[n]
-    //                      .visible_response()
-    //                      .map_or(0, |r| r.count_lines());
-    //                  Some((InteractionHandle(n), l))
-    //              } else {
-    //                  None
-    //              }
-    //          } else {
-    //              None
-    //          }
-    //      })
-    //  }
 }

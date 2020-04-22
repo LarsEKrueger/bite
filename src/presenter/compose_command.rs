@@ -108,6 +108,12 @@ impl ComposeCommandPresenter {
         self.commons.history.predict(&cwd.to_string_lossy(), &line)
     }
 
+    fn compute_session_height(&self) -> usize {
+        let input_height = self.commons.text_input.height() as usize;
+        // TODO: Handle window heights smaller than input_height
+        self.commons.window_height - input_height
+    }
+
     fn event_special_key_prediction(
         &mut self,
         mod_state: &ModifierState,
@@ -249,7 +255,12 @@ impl ComposeCommandPresenter {
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                self.commons.scroll_up(middle);
+                let session_height = self.compute_session_height();
+                self.commons.scroll_up(middle, |session, loc| {
+                    PresenterCommons::locate_up(session, loc, session_height).and_then(|loc| {
+                        PresenterCommons::locate_down(session, &loc, session_height)
+                    })
+                });
                 PresenterCommand::Redraw
             }
 
@@ -381,14 +392,7 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {
         // Draw the session
-        let input_height = self.commons.text_input.height() as usize;
-        // TODO: Handle window heights smaller than input_height
-        let session_height = self.commons.window_height - input_height;
-        trace!(
-            "display_lines: input_height = {}, session_height = {}",
-            input_height,
-            session_height
-        );
+        let session_height = self.compute_session_height();
         if let Some(mut loc) = self.commons.start_line(session, session_height) {
             trace!("display_lines: loc={:?}", loc);
             let mut row = 0;

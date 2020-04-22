@@ -62,6 +62,12 @@ impl ExecuteCommandPresenter {
         };
         Box::new(presenter)
     }
+
+    fn compute_session_height(&self) -> usize {
+        let input_height = self.commons.text_input.height() as usize;
+        // TODO: Handle window heights smaller than input_height
+        self.commons.window_height - input_height
+    }
 }
 
 impl SubPresenter for ExecuteCommandPresenter {
@@ -77,7 +83,39 @@ impl SubPresenter for ExecuteCommandPresenter {
         &mut self.commons
     }
 
-    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {}
+    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {
+        // Draw the session
+        let session_height = self.compute_session_height();
+        if let Some(mut loc) = self.commons.start_line(session, session_height) {
+            trace!("display_lines: loc={:?}", loc);
+            let mut row = 0;
+            while (row as usize) < session_height {
+                if let Some(display_line) = session.display_line(&loc) {
+                    draw_line.draw_line(row, &DisplayLine::from(display_line));
+                }
+                row += 1;
+                if let Some(new_loc) = PresenterCommons::locate_down(session, &loc, 1) {
+                    loc = new_loc;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Draw the text input
+        let input_start = session_height;
+        for (offs, cells) in self.commons.text_input.line_iter().enumerate() {
+            let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
+                Some(self.commons.text_input.cursor_x() as usize)
+            } else {
+                None
+            };
+            draw_line.draw_line(
+                input_start + offs,
+                &DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0)),
+            );
+        }
+    }
 
     //   fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
     //       trace!("ExecuteCommandPresenter::get_overlay");
@@ -113,7 +151,12 @@ impl SubPresenter for ExecuteCommandPresenter {
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                self.commons.scroll_up(middle);
+                let session_height = self.compute_session_height();
+                self.commons.scroll_up(middle, |session, loc| {
+                    PresenterCommons::locate_up(session, loc, session_height).and_then(|loc| {
+                        PresenterCommons::locate_down(session, &loc, session_height)
+                    })
+                });
                 PresenterCommand::Redraw
             }
 

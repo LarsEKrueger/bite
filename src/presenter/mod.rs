@@ -416,18 +416,29 @@ impl PresenterCommons {
     }
 
     /// Change session_end_line by going up n lines. This encodes the order of lines.
-    pub fn scroll_up(&mut self, n: usize) {
-        if let Some(ref mut line) = self.session_end_line {
+    pub fn scroll_up<F>(&mut self, n: usize, f: F)
+    where
+        F: FnOnce(&Session, &SessionLocator) -> MaybeSessionLocator,
+    {
+        if let Some(ref mut loc) = self.session_end_line {
             let session = self.session.0.lock().unwrap();
-            if let Some(new_line) = Self::locate_up(&session, line, n) {
-                *line = new_line;
+            if let Some(new_loc) = Self::locate_up(&session, loc, n) {
+                if let Some(fix_loc) = f(&session, &new_loc) {
+                    *loc = fix_loc;
+                } else {
+                    *loc = new_loc;
+                }
             }
         } else {
             // Initialize past the end of the session, then correct
             let session = self.session.0.lock().unwrap();
-            if let Some(line) = Self::locate_end(&session) {
-                if let Some(line) = Self::locate_up(&session, &line, n) {
-                    self.session_end_line = Some(line);
+            if let Some(loc) = Self::locate_end(&session) {
+                if let Some(loc) = Self::locate_up(&session, &loc, n) {
+                    if let Some(fix_loc) = f(&session, &loc) {
+                        self.session_end_line = Some(fix_loc);
+                    } else {
+                        self.session_end_line = Some(loc);
+                    }
                 }
             }
         }
@@ -597,6 +608,7 @@ impl Presenter {
 
     /// Handle the event that the window was scrolled down.
     pub fn event_scroll_down(&mut self, mod_state: ModifierState) -> NeedRedraw {
+        // TODO: Move into subpresenter
         if mod_state.none_pressed() {
             self.cm().scroll_down(1);
         }
@@ -605,8 +617,9 @@ impl Presenter {
 
     /// Handle the event that the window was scrolled up.
     pub fn event_scroll_up(&mut self, mod_state: ModifierState) -> NeedRedraw {
+        // TODO: Move into subpresenter
         if mod_state.none_pressed() {
-            self.cm().scroll_up(1);
+            self.cm().scroll_up(1, |_, _| None);
         }
         NeedRedraw::Yes
     }

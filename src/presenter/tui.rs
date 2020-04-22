@@ -96,7 +96,24 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         &mut self.commons
     }
 
-    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {}
+    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {
+        if let Some(screen) = session.tui_screen(&self.current_interaction) {
+            for (row, cells) in screen.line_iter_full().enumerate() {
+                if row >= self.commons.window_height {
+                    return;
+                }
+                let cursor_col = if row == (screen.cursor_y() as usize) {
+                    Some(screen.cursor_x() as usize)
+                } else {
+                    None
+                };
+                draw_line.draw_line(
+                    row,
+                    &DisplayLine::from(LineItem::new(cells, LineType::Tui, cursor_col, 0)),
+                );
+            }
+        }
+    }
 
     //   fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
     //       None
