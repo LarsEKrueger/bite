@@ -557,6 +557,9 @@ impl Screen {
         self.matrix.line_iter_full()
     }
 
+    pub fn row_slice(&self, row: isize) -> &[Cell] {
+        self.matrix.row_slice(row)
+    }
     pub fn compacted_row_slice(&self, row: isize) -> &[Cell] {
         self.matrix.compacted_row_slice(row)
     }

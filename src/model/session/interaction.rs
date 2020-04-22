@@ -124,7 +124,7 @@ impl Interaction {
         let show_tui = self.tui_mode;
         let tui_lines = self
             .tui_screen
-            .line_iter()
+            .line_iter_full()
             .map(move |line| LineItem::new(&line[..], LineType::Output, None, prompt_hash))
             .filter(move |_| show_tui);
 
@@ -165,7 +165,7 @@ impl Interaction {
     pub fn exit_cleanup(&mut self) {
         trace!("exit cleanup on interaction");
         if self.tui_mode {
-            for l in self.tui_screen.line_iter() {
+            for l in self.tui_screen.line_iter_full() {
                 self.output.lines.push(l.to_vec());
             }
             self.tui_mode = false;
