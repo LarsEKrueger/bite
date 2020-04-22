@@ -522,20 +522,24 @@ impl Presenter {
     pub fn prepare_cycle(&mut self) -> bool {
         // Determine which sub-presenter show be used
         // If focused_interaction is
-        // * None and interpreter is busy: Show ExecuteCommandPresenter
+        // * None and interpreter is busy: Show ExecuteCommandPresenter or
+        //   TuiExecuteCommandPresenter
         // * None and interpreter is free: Show ComposeCommandPresenter
         // * Some(i) and i is running and i is tui: Show TuiExecuteCommandPresenter
         // * Some(i) and i is running and i is not tui: Show FocusExecuteCommandPresenter (not implemented yet)
         // * Some(i) and i is not running: Show InspectOutputCommandPresenter (not implemented yet)
 
         let sp_type = match self.focused_interaction {
-            None => self
-                .c()
-                .interpreter
-                .is_busy()
-                .map_or(SubPresenterType::ComposeCommandPresenter, |h| {
-                    SubPresenterType::ExecuteCommandPresenter(h)
-                }),
+            None => self.c().interpreter.is_busy().map_or(
+                SubPresenterType::ComposeCommandPresenter,
+                |h| {
+                    if self.c().session.is_tui(h) {
+                        SubPresenterType::TuiExecuteCommandPresenter(h)
+                    } else {
+                        SubPresenterType::ExecuteCommandPresenter(h)
+                    }
+                },
+            ),
             Some(handle) => {
                 if self.c().session.has_exited(handle) {
                     // TODO: Implement InspectOutputCommandPresenter
