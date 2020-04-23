@@ -224,13 +224,6 @@ struct DrawLine<'a>(&'a Gui);
 impl<'a> DrawLineTrait for DrawLine<'a> {
     fn draw_line(&self, row: usize, line: &DisplayLine) {
         self.0.draw_line(row as i32, line);
-    }
-}
-
-struct DrawCursor<'a>(&'a Gui);
-
-impl<'a> DrawLineTrait for DrawCursor<'a> {
-    fn draw_line(&self, row: usize, line: &DisplayLine) {
         self.0.draw_cursor(row as i32, line);
     }
 }
@@ -460,6 +453,7 @@ impl Gui {
             LineType::Prompt => Some(PROMPT_SEAM_WIDTH),
             LineType::Command(_, _, _) => Some(COMMAND_SEAM_WIDTH),
             LineType::Input => Some(INPUT_SEAM_WIDTH),
+            LineType::InputInfo => Some(INPUT_SEAM_WIDTH),
             LineType::MenuDecoration => None,
             LineType::SelectedMenuItem(_) => None,
             LineType::MenuItem(_) => None,
@@ -585,83 +579,6 @@ impl Gui {
         // Draw the text
         let p = &self.presenter;
         p.display_lines(&DrawLine(self));
-
-        // Draw the overlay if there is one
-        self.presenter
-            .display_overlay(|screen_column, top, selection, items| {
-                if !items.is_empty() {
-                    let x = self.font_width * (screen_column as i32) + COLOR_SEAM_WIDTH;
-                    let y = self.line_height * top + LINE_PADDING;
-                    let max_len = items.iter().map(|s| s.len()).max().unwrap();
-                    let w = (max_len as i32) * self.font_width;
-                    let h = (items.len() as i32) * self.line_height;
-
-                    unsafe {
-                        // Draw background
-                        XSetForeground(self.display, self.gc, 0x101020u64);
-                        XFillRectangle(
-                            self.display,
-                            self.window,
-                            self.gc,
-                            x,
-                            y,
-                            w as u32,
-                            h as u32,
-                        );
-                        // Draw frame
-                        let r_ctr = 0xe0i32;
-                        let g_ctr = 0xe0i32;
-                        let b_ctr = 0x00i32;
-                        let r_edg = 0x60i32;
-                        let g_edg = 0x60i32;
-                        let b_edg = 0x60i32;
-                        XSetForeground(self.display, self.gc, 0xe0e000u64);
-                        XDrawRectangle(
-                            self.display,
-                            self.window,
-                            self.gc,
-                            x,
-                            y,
-                            w as u32,
-                            h as u32,
-                        );
-                        // Draw items
-                        for (i, s) in items.iter().enumerate() {
-                            let diff = if i < selection {
-                                selection - i
-                            } else {
-                                i - selection
-                            } as i32;
-
-                            let r_line = r_ctr + ((r_edg - r_ctr) * diff) / (items.len() as i32);
-                            let g_line = g_ctr + ((g_edg - g_ctr) * diff) / (items.len() as i32);
-                            let b_line = b_ctr + ((b_edg - b_ctr) * diff) / (items.len() as i32);
-
-                            XSetForeground(
-                                self.display,
-                                self.gc,
-                                ((r_line << 16) + (g_line << 8) + b_line) as u64,
-                            );
-
-                            let y_line =
-                                y + (i as i32) * self.line_height + self.font_ascent + LINE_PADDING;
-                            Xutf8DrawString(
-                                self.display,
-                                self.window,
-                                self.font_set,
-                                self.gc,
-                                x,
-                                y_line,
-                                s.as_ptr() as *const i8,
-                                s.len() as i32,
-                            )
-                        }
-                    }
-                }
-            });
-
-        // Draw any cursor on top of that
-        self.presenter.display_lines(&mut DrawCursor(&self));
     }
 
     /// Compute the number of lines in the window, rounded down.

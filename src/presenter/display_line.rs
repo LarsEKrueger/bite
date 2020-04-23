@@ -59,6 +59,7 @@ lazy_static! {
 
     static ref TUI_PREFIX : Vec<Cell> = Vec::new();
     static ref INPUT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( " $ ".as_bytes());
+    static ref INPUT_INFO_PREFIX : Vec<Cell> = Screen::one_line_cell_vec( "   ".as_bytes());
     static ref MENU_DECO_PREFIX : Vec<Cell> = Vec::new();
     static ref MENU_SELECT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec(b"==> ");
     static ref MENU_ITEM_PREFIX : Vec<Cell> = Screen::one_line_cell_vec(b"    ");
@@ -124,6 +125,7 @@ impl<'a> DisplayLine<'a> {
             },
 
             LineType::Input => &*INPUT_PREFIX,
+            LineType::InputInfo => &*INPUT_INFO_PREFIX,
             LineType::MenuDecoration => &*MENU_DECO_PREFIX,
             LineType::SelectedMenuItem(_) => &*MENU_SELECT_PREFIX,
             LineType::MenuItem(_) => &*MENU_ITEM_PREFIX,

@@ -37,16 +37,12 @@ impl TuiExecuteCommandPresenter {
         commons: Box<PresenterCommons>,
         current_interaction: InteractionHandle,
     ) -> Box<Self> {
-        let mut presenter = TuiExecuteCommandPresenter {
+        let presenter = TuiExecuteCommandPresenter {
             commons,
             current_interaction,
         };
 
         Box::new(presenter)
-    }
-
-    fn deconstruct(self) -> (Box<PresenterCommons>, InteractionHandle) {
-        (self.commons, self.current_interaction)
     }
 
     fn send_string(&mut self, send: &str) -> PresenterCommand {
@@ -114,10 +110,6 @@ impl SubPresenter for TuiExecuteCommandPresenter {
             }
         }
     }
-
-    //   fn get_overlay(&self, _session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
-    //       None
-    //   }
 
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(

@@ -863,6 +863,13 @@ impl Screen {
         }
     }
 
+    pub fn insert_str(&mut self, s: &str) {
+        for c in s.chars() {
+            self.insert_character();
+            self.place_char(c);
+        }
+    }
+
     /// Ensure that there is room to insert a character at the current position.
     pub fn make_room(&mut self) {
         if self.fixed_size {

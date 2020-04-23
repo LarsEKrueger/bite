@@ -34,6 +34,8 @@ pub enum LineType {
     Output,
     /// The input line.
     Input,
+    /// Additional info about the input line, e.g. predictions, history
+    InputInfo,
 
     /// A menu item that has been selected and its position in the menu.
     SelectedMenuItem(usize),

@@ -120,9 +120,6 @@ trait SubPresenter {
     /// Must not lock PresenterCommons::session or a deadlock ensues
     fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait);
 
-    /// Return info about the overlay to be be drawn.
-    //fn get_overlay(&self, &Session) -> Option<(Vec<String>, usize, usize, i32)>;
-
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
         &mut self,
@@ -209,8 +206,6 @@ enum SubPresenterType {
     ExecuteCommandPresenter(InteractionHandle),
     TuiExecuteCommandPresenter(InteractionHandle),
 }
-
-pub const OVERLAY_RAD: usize = 3;
 
 impl ModifierState {
     /// Returns true if no modifier key is pressed.
@@ -408,11 +403,7 @@ impl PresenterCommons {
     }
 
     fn text_input_add_characters(&mut self, s: &str) {
-        let ref mut screen = self.text_input;
-        for c in s.chars() {
-            screen.insert_character();
-            screen.place_char(c);
-        }
+        self.text_input.insert_str(s);
     }
 
     /// Change session_end_line by going up n lines. This encodes the order of lines.
@@ -569,7 +560,7 @@ impl Presenter {
 
         // The GUI needs to be redrawn if the session has been changed.
         let mut redraw = self.dm().commons_mut().session.check_redraw();
-        // If the new sp_type is different than the old one, transfer ownership from one to the
+        // If the new sp_type is different from the old one, transfer ownership from one to the
         // other.
         if sp_type != self.sp_type {
             trace!("Switching to subpresenter {:?}", sp_type);
@@ -699,32 +690,6 @@ impl Presenter {
         let session = self.c().session.clone();
         let session = session.0.lock().unwrap();
         self.d().display_lines(&session, draw_line);
-    }
-
-    pub fn display_overlay<F>(&self, mut f: F)
-    where
-        F: FnMut(i32, i32, usize, &[String]),
-    {
-        //    let session = self.c().session.clone();
-        //    let session = session.0.lock().unwrap();
-        //    if let Some((items, selection, cursor_row, cursor_col)) = self.d().get_overlay(&session) {
-        //        let screen_row_cursor = (cursor_row - start_line) as i32;
-        //        let item_start_index = if selection > OVERLAY_RAD {
-        //            selection - OVERLAY_RAD
-        //        } else {
-        //            0
-        //        };
-        //        let item_end_index = cmp::min(items.len(), selection + OVERLAY_RAD + 1);
-        //        let rad_selection = selection - item_start_index;
-        //        let top = screen_row_cursor - (rad_selection as i32);
-
-        //        f(
-        //            cursor_col,
-        //            top,
-        //            rad_selection,
-        //            &items[item_start_index..item_end_index],
-        //        );
-        //    }
     }
 }
 

@@ -19,8 +19,6 @@
 //! Organizes the output of a sequence of programs
 
 use super::response::Response;
-use super::InteractionHandle;
-use super::{LineItem, LineType};
 use model::interpreter::jobs::Job;
 use model::screen::{Matrix, Screen};
 
@@ -104,38 +102,6 @@ impl Interaction {
             OutputVisibility::Output => Some(&self.output),
             OutputVisibility::Error => Some(&self.errors),
         }
-    }
-
-    /// Get the iterator over the items in this interaction.
-    fn line_iter<'a>(
-        &'a self,
-        handle: InteractionHandle,
-        prompt_hash: u64,
-    ) -> impl Iterator<Item = LineItem<'a>> {
-        // We always have the command, regardless if there is any output to show.
-        let show_resp = !self.tui_mode;
-        let resp_lines = self
-            .visible_response()
-            .map(|r| r.line_iter(prompt_hash))
-            .into_iter()
-            .flat_map(|i| i)
-            .filter(move |_| show_resp);
-
-        let show_tui = self.tui_mode;
-        let tui_lines = self
-            .tui_screen
-            .line_iter_full()
-            .map(move |line| LineItem::new(&line[..], LineType::Output, None, prompt_hash))
-            .filter(move |_| show_tui);
-
-        let visible = self.visible;
-        let lt = LineType::Command(visible, handle, self.running_status.clone());
-
-        self.command
-            .line_iter()
-            .map(move |r| LineItem::new(r, lt.clone(), None, prompt_hash))
-            .chain(resp_lines)
-            .chain(tui_lines)
     }
 
     /// Check if there are any error lines.

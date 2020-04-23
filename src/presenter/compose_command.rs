@@ -31,6 +31,8 @@ pub struct ComposeCommandPresenter {
     selected_prediction: usize,
 }
 
+const PREDICTION_RAD: usize = 2;
+
 impl ComposeCommandPresenter {
     /// Allocate a sub-presenter for command composition and input to running programs.
     pub fn new(mut commons: Box<PresenterCommons>) -> Box<Self> {
@@ -39,6 +41,7 @@ impl ComposeCommandPresenter {
             commons,
             selected_prediction: 0,
         };
+        presenter.predict();
         Box::new(presenter)
     }
 
@@ -102,16 +105,37 @@ impl ComposeCommandPresenter {
     }
 
     /// Compute prediction based on the current input.
-    fn predict(&self) -> Vec<String> {
+    fn predict(&mut self) {
         let cwd = self.commons.interpreter.get_cwd();
         let line = self.commons.text_input.extract_text_without_last_nl();
-        self.commons.history.predict(&cwd.to_string_lossy(), &line)
+        self.commons.history.predict(&cwd.to_string_lossy(), &line);
+    }
+
+    /// Get latest prediction
+    fn prediction<'a>(&'a self) -> &'a Vec<String> {
+        self.commons.history.prediction()
+    }
+
+    fn compute_predictions_from_to(&self) -> (usize, usize) {
+        let from = if self.selected_prediction > PREDICTION_RAD {
+            self.selected_prediction - PREDICTION_RAD
+        } else {
+            0
+        };
+        let prediction_len = self.commons.history.prediction().len();
+        let to = if self.selected_prediction + PREDICTION_RAD + 1 <= prediction_len {
+            self.selected_prediction + PREDICTION_RAD + 1
+        } else {
+            prediction_len
+        };
+        (from, to)
     }
 
     fn compute_session_height(&self) -> usize {
         let input_height = self.commons.text_input.height() as usize;
+        let (from, to) = self.compute_predictions_from_to();
         // TODO: Handle window heights smaller than input_height
-        self.commons.window_height - input_height
+        self.commons.window_height - input_height - (to - from)
     }
 
     fn event_special_key_prediction(
@@ -123,46 +147,52 @@ impl ComposeCommandPresenter {
             // (shift,control,meta)
             ((false, false, false), SpecialKey::Enter) => {
                 // Take remaining prediction and execute it
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
+                let items = &self.commons.history.prediction();
                 let item = &items[self.selected_prediction];
-                self.commons_mut().text_input_add_characters(item);
-                self.commons_mut().to_last_line();
+                self.commons.text_input.insert_str(item);
+                self.commons.to_last_line();
                 self.execute_input()
             }
             ((false, false, false), SpecialKey::Left) => {
                 // Delete the last character
                 self.commons.text_input.delete_left();
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+                self.predict();
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
                 PresenterCommand::Redraw
             }
             ((false, true, false), SpecialKey::Left) => {
                 self.commons.text_input.delete_word_before_cursor();
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+                self.predict();
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Right) => {
                 // Take the first character from the current prediction
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
+                let items = &self.commons.history.prediction();
                 let item = &items[self.selected_prediction];
                 if let Some(c) = item.chars().next() {
                     self.commons_mut().text_input_add_characters(&c.to_string());
+                    self.predict();
                     PresenterCommand::Redraw
                 } else {
                     PresenterCommand::Unknown
                 }
             }
             ((false, true, false), SpecialKey::Right) => {
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
+                let items = &self.commons.history.prediction();
                 let item = &items[self.selected_prediction];
                 let mut cs = item.chars();
                 // Skip any initial spaces
                 while let Some(c) = cs.next() {
-                    self.commons_mut().text_input_add_characters(&c.to_string());
+                    self.commons.text_input.insert_str(&c.to_string());
                     if c != ' ' {
                         break;
                     }
@@ -172,8 +202,9 @@ impl ComposeCommandPresenter {
                     if c == ' ' {
                         break;
                     }
-                    self.commons_mut().text_input_add_characters(&c.to_string());
+                    self.commons.text_input.insert_str(&c.to_string());
                 }
+                self.predict();
                 PresenterCommand::Redraw
             }
 
@@ -186,9 +217,9 @@ impl ComposeCommandPresenter {
             }
             ((false, false, false), SpecialKey::Down) => {
                 // Increment the selection index
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
-                if self.selected_prediction + 1 < items.len() {
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
+                if self.selected_prediction + 1 < items_len {
                     self.selected_prediction += 1;
                 }
                 PresenterCommand::Redraw
@@ -198,17 +229,20 @@ impl ComposeCommandPresenter {
                 // Delete the whole line
                 self.commons.text_input.reset();
                 self.commons.text_input.make_room();
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+                self.predict();
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
                 PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::End) => {
                 // Take the rest of the prediction
-                let items = self.predict();
-                self.fix_selected_prediction(items.len());
+                let items_len = self.prediction().len();
+                self.fix_selected_prediction(items_len);
+                let items = &self.commons.history.prediction();
                 let item = &items[self.selected_prediction];
-                self.commons_mut().text_input_add_characters(item);
+                self.commons.text_input.insert_str(item);
+                self.predict();
                 PresenterCommand::Redraw
             }
 
@@ -226,6 +260,7 @@ impl ComposeCommandPresenter {
             ((false, false, false), SpecialKey::Enter) => {
                 if self.is_multi_line() {
                     self.commons_mut().text_input.break_line();
+                    self.predict();
                     PresenterCommand::Redraw
                 } else {
                     self.execute_input()
@@ -234,6 +269,7 @@ impl ComposeCommandPresenter {
             ((true, false, false), SpecialKey::Enter) => {
                 // Shift-Enter -> Break the line and thereby start multi-line editing
                 self.commons_mut().text_input.break_line();
+                self.predict();
                 PresenterCommand::Redraw
             }
             ((false, true, false), SpecialKey::Enter) => {
@@ -287,6 +323,7 @@ impl ComposeCommandPresenter {
                 } else {
                     self.commons.text_input.delete_character();
                 }
+                self.predict();
                 PresenterCommand::Redraw
             }
 
@@ -300,6 +337,7 @@ impl ComposeCommandPresenter {
                 } else {
                     self.commons.text_input.delete_left();
                 }
+                self.predict();
                 PresenterCommand::Redraw
             }
 
@@ -409,8 +447,33 @@ impl SubPresenter for ComposeCommandPresenter {
             }
         }
 
+        // Draw the predictions
+        let (from, to) = self.compute_predictions_from_to();
+        let prediction_height = to - from;
+        {
+            let prediction_start = session_height;
+            let line = self.commons.text_input.extract_text_without_last_nl();
+            let mut offs = 0;
+            let items = self.prediction();
+            for index_p in from..to {
+                let cursor_col = if index_p == self.selected_prediction {
+                    Some(line.len())
+                } else {
+                    None
+                };
+                let mut screen = Screen::new();
+                let _ = screen.add_bytes(line.as_bytes());
+                let _ = screen.add_bytes(items[index_p].as_bytes());
+                let cells = screen.freeze().first_row_cell_vec();
+                draw_line.draw_line(
+                    prediction_start + offs,
+                    &DisplayLine::from(LineItem::new(&cells, LineType::InputInfo, cursor_col, 0)),
+                );
+                offs += 1;
+            }
+        }
         // Draw the text input
-        let input_start = session_height;
+        let input_start = session_height + prediction_height;
         for (offs, cells) in self.commons.text_input.line_iter().enumerate() {
             let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
                 Some(self.commons.text_input.cursor_x() as usize)
@@ -423,31 +486,6 @@ impl SubPresenter for ComposeCommandPresenter {
             );
         }
     }
-
-    /// If the cursor at the end of the input, and there are predictions, display them.
-    //  fn get_overlay(&self, session: &Session) -> Option<(Vec<String>, usize, usize, i32)> {
-    //      if self.commons.text_input.cursor_at_end() {
-    //          trace!("ComposeCommandPresenter::get_overlay at end");
-    //          let row =
-    //              session.line_iter(true).count() + (self.commons.text_input.cursor_y() as usize);
-    //          let line = self.commons.text_input.extract_text_without_last_nl();
-    //          trace!("line: »{}«", line);
-
-    //          // Get cwd
-    //          let cwd = self.commons.interpreter.get_cwd();
-
-    //          let items = self.commons.history.predict(&cwd.to_string_lossy(), &line);
-    //          trace!("items: »{:?}«", items);
-    //          Some((
-    //              items,
-    //              self.selected_prediction,
-    //              row,
-    //              self.commons.text_input.cursor_x() as i32,
-    //          ))
-    //      } else {
-    //          None
-    //      }
-    //  }
 
     /// Handle a click.
     ///
@@ -466,7 +504,7 @@ impl SubPresenter for ComposeCommandPresenter {
         key: &SpecialKey,
     ) -> PresenterCommand {
         if self.commons.text_input.cursor_at_end() {
-            if !self.predict().is_empty() {
+            if !self.prediction().is_empty() {
                 return self.event_special_key_prediction(mod_state, key);
             }
         }
@@ -497,8 +535,9 @@ impl SubPresenter for ComposeCommandPresenter {
 
     fn event_text(&mut self, s: &str) -> PresenterCommand {
         self.commons_mut().text_input_add_characters(s);
-        let items = self.predict();
-        self.fix_selected_prediction(items.len());
+        self.predict();
+        let items_len = self.prediction().len();
+        self.fix_selected_prediction(items_len);
         PresenterCommand::Redraw
     }
 }

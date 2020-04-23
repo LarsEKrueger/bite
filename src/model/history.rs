@@ -34,14 +34,26 @@ type CommandCountMap = qptrie::Trie<String, u32>;
 #[derive(Debug)]
 struct EnteredCommands(CommandCountMap);
 
-/// The history is a sorted by folders
+/// History of all entered commands, sorted by folder.
+///
+/// The history is in charge of making predictions of the next command given the start of the
+/// current one. As the prediction will be read on every render, it is cached.
 #[derive(Debug)]
-pub struct History(HashMap<String, EnteredCommands>);
+pub struct History {
+    /// Count frequency of commands, ordered by directory
+    commands: HashMap<String, EnteredCommands>,
+
+    /// Last prediction, most frequent first
+    pub prediction: Vec<String>,
+}
 
 impl History {
     /// Create empty history
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self {
+            commands: HashMap::new(),
+            prediction: Vec::new(),
+        }
     }
 
     /// Load the history from the given file.
@@ -69,28 +81,28 @@ impl History {
 
     /// Enter a command in the history
     pub fn enter(&mut self, dir: &str, cmd: &String) {
-        if !self.0.contains_key(dir) {
-            self.0
+        if !self.commands.contains_key(dir) {
+            self.commands
                 .insert(dir.to_string(), EnteredCommands(CommandCountMap::new()));
         }
-        if let Some(dir_cmds) = self.0.get_mut(dir) {
+        if let Some(dir_cmds) = self.commands.get_mut(dir) {
             dir_cmds.enter(cmd);
         }
     }
 
-    /// Return list of predictions
-    pub fn predict(&self, dir: &str, start: &String) -> Vec<String> {
-        if let Some(ec) = self.0.get(dir) {
-            // trace!(
-            //     "history of »{}« starting with »{}«: {:?}",
-            //     dir,
-            //     start,
-            //     ec
-            // );
-            ec.predict(start)
-        } else {
-            Vec::new()
+    /// Compute a new prediction
+    pub fn predict(&mut self, dir: &str, start: &String) {
+        self.prediction.clear();
+        if let Some(ec) = self.commands.get(dir) {
+            for p in ec.predict(start) {
+                self.prediction.push(p);
+            }
         }
+    }
+
+    /// Get the latest prediction
+    pub fn prediction<'a>(&'a self) -> &'a Vec<String> {
+        &self.prediction
     }
 
     /// As radix_trie does not support serde, obtain a HashMap of HashMaps.
@@ -109,7 +121,10 @@ impl History {
             }
             let _ = hm.insert(dir.to_string(), EnteredCommands(ccm));
         }
-        Ok(History(hm))
+        Ok(History {
+            commands: hm,
+            prediction: Vec::new(),
+        })
     }
 
     /// As radix_trie does not support serde, serialize a HashMap of HashMaps.
@@ -119,7 +134,7 @@ impl History {
     {
         let mut hm = HashMap::new();
 
-        for (dir, cmds) in self.0.iter() {
+        for (dir, cmds) in self.commands.iter() {
             let mut ccm = HashMap::new();
             for (cmd, cnt) in cmds.0.prefix_iter(&String::new()) {
                 let _ = ccm.insert(cmd.to_string(), *cnt);
@@ -140,13 +155,12 @@ impl EnteredCommands {
         }
     }
 
-    fn predict(&self, start: &String) -> Vec<String> {
+    fn predict<'a>(&'a self, start: &'a String) -> impl Iterator<Item = String> + 'a {
         let start_len = start.len();
         self.0
             .prefix_iter(start)
             .sorted_by(|a, b| Ord::cmp(b.1, a.1))
             .map(move |(s, _)| s[start_len..].to_string())
-            .collect()
     }
 }
 
@@ -185,7 +199,7 @@ mod tests {
             trie
         };
 
-        let options = trie.predict(&"ab".to_string());
+        let options: Vec<String> = trie.predict(&"ab".to_string()).collect();
         assert_eq!(options.len(), 3);
         assert_eq!(options[0], "zzz ef");
         assert_eq!(options[1], " ef cd");
@@ -195,7 +209,10 @@ mod tests {
     #[test]
     fn serde() {
         // Build a history
-        let mut history = History(HashMap::new());
+        let mut history = History {
+            commands: HashMap::new(),
+            prediction: Vec::new(),
+        };
 
         history.enter("/home/user", &"ab cd ef".to_string());
         history.enter("/home/user", &"ab cd ef".to_string());
@@ -209,15 +226,11 @@ mod tests {
 
         let maybe_readback = History::deserialize_from(&buffer[..]);
         assert_eq!(maybe_readback.is_ok(), true);
-        if let Ok(readback) = maybe_readback {
-            assert_eq!(
-                readback.predict("/home/user", &String::new()),
-                ["ab cd ef", "cd ef"]
-            );
-            assert_eq!(
-                readback.predict("/home/user/stuff", &String::new()),
-                ["ab cd ef"]
-            );
+        if let Ok(mut readback) = maybe_readback {
+            readback.predict("/home/user", &String::new());
+            assert_eq!(*readback.prediction(), ["ab cd ef", "cd ef"]);
+            readback.predict("/home/user/stuff", &String::new());
+            assert_eq!(*readback.prediction(), vec!["ab cd ef"]);
         }
     }
 }
