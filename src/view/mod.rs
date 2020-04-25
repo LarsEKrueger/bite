@@ -481,21 +481,31 @@ impl Gui {
             }
         }
 
+        let x_offs = if line.is_a == LineType::Tui {
+            0
+        } else {
+            COLOR_SEAM_WIDTH
+        };
         let mut col = 0;
         for cell in line.prefix {
-            self.draw_cell(col as i32, row, cell);
+            self.draw_cell(x_offs, col as i32, row, cell);
             col += 1;
         }
         for cell in line.line.iter() {
-            self.draw_cell(col as i32, row, cell);
+            self.draw_cell(x_offs, col as i32, row, cell);
             col += 1;
         }
     }
 
     fn draw_cursor(&self, row: i32, line: &DisplayLine) {
+        let x_offs = if line.is_a == LineType::Tui {
+            0
+        } else {
+            COLOR_SEAM_WIDTH
+        };
         if let Some(cursor_col) = line.cursor_col {
             // Draw a cursor if requested
-            let x = self.font_width * (cursor_col as i32) + COLOR_SEAM_WIDTH;
+            let x = self.font_width * (cursor_col as i32) + x_offs;
             let y = self.line_height * row + LINE_PADDING;
 
             if self.cursor_on && self.have_focus {
@@ -527,8 +537,8 @@ impl Gui {
     }
 
     /// Draw a single colored cell at the given character position
-    pub fn draw_cell(&self, column: i32, row: i32, cell: &Cell) {
-        let x = self.font_width * column + COLOR_SEAM_WIDTH;
+    pub fn draw_cell(&self, x_offs: i32, column: i32, row: i32, cell: &Cell) {
+        let x = self.font_width * column + x_offs;
         let y = self.line_height * row;
 
         // TODO: Cache colors
@@ -774,6 +784,7 @@ impl Gui {
                                         && 0 <= info.x
                                         && info.x < self.window_width
                                     {
+                                        // TODO: The X coordinate is incorrect in TUI lines
                                         if NeedRedraw::Yes
                                             == self.presenter.event_button_down(
                                                 mod_state,

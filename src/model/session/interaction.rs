@@ -79,9 +79,7 @@ impl Interaction {
     ///
     /// The command is a vector of cells as to support syntax coloring later.
     pub fn new(command: Matrix) -> Self {
-        let mut tui_screen = Screen::new();
-        tui_screen.make_room_for(79, 24);
-        tui_screen.fixed_size();
+        let tui_screen = Screen::new();
         Self {
             command,
             output: Response::new(),
@@ -136,6 +134,14 @@ impl Interaction {
             }
             self.tui_mode = false;
             self.tui_screen.reset();
+        }
+    }
+
+    pub fn set_tui_size(&mut self, w: usize, h: usize) {
+        self.tui_mode = true;
+        self.tui_screen.fixed_size(w, h);
+        if let Some(job) = &mut self.job {
+            job.set_tui_size(w, h);
         }
     }
 }

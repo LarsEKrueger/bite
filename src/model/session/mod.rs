@@ -40,6 +40,9 @@ pub use self::locator::{MaybeSessionLocator, SessionLocator};
 use self::conversation::Conversation;
 use self::interaction::Interaction;
 
+pub const DEFAULT_TUI_WIDTH: usize = 80;
+pub const DEFAULT_TUI_HEIGHT: usize = 25;
+
 /// Session that can be shared between threads
 #[derive(Clone)]
 pub struct SharedSession(pub Arc<Mutex<Session>>);
@@ -57,6 +60,12 @@ pub struct Session {
 
     /// Marker if the session has been changed since the last redraw
     needs_redraw: bool,
+
+    /// Width of window in characters
+    window_width: usize,
+
+    /// Height of window in characters
+    window_height: usize,
 }
 
 /// Index of an interaction in a session.
@@ -78,6 +87,8 @@ impl Session {
             conversations: vec![Conversation::new(prompt)],
             interactions: vec![],
             needs_redraw: true,
+            window_width: DEFAULT_TUI_WIDTH,
+            window_height: DEFAULT_TUI_HEIGHT,
         }
     }
 
@@ -591,35 +602,6 @@ impl Session {
         None
     }
 
-    //           move |(conversation_index, conversation)| {
-    //               let is_last_conv = (conversation_index + 1) >= num_conversations;
-    //               let show_this_prompt = !is_last_conv || show_last_prompt;
-    //
-    //               conversation
-    //                   .interactions
-    //                   .iter()
-    //                   .flat_map(move |interHandle| {
-    //                       self.interactions[interHandle.0].line_iter(*interHandle, prompt_hash)
-    //                   })
-    //                   .chain(
-    //                       conversation
-    //                           .prompt
-    //                           .line_iter()
-    //                           .map(move |r| LineItem::new(r,
-    //                           .take_while(move |_| show_this_prompt),
-    //                   )
-    //           },
-    //       ))
-    //   }
-    //
-    //   pub fn tui_screen<'a>(&'a self, handle: InteractionHandle) -> Option<&Screen> {
-    //       if handle.0 < self.interactions.len() {
-    //           Some(&self.interactions[handle.0].tui_screen)
-    //       } else {
-    //           None
-    //       }
-    //   }
-
     /// Add a new interaction to the latest conversation.
     fn add_interaction_to_last(&mut self, command: Matrix) -> InteractionHandle {
         let handle = InteractionHandle(self.interactions.len());
@@ -777,7 +759,7 @@ impl SharedSession {
                             work = new_work;
                         }
                         AddBytesResult::StartTui(new_work) => {
-                            interaction.tui_mode = true;
+                            interaction.set_tui_size(DEFAULT_TUI_WIDTH, DEFAULT_TUI_HEIGHT);
                             work = new_work;
                         }
                     }
@@ -974,5 +956,24 @@ impl SharedSession {
                 }
             }
         })
+    }
+
+    pub fn set_window_size(&mut self, w: usize, h: usize) {
+        self.session_mut((), |s| {
+            s.window_width = w;
+            s.window_height = h;
+        });
+    }
+
+    pub fn window_size(&self) -> (usize, usize) {
+        self.session((80, 25), |s| (s.window_width, s.window_height))
+    }
+
+    pub fn set_tui_size(&mut self, handle: InteractionHandle, w: usize, h: usize) {
+        self.interaction_mut(handle, (), |interaction| interaction.set_tui_size(w, h))
+    }
+
+    pub fn set_tui_size_default(&mut self, handle: InteractionHandle) {
+        self.set_tui_size(handle, DEFAULT_TUI_WIDTH, DEFAULT_TUI_HEIGHT);
     }
 }

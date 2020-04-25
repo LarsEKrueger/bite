@@ -50,6 +50,7 @@ extern crate serde;
 
 extern crate glob;
 
+#[macro_use]
 extern crate nix;
 
 extern crate nom;

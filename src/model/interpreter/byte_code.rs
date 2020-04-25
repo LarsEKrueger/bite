@@ -18,7 +18,10 @@
 
 //! Byte Code for Shell Scripts
 
-use super::super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
+use super::super::session::{
+    InteractionHandle, OutputVisibility, RunningStatus, SharedSession, DEFAULT_TUI_HEIGHT,
+    DEFAULT_TUI_WIDTH,
+};
 use super::data_stack::Stack;
 use super::jobs;
 use super::parser::{
@@ -274,7 +277,11 @@ impl Runner {
                     }
                     self.check_error(
                         interaction,
-                        jobs::PipelineBuilder::new(interaction),
+                        jobs::PipelineBuilder::new(
+                            interaction,
+                            DEFAULT_TUI_WIDTH,
+                            DEFAULT_TUI_HEIGHT,
+                        ),
                         |runner, pb| runner.current_pipeline = Some(pb),
                     );
                 }
@@ -306,7 +313,7 @@ impl Runner {
                     if let Some(ref mut pb) = self.current_pipeline {
                         let args = self.launchpad.args.drain(0..).map(|mut w| w.remove(0));
                         // Start the pipeline
-                        let res = pb.start(*is_last, args);
+                        let res = pb.start(*is_last, DEFAULT_TUI_WIDTH, DEFAULT_TUI_HEIGHT, args);
                         self.check_error(interaction, res, |_, _| {});
                     } else {
                         error!("No pipeline builder in Exec");

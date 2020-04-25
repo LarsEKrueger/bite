@@ -34,9 +34,11 @@ pub struct TuiExecuteCommandPresenter {
 
 impl TuiExecuteCommandPresenter {
     pub fn new(
-        commons: Box<PresenterCommons>,
+        mut commons: Box<PresenterCommons>,
         current_interaction: InteractionHandle,
     ) -> Box<Self> {
+        let (ww, wh) = commons.session.window_size();
+        commons.session.set_tui_size(current_interaction, ww, wh);
         let presenter = TuiExecuteCommandPresenter {
             commons,
             current_interaction,

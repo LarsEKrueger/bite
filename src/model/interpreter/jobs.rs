@@ -22,7 +22,7 @@ use libc::c_uchar;
 use nix::fcntl::{open, OFlag};
 use nix::pty::{grantpt, posix_openpt, ptsname, unlockpt};
 use nix::sys::select::{select, FdSet};
-use nix::sys::signal::{kill, Signal};
+use nix::sys::signal::{killpg, Signal};
 use nix::sys::stat::Mode;
 use nix::sys::time::{TimeVal, TimeValLike};
 use nix::sys::wait::{waitpid, WaitStatus};
@@ -31,6 +31,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::mem;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread::{spawn, JoinHandle};
@@ -47,6 +48,9 @@ use super::builtins::BuiltinRunner;
 pub struct Job {
     /// Pseudo terminal handle for sending data to stdin of the whole pipeline.
     stdin_bite_side: RawFd,
+
+    /// Other PTYs, mostly for changing the terminal size
+    other_bite_side: Vec<RawFd>,
 
     /// Children for termination
     children: Vec<u32>,
@@ -224,6 +228,20 @@ fn create_handle_pair() -> Result<PtsPair, String> {
     })
 }
 
+use nix::libc::{c_ushort, winsize, TIOCSWINSZ};
+ioctl_write_ptr_bad!(ioctl_set_winsize, TIOCSWINSZ, winsize);
+
+fn set_winsize(fd: RawFd, width: usize, height: usize) {
+    let ws = winsize {
+        ws_row: height as c_ushort,
+        ws_col: width as c_ushort,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    let res = unsafe { ioctl_set_winsize(fd, &ws) };
+    trace!("set_winsize({}x{}): {:?}", width, height, res);
+}
+
 /// Read from a RawFd until fails and send to session
 fn read_data(
     fd: RawFd,
@@ -289,8 +307,15 @@ impl std::fmt::Debug for ProgramOrBuiltin {
 
 impl PipelineBuilder {
     /// Prepare a new pipeline
-    pub fn new(interaction_handle: InteractionHandle) -> Result<Self, String> {
+    pub fn new(
+        interaction_handle: InteractionHandle,
+        window_width: usize,
+        window_height: usize,
+    ) -> Result<Self, String> {
         let stdin_pair = create_handle_pair()?;
+
+        // Set window size on bite side of PTY
+        set_winsize(stdin_pair.bite_side, window_width, window_height);
 
         Ok(Self {
             interaction_handle,
@@ -324,7 +349,13 @@ impl PipelineBuilder {
     ///
     /// If it's the last program in the pipeline, connect to the command_side of the stdout/stderr
     /// pts, otherwise create them as pipes.
-    pub fn start<I, S>(&mut self, is_last: bool, args: I) -> Result<(), String>
+    pub fn start<I, S>(
+        &mut self,
+        is_last: bool,
+        window_width: usize,
+        window_height: usize,
+        args: I,
+    ) -> Result<(), String>
     where
         I: IntoIterator<Item = S> + std::fmt::Debug,
         S: AsRef<OsStr>,
@@ -335,7 +366,12 @@ impl PipelineBuilder {
                 Err("Internal error".to_string())
             }
             ProgramOrBuiltin::Program(s) => {
-                trace!("start program »{:}«", s);
+                trace!(
+                    "start program »{:}«, window: {}x{}",
+                    s,
+                    window_width,
+                    window_height
+                );
                 let mut cmd = Command::new(s);
 
                 cmd.args(args)
@@ -345,6 +381,7 @@ impl PipelineBuilder {
                 // If stderr isn't redirected, it will go out to the pts directly.
                 {
                     let stderr_pair = create_handle_pair()?;
+                    set_winsize(stderr_pair.bite_side, window_width, window_height);
                     self.stderr.push(stderr_pair.bite_side);
                     cmd.stderr(unsafe { Stdio::from_raw_fd(stderr_pair.command_side) });
                 }
@@ -353,12 +390,26 @@ impl PipelineBuilder {
                 if is_last {
                     // If this is the last command of the pipeline, create pts for the outputs.
                     let stdout_pair = create_handle_pair()?;
+                    set_winsize(stdout_pair.bite_side, window_width, window_height);
                     self.stdout_bite_side = Some(stdout_pair.bite_side);
 
                     cmd.stdout(unsafe { Stdio::from_raw_fd(stdout_pair.command_side) });
                 } else {
                     cmd.stdout(Stdio::piped());
                 }
+
+                // Set the process group of this process. This makes the process its own program
+                // group. If the command is a shell script, all programs run from that script can
+                // be killed or their screen size changed.
+                unsafe {
+                    cmd.pre_exec(|| {
+                        if -1 == libc::setpgid(0, 0) {
+                            Err(std::io::Error::last_os_error())
+                        } else {
+                            Ok(())
+                        }
+                    })
+                };
 
                 trace!("about to spawn »{:}«", s);
                 let child = cmd.spawn().map_err(as_description)?;
@@ -437,9 +488,17 @@ impl PipelineBuilder {
 
     /// Construct a Job to be stored in the session
     pub fn create_job(&self) -> Job {
+        let mut other_bite_side = Vec::new();
+        if let Some(stdout) = self.stdout_bite_side {
+            other_bite_side.push(stdout);
+        }
+        for e in self.stderr.iter() {
+            other_bite_side.push(e.clone());
+        }
         Job {
             children: self.child_pids().collect(),
             stdin_bite_side: self.stdin_bite_side,
+            other_bite_side,
         }
     }
 
@@ -506,12 +565,25 @@ impl Job {
     /// Terminate all the programs
     pub fn terminate(&self) {
         for pid in self.children.iter() {
-            let _ = kill(Pid::from_raw(*pid as i32), Some(Signal::SIGTERM));
+            let res = killpg(Pid::from_raw(*pid as i32), Some(Signal::SIGTERM));
+            trace!("terminate: killpg({}) = {:?}", pid, res);
         }
     }
 
     /// Send some bytes to the stdin of this job
     pub fn write_stdin(&mut self, bytes: &[u8]) {
         let _ = write(self.stdin_bite_side, bytes);
+    }
+
+    pub fn set_tui_size(&mut self, w: usize, h: usize) {
+        set_winsize(self.stdin_bite_side, w, h);
+        for fd in self.other_bite_side.iter() {
+            set_winsize(fd.clone(), w, h);
+        }
+        for pid in self.children.iter() {
+            trace!("sending SIGWINCH to {}", pid);
+            let res = killpg(Pid::from_raw(*pid as i32), Some(Signal::SIGWINCH));
+            trace!("set_tui_size: killpg({}) = {:?}", pid, res);
+        }
     }
 }

@@ -49,8 +49,7 @@ impl Test {
     /// Create a test object with a fixed-sized screen, then add bytes.
     fn s(w: isize, h: isize, bytes: &[u8]) -> Test {
         let mut s = Screen::new();
-        s.make_room_for(w - 1, h - 1);
-        s.fixed_size();
+        s.fixed_size(w as usize, h as usize);
         s.add_bytes(bytes).unwrap();
         Test(s)
     }

@@ -589,6 +589,7 @@ impl Presenter {
         commons.window_width = width;
         commons.window_height = height;
         commons.button_down = None;
+        commons.session.set_window_size(width, height);
     }
 
     /// Handle the view event when the window regained focus.

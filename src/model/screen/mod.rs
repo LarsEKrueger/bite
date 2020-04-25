@@ -514,8 +514,10 @@ impl Screen {
     }
 
     /// Mark screen as fixed-size
-    pub fn fixed_size(&mut self) {
+    pub fn fixed_size(&mut self, nx: usize, ny: usize) {
         self.fixed_size = true;
+        self.make_room_for((nx - 1) as isize, (ny - 1) as isize);
+        trace!("fixed_size: {}x{}", nx, ny);
     }
 
     /// Get width of matrix
