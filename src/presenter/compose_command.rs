@@ -61,6 +61,7 @@ impl ComposeCommandPresenter {
         let line = self.commons.text_input.extract_text_without_last_nl();
         self.commons.text_input.reset();
         self.commons.text_input.make_room();
+        self.predict();
         trace!("Execute »{}«", line);
         let mut line_with_nl = line.clone();
         line_with_nl.push('\n');
