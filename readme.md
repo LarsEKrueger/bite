@@ -307,7 +307,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Simplify scrolling (None = show last, Some = show that line)
     * [X] Display prediction
     * [X] propagate window size changes to TUI
-    * [ ] Make visibility indicator clickable again
+    * [X] Make visibility indicator clickable again
 * [ ] 0.12 Join parsing and completion
 * [ ] 0.13 Draw GUI using Xft
 * [ ] 0.14 Implement all Screen Actions

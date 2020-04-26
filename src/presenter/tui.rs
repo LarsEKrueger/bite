@@ -113,6 +113,14 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         }
     }
 
+    fn single_display_line<'a, 'b: 'a>(
+        &'a self,
+        session: &'b Session,
+        y: usize,
+    ) -> Option<DisplayLine<'a>> {
+        None
+    }
+
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
         &mut self,

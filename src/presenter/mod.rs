@@ -120,6 +120,13 @@ trait SubPresenter {
     /// Must not lock PresenterCommons::session or a deadlock ensues
     fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait);
 
+    /// Get a single DisplayLine for the given line coordinate
+    fn single_display_line<'a, 'b: 'a>(
+        &'a self,
+        session: &'b Session,
+        y: usize,
+    ) -> Option<DisplayLine<'a>>;
+
     /// Handle the event when a modifier and a special key is pressed.
     fn event_special_key(
         &mut self,
@@ -699,11 +706,7 @@ fn clicked_line_type<T: SubPresenter>(pres: &mut T, y: usize) -> Option<LineType
     // Find the item that was clicked
     let session = pres.commons_mut().session.clone();
     let session = session.0.lock().unwrap();
-    //   let maybe_line = pres
-    //       .line_iter(&session, 0, pres.commons().window_height as i32)
-    //       .nth(y);
-    //   maybe_line.map(|i| i.is_a)
-    None
+    pres.single_display_line(&session, y).map(|i| i.is_a)
 }
 
 /// Check if the response selector has been clicked and update the visibility flags

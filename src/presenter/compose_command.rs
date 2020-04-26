@@ -29,6 +29,9 @@ pub struct ComposeCommandPresenter {
 
     /// Index of selected prediction
     selected_prediction: usize,
+
+    /// Cache of rendered prediction
+    prediction_screen: Screen,
 }
 
 const PREDICTION_RAD: usize = 2;
@@ -40,6 +43,7 @@ impl ComposeCommandPresenter {
         let mut presenter = ComposeCommandPresenter {
             commons,
             selected_prediction: 0,
+            prediction_screen: Screen::new(),
         };
         presenter.predict();
         Box::new(presenter)
@@ -109,6 +113,14 @@ impl ComposeCommandPresenter {
         let cwd = self.commons.interpreter.get_cwd();
         let line = self.commons.text_input.extract_text_without_last_nl();
         self.commons.history.predict(&cwd.to_string_lossy(), &line);
+        self.prediction_screen.reset();
+
+        let line = self.commons.text_input.extract_text_without_last_nl();
+        for item in self.commons.history.prediction() {
+            let _ = self.prediction_screen.add_bytes(line.as_bytes());
+            let _ = self.prediction_screen.add_bytes(item.as_bytes());
+            let _ = self.prediction_screen.add_bytes(b"\n");
+        }
     }
 
     /// Get latest prediction
@@ -468,17 +480,13 @@ impl SubPresenter for ComposeCommandPresenter {
             let prediction_start = session_height + input_height;
             let line = self.commons.text_input.extract_text_without_last_nl();
             let mut offs = 0;
-            let items = self.prediction();
             for index_p in from..to {
                 let cursor_col = if index_p == self.selected_prediction {
                     Some(line.len())
                 } else {
                     None
                 };
-                let mut screen = Screen::new();
-                let _ = screen.add_bytes(line.as_bytes());
-                let _ = screen.add_bytes(items[index_p].as_bytes());
-                let cells = screen.freeze().first_row_cell_vec();
+                let cells = self.prediction_screen.compacted_row_slice(index_p as isize);
                 draw_line.draw_line(
                     prediction_start + offs,
                     &DisplayLine::from(LineItem::new(&cells, LineType::InputInfo, cursor_col, 0)),
@@ -486,6 +494,56 @@ impl SubPresenter for ComposeCommandPresenter {
                 offs += 1;
             }
         }
+    }
+
+    fn single_display_line<'a, 'b: 'a>(
+        &'a self,
+        session: &'b Session,
+        y: usize,
+    ) -> Option<DisplayLine<'a>> {
+        let session_height = self.compute_session_height();
+        if y < session_height {
+            if let Some(loc) = self.commons.start_line(session, session_height) {
+                if let Some(loc) = PresenterCommons::locate_down(session, &loc, y) {
+                    if let Some(display_line) = session.display_line(&loc) {
+                        return Some(DisplayLine::from(display_line));
+                    }
+                }
+            }
+        } else {
+            let input_height = self.commons.text_input.height() as usize;
+            if y < session_height + input_height {
+                let offs = y - session_height;
+                return self.commons.text_input.line_iter().nth(offs).map(|cells| {
+                    let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
+                        Some(self.commons.text_input.cursor_x() as usize)
+                    } else {
+                        None
+                    };
+                    DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0))
+                });
+            } else {
+                let (from, to) = self.compute_predictions_from_to();
+                let prediction_height = to - from;
+                if y < session_height + input_height + prediction_height {
+                    let index_p = y - session_height - input_height + from;
+                    let line = self.commons.text_input.extract_text_without_last_nl();
+                    let cursor_col = if index_p == self.selected_prediction {
+                        Some(line.len())
+                    } else {
+                        None
+                    };
+                    let cells = self.prediction_screen.compacted_row_slice(index_p as isize);
+                    return Some(DisplayLine::from(LineItem::new(
+                        &cells,
+                        LineType::InputInfo,
+                        cursor_col,
+                        0,
+                    )));
+                }
+            }
+        }
+        None
     }
 
     /// Handle a click.
