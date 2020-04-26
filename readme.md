@@ -51,10 +51,11 @@ The following keyboard shortcuts trigger actions:
 Shortcut            | Compose Command                          | Execute Command
 --------------------|------------------------------------------|----------------
 Cursor Left/Right   | Cursor Left/Right in command line        | Cursor Left/Right in input
-Cursor Up/Down      | Open History View                        | ...
-Page Up/Down        | Search History                           | ...
+Cursor Up/Down      | Select a different prediction            | ...
+Shift-Page Up/Down  | Scroll page-wise                         | Scroll page-wise.
 Ctrl-Space          | Toggle output visibility of last command | Toggle output visibility of current command
 Shift-Ctrl-Space    | Toggle output visibility of all commands | Toggle output visibility of all commands
+Ctrl-Tab            | Switch between running background TUIs   | Switch between running background TUIs
 
 ## Configuration
 
@@ -88,12 +89,11 @@ See the next section for the features currently being implemented.
 ## Prerequisites
 
 * Linux (tested on an 64 bit Intel CPU)
-* Rust 1.26
-* Cargo 1.26
-* gcc (tested on gcc-6.4)
-* Internet connection
+* Rust 1.37
+* Cargo 1.37
+* gcc (tested on gcc-8.3)
 
-Other systems might work too (both bash and rust support quite a number of
+Other systems might work too (rust supports quite a number of
 systems), but have not yet been tested.
 
 Building on **Microsoft Windows** will not work.
