@@ -298,10 +298,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [X] 0.8 Completion
 * [X] 0.9 Display output of (non-interactive) background programs
 * [X] 0.10 Make GUI font configurable
-      * [X] Run ini file in top-level interpreter
-      * [X] Set variables
-      * [X] Load font from variable
-* [ ] 0.11 Tabs for TUIs, incl. automatic backgrounding
+* [X] 0.11 Tabs for TUIs, incl. automatic backgrounding
     * [X] Ctrl-Tab through the still running TUIs
     * [X] Allow the foreground program to be selected again
     * [X] Simplify scrolling (None = show last, Some = show that line)
