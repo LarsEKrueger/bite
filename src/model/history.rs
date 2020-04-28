@@ -23,57 +23,76 @@
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs::OpenOptions;
 use std::io::{Read, Write};
-use std::os::unix::fs::OpenOptionsExt;
 
-/// Map a command to the number of times it was entered
-type CommandCountMap = qptrie::Trie<String, u32>;
+use tools::versioned_file;
+
+/// Map a String key to the number of times it was entered
+type KeyCountMap = qptrie::Trie<String, u32>;
 
 /// Zero-cost abstraction around the trie to add some operations
 #[derive(Debug)]
-struct EnteredCommands(CommandCountMap);
+struct Predictor(KeyCountMap);
 
-/// History of all entered commands, sorted by folder.
+/// History of all entered commands, sorted by folder and previous command.
+///
+/// In order to allow commands to be found regardless where and after which command they were
+/// entered, the following qptries are kept:
+///
+/// * directory, previous command, command
+/// * directory, command
+/// * command
+///
+/// In order to distinguish them, the individual parts of the keys are separated by \u{0}.
 ///
 /// The history is in charge of making predictions of the next command given the start of the
 /// current one. As the prediction will be read on every render, it is cached.
 #[derive(Debug)]
 pub struct History {
+    /// Count frequency of commands, ordered by directory, then last command
+    dir_prev_cmd: Predictor,
+
     /// Count frequency of commands, ordered by directory
-    commands: HashMap<String, EnteredCommands>,
+    dir_cmd: Predictor,
+
+    /// Count frequency of commands
+    cmd: Predictor,
+
+    /// Last dir for which a command was entered
+    last_dir: String,
+
+    /// Last command entered
+    last_cmd: String,
 
     /// Last prediction, most frequent first
     pub prediction: Vec<String>,
 }
 
+const HISTORY_FORMAT_100: &str = "BITE HISTORY 1.0.0";
+
 impl History {
     /// Create empty history
     pub fn new() -> Self {
         Self {
-            commands: HashMap::new(),
+            dir_prev_cmd: Predictor::new(),
+            dir_cmd: Predictor::new(),
+            cmd: Predictor::new(),
+            last_dir: String::new(),
+            last_cmd: String::new(),
             prediction: Vec::new(),
         }
     }
 
     /// Load the history from the given file.
     pub fn load(file_name: &str) -> Result<History, String> {
-        let file_handle = OpenOptions::new()
-            .read(true)
-            .custom_flags(libc::O_EXCL)
-            .open(file_name)
+        let file_handle = versioned_file::open(file_name, HISTORY_FORMAT_100)
             .map_err(|e| e.description().to_string())?;
-
         History::deserialize_from(file_handle)
     }
 
     /// Save the history
     pub fn save(&self, file_name: &str) -> Result<(), String> {
-        let file_handle = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(file_name)
+        let file_handle = versioned_file::create(file_name, HISTORY_FORMAT_100)
             .map_err(|e| e.description().to_string())?;
         self.serialize_into(file_handle);
         Ok(())
@@ -81,22 +100,68 @@ impl History {
 
     /// Enter a command in the history
     pub fn enter(&mut self, dir: &str, cmd: &String) {
-        if !self.commands.contains_key(dir) {
-            self.commands
-                .insert(dir.to_string(), EnteredCommands(CommandCountMap::new()));
+        // Prepare the last command of a new directory
+        if self.last_dir != dir {
+            self.last_dir.clear();
+            self.last_dir.push_str(dir);
+            self.last_cmd.clear();
         }
-        if let Some(dir_cmds) = self.commands.get_mut(dir) {
-            dir_cmds.enter(cmd);
-        }
+
+        // Update dir_prev_cmd
+        let mut key = self.last_dir.clone();
+        key.push_str("\0");
+        key.push_str(&self.last_cmd);
+        key.push_str("\0");
+        key.push_str(&cmd);
+        self.dir_prev_cmd.enter(&key);
+
+        // Update dir_cmd, reuse key to save allocations
+        key.clear();
+        key.push_str(&self.last_dir);
+        key.push_str("\0");
+        key.push_str(&cmd);
+        self.dir_cmd.enter(&key);
+
+        // Update cmd
+        self.cmd.enter(cmd);
+
+        // Remember the last command
+        self.last_cmd.clear();
+        self.last_cmd.push_str(cmd);
     }
 
     /// Compute a new prediction
     pub fn predict(&mut self, dir: &str, start: &String) {
         self.prediction.clear();
-        if let Some(ec) = self.commands.get(dir) {
-            for p in ec.predict(start) {
+        // most specific search first
+        if dir == self.last_dir {
+            let mut key = String::new();
+            key.push_str(dir);
+            key.push_str("\0");
+            key.push_str(&self.last_cmd);
+            key.push_str("\0");
+            key.push_str(start);
+            for p in self.dir_prev_cmd.predict(&key) {
                 self.prediction.push(p);
             }
+            if !self.prediction.is_empty() {
+                return;
+            }
+            // Search without previous command, reuse key to reduce allocations
+            key.clear();
+            key.push_str(dir);
+            key.push_str("\0");
+            key.push_str(start);
+            for p in self.dir_cmd.predict(&key) {
+                self.prediction.push(p);
+            }
+            if !self.prediction.is_empty() {
+                return;
+            }
+        }
+        // Search global list
+        for p in self.cmd.predict(start) {
+            self.prediction.push(p);
         }
     }
 
@@ -110,42 +175,64 @@ impl History {
     where
         R: Read,
     {
-        let input: HashMap<String, HashMap<String, u32>> =
+        let hm: HashMap<String, u32> =
             bincode::deserialize_from(reader).map_err(|e| e.description().to_string())?;
-        let mut hm = HashMap::new();
 
-        for (dir, cmds) in input.iter() {
-            let mut ccm = CommandCountMap::new();
-            for (cmd, cnt) in cmds.iter() {
-                let _ = ccm.insert(cmd.to_string(), *cnt);
-            }
-            let _ = hm.insert(dir.to_string(), EnteredCommands(ccm));
+        let mut dir_prev_cmd = Predictor::new();
+        let mut dir_cmd = Predictor::new();
+        let mut cmd = Predictor::new();
+        for (c, n) in hm.iter() {
+            let (pred, key) = if c.starts_with("\0\0") {
+                (&mut cmd, &c[2..])
+            } else if c.starts_with("\0") {
+                (&mut dir_cmd, &c[1..])
+            } else {
+                (&mut dir_prev_cmd, &c[..])
+            };
+            let _ = pred.0.insert(key.to_string(), *n);
         }
         Ok(History {
-            commands: hm,
+            dir_prev_cmd,
+            dir_cmd,
+            cmd,
+            last_dir: String::new(),
+            last_cmd: String::new(),
             prediction: Vec::new(),
         })
     }
 
-    /// As radix_trie does not support serde, serialize a HashMap of HashMaps.
+    /// As radix_trie does not support serde, serialize a HashMap. Use \u{0} prefixes to
+    /// distignuish the entries
     fn serialize_into<W>(&self, writer: W)
     where
         W: Write,
     {
-        let mut hm = HashMap::new();
+        let mut hm: HashMap<String, u32> = HashMap::new();
 
-        for (dir, cmds) in self.commands.iter() {
-            let mut ccm = HashMap::new();
-            for (cmd, cnt) in cmds.0.prefix_iter(&String::new()) {
-                let _ = ccm.insert(cmd.to_string(), *cnt);
-            }
-            let _ = hm.insert(dir.to_string(), ccm);
+        for (c, n) in self.dir_prev_cmd.0.prefix_iter(&String::new()) {
+            let _ = hm.insert(c.to_string(), *n);
+        }
+        for (c, n) in self.dir_cmd.0.prefix_iter(&String::new()) {
+            let mut key = String::new();
+            key.push_str("\0");
+            key.push_str(c);
+            let _ = hm.insert(key, *n);
+        }
+        for (c, n) in self.cmd.0.prefix_iter(&String::new()) {
+            let mut key = String::new();
+            key.push_str("\0\0");
+            key.push_str(c);
+            let _ = hm.insert(key, *n);
         }
         let _ = bincode::serialize_into(writer, &hm);
     }
 }
 
-impl EnteredCommands {
+impl Predictor {
+    fn new() -> Self {
+        Self(KeyCountMap::new())
+    }
+
     /// Put the string in the map, increment the count if it was already there.
     fn enter(&mut self, command: &String) {
         if let Some(counter) = self.0.get_mut(command) {
@@ -170,7 +257,7 @@ mod tests {
 
     #[test]
     fn enter() {
-        let mut trie = EnteredCommands(CommandCountMap::new());
+        let mut trie = Predictor::new();
 
         trie.enter(&"ab cd ef".to_string());
         trie.enter(&"ab cd ef".to_string());
@@ -187,7 +274,7 @@ mod tests {
     #[test]
     fn predict() {
         let trie = {
-            let mut trie = EnteredCommands(CommandCountMap::new());
+            let mut trie = Predictor::new();
 
             trie.enter(&"abzzz ef".to_string());
             trie.enter(&"abzzz ef".to_string());
@@ -209,11 +296,7 @@ mod tests {
     #[test]
     fn serde() {
         // Build a history
-        let mut history = History {
-            commands: HashMap::new(),
-            prediction: Vec::new(),
-        };
-
+        let mut history = History::new();
         history.enter("/home/user", &"ab cd ef".to_string());
         history.enter("/home/user", &"ab cd ef".to_string());
         history.enter("/home/user", &"ab cd ef".to_string());
@@ -226,11 +309,59 @@ mod tests {
 
         let maybe_readback = History::deserialize_from(&buffer[..]);
         assert_eq!(maybe_readback.is_ok(), true);
-        if let Ok(mut readback) = maybe_readback {
-            readback.predict("/home/user", &String::new());
-            assert_eq!(*readback.prediction(), ["ab cd ef", "cd ef"]);
-            readback.predict("/home/user/stuff", &String::new());
-            assert_eq!(*readback.prediction(), vec!["ab cd ef"]);
+        if let Ok(readback) = maybe_readback {
+            for ((k_gt, v_gt), (k, v)) in history
+                .dir_prev_cmd
+                .0
+                .prefix_iter(&String::new())
+                .zip(readback.dir_prev_cmd.0.prefix_iter(&String::new()))
+            {
+                assert_eq!(k_gt, k);
+                assert_eq!(v_gt, v);
+            }
+            for ((k_gt, v_gt), (k, v)) in history
+                .dir_cmd
+                .0
+                .prefix_iter(&String::new())
+                .zip(readback.dir_cmd.0.prefix_iter(&String::new()))
+            {
+                assert_eq!(k_gt, k);
+                assert_eq!(v_gt, v);
+            }
+            for ((k_gt, v_gt), (k, v)) in history
+                .cmd
+                .0
+                .prefix_iter(&String::new())
+                .zip(readback.cmd.0.prefix_iter(&String::new()))
+            {
+                assert_eq!(k_gt, k);
+                assert_eq!(v_gt, v);
+            }
         }
+    }
+
+    #[test]
+    fn zero_sep() {
+        let mut ccm = KeyCountMap::new();
+        assert_eq!(ccm.insert("abc\0def\0xyz".to_string(), 1), true);
+        assert_eq!(ccm.insert("abc\0def\0001".to_string(), 2), true);
+        assert_eq!(ccm.insert("abc\0def\0002".to_string(), 3), true);
+        assert_eq!(ccm.insert("def\0abc\0xyz".to_string(), 3), true);
+
+        let start = String::from("ab");
+        let mut pref_abc = ccm.prefix_iter(&start).sorted_by(|a, b| Ord::cmp(a.0, b.0));
+        assert_eq!(
+            pref_abc.next(),
+            Some((&("abc\0def\0001".to_string()), &2u32))
+        );
+        assert_eq!(
+            pref_abc.next(),
+            Some((&("abc\0def\0002".to_string()), &3u32))
+        );
+        assert_eq!(
+            pref_abc.next(),
+            Some((&("abc\0def\0xyz".to_string()), &1u32))
+        );
+        assert_eq!(pref_abc.next(), None);
     }
 }

@@ -19,12 +19,18 @@
 //! Helper functions to work with files that start with a format-describing header.
 
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{Error, ErrorKind, Read, Result, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 /// Create a file and write the file format header
 pub fn create<P: AsRef<Path>>(path: P, format_string: &str) -> Result<File> {
-    let mut file = File::create(path)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)?;
 
     let format_string_len = format_string.len();
     let file_format_len = file.write(format_string.as_bytes())?;
@@ -38,7 +44,10 @@ pub fn create<P: AsRef<Path>>(path: P, format_string: &str) -> Result<File> {
 
 /// Open a file and check if it begins with the desired header
 pub fn open<P: AsRef<Path>>(path: P, format_string: &str) -> Result<File> {
-    let mut file = File::open(path)?;
+    let mut file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_EXCL)
+        .open(path)?;
 
     let format_string_len = format_string.len();
     // Read the first format_string_len bytes and compare them to format_string
