@@ -305,7 +305,8 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Display prediction
     * [X] propagate window size changes to TUI
     * [X] Make visibility indicator clickable again
-* [ ] 0.12 Join parsing and completion
+* [ ] 0.12 Better prediction / completion
+    * [X] Predict using previous command
 * [ ] 0.13 Draw GUI using Xft
 * [ ] 0.14 Implement all Screen Actions
 * [ ] 0.15 Redesign user interface
