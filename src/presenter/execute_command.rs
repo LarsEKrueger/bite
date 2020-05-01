@@ -18,8 +18,12 @@
 
 //! Sub presenter for executing programs.
 
-use super::*;
-use model::session::InteractionHandle;
+use model::screen::Matrix;
+use model::session::{InteractionHandle, Session};
+use presenter::{
+    check_response_clicked, DisplayLine, DrawLineTrait, LineItem, LineType, ModifierState,
+    NeedRedraw, PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
+};
 
 /// Presenter to run commands and send input to their stdin.
 #[allow(dead_code)]
@@ -45,20 +49,6 @@ impl ExecuteCommandPresenter {
             commons,
             current_interaction,
             next_prompt: None,
-        };
-        Box::new(presenter)
-    }
-
-    pub fn new_with_interaction(
-        mut commons: Box<PresenterCommons>,
-        current_interaction: InteractionHandle,
-        next_prompt: Option<Matrix>,
-    ) -> Box<Self> {
-        commons.to_last_line();
-        let presenter = ExecuteCommandPresenter {
-            commons,
-            current_interaction,
-            next_prompt,
         };
         Box::new(presenter)
     }
@@ -156,9 +146,9 @@ impl SubPresenter for ExecuteCommandPresenter {
                 let middle = self.commons.window_height / 2;
                 let session_height = self.compute_session_height();
                 self.commons.scroll_up(false, middle, |session, loc| {
-                    PresenterCommons::locate_up(session, loc, session_height).and_then(
-                        |loc| PresenterCommons::locate_down(session, &loc, false, session_height),
-                    )
+                    PresenterCommons::locate_up(session, loc, session_height).and_then(|loc| {
+                        PresenterCommons::locate_down(session, &loc, false, session_height)
+                    })
                 });
                 PresenterCommand::Redraw
             }

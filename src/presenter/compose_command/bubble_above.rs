@@ -16,11 +16,16 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//! Sub presenter for composing commands.
+//! Sub presenter for composing commands. Variant shows history above prompt, based on bubble-up
+//! stack.
 
-use super::*;
 use model::interpreter::parse_script;
-use model::session::{OutputVisibility, RunningStatus};
+use model::screen::Screen;
+use model::session::{OutputVisibility, RunningStatus, Session};
+use presenter::{
+    check_response_clicked, DisplayLine, DrawLineTrait, LineItem, LineType, ModifierState,
+    NeedRedraw, PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
+};
 
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
@@ -46,6 +51,12 @@ impl ComposeCommandPresenter {
             prediction_screen: Screen::new(),
         };
         presenter.predict();
+        let items_len = presenter.prediction().len();
+        if items_len == 0 {
+            presenter.selected_prediction = 0;
+        } else {
+            presenter.selected_prediction = items_len - 1;
+        }
         Box::new(presenter)
     }
 
@@ -111,9 +122,8 @@ impl ComposeCommandPresenter {
 
     /// Compute prediction based on the current input.
     fn predict(&mut self) {
-        let cwd = self.commons.interpreter.get_cwd();
         let line = self.commons.text_input.extract_text_without_last_nl();
-        self.commons.history.predict(&cwd.to_string_lossy(), &line);
+        self.commons.history.predict_bubble_up(&line);
         self.prediction_screen.reset();
 
         let line = self.commons.text_input.extract_text_without_last_nl();
@@ -306,9 +316,9 @@ impl ComposeCommandPresenter {
                 let middle = self.commons.window_height / 2;
                 let session_height = self.compute_session_height();
                 self.commons.scroll_up(true, middle, |session, loc| {
-                    PresenterCommons::locate_up(session, loc, session_height).and_then(
-                        |loc| PresenterCommons::locate_down(session, &loc, true, session_height),
-                    )
+                    PresenterCommons::locate_up(session, loc, session_height).and_then(|loc| {
+                        PresenterCommons::locate_down(session, &loc, true, session_height)
+                    })
                 });
                 PresenterCommand::Redraw
             }
@@ -460,25 +470,11 @@ impl SubPresenter for ComposeCommandPresenter {
             }
         }
 
-        // Draw the text input
-        let input_start = session_height;
-        for (offs, cells) in self.commons.text_input.line_iter().enumerate() {
-            let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
-                Some(self.commons.text_input.cursor_x() as usize)
-            } else {
-                None
-            };
-            draw_line.draw_line(
-                input_start + offs,
-                &DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0)),
-            );
-        }
-
         // Draw the predictions
         let (from, to) = self.compute_predictions_from_to();
-        let input_height = self.commons.text_input.height() as usize;
+        let prediction_height = to - from;
         {
-            let prediction_start = session_height + input_height;
+            let prediction_start = session_height;
             let line = self.commons.text_input.extract_text_without_last_nl();
             let mut offs = 0;
             for index_p in from..to {
@@ -494,6 +490,20 @@ impl SubPresenter for ComposeCommandPresenter {
                 );
                 offs += 1;
             }
+        }
+
+        // Draw the text input
+        let input_start = session_height + prediction_height;
+        for (offs, cells) in self.commons.text_input.line_iter().enumerate() {
+            let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
+                Some(self.commons.text_input.cursor_x() as usize)
+            } else {
+                None
+            };
+            draw_line.draw_line(
+                input_start + offs,
+                &DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0)),
+            );
         }
     }
 
@@ -512,35 +522,35 @@ impl SubPresenter for ComposeCommandPresenter {
                 }
             }
         } else {
-            let input_height = self.commons.text_input.height() as usize;
-            if y < session_height + input_height {
-                let offs = y - session_height;
-                return self.commons.text_input.line_iter().nth(offs).map(|cells| {
-                    let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
-                        Some(self.commons.text_input.cursor_x() as usize)
-                    } else {
-                        None
-                    };
-                    DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0))
-                });
+            let (from, to) = self.compute_predictions_from_to();
+            let prediction_height = to - from;
+            if y < session_height + prediction_height {
+                let index_p = y - session_height + from;
+                let line = self.commons.text_input.extract_text_without_last_nl();
+                let cursor_col = if index_p == self.selected_prediction {
+                    Some(line.len())
+                } else {
+                    None
+                };
+                let cells = self.prediction_screen.compacted_row_slice(index_p as isize);
+                return Some(DisplayLine::from(LineItem::new(
+                    &cells,
+                    LineType::InputInfo,
+                    cursor_col,
+                    0,
+                )));
             } else {
-                let (from, to) = self.compute_predictions_from_to();
-                let prediction_height = to - from;
-                if y < session_height + input_height + prediction_height {
-                    let index_p = y - session_height - input_height + from;
-                    let line = self.commons.text_input.extract_text_without_last_nl();
-                    let cursor_col = if index_p == self.selected_prediction {
-                        Some(line.len())
-                    } else {
-                        None
-                    };
-                    let cells = self.prediction_screen.compacted_row_slice(index_p as isize);
-                    return Some(DisplayLine::from(LineItem::new(
-                        &cells,
-                        LineType::InputInfo,
-                        cursor_col,
-                        0,
-                    )));
+                let input_height = self.commons.text_input.height() as usize;
+                if y < session_height + prediction_height + input_height {
+                    let offs = y - session_height - prediction_height;
+                    return self.commons.text_input.line_iter().nth(offs).map(|cells| {
+                        let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
+                            Some(self.commons.text_input.cursor_x() as usize)
+                        } else {
+                            None
+                        };
+                        DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0))
+                    });
                 }
             }
         }

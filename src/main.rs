@@ -192,6 +192,20 @@ pub fn main() {
         .find_variable("BITE_FONT")
         .map(|v| v.as_string().clone());
 
+    // Extract the feature flags
+    let feat_compose_variant = interpreter
+        .runner
+        .shell_stack
+        .find_variable("BITE_FEAT_COMPOSE")
+        .map_or(presenter::ComposeVariant::BubbleAbove, |v| {
+            if v.as_string() == "markov_below" {
+                presenter::ComposeVariant::MarkovBelow
+            } else {
+                presenter::ComposeVariant::BubbleAbove
+            }
+        });
+    trace!("BITE_FEAT_COMPOSE: {:?}", feat_compose_variant);
+
     // Transfer the interpreter to the background thread
     let interpreter = interpreter.complete_startup();
 
@@ -213,7 +227,13 @@ pub fn main() {
     };
 
     // Start the gui
-    let mut gui = match ::view::Gui::new(session, interpreter, history, fontname) {
+    let mut gui = match ::view::Gui::new(
+        session,
+        interpreter,
+        history,
+        fontname,
+        feat_compose_variant,
+    ) {
         Err(err) => {
             error!("Can't init GUI: {}", err);
             println!("Can't init GUI: {}", err);

@@ -33,6 +33,7 @@ use model::history::History;
 use model::interpreter::InteractiveInterpreter;
 use model::screen::Cell;
 use model::session::{LineType, SharedSession};
+use presenter;
 use presenter::display_line::*;
 use presenter::{
     DrawLineTrait, ModifierState, NeedRedraw, Presenter, PresenterCommand, SpecialKey,
@@ -251,6 +252,7 @@ impl Gui {
         interpreter: InteractiveInterpreter,
         history: History,
         user_font_name: Option<String>,
+        feat_compose_variant: presenter::ComposeVariant,
     ) -> Result<Gui, String> {
         let WM_PROTOCOLS = cstr!("WM_PROTOCOLS");
         let WM_DELETE_WINDOW = cstr!("WM_DELETE_WINDOW");
@@ -261,8 +263,14 @@ impl Gui {
         let presenter = {
             // Only the presenter needs to know the term info for TUI applications.
             let term_info = TermInfo::from_name("xterm").map_err(|e| format!("{}", e))?;
-            Presenter::new(session, interpreter, history, term_info)
-                .or_else(|e| Err(e.readable("during initialisation")))
+            Presenter::new(
+                session,
+                interpreter,
+                history,
+                term_info,
+                feat_compose_variant,
+            )
+            .or_else(|e| Err(e.readable("during initialisation")))
         }?;
 
         unsafe {

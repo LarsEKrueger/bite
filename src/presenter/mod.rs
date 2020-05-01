@@ -32,7 +32,8 @@ mod test;
 use std::fmt::{Display, Formatter};
 use term::terminfo::TermInfo;
 
-use self::compose_command::ComposeCommandPresenter;
+use self::compose_command::bubble_above;
+use self::compose_command::markov_below;
 use self::display_line::*;
 use self::execute_command::ExecuteCommandPresenter;
 use self::tui::TuiExecuteCommandPresenter;
@@ -99,6 +100,13 @@ pub enum PresenterCommand {
 
     /// Exit bite
     Exit,
+}
+
+/// Feature flag
+#[derive(Debug)]
+pub enum ComposeVariant {
+    MarkovBelow,
+    BubbleAbove,
 }
 
 /// Trait to split the big presenter into several small ones.
@@ -206,6 +214,9 @@ pub struct Presenter {
     subpresenter: Option<Box<dyn SubPresenter>>,
     /// Current sub-presenter type
     sp_type: SubPresenterType,
+
+    /// Feature flag: ComposeCommandPresenter Variant
+    feat_compose_variant: ComposeVariant,
 }
 
 /// Enum to fake C++'s typeof
@@ -301,11 +312,7 @@ impl PresenterCommons {
     ///
     /// This function encodes the order in which session elements are drawn. It needs to be kept in
     /// sync with locate_down.
-    fn locate_up(
-        session: &Session,
-        loc: &SessionLocator,
-        mut lines: usize,
-    ) -> MaybeSessionLocator {
+    fn locate_up(session: &Session, loc: &SessionLocator, mut lines: usize) -> MaybeSessionLocator {
         // Go step by step to the next border until lines has been reduced to 0.
         let mut loc = loc.clone();
         while lines > 0 {
@@ -489,6 +496,15 @@ impl PresenterCommons {
     }
 }
 
+impl ComposeVariant {
+    fn new_subpresenter(&self, commons: Box<PresenterCommons>) -> Box<dyn SubPresenter> {
+        match self {
+            Self::MarkovBelow => markov_below::ComposeCommandPresenter::new(commons),
+            Self::BubbleAbove => bubble_above::ComposeCommandPresenter::new(commons),
+        }
+    }
+}
+
 impl Presenter {
     /// Allocate a new presenter and start presenting in normal mode.
     pub fn new(
@@ -496,6 +512,7 @@ impl Presenter {
         interpreter: InteractiveInterpreter,
         history: History,
         term_info: TermInfo,
+        feat_compose_variant: ComposeVariant,
     ) -> Result<Self> {
         let commons = Box::new(PresenterCommons::new(
             session,
@@ -503,11 +520,12 @@ impl Presenter {
             history,
             term_info,
         )?);
-        let subpresenter = ComposeCommandPresenter::new(commons);
+        let subpresenter = feat_compose_variant.new_subpresenter(commons);
         let presenter = Presenter {
             focused_interaction: None,
             subpresenter: Some(subpresenter),
             sp_type: SubPresenterType::ComposeCommandPresenter,
+            feat_compose_variant,
         };
         Ok(presenter)
     }
@@ -603,7 +621,9 @@ impl Presenter {
             let old_sp = std::mem::replace(&mut self.subpresenter, None);
             let commons = old_sp.unwrap().finish();
             self.subpresenter = Some(match self.sp_type {
-                SubPresenterType::ComposeCommandPresenter => ComposeCommandPresenter::new(commons),
+                SubPresenterType::ComposeCommandPresenter => {
+                    self.feat_compose_variant.new_subpresenter(commons)
+                }
                 SubPresenterType::ExecuteCommandPresenter(handle) => {
                     ExecuteCommandPresenter::new(commons, handle)
                 }

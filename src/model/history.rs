@@ -47,6 +47,10 @@ struct Predictor(KeyCountMap);
 ///
 /// The history is in charge of making predictions of the next command given the start of the
 /// current one. As the prediction will be read on every render, it is cached.
+///
+/// In addition, history is also tracked as a bubble-up stack to accomodate different interface
+/// concepts.
+///
 #[derive(Debug)]
 pub struct History {
     /// Count frequency of commands, ordered by directory, then last command
@@ -64,6 +68,12 @@ pub struct History {
     /// Last command entered
     last_cmd: String,
 
+    /// Commands in order of entry. The number denotes the number of the entry.
+    ordered_cmd: Predictor,
+
+    /// Number of next entry
+    next_cmd: u32,
+
     /// Last prediction, most frequent first
     pub prediction: Vec<String>,
 }
@@ -79,6 +89,8 @@ impl History {
             cmd: Predictor::new(),
             last_dir: String::new(),
             last_cmd: String::new(),
+            ordered_cmd: Predictor::new(),
+            next_cmd: 0,
             prediction: Vec::new(),
         }
     }
@@ -128,6 +140,14 @@ impl History {
         // Remember the last command
         self.last_cmd.clear();
         self.last_cmd.push_str(cmd);
+
+        // Update the bubble-up stack
+        if let Some(counter) = self.ordered_cmd.0.get_mut(cmd) {
+            *counter = self.next_cmd;
+        } else {
+            self.ordered_cmd.0.insert(cmd.to_string(), self.next_cmd);
+        }
+        self.next_cmd += 1;
     }
 
     /// Compute a new prediction
@@ -165,6 +185,21 @@ impl History {
         }
     }
 
+    /// Compute a new prediction using the bubble-up stack
+    pub fn predict_bubble_up(&mut self, start: &String) {
+        let start_len = start.len();
+        self.prediction.clear();
+        for p in self
+            .ordered_cmd
+            .0
+            .prefix_iter(start)
+            .sorted_by(|a, b| Ord::cmp(a.1, b.1))
+            .map(move |(s, _)| s[start_len..].to_string())
+        {
+            self.prediction.push(p);
+        }
+    }
+
     /// Get the latest prediction
     pub fn prediction<'a>(&'a self) -> &'a Vec<String> {
         &self.prediction
@@ -181,8 +216,13 @@ impl History {
         let mut dir_prev_cmd = Predictor::new();
         let mut dir_cmd = Predictor::new();
         let mut cmd = Predictor::new();
+        let mut ordered_cmd = Predictor::new();
+        let mut next_cmd = 0;
         for (c, n) in hm.iter() {
-            let (pred, key) = if c.starts_with("\0\0") {
+            let (pred, key) = if c.starts_with("\0\0\0") {
+                next_cmd = std::cmp::max(next_cmd, *n);
+                (&mut ordered_cmd, &c[3..])
+            } else if c.starts_with("\0\0") {
                 (&mut cmd, &c[2..])
             } else if c.starts_with("\0") {
                 (&mut dir_cmd, &c[1..])
@@ -197,6 +237,8 @@ impl History {
             cmd,
             last_dir: String::new(),
             last_cmd: String::new(),
+            ordered_cmd,
+            next_cmd,
             prediction: Vec::new(),
         })
     }
@@ -221,6 +263,12 @@ impl History {
         for (c, n) in self.cmd.0.prefix_iter(&String::new()) {
             let mut key = String::new();
             key.push_str("\0\0");
+            key.push_str(c);
+            let _ = hm.insert(key, *n);
+        }
+        for (c, n) in self.ordered_cmd.0.prefix_iter(&String::new()) {
+            let mut key = String::new();
+            key.push_str("\0\0\0");
             key.push_str(c);
             let _ = hm.insert(key, *n);
         }
@@ -363,5 +411,25 @@ mod tests {
             Some((&("abc\0def\0xyz".to_string()), &1u32))
         );
         assert_eq!(pref_abc.next(), None);
+    }
+
+    #[test]
+    fn ordered_cmd() {
+        let mut history = History::new();
+        history.enter("/home/user", &"ab cd ef".to_string());
+        history.enter("/home/user", &"ab cd ef".to_string());
+        history.enter("/home/user/stuff", &"ab cd ef".to_string());
+        history.enter("/home/user", &"ab cd ef".to_string());
+        history.enter("/home/user/stuff", &"ab cd ef".to_string());
+        history.enter("/home/user", &"cd ef".to_string());
+        history.enter("/home/user/weird", &"ab cd ef".to_string());
+
+        let start = String::from("");
+        history.predict_bubble_up(&start);
+        let mut pref_ab = history.prediction().iter();
+        assert_eq!(pref_ab.next(), Some(&String::from("cd ef")));
+        assert_eq!(pref_ab.next(), Some(&String::from("ab cd ef")));
+        assert_eq!(pref_ab.next(), None);
+        assert_eq!(history.next_cmd, 7);
     }
 }

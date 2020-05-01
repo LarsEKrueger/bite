@@ -73,6 +73,11 @@ The following code lists the default values for all variables.
 # If the variable is not set or the font does not exits, the default value will
 # be tried.
 BITE_FONT=-*-courier-medium-r-*-*-20-*-*-*-*-*-iso10646-*
+
+# Type of presenter used for compose mode
+# bubble_above -- List of commands above input field.
+# markov_below -- List below input field, prediction depends on previous command.
+BITE_FEAT_COMPOSE=bubble_above
 ```
 
 # How to build this program
@@ -308,7 +313,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 0.12 Better prediction / completion
     * [X] Predict using previous command
     * [X] Don't show last prompt in execute presenter
-    * [ ] History above prompt + Feature flag
+    * [X] History above prompt + Feature flag
 * [ ] 0.13 Draw GUI using Xft
 * [ ] 0.14 Implement all Screen Actions
 * [ ] 0.15 Redesign user interface

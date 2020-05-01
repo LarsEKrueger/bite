@@ -89,7 +89,7 @@ fn locator() {
 
     let session = session.0.lock().unwrap();
 
-    let loc = PresenterCommons::locate_end(&session);
+    let loc = PresenterCommons::locate_end(&session, true);
     assert_eq!(
         loc,
         Some(SessionLocator {
@@ -279,7 +279,7 @@ fn locator() {
         );
         for i in 1..bwd_gt.len() {
             println!("  Locator working forward, step {}", i);
-            let loc = PresenterCommons::locate_down(&session, &fwd_loc, i);
+            let loc = PresenterCommons::locate_down(&session, &fwd_loc, true, i);
             assert_eq!(loc, Some(bwd_gt[bwd_gt.len() - 1 - i].0.clone()));
             assert_eq!(
                 c2s(session

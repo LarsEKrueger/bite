@@ -115,8 +115,8 @@ impl SubPresenter for TuiExecuteCommandPresenter {
 
     fn single_display_line<'a, 'b: 'a>(
         &'a self,
-        session: &'b Session,
-        y: usize,
+        _session: &'b Session,
+        _y: usize,
     ) -> Option<DisplayLine<'a>> {
         None
     }
