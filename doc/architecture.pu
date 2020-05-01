@@ -5,7 +5,6 @@ title Class Diagram
 class Bite
 class View
 class Session
-class Jobs
 class Presenter {
   - currentInteraction
 }
@@ -19,10 +18,9 @@ View *--> Presenter
 Presenter --> Session
 Presenter --> Interpreter
 
-Interpreter *--> Jobs
+Interpreter --> Job
 
-Jobs *--> Job
-Job --> Session
+Session *-- Job
 
 @enduml
 
@@ -37,13 +35,12 @@ node "Main Thread" as Main_Thread {
   [Bite]
   [View]
   [Presenter]
-  interface "Session\n::line_iter()" as Session_view
+  interface "Session\n::display_line()" as Session_view
   interface "Interpreter\n::run_command()" as Interpreter_execute
 }
 
 node "Interpreter Thread" as Interpreter_Thread {
   [Interpreter]
-  [Jobs]
 }
 
 node "Job Thread" as Job_Thread {
@@ -52,17 +49,17 @@ node "Job Thread" as Job_Thread {
   interface "Session\n::set_exit_code()" as Session_set_exit_code
 }
 
-Bite *-right- Interpreter_Thread : spawn
-Jobs *-- Job_Thread : spawn
-[Bite] -left-> [View]
+Session *-- Job
+
+Main_Thread *-- Interpreter_Thread : spawn
+Interpreter_Thread *-- Job_Thread : spawn
+[Bite] --> [View]
 [View] --> [Presenter]
 
-Interpreter -left-> Jobs
-
-Presenter -left- Session_view
+Presenter -left-( Session_view
 Presenter - Interpreter_execute
 
-Session -up-( Session_view
+Session -up- Session_view
 Session --( Session_add
 
 Session --( Session_set_exit_code
@@ -80,11 +77,16 @@ Interpreter_execute )-down- Interpreter
 title Drawing
 
 View -> Presenter : display_lines()
-Presenter -> Session : line_iter()
-Session -> Presenter
-hnote over Presenter : convert\nlines
-Presenter -> View
-hnote over View : draw\nlines
+Presenter -> SharedSession : lock()
+SharedSession -> Session
+activate Session
+
+Presenter ->  View : draw_line()
+View -> Presenter
+
+Session -> SharedSession
+deactivate Session
+SharedSession -> Presenter : unlock()
 @enduml
 
 =====================
@@ -93,17 +95,21 @@ hnote over View : draw\nlines
 title Run Foreground Command
 
 View -> Presenter : event_XXX()
-Presenter -> Interpreter : run_command()
+Presenter -> Interpreter : is_running()
+Interpreter -> Presenter : false
+
+Presenter -> Interpreter : run()
 Interpreter -> Session : create_interaction()
 Session -> Interpreter : id
-Interpreter --> Jobs : run()
-Interpreter -> Presenter : id
+Interpreter -> Job : new(id)
 
-Jobs -> Job : new(id)
-Job -> Child : spawn()
+Interpreter -> Runner : run()
+activate Runner
+
+Runner -> Child : spawn()
 activate Child
-Job -> Jobs
-Jobs -> Interpreter
+
+Interpreter -> Presenter : id
 
 Presenter -> Presenter : Switch to\nExecuteCommandPresenter\nwith id
 Presenter -> View
@@ -115,18 +121,21 @@ group Command runs
     Session -> Presenter : true
   end
   ... Command produces no output, then it does ...
-  Job --> Session : add_bytes(id, text)
+  Child --> Session : add_bytes(id, text)
+  Session -> Child
   ... Presenter is sending input to child ...
-  Presenter -> Interpreter : write_stdin_foreground()
-  Interpreter -> Jobs
-  Jobs -> Child : write()
-  Child -> Jobs
-  Jobs -> Interpreter
-  Interpreter -> Presenter
+  Presenter -> Session : write_stdin_foreground(id)
+  Session -> Job
+  Job --> Child : write()
+  Child -> Job
+  Job -> Session
+  Session -> Presenter
 end
 
 deactivate Child
 Child --> Session : set_running_status(id)
+
+deactivate Runner
 
 group Next redraw
   Presenter -> Session : is_running(id)
@@ -142,196 +151,84 @@ end
 title Run Background Command
 
 View -> Presenter : event_XXX()
-Presenter -> Interpreter : run_command()
+Presenter -> Interpreter : is_running()
+Interpreter -> Presenter : false
+Presenter -> Interpreter : run()
+
 Interpreter -> Session : create_interaction()
 Session -> Interpreter : id
-Interpreter --> Jobs : run()
-Interpreter -> Presenter
-Presenter -> View
+Interpreter -> Job : new(id)
 
-Jobs -> Job : new(id)
-Job -> Child : spawn()
+Interpreter -> Runner : run()
+activate Runner
+
+Runner -> Runner2 : spawn()
+activate Runner2
+Runner2 -> Child : spawn()
 activate Child
-Job -> Jobs
-Jobs -> Interpreter
 
-... Command produces no output, then it does ...
-Job --> Session : add_line(id, text)
-
-deactivate Child
-Child --> Session : set_running_status(id)
-
-@enduml
-
-=====================
-
-@startuml
-title Run Foreground TUI
-
-View -> Presenter : event_XXX()
-Presenter -> Interpreter : run_command()
-Interpreter -> Session : create_interaction()
-Session -> Interpreter : id
-Interpreter --> Jobs : run()
+deactivate Runner
+Runner -> Interpreter
 Interpreter -> Presenter : id
-
-Jobs -> Job : new(id)
-Job -> Child : spawn()
-activate Child
-Job -> Jobs
-Jobs -> Interpreter
 
 Presenter -> Presenter : Switch to\nExecuteCommandPresenter\nwith id
 Presenter -> View
 
 group Command runs
-  ... Command switches to TUI  ...
-  Job --> Session : add_bytes(id, text)
-
-  group Next redraw
-    View -> Presenter
-    Presenter -> Session : is_tui_mode(id)
-    Session -> Presenter : true
-    Presenter -> Presenter : Switch to\nTuiPresenter
-    Presenter -> View
-  end
-
+  ... Command produces no output, then it does ...
+  Child --> Session : add_bytes(id, text)
+  Session -> Child
+  ... Presenter is sending input to child ...
+  Presenter -> Session : write_stdin_foreground(id)
+  Session -> Job
+  Job -> Child : write()
+  Child -> Job
+  Job -> Session
+  Session -> Presenter
 end
 
 deactivate Child
 Child --> Session : set_running_status(id)
 
-group Next redraw
-  View -> Presenter
-  Presenter -> Session : is_running(id)
-  Session -> Presenter : false
-  Presenter -> Presenter : Switch to\nComposeCommandPresenter
-  Presenter -> View
-end
+deactivate Runner2
 
 @enduml
 
 =====================
 
 @startuml
-title Run Background TUI
-
-View -> Presenter : event_XXX()
-Presenter -> Interpreter : run_command()
-Interpreter -> Session : create_interaction()
-Session -> Interpreter : id
-Interpreter --> Jobs : run()
-Interpreter -> Presenter
-Presenter -> View
-
-Jobs -> Job : new(id)
-Job -> Child : spawn()
-activate Child
-Job -> Jobs
-Jobs -> Interpreter
-
-group Command runs
-  ... Command switches to TUI  ...
-  Job --> Session : add_bytes(id, text)
-  Session -> Session : switch to 80x25 fixed screen
-  ... Some time passes ...
-  group Next redraw
-    View -> Presenter : event_next_tui()
-    Presenter -> Session : is_tui_mode(id)
-    Session -> Presenter : true
-    Presenter -> Screen : switch to full screen fixed screen
-    Screen -> Presenter
-    Presenter -> Presenter : Switch to\nTuiPresenter
-    Presenter -> View
-  end
-
-  ... Some time passes ...
-  group Next redraw
-    View -> Presenter : event_compose_command()
-    Presenter -> Screen : switch to 80x25 fixed screen
-    Screen -> Presenter
-    Presenter -> Presenter : Switch to\nComposeCommandPresenter
-    Presenter -> View
-  end
-end
-
-deactivate Child
-Child --> Session : set_running_status(id)
-
-group Next redraw
-  View -> Presenter
-  Presenter -> Session : is_running(id) && is_tui_mode(id)
-  Session -> Presenter : false
-  Presenter -> Presenter : Switch to\nComposeCommandPresenter
-  Presenter -> View
-end
-
-@enduml
-
-=====================
-
-@startuml
-title Presenter States and Keys
+title ComposeCommand Presenter States and Keys
 hide empty description
 
-[*] --> ComposeCommand
-
-state "ComposeCommand\nCompletion" as ComposeCommandCtrl
-ComposeCommand --> ExecuteCommand : Enter\nStart input or history entry
-ExecuteCommand -> ComposeCommand : (Exit)
-
-ComposeCommand --> ComposeCommand: Letter
-note left of ComposeCommand
-If cursor is at end of input,
-predict command from history, specific to CWD.
-Display as overlay (roll menu).
-
-Any cursor movement to the right will take the respective
-letters from prediction to input as if they were typed.
-end note
-
-note top of ComposeCommand
-Keys: plain, e.g. Enter
-Events: parentheses, e.g. (Exit)
-
-Left/Right: Horizontal movement by character
-Ctrl-Left/Right: Horizontal movement by word
-Home/End: Start/End of line
-Shift-<movement>: Horizontal movement with selection
-
-Ctrl-Backspace: Delete word backwards
-Shift-Backspace: Delete to start of line
-Shift-Delete: Delete to end of line
-
-Up: Previous prediction
-Down: Next prediction
-Tab: Take prediction without starting
+note as N1
+[1] : At last history entry
 endnote
 
+[*] -> Compose
 
-ComposeCommand --> ComposeCommandCtrl: Tab
-ComposeCommandCtrl --> ComposeCommand: Enter\nStart input
-note bottom of ComposeCommandCtrl
-Show completion
-Tab: Take completion
-Up: Previous completion
-Down: Next completion
-end note
+state "." as ComposeLetter
+Compose -right-> ComposeLetter: Letter \n Update History
+ComposeLetter -> Compose
+Compose -up-> History : Up \n Save Input
+Compose -down-> Complete : Tab
 
-ComposeCommand --> FocusBackgroundJob: [Shift-]Ctrl-Tab && [1]
-FocusBackgroundJob -> ComposeCommand: [Shift-]Ctrl-Tab && [3]
-note bottom of FocusBackgroundJob
-Keep selected background job on screen.
-Display input field.
-Send input to stdin.
-[1]: Next (previous if Shift) background job is not TUI
-[3]: Wrap around job list
-end note
+History -> Compose : Enter \n Run
+History -> Compose : Esc \n Restore Input
+History -> Compose : Down [1] \n Restore Input
+History -> Compose : Left, Right, Home, End \n Overwrite Input
 
-ComposeCommand --> TUI: [Shift-]Ctrl-Tab && [2]
-TUI -> ComposeCommand: [Shift-]Ctrl-Tab && [3]
-note bottom of TUI
-[2]: Next (previous if Shift) background job is TUI
-end note
+state "." as HistUpDown
+History -left-> HistUpDown : Up, Down \n Overwrite Input
+HistUpDown -> History
+
+state "." as HistLetter
+History -right-> HistLetter : Letter \n Update Results
+HistLetter -> History
+
+Complete -> Compose : Esc
+
+state "." as CompleteLetter
+Complete -right-> CompleteLetter : Letter, Backspace \n Update Search
+CompleteLetter -> Complete
 
 @enduml
