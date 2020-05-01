@@ -305,10 +305,10 @@ impl ComposeCommandPresenter {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
                 let session_height = self.compute_session_height();
-                self.commons.scroll_up(middle, |session, loc| {
-                    PresenterCommons::locate_up(session, loc, session_height).and_then(|loc| {
-                        PresenterCommons::locate_down(session, &loc, session_height)
-                    })
+                self.commons.scroll_up(true, middle, |session, loc| {
+                    PresenterCommons::locate_up(session, loc, session_height).and_then(
+                        |loc| PresenterCommons::locate_down(session, &loc, true, session_height),
+                    )
                 });
                 PresenterCommand::Redraw
             }
@@ -316,7 +316,7 @@ impl ComposeCommandPresenter {
             ((true, false, false), SpecialKey::PageDown) => {
                 // Shift only -> Scroll
                 let middle = self.commons.window_height / 2;
-                self.commons.scroll_down(middle);
+                self.commons.scroll_down(true, middle);
                 PresenterCommand::Redraw
             }
 
@@ -444,7 +444,7 @@ impl SubPresenter for ComposeCommandPresenter {
     fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {
         // Draw the session
         let session_height = self.compute_session_height();
-        if let Some(mut loc) = self.commons.start_line(session, session_height) {
+        if let Some(mut loc) = self.commons.start_line(session, true, session_height) {
             trace!("display_lines: loc={:?}", loc);
             let mut row = 0;
             while (row as usize) < session_height {
@@ -452,7 +452,7 @@ impl SubPresenter for ComposeCommandPresenter {
                     draw_line.draw_line(row, &DisplayLine::from(display_line));
                 }
                 row += 1;
-                if let Some(new_loc) = PresenterCommons::locate_down(session, &loc, 1) {
+                if let Some(new_loc) = PresenterCommons::locate_down(session, &loc, true, 1) {
                     loc = new_loc;
                 } else {
                     break;
@@ -504,8 +504,8 @@ impl SubPresenter for ComposeCommandPresenter {
     ) -> Option<DisplayLine<'a>> {
         let session_height = self.compute_session_height();
         if y < session_height {
-            if let Some(loc) = self.commons.start_line(session, session_height) {
-                if let Some(loc) = PresenterCommons::locate_down(session, &loc, y) {
+            if let Some(loc) = self.commons.start_line(session, true, session_height) {
+                if let Some(loc) = PresenterCommons::locate_down(session, &loc, true, y) {
                     if let Some(display_line) = session.display_line(&loc) {
                         return Some(DisplayLine::from(display_line));
                     }
@@ -599,5 +599,23 @@ impl SubPresenter for ComposeCommandPresenter {
         let items_len = self.prediction().len();
         self.fix_selected_prediction(items_len);
         PresenterCommand::Redraw
+    }
+
+    fn event_scroll_up(&mut self, mod_state: &ModifierState) -> PresenterCommand {
+        if mod_state.none_pressed() {
+            self.commons.scroll_up(true, 1, |_, _| None);
+            PresenterCommand::Redraw
+        } else {
+            PresenterCommand::Unknown
+        }
+    }
+
+    fn event_scroll_down(&mut self, mod_state: &ModifierState) -> PresenterCommand {
+        if mod_state.none_pressed() {
+            self.commons.scroll_down(true, 1);
+            PresenterCommand::Redraw
+        } else {
+            PresenterCommand::Unknown
+        }
     }
 }

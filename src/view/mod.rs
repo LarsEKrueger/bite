@@ -799,14 +799,15 @@ impl Gui {
                                     }
                                 }
                                 5 => {
-                                    if NeedRedraw::Yes
-                                        == self.presenter.event_scroll_down(mod_state)
+                                    if PresenterCommand::Redraw
+                                        == self.presenter.event_scroll_down(&mod_state)
                                     {
                                         self.mark_redraw();
                                     }
                                 }
                                 4 => {
-                                    if NeedRedraw::Yes == self.presenter.event_scroll_up(mod_state)
+                                    if PresenterCommand::Redraw
+                                        == self.presenter.event_scroll_up(&mod_state)
                                     {
                                         self.mark_redraw();
                                     }

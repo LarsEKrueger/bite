@@ -472,6 +472,11 @@ impl Session {
         }
     }
 
+    /// Determine if locator is at last conversation
+    pub fn locator_is_last_conversation(&self, loc: &SessionLocator) -> bool {
+        (loc.conversation + 1) == self.conversations.len()
+    }
+
     /// Quick access to an interaction by handle.
     ///
     /// Returns the default for illegal handles.

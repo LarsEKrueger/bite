@@ -225,4 +225,12 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         self.send_string(s);
         PresenterCommand::Redraw
     }
+
+    fn event_scroll_up(&mut self, _mod_state: &ModifierState) -> PresenterCommand {
+        PresenterCommand::Unknown
+    }
+
+    fn event_scroll_down(&mut self, _mod_state: &ModifierState) -> PresenterCommand {
+        PresenterCommand::Unknown
+    }
 }

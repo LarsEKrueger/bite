@@ -89,7 +89,7 @@ pub enum NeedRedraw {
 /// This is used to check if we clicked the prefix.
 const COMMAND_PREFIX_LEN: usize = 4;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PresenterCommand {
     /// Unknown key combination, not handled
     Unknown,
@@ -133,6 +133,12 @@ trait SubPresenter {
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> PresenterCommand;
+
+    /// Handle scrolling up
+    fn event_scroll_up(&mut self, mod_state: &ModifierState) -> PresenterCommand;
+
+    /// Handle scrolling down
+    fn event_scroll_down(&mut self, mod_state: &ModifierState) -> PresenterCommand;
 
     /// Handle the event when a modifier and a letter/number is pressed.
     fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand;
@@ -279,8 +285,14 @@ impl PresenterCommons {
     }
 
     /// Create a locator at the end of the session
-    fn locate_end(session: &Session) -> MaybeSessionLocator {
-        session.locate_at_last_prompt_end()
+    fn locate_end(session: &Session, show_last_prompt: bool) -> MaybeSessionLocator {
+        let loc = session.locate_at_last_prompt_end()?;
+        if show_last_prompt {
+            Some(loc)
+        } else {
+            let new_loc = session.locate_at_conversation_end(&loc)?;
+            session.locate_at_output_end(&new_loc)
+        }
     }
 
     /// Create a new locator that is n lines above the initial one
@@ -289,7 +301,11 @@ impl PresenterCommons {
     ///
     /// This function encodes the order in which session elements are drawn. It needs to be kept in
     /// sync with locate_down.
-    fn locate_up(session: &Session, loc: &SessionLocator, mut lines: usize) -> MaybeSessionLocator {
+    fn locate_up(
+        session: &Session,
+        loc: &SessionLocator,
+        mut lines: usize,
+    ) -> MaybeSessionLocator {
         // Go step by step to the next border until lines has been reduced to 0.
         let mut loc = loc.clone();
         while lines > 0 {
@@ -348,6 +364,7 @@ impl PresenterCommons {
     fn locate_down(
         session: &Session,
         loc: &SessionLocator,
+        show_last_prompt: bool,
         mut lines: usize,
     ) -> MaybeSessionLocator {
         // Go step by step to the next border until lines has been reduced to 0.
@@ -375,8 +392,12 @@ impl PresenterCommons {
                             // There was a next interaction
                             loc = new_loc;
                         } else {
-                            // Start of conversation prompt
-                            loc = session.locate_at_prompt_start(&loc)?;
+                            if show_last_prompt || (!session.locator_is_last_conversation(&loc)) {
+                                // Start of conversation prompt
+                                loc = session.locate_at_prompt_start(&loc)?;
+                            } else {
+                                return None;
+                            }
                         }
                     }
                     // Lines -> Screen of same interaction
@@ -414,7 +435,7 @@ impl PresenterCommons {
     }
 
     /// Change session_end_line by going up n lines. This encodes the order of lines.
-    pub fn scroll_up<F>(&mut self, n: usize, f: F)
+    pub fn scroll_up<F>(&mut self, show_last_prompt: bool, n: usize, f: F)
     where
         F: FnOnce(&Session, &SessionLocator) -> MaybeSessionLocator,
     {
@@ -430,7 +451,7 @@ impl PresenterCommons {
         } else {
             // Initialize past the end of the session, then correct
             let session = self.session.0.lock().unwrap();
-            if let Some(loc) = Self::locate_end(&session) {
+            if let Some(loc) = Self::locate_end(&session, show_last_prompt) {
                 if let Some(loc) = Self::locate_up(&session, &loc, n) {
                     if let Some(fix_loc) = f(&session, &loc) {
                         self.session_end_line = Some(fix_loc);
@@ -443,10 +464,10 @@ impl PresenterCommons {
         // TOOD: Limit to scrollable area
     }
 
-    pub fn scroll_down(&mut self, n: usize) {
+    pub fn scroll_down(&mut self, show_last_prompt: bool, n: usize) {
         if let Some(ref mut loc) = self.session_end_line {
             let session = self.session.0.lock().unwrap();
-            self.session_end_line = Self::locate_down(&session, loc, n);
+            self.session_end_line = Self::locate_down(&session, loc, show_last_prompt, n);
         }
     }
 
@@ -455,10 +476,15 @@ impl PresenterCommons {
     }
 
     /// Return a session locator that refers to the first of n lines to draw
-    fn start_line(&self, session: &Session, n: usize) -> MaybeSessionLocator {
+    fn start_line(
+        &self,
+        session: &Session,
+        show_last_prompt: bool,
+        n: usize,
+    ) -> MaybeSessionLocator {
         self.session_end_line
             .clone()
-            .or_else(|| Self::locate_end(&session))
+            .or_else(|| Self::locate_end(&session, show_last_prompt))
             .and_then(|loc| Self::locate_up(&session, &loc, n))
     }
 }
@@ -610,21 +636,13 @@ impl Presenter {
     }
 
     /// Handle the event that the window was scrolled down.
-    pub fn event_scroll_down(&mut self, mod_state: ModifierState) -> NeedRedraw {
-        // TODO: Move into subpresenter
-        if mod_state.none_pressed() {
-            self.cm().scroll_down(1);
-        }
-        NeedRedraw::Yes
+    pub fn event_scroll_down(&mut self, mod_state: &ModifierState) -> PresenterCommand {
+        self.dm().event_scroll_down(mod_state)
     }
 
     /// Handle the event that the window was scrolled up.
-    pub fn event_scroll_up(&mut self, mod_state: ModifierState) -> NeedRedraw {
-        // TODO: Move into subpresenter
-        if mod_state.none_pressed() {
-            self.cm().scroll_up(1, |_, _| None);
-        }
-        NeedRedraw::Yes
+    pub fn event_scroll_up(&mut self, mod_state: &ModifierState) -> PresenterCommand {
+        self.dm().event_scroll_up(mod_state)
     }
 
     pub fn event_special_key(
