@@ -315,6 +315,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Predict using previous command
     * [X] Don't show last prompt in execute presenter
     * [X] History above prompt + Feature flag
+    * [ ] Re-add completion again
 * [ ] 0.13 Draw GUI using Xft
 * [ ] 0.14 Implement all Screen Actions
 * [ ] 0.15 Redesign user interface
