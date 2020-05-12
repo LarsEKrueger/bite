@@ -25,6 +25,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
+use std::sync::mpsc::{Receiver,Sender,channel};
 
 use super::screen::Screen;
 use tools::logging::unwrap_log;
@@ -53,15 +54,10 @@ pub struct InteractiveInterpreter {
     /// Interpreter thread
     thread: JoinHandle<()>,
 
-    /// Mutex and condition around the input string and the interaction handle.
+    /// Channel to send instructions to be run in a given interaction
     ///
-    /// If the mutex holds None, there is no new input
-    ///
-    /// TODO: Use a channel
-    input: Arc<(
-        Condvar,
-        Mutex<Option<(byte_code::Instructions, InteractionHandle)>>,
-    )>,
+    /// If the data holds None, the thread is to be stopped.
+    sender: Sender<Option<(byte_code::Instructions, InteractionHandle)>>,
 
     /// Atomic to stop the interpreter
     is_running: Arc<AtomicBool>,
@@ -77,33 +73,19 @@ fn interpreter_loop(
     mut runner: byte_code::Runner,
     is_running: Arc<AtomicBool>,
     is_busy: Arc<Mutex<Option<InteractionHandle>>>,
-    input: Arc<(
-        Condvar,
-        Mutex<Option<(byte_code::Instructions, InteractionHandle)>>,
-    )>,
+    input: Receiver<Option<(byte_code::Instructions, InteractionHandle)>>,
 ) {
     while is_running.load(Ordering::Acquire) {
         trace!("Waiting for new command");
-        // Wait for condition variable and extract the string and the interaction handle.
-        let (instructions, interaction_handle) = {
-            // The lock must not be held for too long to allow other threads to check the readiness.
-            let mut input_data = input.1.lock().unwrap();
-            while input_data.is_none() {
-                input_data = input.0.wait(input_data).unwrap();
-                if !is_running.load(Ordering::Acquire) {
-                    return;
-                }
-            }
-
-            // Extract the data
-            std::mem::replace(&mut *input_data, None).unwrap()
-        };
-
-        trace!("Got instructions: »{:?}«", instructions);
-
-        *is_busy.lock().unwrap() = Some(interaction_handle);
-        runner.run(Arc::new(instructions), interaction_handle);
-        *is_busy.lock().unwrap() = None;
+        // Wait for new input
+        if let Ok(Some((instructions, interaction_handle))) = input.recv() {
+            trace!("Got instructions: »{:?}«", instructions);
+            *is_busy.lock().unwrap() = Some(interaction_handle);
+            runner.run(Arc::new(instructions), interaction_handle);
+            *is_busy.lock().unwrap() = None;
+        } else {
+            return;
+        }
     }
 }
 
@@ -233,22 +215,21 @@ impl StartupInterpreter {
     pub fn complete_startup(self) -> InteractiveInterpreter {
         let is_running = Arc::new(AtomicBool::new(true));
         let is_busy = Arc::new(Mutex::new(None));
-        let input = Arc::new((Condvar::new(), Mutex::new(None)));
+        let (sender,receiver) = channel();
         let thread = {
             let is_running = is_running.clone();
             let is_busy = is_busy.clone();
-            let input = input.clone();
             let runner = self.runner;
             std::thread::Builder::new()
                 .name("interpreter".to_string())
-                .spawn(move || interpreter_loop(runner, is_running, is_busy, input))
+                .spawn(move || interpreter_loop(runner, is_running, is_busy, receiver))
                 .unwrap()
         };
 
         InteractiveInterpreter {
             session: self.session,
             thread,
-            input,
+            sender,
             is_running,
             is_busy,
         }
@@ -256,11 +237,6 @@ impl StartupInterpreter {
 }
 
 impl InteractiveInterpreter {
-    /// Check if the interpreter is ready for a new command.
-    pub fn is_ready(&self) -> bool {
-        self.input.1.lock().unwrap().is_none()
-    }
-
     /// Execute a set of instructions.
     ///
     /// If the interpreter is still busy with another one, this call will block. The output of any
@@ -274,11 +250,9 @@ impl InteractiveInterpreter {
         let interaction = self
             .session
             .add_interaction(Screen::one_line_matrix(command.as_bytes()));
-        let mut input = self.input.1.lock().unwrap();
-        *input = Some((instructions, interaction));
-        trace!("Set input");
-        self.input.0.notify_one();
-        trace!("Sent notification");
+        trace!("Send input");
+        let _ = self.sender.send( Some((instructions, interaction)));
+        trace!("Input sent");
         interaction
     }
 
@@ -287,11 +261,7 @@ impl InteractiveInterpreter {
     /// This function will block until the interpreter has completed the last command.
     pub fn shutdown(self) {
         self.is_running.store(false, Ordering::Release);
-        {
-            let mut input = self.input.1.lock().unwrap();
-            *input = Some((Vec::new(), InteractionHandle::INVALID));
-        }
-        self.input.0.notify_one();
+        let _ = self.sender.send( None);
         let _ = self.thread.join();
     }
 
