@@ -324,10 +324,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] Add error reporting function to Session and use it in Interpreter
 * [ ] Simplify and unify error handling
     * [ ] Check if adding session to InteractionHandle makes code simpler
-* [ ] History: Sort in reverse (best match at the bottom)
-* [ ] History: Use order of commands for sorting (length of look-ahead?)
 * [ ] History: Handle multi-line entries
-* [ ] History: Predict beginning of command
 * [ ] Use separate History in ExecuteCommandPresenter
 * [ ] Session: Use previous visibility settings for repeated commands
 * [ ] Search .biterc according to XDG Config Spec
@@ -340,14 +337,16 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
     * [ ] Show Input, Output, Error in sequence, allow for filtering
 * [ ] Make the command line arguments of a program fold out
-* [ ] Run iterator back-to-front and draw bottom-to-top to optimize common case
 * [ ] Syntax highlighting in input line
 * [ ] Implement C1 control codes
 * [ ] Implement mouse tracking sequences more cleanly
 * [ ] Handle sub parameters correctly
 * [ ] Mapping from session to LineItems should be done in Presenter
+* [ ] Reduce number of short-lived allocations
 * [X] ~~Bug: Bash source $() does not work correctly~~ Cancelled. No more bash used.
 * [X] Bug: `git push && git push somewhere` runs second command if first one fails
+* [X] History: Use order of commands for sorting (length of look-ahead?)
+* [X] History: Predict beginning of command
 
 # Ideas
 * History: Draw between prompt and input box instead of overlay
