@@ -75,9 +75,10 @@ The following code lists the default values for all variables.
 BITE_FONT=-*-courier-medium-r-*-*-20-*-*-*-*-*-iso10646-*
 
 # Type of presenter used for compose mode
+# bubble_exclusive -- List of commands above input field, no prediction, but search.
 # bubble_above -- List of commands above input field.
 # markov_below -- List below input field, prediction depends on previous command.
-BITE_FEAT_COMPOSE=bubble_above
+BITE_FEAT_COMPOSE=bubble_exclusive
 ```
 
 # How to build this program

@@ -23,9 +23,9 @@
 use super::session::{InteractionHandle, OutputVisibility, RunningStatus, SharedSession};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::sync::mpsc::{Receiver,Sender,channel};
 
 use super::screen::Screen;
 use tools::logging::unwrap_log;
@@ -215,7 +215,7 @@ impl StartupInterpreter {
     pub fn complete_startup(self) -> InteractiveInterpreter {
         let is_running = Arc::new(AtomicBool::new(true));
         let is_busy = Arc::new(Mutex::new(None));
-        let (sender,receiver) = channel();
+        let (sender, receiver) = channel();
         let thread = {
             let is_running = is_running.clone();
             let is_busy = is_busy.clone();
@@ -251,7 +251,7 @@ impl InteractiveInterpreter {
             .session
             .add_interaction(Screen::one_line_matrix(command.as_bytes()));
         trace!("Send input");
-        let _ = self.sender.send( Some((instructions, interaction)));
+        let _ = self.sender.send(Some((instructions, interaction)));
         trace!("Input sent");
         interaction
     }
@@ -261,7 +261,7 @@ impl InteractiveInterpreter {
     /// This function will block until the interpreter has completed the last command.
     pub fn shutdown(self) {
         self.is_running.store(false, Ordering::Release);
-        let _ = self.sender.send( None);
+        let _ = self.sender.send(None);
         let _ = self.thread.join();
     }
 

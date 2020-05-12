@@ -451,62 +451,6 @@ impl SubPresenter for ComposeCommandPresenter {
         &mut self.commons
     }
 
-    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {
-        // Draw the session
-        let session_height = self.compute_session_height();
-        if let Some(mut loc) = self.commons.start_line(session, true, session_height) {
-            trace!("display_lines: loc={:?}", loc);
-            let mut row = 0;
-            while (row as usize) < session_height {
-                if let Some(display_line) = session.display_line(&loc) {
-                    draw_line.draw_line(row, &DisplayLine::from(display_line));
-                }
-                row += 1;
-                if let Some(new_loc) = PresenterCommons::locate_down(session, &loc, true, 1) {
-                    loc = new_loc;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        // Draw the predictions
-        let (from, to) = self.compute_predictions_from_to();
-        let prediction_height = to - from;
-        {
-            let prediction_start = session_height;
-            let line = self.commons.text_input.extract_text_without_last_nl();
-            let mut offs = 0;
-            for index_p in from..to {
-                let cursor_col = if index_p == self.selected_prediction {
-                    Some(line.len())
-                } else {
-                    None
-                };
-                let cells = self.prediction_screen.compacted_row_slice(index_p as isize);
-                draw_line.draw_line(
-                    prediction_start + offs,
-                    &DisplayLine::from(LineItem::new(&cells, LineType::InputInfo, cursor_col, 0)),
-                );
-                offs += 1;
-            }
-        }
-
-        // Draw the text input
-        let input_start = session_height + prediction_height;
-        for (offs, cells) in self.commons.text_input.line_iter().enumerate() {
-            let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
-                Some(self.commons.text_input.cursor_x() as usize)
-            } else {
-                None
-            };
-            draw_line.draw_line(
-                input_start + offs,
-                &DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0)),
-            );
-        }
-    }
-
     fn single_display_line<'a, 'b: 'a>(
         &'a self,
         session: &'b Session,

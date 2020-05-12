@@ -33,6 +33,7 @@ use std::fmt::{Display, Formatter};
 use term::terminfo::TermInfo;
 
 use self::compose_command::bubble_above;
+use self::compose_command::bubble_exclusive;
 use self::compose_command::markov_below;
 use self::display_line::*;
 use self::execute_command::ExecuteCommandPresenter;
@@ -107,6 +108,7 @@ pub enum PresenterCommand {
 pub enum ComposeVariant {
     MarkovBelow,
     BubbleAbove,
+    BubbleExclusive,
 }
 
 /// Trait to split the big presenter into several small ones.
@@ -122,11 +124,6 @@ trait SubPresenter {
 
     /// Provide write access to the data that is common to the presenter in all modi.
     fn commons_mut<'a>(&'a mut self) -> &'a mut Box<PresenterCommons>;
-
-    /// Call the display callback on every line
-    ///
-    /// Must not lock PresenterCommons::session or a deadlock ensues
-    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait);
 
     /// Get a single DisplayLine for the given line coordinate
     fn single_display_line<'a, 'b: 'a>(
@@ -501,6 +498,7 @@ impl ComposeVariant {
         match self {
             Self::MarkovBelow => markov_below::ComposeCommandPresenter::new(commons),
             Self::BubbleAbove => bubble_above::ComposeCommandPresenter::new(commons),
+            Self::BubbleExclusive => bubble_exclusive::ComposeCommandPresenter::new(commons),
         }
     }
 }
@@ -735,7 +733,11 @@ impl Presenter {
     pub fn display_lines(&self, draw_line: &dyn DrawLineTrait) {
         let session = self.c().session.clone();
         let session = session.0.lock().unwrap();
-        self.d().display_lines(&session, draw_line);
+        for row in 0..self.c().window_height {
+            if let Some(l) = self.d().single_display_line(&session, row) {
+                draw_line.draw_line(row, &l);
+            }
+        }
     }
 }
 

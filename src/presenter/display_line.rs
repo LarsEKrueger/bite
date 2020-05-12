@@ -63,6 +63,9 @@ lazy_static! {
     static ref MENU_DECO_PREFIX : Vec<Cell> = Vec::new();
     static ref MENU_SELECT_PREFIX : Vec<Cell> = Screen::one_line_cell_vec(b"==> ");
     static ref MENU_ITEM_PREFIX : Vec<Cell> = Screen::one_line_cell_vec(b"    ");
+
+    static ref HISTORY_PREFIX : Vec<Cell>      = Screen::one_line_cell_vec( b" ! ");
+    static ref SEARCH_PREFIX : Vec<Cell>      = Screen::one_line_cell_vec( b" / ");
 }
 
 impl<'a> DisplayLine<'a> {
@@ -130,6 +133,9 @@ impl<'a> DisplayLine<'a> {
             LineType::SelectedMenuItem(_) => &*MENU_SELECT_PREFIX,
             LineType::MenuItem(_) => &*MENU_ITEM_PREFIX,
             LineType::Tui => &*TUI_PREFIX,
+
+            LineType::HistoryItem => &*HISTORY_PREFIX,
+            LineType::Search => &*SEARCH_PREFIX,
         };
         // TODO: Fix cursor_col to account for prefix
         DisplayLine::new(

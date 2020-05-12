@@ -94,30 +94,27 @@ impl SubPresenter for TuiExecuteCommandPresenter {
         &mut self.commons
     }
 
-    fn display_lines(&self, session: &Session, draw_line: &dyn DrawLineTrait) {
+    fn single_display_line<'a, 'b: 'a>(
+        &'a self,
+        session: &'b Session,
+        y: usize,
+    ) -> Option<DisplayLine<'a>> {
         if let Some(screen) = session.tui_screen(&self.current_interaction) {
-            for (row, cells) in screen.line_iter_full().enumerate() {
-                if row >= self.commons.window_height {
-                    return;
-                }
-                let cursor_col = if row == (screen.cursor_y() as usize) {
+            if y < screen.height() as usize {
+                let cells = screen.row_slice(y as isize);
+                let cursor_col = if y == (screen.cursor_y() as usize) {
                     Some(screen.cursor_x() as usize)
                 } else {
                     None
                 };
-                draw_line.draw_line(
-                    row,
-                    &DisplayLine::from(LineItem::new(cells, LineType::Tui, cursor_col, 0)),
-                );
+                return Some(DisplayLine::from(LineItem::new(
+                    cells,
+                    LineType::Tui,
+                    cursor_col,
+                    0,
+                )));
             }
         }
-    }
-
-    fn single_display_line<'a, 'b: 'a>(
-        &'a self,
-        _session: &'b Session,
-        _y: usize,
-    ) -> Option<DisplayLine<'a>> {
         None
     }
 

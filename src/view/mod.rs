@@ -466,6 +466,8 @@ impl Gui {
             LineType::SelectedMenuItem(_) => None,
             LineType::MenuItem(_) => None,
             LineType::Tui => None,
+            LineType::HistoryItem => Some(INPUT_SEAM_WIDTH),
+            LineType::Search => Some(INPUT_SEAM_WIDTH),
         };
 
         if let Some(w) = w {

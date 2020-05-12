@@ -16,15 +16,18 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//! Sub presenter for composing commands. Variant shows history below prompt, based on last
-//! command.
+//! Sub presenter for composing commands. Variant shows history above prompt, based on bubble-up
+//! stack. Entry is not used for prediction. Automatic search is performed when typing in the
+//! history.
+
+use std::borrow::Cow;
 
 use model::interpreter::parse_script;
 use model::screen::Screen;
 use model::session::{OutputVisibility, RunningStatus, Session};
 use presenter::{
-    check_response_clicked, DisplayLine, DrawLineTrait, LineItem, LineType, ModifierState,
-    NeedRedraw, PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
+    check_response_clicked, DisplayLine, LineItem, LineType, ModifierState, NeedRedraw,
+    PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
 };
 
 /// Presenter to input and run commands.
@@ -32,8 +35,11 @@ pub struct ComposeCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
 
-    /// Index of selected prediction
-    selected_prediction: usize,
+    /// Index of selected prediction, If None, no option is selected
+    selected_prediction: Option<usize>,
+
+    /// String to search for
+    search: String,
 
     /// Cache of rendered prediction
     prediction_screen: Screen,
@@ -47,8 +53,9 @@ impl ComposeCommandPresenter {
         commons.to_last_line();
         let mut presenter = ComposeCommandPresenter {
             commons,
-            selected_prediction: 0,
+            selected_prediction: None,
             prediction_screen: Screen::new(),
+            search: String::new(),
         };
         presenter.predict();
         Box::new(presenter)
@@ -63,9 +70,16 @@ impl ComposeCommandPresenter {
     }
 
     fn execute_input(&mut self) -> PresenterCommand {
-        let line = self.commons.text_input.extract_text_without_last_nl();
+        let line = if let Some(selected_prediction) = self.selected_prediction {
+            let mut line = self.search.clone();
+            line.push_str(&self.commons.history.prediction()[selected_prediction]);
+            line
+        } else {
+            self.commons.text_input.extract_text_without_last_nl()
+        };
         self.commons.text_input.reset();
         self.commons.text_input.make_room();
+        self.search.clear();
         self.predict();
         trace!("Execute »{}«", line);
         let mut line_with_nl = line.clone();
@@ -106,54 +120,65 @@ impl ComposeCommandPresenter {
     }
 
     /// Fix the selected_prediction to cope with changes in the number of items
-    fn fix_selected_prediction(&mut self, item_cnt: usize) {
-        if item_cnt == 0 {
-            self.selected_prediction = 0;
-        } else if self.selected_prediction >= item_cnt {
-            self.selected_prediction = item_cnt - 1;
+    fn fix_selected_prediction(&mut self) {
+        if let Some(ref mut selected_prediction) = self.selected_prediction {
+            let prediction_len = self.commons.history.prediction().len();
+            if prediction_len == 0 {
+                *selected_prediction = 0;
+            } else if *selected_prediction >= prediction_len {
+                *selected_prediction = prediction_len - 1;
+            }
         }
     }
 
     /// Compute prediction based on the current input.
     fn predict(&mut self) {
-        let cwd = self.commons.interpreter.get_cwd();
-        let line = self.commons.text_input.extract_text_without_last_nl();
-        self.commons.history.predict(&cwd.to_string_lossy(), &line);
+        self.commons.history.predict_bubble_up(&self.search);
         self.prediction_screen.reset();
 
-        let line = self.commons.text_input.extract_text_without_last_nl();
+        trace!("bubble_exclusive::predict(»{}«): >>>>> ", self.search);
         for item in self.commons.history.prediction() {
-            let _ = self.prediction_screen.add_bytes(line.as_bytes());
+            trace!("bubble_exclusive::predict: »{}«", item);
+            let _ = self.prediction_screen.add_bytes(self.search.as_bytes());
             let _ = self.prediction_screen.add_bytes(item.as_bytes());
             let _ = self.prediction_screen.add_bytes(b"\n");
         }
-    }
-
-    /// Get latest prediction
-    fn prediction<'a>(&'a self) -> &'a Vec<String> {
-        self.commons.history.prediction()
+        trace!("bubble_exclusive::predict: <<<<< ");
     }
 
     fn compute_predictions_from_to(&self) -> (usize, usize) {
-        let from = if self.selected_prediction > PREDICTION_RAD {
-            self.selected_prediction - PREDICTION_RAD
+        if let Some(selected_prediction) = self.selected_prediction {
+            let from = if selected_prediction > PREDICTION_RAD {
+                selected_prediction - PREDICTION_RAD
+            } else {
+                0
+            };
+            let prediction_len = self.commons.history.prediction().len();
+            let to = if selected_prediction + PREDICTION_RAD + 1 <= prediction_len {
+                selected_prediction + PREDICTION_RAD + 1
+            } else {
+                prediction_len
+            };
+            (from, to)
         } else {
-            0
-        };
-        let prediction_len = self.commons.history.prediction().len();
-        let to = if self.selected_prediction + PREDICTION_RAD + 1 <= prediction_len {
-            self.selected_prediction + PREDICTION_RAD + 1
-        } else {
-            prediction_len
-        };
-        (from, to)
+            // Nothing selected, draw the last PREDICTION_RAD+1 items
+            let prediction_len = self.commons.history.prediction().len();
+            let from = if prediction_len > PREDICTION_RAD {
+                prediction_len - 1 - PREDICTION_RAD
+            } else {
+                0
+            };
+            let to = prediction_len;
+            (from, to)
+        }
     }
 
     fn compute_session_height(&self) -> usize {
         let input_height = self.commons.text_input.height() as usize;
         let (from, to) = self.compute_predictions_from_to();
+        let search_height = if self.search.is_empty() { 0 } else { 1 };
         // TODO: Handle window heights smaller than input_height
-        self.commons.window_height - input_height - (to - from)
+        self.commons.window_height - input_height - (to - from) - search_height
     }
 
     fn event_special_key_prediction(
@@ -162,109 +187,33 @@ impl ComposeCommandPresenter {
         key: &SpecialKey,
     ) -> PresenterCommand {
         match (mod_state.as_tuple(), key) {
-            // (shift,control,meta)
-            ((false, false, false), SpecialKey::Enter) => {
-                // Take remaining prediction and execute it
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
-                let items = &self.commons.history.prediction();
-                let item = &items[self.selected_prediction];
-                self.commons.text_input.insert_str(item);
-                self.commons.to_last_line();
-                self.execute_input()
-            }
-            ((false, false, false), SpecialKey::Left) => {
-                // Delete the last character
-                self.commons.text_input.delete_left();
-                self.predict();
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
-                PresenterCommand::Redraw
-            }
-            ((false, true, false), SpecialKey::Left) => {
-                self.commons.text_input.delete_word_before_cursor();
-                self.predict();
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
-                PresenterCommand::Redraw
-            }
-            ((false, false, false), SpecialKey::Right) => {
-                // Take the first character from the current prediction
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
-                let items = &self.commons.history.prediction();
-                let item = &items[self.selected_prediction];
-                if let Some(c) = item.chars().next() {
-                    self.commons_mut().text_input_add_characters(&c.to_string());
-                    self.predict();
-                    PresenterCommand::Redraw
-                } else {
-                    PresenterCommand::Unknown
-                }
-            }
-            ((false, true, false), SpecialKey::Right) => {
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
-                let items = &self.commons.history.prediction();
-                let item = &items[self.selected_prediction];
-                let mut cs = item.chars();
-                // Skip any initial spaces
-                while let Some(c) = cs.next() {
-                    self.commons.text_input.insert_str(&c.to_string());
-                    if c != ' ' {
-                        break;
-                    }
-                }
-                // Take non-spaces
-                while let Some(c) = cs.next() {
-                    if c == ' ' {
-                        break;
-                    }
-                    self.commons.text_input.insert_str(&c.to_string());
-                }
-                self.predict();
-                PresenterCommand::Redraw
-            }
-
             ((false, false, false), SpecialKey::Up) => {
-                // Decrement the selection index
-                if self.selected_prediction > 0 {
-                    self.selected_prediction -= 1;
+                if let Some(ref mut selected_prediction) = self.selected_prediction {
+                    *selected_prediction = selected_prediction.saturating_sub(1);
                 }
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Down) => {
-                // Increment the selection index
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
-                if self.selected_prediction + 1 < items_len {
-                    self.selected_prediction += 1;
+                if let Some(ref mut selected_prediction) = self.selected_prediction {
+                    if *selected_prediction + 1 < self.commons.history.prediction().len() {
+                        *selected_prediction += 1;
+                    } else {
+                        self.selected_prediction = None;
+                        self.search.clear();
+                    }
                 }
                 PresenterCommand::Redraw
             }
-
-            ((false, false, false), SpecialKey::Home) => {
-                // Delete the whole line
-                self.commons.text_input.reset();
-                self.commons.text_input.make_room();
+            ((false, false, false), SpecialKey::Backspace) => {
+                // Shorten the search string by one char
+                let _ = self.search.pop();
                 self.predict();
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
+                self.fix_selected_prediction();
                 PresenterCommand::Redraw
             }
+            ((_, _, _), SpecialKey::Enter) => self.execute_input(),
 
-            ((false, false, false), SpecialKey::End) => {
-                // Take the rest of the prediction
-                let items_len = self.prediction().len();
-                self.fix_selected_prediction(items_len);
-                let items = &self.commons.history.prediction();
-                let item = &items[self.selected_prediction];
-                self.commons.text_input.insert_str(item);
-                self.predict();
-                PresenterCommand::Redraw
-            }
-
-            _ => self.event_special_key_normal(mod_state, key),
+            _ => PresenterCommand::Unknown,
         }
     }
 
@@ -278,7 +227,6 @@ impl ComposeCommandPresenter {
             ((false, false, false), SpecialKey::Enter) => {
                 if self.is_multi_line() {
                     self.commons_mut().text_input.break_line();
-                    self.predict();
                     PresenterCommand::Redraw
                 } else {
                     self.execute_input()
@@ -287,7 +235,6 @@ impl ComposeCommandPresenter {
             ((true, false, false), SpecialKey::Enter) => {
                 // Shift-Enter -> Break the line and thereby start multi-line editing
                 self.commons_mut().text_input.break_line();
-                self.predict();
                 PresenterCommand::Redraw
             }
             ((false, true, false), SpecialKey::Enter) => {
@@ -305,6 +252,26 @@ impl ComposeCommandPresenter {
             ((false, false, false), SpecialKey::Right) => {
                 self.commons_mut().text_input.move_right(1);
                 PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Up) => {
+                if self.commons.text_input.cursor_y() > 0 {
+                    self.commons_mut().text_input.move_up(1);
+                } else {
+                    // Go to last history entry
+                    let prediction_len = self.commons.history.prediction().len();
+                    if prediction_len > 0 {
+                        self.selected_prediction = Some(prediction_len - 1);
+                    }
+                }
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Down) => {
+                if self.commons.text_input.cursor_y() + 1 < self.commons.text_input.height() {
+                    self.commons_mut().text_input.move_down(1);
+                    PresenterCommand::Redraw
+                } else {
+                    PresenterCommand::Unknown
+                }
             }
             ((true, false, false), SpecialKey::PageUp) => {
                 // Shift only -> Scroll
@@ -341,7 +308,6 @@ impl ComposeCommandPresenter {
                 } else {
                     self.commons.text_input.delete_character();
                 }
-                self.predict();
                 PresenterCommand::Redraw
             }
 
@@ -355,7 +321,6 @@ impl ComposeCommandPresenter {
                 } else {
                     self.commons.text_input.delete_left();
                 }
-                self.predict();
                 PresenterCommand::Redraw
             }
 
@@ -451,47 +416,73 @@ impl SubPresenter for ComposeCommandPresenter {
         session: &'b Session,
         y: usize,
     ) -> Option<DisplayLine<'a>> {
+        let mut offs = y;
         let session_height = self.compute_session_height();
         if y < session_height {
             if let Some(loc) = self.commons.start_line(session, true, session_height) {
-                if let Some(loc) = PresenterCommons::locate_down(session, &loc, true, y) {
+                if let Some(loc) = PresenterCommons::locate_down(session, &loc, true, offs) {
                     if let Some(display_line) = session.display_line(&loc) {
                         return Some(DisplayLine::from(display_line));
                     }
                 }
             }
-        } else {
-            let input_height = self.commons.text_input.height() as usize;
-            if y < session_height + input_height {
-                let offs = y - session_height;
-                return self.commons.text_input.line_iter().nth(offs).map(|cells| {
-                    let cursor_col = if offs == (self.commons.text_input.cursor_y() as usize) {
+            return None;
+        }
+        offs -= session_height;
+        let (from, to) = self.compute_predictions_from_to();
+        let prediction_height = to - from;
+        if offs < prediction_height {
+            let cursor_col = {
+                if let Some(selected_prediction) = self.selected_prediction {
+                    if offs + from == selected_prediction {
+                        Some(self.search.len())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+            let cells = self
+                .prediction_screen
+                .compacted_row_slice((from + offs) as isize);
+            return Some(DisplayLine::from(LineItem::new(
+                &cells,
+                LineType::HistoryItem,
+                cursor_col,
+                0,
+            )));
+        }
+        offs -= prediction_height;
+
+        if !self.search.is_empty() {
+            if offs == 0 {
+                // Draw search string
+                let cells = Screen::one_line_cell_vec(self.search.as_bytes());
+                return Some(DisplayLine::from(LineItem::new_owned(
+                    cells,
+                    LineType::Search,
+                    None,
+                    0,
+                )));
+            }
+            offs -= 1;
+        }
+
+        let input_height = self.commons.text_input.height() as usize;
+        if offs < input_height {
+            return self.commons.text_input.line_iter().nth(offs).map(|cells| {
+                let cursor_col = if self.selected_prediction.is_none() {
+                    if offs == (self.commons.text_input.cursor_y() as usize) {
                         Some(self.commons.text_input.cursor_x() as usize)
                     } else {
                         None
-                    };
-                    DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0))
-                });
-            } else {
-                let (from, to) = self.compute_predictions_from_to();
-                let prediction_height = to - from;
-                if y < session_height + input_height + prediction_height {
-                    let index_p = y - session_height - input_height + from;
-                    let line = self.commons.text_input.extract_text_without_last_nl();
-                    let cursor_col = if index_p == self.selected_prediction {
-                        Some(line.len())
-                    } else {
-                        None
-                    };
-                    let cells = self.prediction_screen.compacted_row_slice(index_p as isize);
-                    return Some(DisplayLine::from(LineItem::new(
-                        &cells,
-                        LineType::InputInfo,
-                        cursor_col,
-                        0,
-                    )));
-                }
-            }
+                    }
+                } else {
+                    None
+                };
+                return DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0));
+            });
         }
         None
     }
@@ -512,10 +503,8 @@ impl SubPresenter for ComposeCommandPresenter {
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> PresenterCommand {
-        if self.commons.text_input.cursor_at_end() {
-            if !self.prediction().is_empty() {
-                return self.event_special_key_prediction(mod_state, key);
-            }
+        if self.selected_prediction.is_some() {
+            return self.event_special_key_prediction(mod_state, key);
         }
         self.event_special_key_normal(mod_state, key)
     }
@@ -527,26 +516,26 @@ impl SubPresenter for ComposeCommandPresenter {
     fn event_normal_key(&mut self, mod_state: &ModifierState, letter: u8) -> PresenterCommand {
         match (mod_state.as_tuple(), letter) {
             ((false, true, false), b'd') => PresenterCommand::Exit,
-            //           ((false, true, false), b'r') => {
-            //               // Control-R -> Start interactive history search
-            //               let prefix = {
-            //                   let ref mut text_input = self.commons.text_input;
-            //                   let prefix = text_input.text_before_cursor();
-            //                   text_input.reset();
-            //                   text_input.place_str(&prefix);
-            //                   prefix
-            //               };
-            //                   PresenterCommand::Redraw,
-            //           }
+            ((false, true, false), b'r') => {
+                // Control-R -> Start interactive history search
+                let prediction_len = self.commons.history.prediction().len();
+                if prediction_len > 0 {
+                    self.selected_prediction = Some(prediction_len - 1);
+                }
+                PresenterCommand::Redraw
+            }
             _ => PresenterCommand::Unknown,
         }
     }
 
     fn event_text(&mut self, s: &str) -> PresenterCommand {
-        self.commons_mut().text_input_add_characters(s);
-        self.predict();
-        let items_len = self.prediction().len();
-        self.fix_selected_prediction(items_len);
+        if self.selected_prediction.is_none() {
+            self.commons_mut().text_input_add_characters(s);
+        } else {
+            self.search.push_str(s);
+            self.predict();
+            self.fix_selected_prediction();
+        }
         PresenterCommand::Redraw
     }
 

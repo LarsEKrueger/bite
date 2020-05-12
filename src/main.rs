@@ -200,8 +200,10 @@ pub fn main() {
         .map_or(presenter::ComposeVariant::BubbleAbove, |v| {
             if v.as_string() == "markov_below" {
                 presenter::ComposeVariant::MarkovBelow
-            } else {
+            } else if v.as_string() == "bubble_above" {
                 presenter::ComposeVariant::BubbleAbove
+            } else {
+                presenter::ComposeVariant::BubbleExclusive
             }
         });
     trace!("BITE_FEAT_COMPOSE: {:?}", feat_compose_variant);

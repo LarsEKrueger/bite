@@ -17,4 +17,5 @@
 */
 
 pub mod bubble_above;
+pub mod bubble_exclusive;
 pub mod markov_below;

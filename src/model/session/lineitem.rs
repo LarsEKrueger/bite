@@ -37,6 +37,12 @@ pub enum LineType {
     /// Additional info about the input line, e.g. predictions, history
     InputInfo,
 
+    /// History Items
+    HistoryItem,
+
+    /// Search String
+    Search,
+
     /// A menu item that has been selected and its position in the menu.
     SelectedMenuItem(usize),
     /// A non-selected menu item and its position in the menu.
