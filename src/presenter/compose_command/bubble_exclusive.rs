@@ -136,14 +136,11 @@ impl ComposeCommandPresenter {
         self.commons.history.predict_bubble_up(&self.search);
         self.prediction_screen.reset();
 
-        trace!("bubble_exclusive::predict(»{}«): >>>>> ", self.search);
         for item in self.commons.history.prediction() {
-            trace!("bubble_exclusive::predict: »{}«", item);
             let _ = self.prediction_screen.add_bytes(self.search.as_bytes());
             let _ = self.prediction_screen.add_bytes(item.as_bytes());
             let _ = self.prediction_screen.add_bytes(b"\n");
         }
-        trace!("bubble_exclusive::predict: <<<<< ");
     }
 
     fn compute_predictions_from_to(&self) -> (usize, usize) {
@@ -167,7 +164,11 @@ impl ComposeCommandPresenter {
     }
 
     fn compute_session_height(&self) -> usize {
-        let input_height = self.commons.text_input.height() as usize;
+        let input_height = if self.selected_prediction.is_some() {
+            0
+        } else {
+            self.commons.text_input.height() as usize
+        };
         let (from, to) = self.compute_predictions_from_to();
         let search_height = if self.search.is_empty() { 0 } else { 1 };
         // TODO: Handle window heights smaller than input_height
@@ -462,20 +463,22 @@ impl SubPresenter for ComposeCommandPresenter {
             offs -= 1;
         }
 
-        let input_height = self.commons.text_input.height() as usize;
-        if offs < input_height {
-            return self.commons.text_input.line_iter().nth(offs).map(|cells| {
-                let cursor_col = if self.selected_prediction.is_none() {
-                    if offs == (self.commons.text_input.cursor_y() as usize) {
-                        Some(self.commons.text_input.cursor_x() as usize)
+        if self.selected_prediction.is_none() {
+            let input_height = self.commons.text_input.height() as usize;
+            if offs < input_height {
+                return self.commons.text_input.line_iter().nth(offs).map(|cells| {
+                    let cursor_col = if self.selected_prediction.is_none() {
+                        if offs == (self.commons.text_input.cursor_y() as usize) {
+                            Some(self.commons.text_input.cursor_x() as usize)
+                        } else {
+                            None
+                        }
                     } else {
                         None
-                    }
-                } else {
-                    None
-                };
-                return DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0));
-            });
+                    };
+                    return DisplayLine::from(LineItem::new(cells, LineType::Input, cursor_col, 0));
+                });
+            }
         }
         None
     }
