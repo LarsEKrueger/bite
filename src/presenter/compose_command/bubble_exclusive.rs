@@ -161,15 +161,8 @@ impl ComposeCommandPresenter {
             };
             (from, to)
         } else {
-            // Nothing selected, draw the last PREDICTION_RAD+1 items
-            let prediction_len = self.commons.history.prediction().len();
-            let from = if prediction_len > PREDICTION_RAD {
-                prediction_len - 1 - PREDICTION_RAD
-            } else {
-                0
-            };
-            let to = prediction_len;
-            (from, to)
+            // Nothing selected, draw nothing
+            (0, 0)
         }
     }
 
