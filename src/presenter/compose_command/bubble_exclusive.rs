@@ -20,8 +20,7 @@
 //! stack. Entry is not used for prediction. Automatic search is performed when typing in the
 //! history.
 
-use std::borrow::Cow;
-
+use model::completion;
 use model::interpreter::parse_script;
 use model::screen::Screen;
 use model::session::{OutputVisibility, RunningStatus, Session};
@@ -30,22 +29,35 @@ use presenter::{
     PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
 };
 
+/// Which selection to show
+enum SelectionMode {
+    None,
+    History,
+    Completion,
+}
+
 /// Presenter to input and run commands.
 pub struct ComposeCommandPresenter {
     /// Common data.
     commons: Box<PresenterCommons>,
 
-    /// Index of selected prediction, If None, no option is selected
-    selected_prediction: Option<usize>,
+    /// Index of selected history or completion item.
+    selected_item: usize,
 
-    /// String to search for
+    /// String to search for in the history
     search: String,
 
-    /// Cache of rendered prediction
-    prediction_screen: Screen,
+    /// Cache of rendered selection
+    selection_screen: Screen,
+
+    /// List of completions
+    completions: Vec<String>,
+
+    /// Selection mode
+    selection_mode: SelectionMode,
 }
 
-const PREDICTION_RAD: usize = 2;
+const SELECTION_RAD: usize = 2;
 
 impl ComposeCommandPresenter {
     /// Allocate a sub-presenter for command composition and input to running programs.
@@ -53,11 +65,13 @@ impl ComposeCommandPresenter {
         commons.to_last_line();
         let mut presenter = ComposeCommandPresenter {
             commons,
-            selected_prediction: None,
-            prediction_screen: Screen::new(),
+            selected_item: 0,
+            selection_screen: Screen::new(),
             search: String::new(),
+            completions: Vec::new(),
+            selection_mode: SelectionMode::None,
         };
-        presenter.predict();
+        presenter.search_history();
         Box::new(presenter)
     }
 
@@ -70,17 +84,26 @@ impl ComposeCommandPresenter {
     }
 
     fn execute_input(&mut self) -> PresenterCommand {
-        let line = if let Some(selected_prediction) = self.selected_prediction {
-            let mut line = self.search.clone();
-            line.push_str(&self.commons.history.prediction()[selected_prediction]);
-            line
-        } else {
-            self.commons.text_input.extract_text_without_last_nl()
+        let line = match self.selection_mode {
+            SelectionMode::None => self.commons.text_input.extract_text_without_last_nl(),
+            SelectionMode::History => {
+                let selected_item = self.selected_item;
+                let mut line = self.search.clone();
+                line.push_str(&self.commons.history.prediction()[selected_item]);
+                self.search_history();
+                line
+            }
+            SelectionMode::Completion => {
+                return PresenterCommand::Unknown;
+            }
         };
         self.commons.text_input.reset();
         self.commons.text_input.make_room();
+        self.selection_mode = SelectionMode::None;
         self.search.clear();
-        self.predict();
+        if line.is_empty() {
+            return PresenterCommand::Redraw;
+        }
         trace!("Execute »{}«", line);
         let mut line_with_nl = line.clone();
         line_with_nl.push('\n');
@@ -119,94 +142,143 @@ impl ComposeCommandPresenter {
         PresenterCommand::Redraw
     }
 
-    /// Fix the selected_prediction to cope with changes in the number of items
-    fn fix_selected_prediction(&mut self) {
-        if let Some(ref mut selected_prediction) = self.selected_prediction {
-            let prediction_len = self.commons.history.prediction().len();
-            if prediction_len == 0 {
-                *selected_prediction = 0;
-            } else if *selected_prediction >= prediction_len {
-                *selected_prediction = prediction_len - 1;
-            }
+    /// Fix the selected_item to cope with changes in the number of items
+    fn fix_selected_item(&mut self) {
+        let selected_item = &mut self.selected_item;
+        let prediction_len = self.commons.history.prediction().len();
+        if prediction_len == 0 {
+            *selected_item = 0;
+        } else if *selected_item >= prediction_len {
+            *selected_item = prediction_len - 1;
         }
     }
 
-    /// Compute prediction based on the current input.
-    fn predict(&mut self) {
+    /// Compute history selection based on the current input.
+    fn search_history(&mut self) {
         self.commons.history.predict_bubble_up(&self.search);
-        self.prediction_screen.reset();
+        self.selection_screen.reset();
 
         for item in self.commons.history.prediction() {
-            let _ = self.prediction_screen.add_bytes(self.search.as_bytes());
-            let _ = self.prediction_screen.add_bytes(item.as_bytes());
-            let _ = self.prediction_screen.add_bytes(b"\n");
+            let _ = self.selection_screen.add_bytes(self.search.as_bytes());
+            let _ = self.selection_screen.add_bytes(item.as_bytes());
+            let _ = self.selection_screen.add_bytes(b"\n");
         }
     }
 
-    fn compute_predictions_from_to(&self) -> (usize, usize) {
-        if let Some(selected_prediction) = self.selected_prediction {
-            let from = if selected_prediction > PREDICTION_RAD {
-                selected_prediction - PREDICTION_RAD
-            } else {
-                0
-            };
-            let prediction_len = self.commons.history.prediction().len();
-            let to = if selected_prediction + PREDICTION_RAD + 1 <= prediction_len {
-                selected_prediction + PREDICTION_RAD + 1
-            } else {
-                prediction_len
-            };
-            (from, to)
-        } else {
-            // Nothing selected, draw nothing
-            (0, 0)
+    /// Determine which elements are visible
+    ///
+    /// Returns (show_input, show_input_cursor, show_selection, show_search)
+    fn visible_elements(&self) -> (bool, bool, bool, bool) {
+        match self.selection_mode {
+            SelectionMode::None => (true, true, false, false),
+            SelectionMode::History => (false, false, true, !self.search.is_empty()),
+            SelectionMode::Completion => (true, false, true, false),
         }
+    }
+
+    fn selections_from_to(&self) -> (usize, usize) {
+        let selected_item = self.selected_item;
+        let from = if selected_item > SELECTION_RAD {
+            selected_item - SELECTION_RAD
+        } else {
+            0
+        };
+        // TODO: Handle multi-line entries in history
+        let prediction_len = self.selection_screen.height() as usize;
+        let to = if selected_item + SELECTION_RAD + 1 <= prediction_len {
+            selected_item + SELECTION_RAD + 1
+        } else {
+            prediction_len
+        };
+        (from, to)
     }
 
     fn compute_session_height(&self) -> usize {
-        let input_height = if self.selected_prediction.is_some() {
-            0
-        } else {
+        let (show_input, _, show_selection, show_search) = self.visible_elements();
+        let input_height = if show_input {
             self.commons.text_input.height() as usize
+        } else {
+            0
         };
-        let (from, to) = self.compute_predictions_from_to();
-        let search_height = if self.search.is_empty() { 0 } else { 1 };
+        let (from, to) = if show_selection {
+            self.selections_from_to()
+        } else {
+            (0, 0)
+        };
+        let search_height = if show_search { 1 } else { 0 };
         // TODO: Handle window heights smaller than input_height
         self.commons.window_height - input_height - (to - from) - search_height
     }
 
-    fn event_special_key_prediction(
+    fn event_special_key_history(
         &mut self,
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> PresenterCommand {
         match (mod_state.as_tuple(), key) {
             ((false, false, false), SpecialKey::Up) => {
-                if let Some(ref mut selected_prediction) = self.selected_prediction {
-                    *selected_prediction = selected_prediction.saturating_sub(1);
-                }
+                let selected_item = &mut self.selected_item;
+                *selected_item = selected_item.saturating_sub(1);
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Down) => {
-                if let Some(ref mut selected_prediction) = self.selected_prediction {
-                    if *selected_prediction + 1 < self.commons.history.prediction().len() {
-                        *selected_prediction += 1;
-                    } else {
-                        self.selected_prediction = None;
-                        self.search.clear();
-                    }
+                let selected_item = &mut self.selected_item;
+                if *selected_item + 1 < self.commons.history.prediction().len() {
+                    *selected_item += 1;
+                } else {
+                    self.selection_mode = SelectionMode::None;
+                    self.search.clear();
                 }
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Backspace) => {
                 // Shorten the search string by one char
                 let _ = self.search.pop();
-                self.predict();
-                self.fix_selected_prediction();
+                self.search_history();
+                self.fix_selected_item();
                 PresenterCommand::Redraw
             }
             ((_, _, _), SpecialKey::Enter) => self.execute_input(),
 
+            _ => PresenterCommand::Unknown,
+        }
+    }
+
+    fn event_special_key_completion(
+        &mut self,
+        mod_state: &ModifierState,
+        key: &SpecialKey,
+    ) -> PresenterCommand {
+        match (mod_state.as_tuple(), key) {
+            ((false, false, false), SpecialKey::Up) => {
+                let selected_item = &mut self.selected_item;
+                *selected_item = selected_item.saturating_sub(1);
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Down) => {
+                let selected_item = &mut self.selected_item;
+                if *selected_item + 1 < self.selection_screen.height() as usize {
+                    *selected_item += 1;
+                }
+                PresenterCommand::Redraw
+            }
+            ((_, _, _), SpecialKey::Enter) => {
+                let selected_item = self.selected_item;
+                // Insert the selected completion
+                let word = self.text_input().word_before_cursor();
+                let word_chars = word.chars().count();
+                // Delete the beginning
+                self.text_input().move_left(word_chars as isize);
+                for _i in 0..word_chars {
+                    self.text_input().delete_character();
+                }
+                // Put the match there
+                let completion = self.completions.remove(selected_item);
+                self.text_input().place_str(&completion);
+                // Go back to normal mode
+                self.selection_mode = SelectionMode::None;
+                PresenterCommand::Redraw
+            }
             _ => PresenterCommand::Unknown,
         }
     }
@@ -254,7 +326,8 @@ impl ComposeCommandPresenter {
                     // Go to last history entry
                     let prediction_len = self.commons.history.prediction().len();
                     if prediction_len > 0 {
-                        self.selected_prediction = Some(prediction_len - 1);
+                        self.selected_item = prediction_len - 1;
+                        self.selection_mode = SelectionMode::History;
                     }
                 }
                 PresenterCommand::Redraw
@@ -318,52 +391,35 @@ impl ComposeCommandPresenter {
                 PresenterCommand::Redraw
             }
 
-            //           ((false, false, false), SpecialKey::Tab) => {
-            //               // TODO: This needs to be cleaned up.
-            //               let word = self.text_input().word_before_cursor();
-            //               let word_chars = word.chars().count();
-            //
-            //               // Remember if the word started with ./ because glob removes that.
-            //               let dot_slash = if word.starts_with("./") { "./" } else { "" };
-            //
-            //               // Find all files and folders that match '<word>*'
-            //               match glob::glob(&(word.clone() + "*")) {
-            //                   Err(_) => (self, PresenterCommand::Unknown),
-            //                   Ok(g) => {
-            //                       // Get the matches after word
-            //                       let matches: Vec<String> = g
-            //                           .filter_map(std::result::Result::ok)
-            //                           .map(|path| {
-            //                               let mut p = dot_slash.to_string();
-            //                               p.push_str(&path.display().to_string());
-            //                               // If the path is a directory, add a slash.
-            //                               if path.is_dir() {
-            //                                   p.push_str("/");
-            //                               }
-            //                               p
-            //                           })
-            //                           .collect();
-            //
-            //                       // If there is only one match, insert that
-            //                       if matches.len() == 1 {
-            //                           // Delete the beginning
-            //                           self.text_input().move_left(word_chars as isize);
-            //                           for _i in 0..word_chars {
-            //                               self.text_input().delete_character();
-            //                           }
-            //                           // Put the match there
-            //                           self.text_input().place_str(&matches[0]);
-            //                           (self, PresenterCommand::Redraw)
-            //                       } else {
-            //                           // Otherwise make the user pick
-            //                           (
-            //                               CompleteCommandPresenter::new(self.commons, word, matches),
-            //                               PresenterCommand::Redraw,
-            //                           )
-            //                       }
-            //                   }
-            //               }
-            //           }
+            // Tab: Completion
+            ((false, false, false), SpecialKey::Tab) => {
+                let word = self.text_input().word_before_cursor();
+
+                let completions = completion::file_completion(&word);
+                let completion_len = completions.len();
+                // If there is only one match, insert that
+                if completion_len == 1 {
+                    let word_chars = word.chars().count();
+                    // Delete the beginning
+                    self.text_input().move_left(word_chars as isize);
+                    for _i in 0..word_chars {
+                        self.text_input().delete_character();
+                    }
+                    // Put the match there
+                    self.text_input().place_str(&completions[0]);
+                } else {
+                    // Otherwise make the user pick
+                    self.completions = completions;
+                    self.selection_screen.reset();
+                    for item in self.completions.iter() {
+                        let _ = self.selection_screen.add_bytes(item.as_bytes());
+                        let _ = self.selection_screen.add_bytes(b"\n");
+                    }
+                    self.selected_item = completion_len - 1;
+                    self.selection_mode = SelectionMode::Completion;
+                }
+                PresenterCommand::Redraw
+            }
 
             // Ctrl-Space: cycle last interaction's output
             ((false, true, false), SpecialKey::Space) => {
@@ -411,6 +467,8 @@ impl SubPresenter for ComposeCommandPresenter {
         y: usize,
     ) -> Option<DisplayLine<'a>> {
         let mut offs = y;
+
+        // Always show the session
         let session_height = self.compute_session_height();
         if y < session_height {
             if let Some(loc) = self.commons.start_line(session, true, session_height) {
@@ -423,33 +481,35 @@ impl SubPresenter for ComposeCommandPresenter {
             return None;
         }
         offs -= session_height;
-        let (from, to) = self.compute_predictions_from_to();
-        let prediction_height = to - from;
-        if offs < prediction_height {
-            let cursor_col = {
-                if let Some(selected_prediction) = self.selected_prediction {
-                    if offs + from == selected_prediction {
-                        Some(self.search.len())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            };
-            let cells = self
-                .prediction_screen
-                .compacted_row_slice((from + offs) as isize);
-            return Some(DisplayLine::from(LineItem::new(
-                &cells,
-                LineType::HistoryItem,
-                cursor_col,
-                0,
-            )));
-        }
-        offs -= prediction_height;
 
-        if !self.search.is_empty() {
+        let (show_input, show_input_cursor, show_selection, show_search) = self.visible_elements();
+
+        if show_selection {
+            let (from, to) = self.selections_from_to();
+            let selection_height = to - from;
+            if offs < selection_height {
+                let (cursor_col, line_type) = {
+                    let selected_item = self.selected_item;
+                    if offs + from == selected_item {
+                        (
+                            Some(self.search.len()),
+                            LineType::SelectedMenuItem(selected_item),
+                        )
+                    } else {
+                        (None, LineType::MenuItem(selected_item))
+                    }
+                };
+                let cells = self
+                    .selection_screen
+                    .compacted_row_slice((from + offs) as isize);
+                return Some(DisplayLine::from(LineItem::new(
+                    &cells, line_type, cursor_col, 0,
+                )));
+            }
+            offs -= selection_height;
+        }
+
+        if show_search {
             if offs == 0 {
                 // Draw search string
                 let cells = Screen::one_line_cell_vec(self.search.as_bytes());
@@ -463,16 +523,14 @@ impl SubPresenter for ComposeCommandPresenter {
             offs -= 1;
         }
 
-        if self.selected_prediction.is_none() {
+        if show_input {
             let input_height = self.commons.text_input.height() as usize;
             if offs < input_height {
                 return self.commons.text_input.line_iter().nth(offs).map(|cells| {
-                    let cursor_col = if self.selected_prediction.is_none() {
-                        if offs == (self.commons.text_input.cursor_y() as usize) {
-                            Some(self.commons.text_input.cursor_x() as usize)
-                        } else {
-                            None
-                        }
+                    let cursor_col = if show_input_cursor
+                        && offs == (self.commons.text_input.cursor_y() as usize)
+                    {
+                        Some(self.commons.text_input.cursor_x() as usize)
                     } else {
                         None
                     };
@@ -499,10 +557,11 @@ impl SubPresenter for ComposeCommandPresenter {
         mod_state: &ModifierState,
         key: &SpecialKey,
     ) -> PresenterCommand {
-        if self.selected_prediction.is_some() {
-            return self.event_special_key_prediction(mod_state, key);
+        match self.selection_mode {
+            SelectionMode::None => self.event_special_key_normal(mod_state, key),
+            SelectionMode::History => self.event_special_key_history(mod_state, key),
+            SelectionMode::Completion => self.event_special_key_completion(mod_state, key),
         }
-        self.event_special_key_normal(mod_state, key)
     }
 
     /// Handle pressing modifier + letter.
@@ -516,7 +575,8 @@ impl SubPresenter for ComposeCommandPresenter {
                 // Control-R -> Start interactive history search
                 let prediction_len = self.commons.history.prediction().len();
                 if prediction_len > 0 {
-                    self.selected_prediction = Some(prediction_len - 1);
+                    self.selected_item = prediction_len - 1;
+                    self.selection_mode = SelectionMode::History;
                 }
                 PresenterCommand::Redraw
             }
@@ -525,12 +585,16 @@ impl SubPresenter for ComposeCommandPresenter {
     }
 
     fn event_text(&mut self, s: &str) -> PresenterCommand {
-        if self.selected_prediction.is_none() {
-            self.commons_mut().text_input_add_characters(s);
-        } else {
-            self.search.push_str(s);
-            self.predict();
-            self.fix_selected_prediction();
+        match self.selection_mode {
+            SelectionMode::None => {
+                self.commons_mut().text_input_add_characters(s);
+            }
+            SelectionMode::History => {
+                self.search.push_str(s);
+                self.search_history();
+                self.fix_selected_item();
+            }
+            SelectionMode::Completion => {}
         }
         PresenterCommand::Redraw
     }

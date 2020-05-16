@@ -20,6 +20,7 @@
 //!
 //! Most modules deal with the bash script interpreter, either interactively or non-interactively.
 
+pub mod completion;
 pub mod control_sequence;
 pub mod error;
 pub mod history;
