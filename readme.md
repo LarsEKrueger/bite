@@ -51,11 +51,14 @@ The following keyboard shortcuts trigger actions:
 Shortcut            | Compose Command                          | Execute Command
 --------------------|------------------------------------------|----------------
 Cursor Left/Right   | Cursor Left/Right in command line        | Cursor Left/Right in input
-Cursor Up/Down      | Select a different prediction            | ...
+Cursor Up/Down      | Select a different item                  | ...
 Shift-Page Up/Down  | Scroll page-wise                         | Scroll page-wise.
 Ctrl-Space          | Toggle output visibility of last command | Toggle output visibility of current command
 Shift-Ctrl-Space    | Toggle output visibility of all commands | Toggle output visibility of all commands
 Ctrl-Tab            | Switch between running background TUIs   | Switch between running background TUIs
+Ctrl-R              | Open history                             | ...
+Tab                 | Completion                               | ...
+
 
 ## Configuration
 
@@ -244,7 +247,7 @@ order (e.g. `git commit` followed by `git push`).
 
 The sequence of commands there needs to be taken into account too.
 
-### Just pressing Return starts command from history: Inconvenient
+### Just pressing Return starts command from history with prediction: Inconvenient
 
 As the Return key starts the full command even if only a part of the history
 entry has been taken into the input field, using a part of the history entry is
@@ -255,6 +258,7 @@ Thus, three different options on partial matches need to be provided:
 * Start the whole history entry unmodified
 * Ignore the history entry and start the command in the input field as-is
 * Take parts of the history entry
+* Disable prediction
 
 Options:
 
@@ -314,6 +318,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 0.14 Implement all Screen Actions
 * [ ] 0.15 Redesign user interface
 * [ ] 0.16 Redesign SW architecture
+* [ ] 0.17 Clean up code
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
