@@ -305,13 +305,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [X] 0.9 Display output of (non-interactive) background programs
 * [X] 0.10 Make GUI font configurable
 * [X] 0.11 Tabs for TUIs, incl. automatic backgrounding
-    * [X] Ctrl-Tab through the still running TUIs
-    * [X] Allow the foreground program to be selected again
-    * [X] Simplify scrolling (None = show last, Some = show that line)
-    * [X] Display prediction
-    * [X] propagate window size changes to TUI
-    * [X] Make visibility indicator clickable again
-* [ ] 0.12 Better prediction / completion
+* [X] 0.12 Better prediction / completion
     * [X] Predict using previous command
     * [X] Don't show last prompt in execute presenter
     * [X] History above prompt + Feature flag
