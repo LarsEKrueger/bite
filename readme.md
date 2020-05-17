@@ -315,7 +315,13 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] History above prompt + Feature flag
     * [X] Re-add completion
 * [ ] 0.13 Draw GUI using Xft
+    * [ ] Adapt glyph generation from alagritty
+    * [ ] Switch rendering backend (w.r.t. GUI widget support)
+    * [ ] Add code point combination (a + " = ä)
+    * [ ] Reduce size of Cell
+    * [ ] RGB color handling
 * [ ] 0.14 Implement all Screen Actions
+    * [ ] Handle query escape sequences
 * [ ] 0.15 Redesign user interface
 * [ ] 0.16 Redesign SW architecture
 * [ ] 0.17 Clean up code
