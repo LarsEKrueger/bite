@@ -88,10 +88,15 @@ impl ComposeCommandPresenter {
             SelectionMode::None => self.commons.text_input.extract_text_without_last_nl(),
             SelectionMode::History => {
                 let selected_item = self.selected_item;
-                let mut line = self.search.clone();
-                line.push_str(&self.commons.history.prediction()[selected_item]);
-                self.search_history();
-                line
+                let prediction_len = self.commons.history.prediction().len();
+                if selected_item < prediction_len {
+                    let mut line = self.search.clone();
+                    line.push_str(&self.commons.history.prediction()[selected_item]);
+                    self.search_history();
+                    line
+                } else {
+                    return PresenterCommand::Unknown;
+                }
             }
             SelectionMode::Completion => {
                 return PresenterCommand::Unknown;
