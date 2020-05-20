@@ -196,16 +196,17 @@ impl ComposeCommandPresenter {
     }
 
     fn selections_from_to(&self) -> (usize, usize) {
+        let selection_rad = std::cmp::max(SELECTION_RAD, self.commons.window_height / 4);
         let selected_item = self.selected_item;
-        let from = if selected_item > SELECTION_RAD {
-            selected_item - SELECTION_RAD
+        let from = if selected_item > selection_rad {
+            selected_item - selection_rad
         } else {
             0
         };
         // TODO: Handle multi-line entries in history
         let prediction_len = self.selection_screen.height() as usize;
-        let to = if selected_item + SELECTION_RAD + 1 <= prediction_len {
-            selected_item + SELECTION_RAD + 1
+        let to = if selected_item + selection_rad + 1 <= prediction_len {
+            selected_item + selection_rad + 1
         } else {
             prediction_len
         };
