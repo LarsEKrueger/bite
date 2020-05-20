@@ -147,6 +147,20 @@ impl ComposeCommandPresenter {
         PresenterCommand::Redraw
     }
 
+    fn set_input_from_history(&mut self) {
+        let selected_item = self.selected_item;
+        let prediction_len = self.commons.history.prediction().len();
+        if selected_item < prediction_len {
+            let mut line = self.search.clone();
+            line.push_str(&self.commons.history.prediction()[selected_item]);
+            self.commons.text_input.reset();
+            self.commons.text_input.make_room();
+            self.commons_mut().text_input_add_characters(&line);
+            self.selection_mode = SelectionMode::None;
+            self.search.clear();
+        }
+    }
+
     /// Fix the selected_item to cope with changes in the number of items
     fn fix_selected_item(&mut self) {
         let selected_item = &mut self.selected_item;
@@ -221,6 +235,23 @@ impl ComposeCommandPresenter {
         key: &SpecialKey,
     ) -> PresenterCommand {
         match (mod_state.as_tuple(), key) {
+            ((false, false, false), SpecialKey::Escape) => {
+                self.selection_mode = SelectionMode::None;
+                self.search.clear();
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Left)
+            | ((false, false, false), SpecialKey::Right)
+            | ((false, false, false), SpecialKey::End) => {
+                self.set_input_from_history();
+                self.text_input().move_end_of_line();
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Home) => {
+                self.set_input_from_history();
+                self.commons.text_input.move_left_edge();
+                PresenterCommand::Redraw
+            }
             ((false, false, false), SpecialKey::Up) => {
                 let selected_item = &mut self.selected_item;
                 *selected_item = selected_item.saturating_sub(1);
@@ -255,6 +286,10 @@ impl ComposeCommandPresenter {
         key: &SpecialKey,
     ) -> PresenterCommand {
         match (mod_state.as_tuple(), key) {
+            ((false, false, false), SpecialKey::Escape) => {
+                self.selection_mode = SelectionMode::None;
+                PresenterCommand::Redraw
+            }
             ((false, false, false), SpecialKey::Up) => {
                 let selected_item = &mut self.selected_item;
                 *selected_item = selected_item.saturating_sub(1);
