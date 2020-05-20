@@ -773,6 +773,9 @@ impl Gui {
                                                     self.mark_redraw();
                                                 }
                                                 PresenterCommand::Exit => return,
+                                                PresenterCommand::Ignored => {
+                                                    // Do nothing
+                                                }
                                             },
                                             _ => {}
                                         }
@@ -782,6 +785,9 @@ impl Gui {
                                     self.mark_redraw();
                                 }
                                 PresenterCommand::Exit => return,
+                                PresenterCommand::Ignored => {
+                                    // Do nothing
+                                }
                             }
                         }
                         ButtonPress => {

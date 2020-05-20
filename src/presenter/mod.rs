@@ -96,6 +96,9 @@ pub enum PresenterCommand {
     /// Unknown key combination, not handled
     Unknown,
 
+    /// Known, but ignored key combination
+    Ignored,
+
     /// Key combination has been dealt with, redraw gui
     Redraw,
 

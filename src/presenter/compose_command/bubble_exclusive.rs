@@ -621,6 +621,7 @@ impl SubPresenter for ComposeCommandPresenter {
                 }
                 PresenterCommand::Redraw
             }
+            ((false, true, false), _) => PresenterCommand::Ignored,
             _ => PresenterCommand::Unknown,
         }
     }

@@ -318,7 +318,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] History: Horizontal navigation keys copy to input
     * [X] Escape cancels history and completion
     * [X] Make selection 1/4 window high
-    * [ ] Unused Ctrl-Something do not add character
+    * [X] Unused Ctrl-Something do not add character
     * [ ] Add code point combination (a + " = ä)
     * [ ] Reduce size of Cell
     * [ ] RGB color handling
