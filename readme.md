@@ -40,7 +40,7 @@ Currently, terminal emulators are deficient in two areas:
 BiTE remedies all these shortcomings by uniting the shell and terminal emulator
 part of the stack that run a command line program.
 
-Be aware that BiTE is currently more an experiment in User Experience than a
+Be aware that BiTE is an experiment in User Experience rather than a
 POSIX compliant shell implementation. The outcome of these experiments will
 decide the future of BiTE.
 
@@ -238,6 +238,8 @@ This section contains a list of experiences with experimental features.
 In case, the autocompletion makes a correct or near-correct prediction, less
 effort is required to enter a command.
 
+Using a substring-based search or even fuzzy search might further improve the UX.
+
 ### Most-frequently Command: Inconvenient
 
 Using the number of times a command has been run isn't a good predictor of
@@ -267,6 +269,11 @@ Options:
 * The previous 5 commands (and possibly directories separately) could be
   displayed above the input field. Pressing the UP key on the first line of the
   input field would switch to history browsing/searching.
+
+### Just pressing Return starts command from history with search: Convenient
+
+The combination of explicitly opening the history, searching by typing, and
+finally running the command by pressing Return is very efficient.
 
 # Planned Features, Step 2
 
@@ -314,50 +321,48 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Don't show last prompt in execute presenter
     * [X] History above prompt + Feature flag
     * [X] Re-add completion
-* [ ] 0.13 Draw GUI using Xft
-    * [X] History: Horizontal navigation keys copy to input
-    * [X] Escape cancels history and completion
-    * [X] Make selection 1/4 window high
-    * [X] Unused Ctrl-Something do not add character
-    * [ ] Add code point combination (a + " = ä)
-    * [ ] Reduce size of Cell
-    * [ ] RGB color handling
+* [ ] 0.13 Handle query escape sequences
+* [ ] 0.14 Syntax-directed navigation, completion, prediction
+    * [ ] Display cursor positions for keys when ctrl is down
+    * [ ] Make the command line arguments of a program fold out
+* [ ] 0.15 Draw GUI using Xft
     * [ ] Adapt glyph generation from alagritty
     * [ ] Switch rendering backend (w.r.t. GUI widget support)
-* [ ] 0.14 Implement all Screen Actions
-    * [ ] Handle query escape sequences
-* [ ] 0.15 Redesign user interface
-* [ ] 0.16 Redesign SW architecture
+* [ ] 0.16 Implement all Screen Actions
+    * [ ] RGB color handling
+    * [ ] Implement C1 control codes
+    * [ ] Implement mouse tracking sequences more cleanly
+    * [ ] Handle sub parameters correctly
 * [ ] 0.17 Clean up code
+    * [ ] Reduce number of short-lived allocations
+    * [ ] Draw using row and column iterators
+    * [ ] Bug: Split reset to handle bad utf8 inside control sequences
+    * [ ] Add error reporting function to Session and use it in Interpreter
+    * [ ] Simplify and unify error handling
+        * [ ] Check if adding session to InteractionHandle makes code simpler
+    * [ ] Mapping from session to LineItems should be done in Presenter
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
-* [ ] Add error reporting function to Session and use it in Interpreter
-* [ ] Simplify and unify error handling
-    * [ ] Check if adding session to InteractionHandle makes code simpler
 * [ ] History: Handle multi-line entries
 * [ ] Use separate History in ExecuteCommandPresenter
 * [ ] Session: Use previous visibility settings for repeated commands
 * [ ] Search .biterc according to XDG Config Spec
 * [ ] Place .bitehistory according to XDG Config Spec
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
-* [ ] Bug: Split reset to handle bad utf8 inside control sequences
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
 * [ ] Merge history during save
-* [ ] Display cursor positions for keys when ctrl is down
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
     * [ ] Show Input, Output, Error in sequence, allow for filtering
-* [ ] Make the command line arguments of a program fold out
 * [ ] Syntax highlighting in input line
-* [ ] Implement C1 control codes
-* [ ] Implement mouse tracking sequences more cleanly
-* [ ] Handle sub parameters correctly
-* [ ] Mapping from session to LineItems should be done in Presenter
-* [ ] Reduce number of short-lived allocations
 * [X] ~~Bug: Bash source $() does not work correctly~~ Cancelled. No more bash used.
 * [X] Bug: `git push && git push somewhere` runs second command if first one fails
 * [X] History: Use order of commands for sorting (length of look-ahead?)
 * [X] History: Predict beginning of command
+* [X] History: Horizontal navigation keys copy to input
+* [X] Escape cancels history and completion
+* [X] Make selection 1/4 window high
+* [X] Unused Ctrl-Something do not add character
 
 # Ideas
 * History: Draw between prompt and input box instead of overlay
