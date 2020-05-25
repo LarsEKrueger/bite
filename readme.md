@@ -321,19 +321,19 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Don't show last prompt in execute presenter
     * [X] History above prompt + Feature flag
     * [X] Re-add completion
-* [ ] 0.13 Handle query escape sequences
-* [ ] 0.14 Syntax-directed navigation, completion, prediction
+* [ ] 0.13 Syntax-directed navigation, completion, prediction
     * [ ] Display cursor positions for keys when ctrl is down
     * [ ] Make the command line arguments of a program fold out
-* [ ] 0.15 Draw GUI using Xft
+* [ ] 0.14 Draw GUI using Xft
     * [ ] Adapt glyph generation from alagritty
     * [ ] Switch rendering backend (w.r.t. GUI widget support)
-* [ ] 0.16 Implement all Screen Actions
+* [ ] 0.15 Implement all Screen Actions
     * [ ] RGB color handling
     * [ ] Implement C1 control codes
     * [ ] Implement mouse tracking sequences more cleanly
     * [ ] Handle sub parameters correctly
-* [ ] 0.17 Clean up code
+    * [ ] Handle query escape sequences
+* [ ] 0.16 Clean up code
     * [ ] Reduce number of short-lived allocations
     * [ ] Draw using row and column iterators
     * [ ] Bug: Split reset to handle bad utf8 inside control sequences
