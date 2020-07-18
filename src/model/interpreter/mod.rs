@@ -33,6 +33,7 @@ use tools::logging::unwrap_log;
 mod builtins;
 mod byte_code;
 mod data_stack;
+pub mod grammar;
 pub mod jobs;
 mod parser;
 mod variables;

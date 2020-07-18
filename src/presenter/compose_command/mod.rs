@@ -18,4 +18,5 @@
 
 pub mod bubble_above;
 pub mod bubble_exclusive;
+pub mod live_parse;
 pub mod markov_below;

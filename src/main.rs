@@ -204,8 +204,10 @@ pub fn main() {
                 presenter::ComposeVariant::MarkovBelow
             } else if v.as_string() == "bubble_above" {
                 presenter::ComposeVariant::BubbleAbove
-            } else {
+            } else if v.as_string() == "bubble_exclusive" {
                 presenter::ComposeVariant::BubbleExclusive
+            } else {
+                presenter::ComposeVariant::LiveParse
             }
         });
     trace!("BITE_FEAT_COMPOSE: {:?}", feat_compose_variant);

@@ -1,0 +1,966 @@
+/*
+    BiTE - Bash-integrated Terminal Emulator
+    Copyright (C) 2020  Lars Krüger
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+//! Bash script grammar for sesd
+//!
+//! Ported from bash's parse.y
+
+use sesd::{char::CharMatcher, CompiledGrammar, Grammar, Rule};
+
+/// Build and compile a grammar.
+pub fn script() -> CompiledGrammar<char, CharMatcher> {
+    let mut grammar = Grammar::new();
+    grammar.set_start("inputunit".to_string());
+
+    use sesd::char::CharMatcher::*;
+
+    grammar.add(
+        Rule::new("inputunit")
+            .nt("simple_list")
+            .nt("simple_list_terminator"),
+    );
+    grammar.add(Rule::new("inputunit").t(Exact('\n')));
+
+    grammar.add(Rule::new("word_list").nt("WORD").nt("word_list"));
+    grammar.add(Rule::new("word_list").nt("WORD"));
+
+    grammar.add(Rule::new("redirection").t(Exact('>')).nt("WORD"));
+    grammar.add(Rule::new("redirection").t(Exact('<')).nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .t(Exact('>'))
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .t(Exact('<'))
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .t(Exact('>'))
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .t(Exact('<'))
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("GREATER_GREATER").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("GREATER_GREATER")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("GREATER_GREATER")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("GREATER_BAR").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("GREATER_BAR")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("GREATER_BAR")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("LESS_GREATER").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("LESS_GREATER")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("LESS_GREATER")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("LESS_LESS").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("LESS_LESS")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("LESS_LESS")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("LESS_LESS_MINUS").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("LESS_LESS_MINUS")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("LESS_LESS_MINUS")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("LESS_LESS_LESS").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("LESS_LESS_LESS")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("LESS_LESS_LESS")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("LESS_AND").nt("NUMBER"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("LESS_AND")
+            .nt("NUMBER"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("LESS_AND")
+            .nt("NUMBER"),
+    );
+    grammar.add(Rule::new("redirection").nt("GREATER_AND").nt("NUMBER"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("GREATER_AND")
+            .nt("NUMBER"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("GREATER_AND")
+            .nt("NUMBER"),
+    );
+    grammar.add(Rule::new("redirection").nt("LESS_AND").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("LESS_AND")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("LESS_AND")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("GREATER_AND").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("GREATER_AND")
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("GREATER_AND")
+            .nt("WORD"),
+    );
+    grammar.add(Rule::new("redirection").nt("GREATER_AND").t(Exact('-')));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("GREATER_AND")
+            .t(Exact('-')),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("GREATER_AND")
+            .t(Exact('-')),
+    );
+    grammar.add(Rule::new("redirection").nt("LESS_AND").t(Exact('-')));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("NUMBER")
+            .nt("LESS_AND")
+            .t(Exact('-')),
+    );
+    grammar.add(
+        Rule::new("redirection")
+            .nt("REDIR_WORD")
+            .nt("LESS_AND")
+            .t(Exact('-')),
+    );
+    grammar.add(Rule::new("redirection").nt("AND_GREATER").nt("WORD"));
+    grammar.add(
+        Rule::new("redirection")
+            .nt("AND_GREATER_GREATER")
+            .nt("WORD"),
+    );
+
+    grammar.add(Rule::new("BANG").t(Exact('!')));
+    grammar.add(Rule::new("TIMEIGN").ts("--".chars().map(Exact)));
+    grammar.add(Rule::new("TIMEOPT").ts("-p".chars().map(Exact)));
+    grammar.add(Rule::new("AND_AND").ts("&&".chars().map(Exact)));
+    grammar.add(Rule::new("OR_OR").ts("||".chars().map(Exact)));
+    grammar.add(Rule::new("GREATER_GREATER").ts(">>".chars().map(Exact)));
+    grammar.add(Rule::new("LESS_LESS").ts("<<".chars().map(Exact)));
+    grammar.add(Rule::new("LESS_AND").ts("<&".chars().map(Exact)));
+    grammar.add(Rule::new("GREATER_AND").ts(">&".chars().map(Exact)));
+    grammar.add(Rule::new("SEMI_SEMI").ts(";;".chars().map(Exact)));
+    grammar.add(Rule::new("SEMI_AND").ts(";&".chars().map(Exact)));
+    grammar.add(Rule::new("SEMI_SEMI_AND").ts(";;&".chars().map(Exact)));
+    grammar.add(Rule::new("LESS_LESS_MINUS").ts("<<-".chars().map(Exact)));
+    grammar.add(Rule::new("LESS_LESS_LESS").ts("<<<".chars().map(Exact)));
+    grammar.add(Rule::new("AND_GREATER").ts("&>".chars().map(Exact)));
+    grammar.add(Rule::new("AND_GREATER_GREATER").ts("&>>".chars().map(Exact)));
+    grammar.add(Rule::new("LESS_GREATER").ts("<>".chars().map(Exact)));
+    grammar.add(Rule::new("GREATER_BAR").ts(">|".chars().map(Exact)));
+    grammar.add(Rule::new("BAR_AND").ts("|&".chars().map(Exact)));
+    grammar.add(Rule::new("COND_START").ts("[[".chars().map(Exact)));
+    grammar.add(Rule::new("COND_END").ts("]]".chars().map(Exact)));
+
+    grammar.add(Rule::new("simple_command_element").nt("WORD"));
+    grammar.add(Rule::new("simple_command_element").nt("ASSIGNMENT_WORD"));
+    grammar.add(Rule::new("simple_command_element").nt("redirection"));
+
+    grammar.add(
+        Rule::new("ASSIGNMENT_WORD")
+            .nt("WORD")
+            .t(Exact('='))
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("ASSIGNMENT_WORD")
+            .nt("LET")
+            .nt("WORD")
+            .t(Exact('='))
+            .nt("WORD"),
+    );
+    grammar.add(
+        Rule::new("ASSIGNMENT_WORD")
+            .nt("EVAL")
+            .nt("WORD")
+            .t(Exact('='))
+            .nt("WORD"),
+    );
+
+    grammar.add(Rule::new("redirection_list").nt("redirection"));
+    grammar.add(
+        Rule::new("redirection_list")
+            .nt("redirection")
+            .nt("redirection_list"),
+    );
+
+    grammar.add(Rule::new("simple_command").nt("simple_command_element"));
+    grammar.add(
+        Rule::new("simple_command")
+            .nt("simple_command_element")
+            .nt("simple_command"),
+    );
+
+    grammar.add(Rule::new("command").nt("simple_command"));
+    grammar.add(Rule::new("command").nt("shell_command"));
+    grammar.add(
+        Rule::new("command")
+            .nt("shell_command")
+            .nt("redirection_list"),
+    );
+    grammar.add(Rule::new("command").nt("function_def"));
+    grammar.add(Rule::new("command").nt("coproc"));
+
+    grammar.add(Rule::new("shell_command").nt("for_command"));
+    grammar.add(Rule::new("shell_command").nt("case_command"));
+    grammar.add(
+        Rule::new("shell_command")
+            .nt("WHILE")
+            .nt("compound_list")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("shell_command")
+            .nt("UNTIL")
+            .nt("compound_list")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(Rule::new("shell_command").nt("select_command"));
+    grammar.add(Rule::new("shell_command").nt("if_command"));
+    grammar.add(Rule::new("shell_command").nt("subshell"));
+    grammar.add(Rule::new("shell_command").nt("group_command"));
+    grammar.add(Rule::new("shell_command").nt("arith_command"));
+    grammar.add(Rule::new("shell_command").nt("cond_command"));
+    grammar.add(Rule::new("shell_command").nt("arith_for_command"));
+
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("compound_list")
+            .t(Exact('}')),
+    );
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .t(Exact(';'))
+            .nt("newline_list")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .t(Exact(';'))
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("compound_list")
+            .t(Exact('}')),
+    );
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("word_list")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("word_list")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("compound_list")
+            .t(Exact('}')),
+    );
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("for_command")
+            .nt("FOR")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("compound_list")
+            .t(Exact('}')),
+    );
+
+    grammar.add(
+        Rule::new("arith_for_command")
+            .nt("FOR")
+            .nt("ARITH_FOR_EXPRS")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("arith_for_command")
+            .nt("FOR")
+            .nt("ARITH_FOR_EXPRS")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("compound_list")
+            .t(Exact('}')),
+    );
+    grammar.add(
+        Rule::new("arith_for_command")
+            .nt("FOR")
+            .nt("ARITH_FOR_EXPRS")
+            .nt("DO")
+            .nt("compound_list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("arith_for_command")
+            .nt("FOR")
+            .nt("ARITH_FOR_EXPRS")
+            .t(Exact('{'))
+            .nt("compound_list")
+            .t(Exact('}')),
+    );
+
+    grammar.add(
+        Rule::new("select_command")
+            .nt("SELECT")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("DO")
+            .nt("list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("select_command")
+            .nt("SELECT")
+            .nt("WORD")
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("list")
+            .t(Exact('}')),
+    );
+    grammar.add(
+        Rule::new("select_command")
+            .nt("SELECT")
+            .nt("WORD")
+            .t(Exact(';'))
+            .nt("newline_list")
+            .nt("DO")
+            .nt("list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("select_command")
+            .nt("SELECT")
+            .nt("WORD")
+            .t(Exact(';'))
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("list")
+            .t(Exact('}')),
+    );
+    grammar.add(
+        Rule::new("select_command")
+            .nt("SELECT")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("word_list")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .nt("DO")
+            .nt("list")
+            .nt("DONE"),
+    );
+    grammar.add(
+        Rule::new("select_command")
+            .nt("SELECT")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("word_list")
+            .nt("list_terminator")
+            .nt("newline_list")
+            .t(Exact('{'))
+            .nt("list")
+            .t(Exact('}')),
+    );
+
+    grammar.add(
+        Rule::new("case_command")
+            .nt("CASE")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("newline_list")
+            .nt("ESAC"),
+    );
+    grammar.add(
+        Rule::new("case_command")
+            .nt("CASE")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("case_clause_sequence")
+            .nt("newline_list")
+            .nt("ESAC"),
+    );
+    grammar.add(
+        Rule::new("case_command")
+            .nt("CASE")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("IN")
+            .nt("case_clause")
+            .nt("ESAC"),
+    );
+
+    grammar.add(
+        Rule::new("function_def")
+            .nt("WORD")
+            .t(Exact('('))
+            .t(Exact(')'))
+            .nt("newline_list")
+            .nt("function_body"),
+    );
+    grammar.add(
+        Rule::new("function_def")
+            .nt("FUNCTION")
+            .nt("WORD")
+            .t(Exact('('))
+            .t(Exact(')'))
+            .nt("newline_list")
+            .nt("function_body"),
+    );
+    grammar.add(
+        Rule::new("function_def")
+            .nt("FUNCTION")
+            .nt("WORD")
+            .nt("newline_list")
+            .nt("function_body"),
+    );
+
+    grammar.add(Rule::new("function_body").nt("shell_command"));
+    grammar.add(
+        Rule::new("function_body")
+            .nt("shell_command")
+            .nt("redirection_list"),
+    );
+
+    grammar.add(
+        Rule::new("subshell")
+            .t(Exact('('))
+            .nt("compound_list")
+            .t(Exact(')')),
+    );
+
+    grammar.add(Rule::new("coproc").nt("COPROC").nt("shell_command"));
+    grammar.add(
+        Rule::new("coproc")
+            .nt("COPROC")
+            .nt("shell_command")
+            .nt("redirection_list"),
+    );
+    grammar.add(
+        Rule::new("coproc")
+            .nt("COPROC")
+            .nt("WORD")
+            .nt("shell_command"),
+    );
+    grammar.add(
+        Rule::new("coproc")
+            .nt("COPROC")
+            .nt("WORD")
+            .nt("shell_command")
+            .nt("redirection_list"),
+    );
+    grammar.add(Rule::new("coproc").nt("COPROC").nt("simple_command"));
+
+    grammar.add(
+        Rule::new("if_command")
+            .nt("IF")
+            .nt("compound_list")
+            .nt("THEN")
+            .nt("compound_list")
+            .nt("FI"),
+    );
+    grammar.add(
+        Rule::new("if_command")
+            .nt("IF")
+            .nt("compound_list")
+            .nt("THEN")
+            .nt("compound_list")
+            .nt("ELSE")
+            .nt("compound_list")
+            .nt("FI"),
+    );
+    grammar.add(
+        Rule::new("if_command")
+            .nt("IF")
+            .nt("compound_list")
+            .nt("THEN")
+            .nt("compound_list")
+            .nt("elif_clause")
+            .nt("FI"),
+    );
+
+    grammar.add(
+        Rule::new("group_command")
+            .t(Exact('{'))
+            .nt("compound_list")
+            .t(Exact('}')),
+    );
+
+    grammar.add(
+        Rule::new("cond_command")
+            .nt("COND_START")
+            .nt("COND_CMD")
+            .nt("COND_END"),
+    );
+
+    grammar.add(
+        Rule::new("elif_clause")
+            .nt("ELIF")
+            .nt("compound_list")
+            .nt("THEN")
+            .nt("compound_list"),
+    );
+    grammar.add(
+        Rule::new("elif_clause")
+            .nt("ELIF")
+            .nt("compound_list")
+            .nt("THEN")
+            .nt("compound_list")
+            .nt("ELSE")
+            .nt("compound_list"),
+    );
+    grammar.add(
+        Rule::new("elif_clause")
+            .nt("ELIF")
+            .nt("compound_list")
+            .nt("THEN")
+            .nt("compound_list")
+            .nt("elif_clause"),
+    );
+
+    grammar.add(Rule::new("IF").ts("if".chars().map(Exact)));
+    grammar.add(Rule::new("THEN").ts("then".chars().map(Exact)));
+    grammar.add(Rule::new("FI").ts("fi".chars().map(Exact)));
+    grammar.add(Rule::new("ELIF").ts("elif".chars().map(Exact)));
+    grammar.add(Rule::new("ELSE").ts("else".chars().map(Exact)));
+    grammar.add(Rule::new("SELECT").ts("select".chars().map(Exact)));
+    grammar.add(Rule::new("FOR").ts("for".chars().map(Exact)));
+    grammar.add(Rule::new("IN").ts("in".chars().map(Exact)));
+    grammar.add(Rule::new("DO").ts("do".chars().map(Exact)));
+    grammar.add(Rule::new("DONE").ts("done".chars().map(Exact)));
+    grammar.add(Rule::new("WHILE").ts("while".chars().map(Exact)));
+    grammar.add(Rule::new("UNTIL").ts("until".chars().map(Exact)));
+    grammar.add(Rule::new("COPROC").ts("coproc".chars().map(Exact)));
+    grammar.add(Rule::new("LET").ts("let".chars().map(Exact)));
+    grammar.add(Rule::new("EVAL").ts("eval".chars().map(Exact)));
+    grammar.add(Rule::new("TIME").ts("time".chars().map(Exact)));
+    grammar.add(Rule::new("FUNCTION").ts("function".chars().map(Exact)));
+    grammar.add(Rule::new("CASE").ts("case".chars().map(Exact)));
+    grammar.add(Rule::new("ESAC").ts("esac".chars().map(Exact)));
+
+    grammar.add(Rule::new("case_clause").nt("pattern_list"));
+    grammar.add(
+        Rule::new("case_clause")
+            .nt("case_clause_sequence")
+            .nt("pattern_list"),
+    );
+
+    grammar.add(
+        Rule::new("pattern_list")
+            .nt("newline_list")
+            .nt("pattern")
+            .t(Exact(')'))
+            .nt("compound_list"),
+    );
+    grammar.add(
+        Rule::new("pattern_list")
+            .nt("newline_list")
+            .nt("pattern")
+            .t(Exact(')'))
+            .nt("newline_list"),
+    );
+    grammar.add(
+        Rule::new("pattern_list")
+            .nt("newline_list")
+            .t(Exact('('))
+            .nt("pattern")
+            .t(Exact(')'))
+            .nt("compound_list"),
+    );
+    grammar.add(
+        Rule::new("pattern_list")
+            .nt("newline_list")
+            .t(Exact('('))
+            .nt("pattern")
+            .t(Exact(')'))
+            .nt("newline_list"),
+    );
+
+    grammar.add(
+        Rule::new("case_clause_sequence")
+            .nt("pattern_list")
+            .nt("SEMI_SEMI"),
+    );
+    grammar.add(
+        Rule::new("case_clause_sequence")
+            .nt("case_clause_sequence")
+            .nt("pattern_list")
+            .nt("SEMI_SEMI"),
+    );
+    grammar.add(
+        Rule::new("case_clause_sequence")
+            .nt("pattern_list")
+            .nt("SEMI_AND"),
+    );
+    grammar.add(
+        Rule::new("case_clause_sequence")
+            .nt("case_clause_sequence")
+            .nt("pattern_list")
+            .nt("SEMI_AND"),
+    );
+    grammar.add(
+        Rule::new("case_clause_sequence")
+            .nt("pattern_list")
+            .nt("SEMI_SEMI_AND"),
+    );
+    grammar.add(
+        Rule::new("case_clause_sequence")
+            .nt("case_clause_sequence")
+            .nt("pattern_list")
+            .nt("SEMI_SEMI_AND"),
+    );
+
+    grammar.add(Rule::new("pattern").nt("WORD"));
+    grammar.add(Rule::new("pattern").nt("WORD").t(Exact('|')).nt("pattern"));
+
+    grammar.add(Rule::new("list").nt("newline_list").nt("list0"));
+
+    grammar.add(Rule::new("compound_list").nt("list"));
+    grammar.add(Rule::new("compound_list").nt("newline_list").nt("list1"));
+
+    grammar.add(
+        Rule::new("list0")
+            .nt("list1")
+            .t(Exact('\n'))
+            .nt("newline_list"),
+    );
+    grammar.add(
+        Rule::new("list0")
+            .nt("list1")
+            .t(Exact('&'))
+            .nt("newline_list"),
+    );
+    grammar.add(
+        Rule::new("list0")
+            .nt("list1")
+            .t(Exact(';'))
+            .nt("newline_list"),
+    );
+
+    grammar.add(
+        Rule::new("list1")
+            .nt("list1")
+            .nt("AND_AND")
+            .nt("newline_list")
+            .nt("list1"),
+    );
+    grammar.add(
+        Rule::new("list1")
+            .nt("list1")
+            .nt("OR_OR")
+            .nt("newline_list")
+            .nt("list1"),
+    );
+    grammar.add(
+        Rule::new("list1")
+            .nt("list1")
+            .t(Exact('&'))
+            .nt("newline_list")
+            .nt("list1"),
+    );
+    grammar.add(
+        Rule::new("list1")
+            .nt("list1")
+            .t(Exact(';'))
+            .nt("newline_list")
+            .nt("list1"),
+    );
+    grammar.add(
+        Rule::new("list1")
+            .nt("list1")
+            .t(Exact('\n'))
+            .nt("newline_list")
+            .nt("list1"),
+    );
+    grammar.add(Rule::new("list1").nt("pipeline_command"));
+
+    grammar.add(Rule::new("simple_list_terminator").t(Exact('\n')));
+
+    grammar.add(Rule::new("list_terminator").t(Exact('\n')));
+    grammar.add(Rule::new("list_terminator").t(Exact(';')));
+
+    grammar.add(Rule::new("newline_list").t(Exact('\n')));
+    grammar.add(Rule::new("newline_list").t(Exact('\n')).nt("newline_list"));
+
+    grammar.add(Rule::new("simple_list").nt("simple_list1"));
+    grammar.add(Rule::new("simple_list").nt("simple_list1").t(Exact('&')));
+    grammar.add(Rule::new("simple_list").nt("simple_list1").t(Exact(';')));
+
+    grammar.add(
+        Rule::new("simple_list1")
+            .nt("simple_list1")
+            .nt("AND_AND")
+            .nt("newline_list")
+            .nt("simple_list1"),
+    );
+    grammar.add(
+        Rule::new("simple_list1")
+            .nt("simple_list1")
+            .nt("OR_OR")
+            .nt("newline_list")
+            .nt("simple_list1"),
+    );
+    grammar.add(
+        Rule::new("simple_list1")
+            .nt("simple_list1")
+            .t(Exact('&'))
+            .nt("simple_list1"),
+    );
+    grammar.add(
+        Rule::new("simple_list1")
+            .nt("simple_list1")
+            .t(Exact(';'))
+            .nt("simple_list1"),
+    );
+    grammar.add(Rule::new("simple_list1").nt("pipeline_command"));
+
+    grammar.add(Rule::new("pipeline_command").nt("pipeline"));
+    grammar.add(
+        Rule::new("pipeline_command")
+            .nt("BANG")
+            .nt("pipeline_command"),
+    );
+    grammar.add(
+        Rule::new("pipeline_command")
+            .nt("timespec")
+            .nt("pipeline_command"),
+    );
+    grammar.add(
+        Rule::new("pipeline_command")
+            .nt("timespec")
+            .nt("list_terminator"),
+    );
+    grammar.add(
+        Rule::new("pipeline_command")
+            .nt("BANG")
+            .nt("list_terminator"),
+    );
+
+    grammar.add(
+        Rule::new("pipeline")
+            .nt("pipeline")
+            .t(Exact('|'))
+            .nt("newline_list")
+            .nt("pipeline"),
+    );
+    grammar.add(
+        Rule::new("pipeline")
+            .nt("pipeline")
+            .nt("BAR_AND")
+            .nt("newline_list")
+            .nt("pipeline"),
+    );
+    grammar.add(Rule::new("pipeline").nt("command"));
+
+    grammar.add(Rule::new("timespec").nt("TIME"));
+    grammar.add(Rule::new("timespec").nt("TIME").nt("TIMEOPT"));
+    grammar.add(Rule::new("timespec").nt("TIME").nt("TIMEOPT").nt("TIMEIGN"));
+
+    grammar.add(Rule::new("NUMBER").nt("DIGIT").nt("NUMBER"));
+    grammar.add(Rule::new("NUMBER").nt("DIGIT"));
+    grammar.add(Rule::new("DIGIT").t(Range('0', '9')));
+
+    grammar.add(Rule::new("IDENTIFIER").nt("IDENTIFIER0").nt("IDENTIFIER1*"));
+
+    grammar.add(Rule::new("IDENTIFIER0").t(Range('a', 'z')));
+    grammar.add(Rule::new("IDENTIFIER0").t(Range('A', 'Z')));
+    grammar.add(Rule::new("IDENTIFIER0").t(Exact('_')));
+
+    grammar.add(Rule::new("IDENTIFIER1*"));
+    grammar.add(
+        Rule::new("IDENTIFIER1*")
+            .nt("IDENTIFIER1")
+            .nt("IDENTIFIER1*"),
+    );
+
+    grammar.add(Rule::new("IDENTIFIER1").t(Range('a', 'z')));
+    grammar.add(Rule::new("IDENTIFIER1").t(Range('A', 'Z')));
+    grammar.add(Rule::new("IDENTIFIER1").t(Range('0', '9')));
+    grammar.add(Rule::new("IDENTIFIER1").t(Exact('_')));
+
+    grammar.add(
+        Rule::new("REDIR_WORD")
+            .t(Exact('{'))
+            .nt("IDENTIFIER")
+            .t(Exact('}')),
+    );
+
+    // TODO: Add condition parser
+    grammar.add(Rule::new("COND_CMD"));
+
+    // TODO: Add arithmetic for
+    grammar.add(
+        Rule::new("ARITH_FOR_EXPRS")
+            .ts("((".chars().map(Exact))
+            .ts("))".chars().map(Exact)),
+    );
+
+    // TODO: Add arithmetic command
+    grammar.add(Rule::new("arith_command"));
+
+    // TODO: Add complete expansion parser
+    grammar.add(Rule::new("WORD").nt("WORD_LETTER").nt("WORD"));
+    grammar.add(Rule::new("WORD").nt("WORD_LETTER"));
+    grammar.add(Rule::new("WORD_LETTER").t(NoneOf(" \n\t\"\'|&;()<>=".chars().collect())));
+
+    let res = grammar.compile();
+    if let Err(ref e) = res {
+        debug!("Compile SESD grammar for bash script: {:?}", e);
+    }
+    res.expect("compiling bash script grammar should not fail")
+}

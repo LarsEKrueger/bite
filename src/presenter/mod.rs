@@ -32,8 +32,11 @@ mod test;
 use std::fmt::{Display, Formatter};
 use term::terminfo::TermInfo;
 
+use sesd::{char::CharMatcher, SynchronousEditor};
+
 use self::compose_command::bubble_above;
 use self::compose_command::bubble_exclusive;
+use self::compose_command::live_parse;
 use self::compose_command::markov_below;
 use self::display_line::*;
 use self::execute_command::ExecuteCommandPresenter;
@@ -112,6 +115,7 @@ pub enum ComposeVariant {
     MarkovBelow,
     BubbleAbove,
     BubbleExclusive,
+    LiveParse,
 }
 
 /// Trait to split the big presenter into several small ones.
@@ -158,6 +162,8 @@ trait SubPresenter {
     fn handle_click(&mut self, button: usize, x: usize, y: usize) -> NeedRedraw;
 }
 
+type Editor = SynchronousEditor<char, CharMatcher>;
+
 /// Data that is common to all presenter views.
 pub struct PresenterCommons {
     /// The current and previous commands and the outputs of them.
@@ -196,6 +202,9 @@ pub struct PresenterCommons {
 
     /// TermInfo entry for xterm
     term_info: TermInfo,
+
+    /// Parsing editor
+    editor: Editor,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -282,6 +291,8 @@ impl PresenterCommons {
         // let history = History::new(bash.get_current_user_home_dir());
         let mut text_input = Screen::new();
         text_input.make_room();
+
+        let compiled_grammar = super::model::interpreter::grammar::script();
         Ok(PresenterCommons {
             session,
             interpreter,
@@ -292,6 +303,7 @@ impl PresenterCommons {
             session_end_line: None,
             history,
             term_info,
+            editor: Editor::new(compiled_grammar),
         })
     }
 
@@ -502,6 +514,7 @@ impl ComposeVariant {
             Self::MarkovBelow => markov_below::ComposeCommandPresenter::new(commons),
             Self::BubbleAbove => bubble_above::ComposeCommandPresenter::new(commons),
             Self::BubbleExclusive => bubble_exclusive::ComposeCommandPresenter::new(commons),
+            Self::LiveParse => live_parse::ComposeCommandPresenter::new(commons),
         }
     }
 }
