@@ -70,6 +70,8 @@ extern crate flexi_logger;
 extern crate term;
 extern crate termios;
 
+extern crate sesd;
+
 use std::panic::PanicInfo;
 use std::path::PathBuf;
 

@@ -29,6 +29,7 @@ log = "0.4.0"
 flexi_logger = "=0.10.2"
 termios = "0.3.1"
 term = "0.6.1"
+nom = "5.1.0"
 nom_locate = "1.0.0"
 qptrie="0.2.4"
 itertools = "0.8.2"
@@ -36,12 +37,12 @@ itertools = "0.8.2"
 [dev-dependencies]
 pretty_assertions = "0.5.1"
 
-[dependencies.nom]
-version = "5.1.0"
+[dependencies.sesd]
+path = "sesd"
 
 [dependencies.x11]
 version = "2.17.2"
-default-features = false 
+default-features = false
 features = ["xlib"]
 
 [build-dependencies]

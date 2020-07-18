@@ -1,0 +1,3 @@
+[submodule "sesd"]
+	path = sesd
+	url = https://github.com/LarsEKrueger/sesd.git
