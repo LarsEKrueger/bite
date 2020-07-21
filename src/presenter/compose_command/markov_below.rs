@@ -23,8 +23,8 @@ use model::interpreter::parse_script;
 use model::screen::Screen;
 use model::session::{OutputVisibility, RunningStatus, Session};
 use presenter::{
-    check_response_clicked, DisplayLine, DrawLineTrait, LineItem, LineType, ModifierState,
-    NeedRedraw, PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
+    check_response_clicked, DisplayLine, LineItem, LineType, ModifierState, NeedRedraw,
+    PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
 };
 
 /// Presenter to input and run commands.
