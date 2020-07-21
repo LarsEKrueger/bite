@@ -24,6 +24,7 @@
 mod compose_command;
 pub mod display_line;
 mod execute_command;
+mod style_sheet;
 mod tui;
 
 #[cfg(test)]
@@ -203,8 +204,11 @@ pub struct PresenterCommons {
     /// TermInfo entry for xterm
     term_info: TermInfo,
 
-    /// Parsing editor
+    /// Parsing editor for the command line
     editor: Editor,
+
+    /// Style sheet for rendering the command line
+    style_sheet: style_sheet::StyleSheet,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -293,6 +297,7 @@ impl PresenterCommons {
         text_input.make_room();
 
         let compiled_grammar = super::model::interpreter::grammar::script();
+        let style_sheet = style_sheet::script(&compiled_grammar);
         Ok(PresenterCommons {
             session,
             interpreter,
@@ -304,6 +309,7 @@ impl PresenterCommons {
             history,
             term_info,
             editor: Editor::new(compiled_grammar),
+            style_sheet,
         })
     }
 

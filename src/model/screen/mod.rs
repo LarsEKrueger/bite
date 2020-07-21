@@ -541,7 +541,7 @@ impl Screen {
     }
 
     /// Place the cursor, accounting for margins later
-    fn move_cursor_to(&mut self, x: isize, y: isize) {
+    pub fn move_cursor_to(&mut self, x: isize, y: isize) {
         if self.fixed_size {
             self.cursor.x = cmp::min(self.width() - 1, cmp::max(0, x));
             self.cursor.y = cmp::min(self.height() - 1, cmp::max(0, y));

@@ -22,7 +22,7 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{line_ending, none_of, not_line_ending, space0, space1};
 use nom::combinator::{map, recognize};
-use nom::multi::{many1, separated_list, separated_nonempty_list};
+use nom::multi::{many1, separated_nonempty_list};
 use nom::sequence::{preceded, terminated, tuple};
 use nom::IResult;
 

@@ -22,6 +22,8 @@
 //!
 //! The text that was input is parsed as your type.
 
+use sesd::{CstIterItem, SymbolId};
+
 use model::completion;
 use model::interpreter::parse_script;
 use model::screen::Screen;
@@ -30,6 +32,8 @@ use presenter::{
     check_response_clicked, DisplayLine, LineItem, LineType, ModifierState, NeedRedraw,
     PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
 };
+
+use presenter::style_sheet::{LookedUp, Style};
 
 /// Which selection to show
 enum SelectionMode {
@@ -489,6 +493,141 @@ impl ComposeCommandPresenter {
             _ => PresenterCommand::Unknown,
         }
     }
+
+    /// Render a node of the parse tree.
+    ///
+    /// Return None, if the cursor is not inside this node. Return the x and y coordinate of the
+    /// cursor.
+    fn render_node(
+        &self,
+        text_input: &mut Screen,
+        start: usize,
+        end: usize,
+        cursor_index: usize,
+        style: &Style,
+    ) -> Option<(isize, isize)> {
+        // Print the style's pre string before taking the cursor position. This way, the cursor can
+        // be moved to the editable portion correctly.
+        let _ = text_input.add_bytes(style.pre.as_bytes());
+
+        let cx = text_input.cursor_x();
+        let cy = text_input.cursor_y();
+
+        // Print the text as usual
+        let text = self.commons.editor.span_string(start, end);
+        text_input.insert_str(&text);
+
+        // Print the style's post string to reset the attributes
+        let _ = text_input.add_bytes(style.post.as_bytes());
+
+        // TODO: Insert span into element position cache
+
+        // Check if the cursor is between start and end. Check for position past the end of the
+        // string to catch the cursor at the end of the buffer. If two elements touch, the second
+        // will overwrite it later.
+        if start <= cursor_index && cursor_index <= end {
+            let offs = cursor_index - start;
+            Some((cx + offs as isize, cy))
+        } else {
+            None
+        }
+    }
+
+    /// Render the parsed input into the text input screen.
+    ///
+    /// Modelled after sesd's example program.
+    fn update_input_screen(&mut self) {
+        let cursor_index = self.commons.editor.cursor();
+
+        let mut text_input = std::mem::replace(&mut self.commons.text_input, Screen::new());
+        text_input.reset();
+
+        let mut rendered_until = 0;
+        let mut cursor_pos = (0, 0);
+        for cst_node in self.commons.editor.cst_iter() {
+            trace!("rendered_until = {:?}", rendered_until);
+            trace!("cursor_index = {:?}", cursor_index);
+            match cst_node {
+                CstIterItem::Parsed(cst_node) => {
+                    trace!("end = {:?}", cst_node.end);
+                    // If a rule contains a terminal in the middle, and no style has been defined,
+                    // it is possible that rendered_until is larger than cst_node.start. Thus, the
+                    // buffer needs to be rendered from rendered_until to cst_node.end.
+                    if cst_node.end != cst_node.start && cst_node.end > rendered_until {
+                        // Convert the path to a list of SymbolIds
+                        let mut path: Vec<SymbolId> = cst_node
+                            .path
+                            .0
+                            .iter()
+                            .map(|n| {
+                                let dr = self.commons.editor.parser().dotted_rule(&n);
+                                self.commons.editor.grammar().lhs(dr.rule as usize)
+                            })
+                            .collect();
+                        path.push(
+                            self.commons
+                                .editor
+                                .grammar()
+                                .lhs(cst_node.dotted_rule.rule as usize),
+                        );
+
+                        let looked_up = self.commons.style_sheet.lookup(&path);
+                        trace!("looked_up = {:?}", looked_up);
+                        match looked_up {
+                            LookedUp::Parent => {
+                                // Do nothing now. Render later.
+                            }
+                            LookedUp::Found(style) => {
+                                // Found an exact match. Render with style.
+                                if let Some(xy) = self.render_node(
+                                    &mut text_input,
+                                    rendered_until,
+                                    cst_node.end,
+                                    cursor_index,
+                                    style,
+                                ) {
+                                    cursor_pos = xy;
+                                }
+                                rendered_until = cst_node.end;
+                            }
+                            LookedUp::Nothing => {
+                                // Found nothing. Render with default style.
+                                if let Some(xy) = self.render_node(
+                                    &mut text_input,
+                                    rendered_until,
+                                    cst_node.end,
+                                    cursor_index,
+                                    &::presenter::style_sheet::DEFAULT,
+                                ) {
+                                    cursor_pos = xy;
+                                }
+                                rendered_until = cst_node.end;
+                            }
+                        }
+                    }
+                }
+                CstIterItem::Unparsed(_unparsed) => {
+                    trace!("unparsed = {:?}", _unparsed);
+                    trace!("editor.len = {:?}", self.commons.editor.len());
+                    // Render the unparsed part with defualt syle
+                    if let Some(xy) = self.render_node(
+                        &mut text_input,
+                        rendered_until,
+                        self.commons.editor.len(),
+                        cursor_index,
+                        &::presenter::style_sheet::DEFAULT,
+                    ) {
+                        cursor_pos = xy;
+                    }
+                    rendered_until = self.commons.editor.len();
+                }
+            }
+        }
+
+        trace!("update_input_screen: Cursor = {:?}", cursor_pos);
+        text_input.move_cursor_to(cursor_pos.0, cursor_pos.1);
+        self.commons.text_input = text_input;
+    }
 }
 
 impl SubPresenter for ComposeCommandPresenter {
@@ -631,7 +770,8 @@ impl SubPresenter for ComposeCommandPresenter {
     fn event_text(&mut self, s: &str) -> PresenterCommand {
         match self.selection_mode {
             SelectionMode::None => {
-                self.commons_mut().text_input_add_characters(s);
+                self.commons_mut().editor.enter_iter(s.chars());
+                self.update_input_screen();
             }
             SelectionMode::History => {
                 self.search.push_str(s);

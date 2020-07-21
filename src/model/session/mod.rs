@@ -465,7 +465,7 @@ impl Session {
                     *line += *lines;
                     *lines = 0;
                 } else {
-                    *lines -= (count - *line);
+                    *lines -= count - *line;
                     *line = count;
                 }
             }
