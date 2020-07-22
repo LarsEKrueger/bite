@@ -58,7 +58,7 @@ fn s(pre: &str, post: &str) -> Style {
 pub fn script(grammar: &CompiledGrammar<char, CharMatcher>) -> StyleSheet {
     let mut sheet = StyleSheet::new();
 
-    sheet.add(StyleMatcher::new(s("\x1b[32m", "\x1b[0m")).skip_to(grammar.nt_id("FOR")));
+    sheet.add(StyleMatcher::new(s("\x1b[32m", "\x1b[0m")).skip_to(grammar.nt_id("simple_command")));
 
     sheet.add(StyleMatcher::new(s("\x1b[37;41m", "\x1b[0m")).skip_to(ERROR_ID));
 
