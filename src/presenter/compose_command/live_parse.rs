@@ -573,6 +573,8 @@ impl ComposeCommandPresenter {
     /// Modelled after sesd's example program.
     fn update_input_screen(&mut self) {
         let cursor_index = self.commons.editor.cursor();
+        trace!("update_input_screen: cursor_index = {}", cursor_index);
+        self.commons.editor.parser().trace_chart();
 
         let mut text_input = std::mem::replace(&mut self.commons.text_input, Screen::new());
         text_input.reset();
