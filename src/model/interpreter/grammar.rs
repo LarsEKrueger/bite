@@ -286,6 +286,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("simple_command")
             .nt("simple_command_element")
+            .nt("ws")
             .nt("simple_command"),
     );
 
@@ -328,6 +329,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("DO")
@@ -337,6 +339,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .t(Exact('{'))
@@ -346,6 +349,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
             .nt("newline_list")
@@ -356,6 +360,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
             .nt("newline_list")
@@ -366,6 +371,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -379,6 +385,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -392,6 +399,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -404,6 +412,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -417,6 +426,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("arith_for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("ARITH_FOR_EXPRS")
             .nt("list_terminator")
             .nt("newline_list")
@@ -427,6 +437,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("arith_for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("ARITH_FOR_EXPRS")
             .nt("list_terminator")
             .nt("newline_list")
@@ -437,6 +448,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("arith_for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("ARITH_FOR_EXPRS")
             .nt("DO")
             .nt("compound_list")
@@ -445,6 +457,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("arith_for_command")
             .nt("FOR")
+            .nt("ws")
             .nt("ARITH_FOR_EXPRS")
             .t(Exact('{'))
             .nt("compound_list")
@@ -454,6 +467,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("select_command")
             .nt("SELECT")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("DO")
@@ -463,6 +477,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("select_command")
             .nt("SELECT")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .t(Exact('{'))
@@ -472,6 +487,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("select_command")
             .nt("SELECT")
+            .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
             .nt("newline_list")
@@ -482,6 +498,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("select_command")
             .nt("SELECT")
+            .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
             .nt("newline_list")
@@ -492,6 +509,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("select_command")
             .nt("SELECT")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -505,6 +523,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("select_command")
             .nt("SELECT")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -519,6 +538,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("case_command")
             .nt("CASE")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -528,6 +548,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("case_command")
             .nt("CASE")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -538,6 +559,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("case_command")
             .nt("CASE")
+            .nt("ws")
             .nt("WORD")
             .nt("newline_list")
             .nt("IN")
@@ -894,6 +916,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("pipeline")
             .nt("pipeline")
+            .nt("ws*")
             .t(Exact('|'))
             .nt("newline_list")
             .nt("pipeline"),
@@ -901,6 +924,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(
         Rule::new("pipeline")
             .nt("pipeline")
+            .nt("ws*")
             .nt("BAR_AND")
             .nt("newline_list")
             .nt("pipeline"),
@@ -957,6 +981,16 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(Rule::new("WORD").nt("WORD_LETTER").nt("WORD"));
     grammar.add(Rule::new("WORD").nt("WORD_LETTER"));
     grammar.add(Rule::new("WORD_LETTER").t(NoneOf(" \n\t\"\'|&;()<>=".chars().collect())));
+
+    grammar.add(Rule::new("wschar").t(Exact(' ')));
+    grammar.add(Rule::new("wschar").t(Exact('\t')));
+    grammar.add(Rule::new("wschar").t(Exact('\n')));
+
+    grammar.add(Rule::new("ws").nt("wschar"));
+    grammar.add(Rule::new("ws").nt("wschar").nt("ws"));
+
+    grammar.add(Rule::new("ws*"));
+    grammar.add(Rule::new("ws*").nt("wschar").nt("ws*"));
 
     let res = grammar.compile();
     if let Err(ref e) = res {

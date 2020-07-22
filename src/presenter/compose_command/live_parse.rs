@@ -81,17 +81,9 @@ impl ComposeCommandPresenter {
         Box::new(presenter)
     }
 
-    fn is_multi_line(&self) -> bool {
-        self.commons.text_input.height() > 1
-    }
-
-    fn text_input(&mut self) -> &mut Screen {
-        &mut self.commons.text_input
-    }
-
     fn execute_input(&mut self) -> PresenterCommand {
         let line = match self.selection_mode {
-            SelectionMode::None => self.commons.text_input.extract_text_without_last_nl(),
+            SelectionMode::None => self.commons.editor.as_string(),
             SelectionMode::History => {
                 let selected_item = self.selected_item;
                 let prediction_len = self.commons.history.prediction().len();
@@ -108,8 +100,8 @@ impl ComposeCommandPresenter {
                 return PresenterCommand::Unknown;
             }
         };
-        self.commons.text_input.reset();
-        self.commons.text_input.make_room();
+        self.commons.editor.clear();
+        self.update_input_screen();
         self.selection_mode = SelectionMode::None;
         self.search.clear();
         if line.is_empty() {
@@ -146,7 +138,7 @@ impl ComposeCommandPresenter {
                     .session
                     .set_visibility(interaction_handle, OutputVisibility::Error);
                 // Put back the input
-                self.commons.text_input.replace(&line, false);
+                self.commons.editor.enter_iter(line.chars());
             }
         }
 
@@ -159,9 +151,8 @@ impl ComposeCommandPresenter {
         if selected_item < prediction_len {
             let mut line = self.search.clone();
             line.push_str(&self.commons.history.prediction()[selected_item]);
-            self.commons.text_input.reset();
-            self.commons.text_input.make_room();
-            self.commons_mut().text_input_add_characters(&line);
+            self.commons.editor.clear();
+            self.commons.editor.enter_iter(line.chars());
             self.selection_mode = SelectionMode::None;
             self.search.clear();
         }
@@ -236,6 +227,66 @@ impl ComposeCommandPresenter {
         self.commons.window_height - input_height - (to - from) - search_height
     }
 
+    /// Move cursor up one line, return true if that worked
+    fn move_cursor_up(&mut self) -> bool {
+        let col = self.commons.text_input.cursor_x() as usize;
+        if let Some(this_start) = self
+            .commons
+            .editor
+            .search_backward(self.commons.editor.cursor(), sesd::char::start_of_line)
+        {
+            if this_start > 0 {
+                let prev_end = this_start - 1;
+                if let Some(prev_start) = self
+                    .commons
+                    .editor
+                    .search_backward(prev_end, sesd::char::start_of_line)
+                {
+                    if prev_start <= prev_end && prev_end < self.commons.editor.cursor() {
+                        self.commons
+                            .editor
+                            .set_cursor(if prev_start + col <= prev_end {
+                                prev_start + col
+                            } else {
+                                prev_end
+                            });
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Move cursor down one line, return true if that worked
+    fn move_cursor_down(&mut self) -> bool {
+        let col = self.commons.text_input.cursor_x() as usize;
+        if let Some(this_end) = self
+            .commons
+            .editor
+            .search_forward(self.commons.editor.cursor(), sesd::char::end_of_line)
+        {
+            let next_start = this_end + 1;
+            if let Some(next_end) = self
+                .commons
+                .editor
+                .search_forward(next_start, sesd::char::end_of_line)
+            {
+                if next_start <= next_end && self.commons.editor.cursor() < next_start {
+                    self.commons
+                        .editor
+                        .set_cursor(if next_start + col <= next_end {
+                            next_start + col
+                        } else {
+                            next_end
+                        });
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     fn event_special_key_history(
         &mut self,
         mod_state: &ModifierState,
@@ -251,12 +302,12 @@ impl ComposeCommandPresenter {
             | ((false, false, false), SpecialKey::Right)
             | ((false, false, false), SpecialKey::End) => {
                 self.set_input_from_history();
-                self.text_input().move_end_of_line();
+                self.commons.editor.skip_forward(sesd::char::end_of_line);
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Home) => {
                 self.set_input_from_history();
-                self.commons.text_input.move_left_edge();
+                self.commons.editor.skip_backward(sesd::char::start_of_line);
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Up) => {
@@ -310,20 +361,21 @@ impl ComposeCommandPresenter {
                 PresenterCommand::Redraw
             }
             ((_, _, _), SpecialKey::Enter) => {
-                let selected_item = self.selected_item;
-                // Insert the selected completion
-                let word = self.text_input().word_before_cursor();
-                let word_chars = word.chars().count();
-                // Delete the beginning
-                self.text_input().move_left(word_chars as isize);
-                for _i in 0..word_chars {
-                    self.text_input().delete_character();
-                }
-                // Put the match there
-                let completion = self.completions.remove(selected_item);
-                self.text_input().place_str(&completion);
-                // Go back to normal mode
-                self.selection_mode = SelectionMode::None;
+                // TODO: Design how completion is supposed to work
+                //               let selected_item = self.selected_item;
+                //               // Insert the selected completion
+                //               let word = self.text_input().word_before_cursor();
+                //               let word_chars = word.chars().count();
+                //               // Delete the beginning
+                //               self.text_input().move_left(word_chars as isize);
+                //               for _i in 0..word_chars {
+                //                   self.text_input().delete_character();
+                //               }
+                //               // Put the match there
+                //               let completion = self.completions.remove(selected_item);
+                //               self.text_input().place_str(&completion);
+                //               // Go back to normal mode
+                //               self.selection_mode = SelectionMode::None;
                 PresenterCommand::Redraw
             }
             _ => PresenterCommand::Unknown,
@@ -338,38 +390,27 @@ impl ComposeCommandPresenter {
         match (mod_state.as_tuple(), key) {
             // (shift,control,meta)
             ((false, false, false), SpecialKey::Enter) => {
-                if self.is_multi_line() {
-                    self.commons_mut().text_input.break_line();
-                    PresenterCommand::Redraw
-                } else {
-                    self.execute_input()
-                }
+                // Enter -> Execute command
+                // TODO: do nothing if parser didn't accept
+                self.execute_input()
             }
             ((true, false, false), SpecialKey::Enter) => {
-                // Shift-Enter -> Break the line and thereby start multi-line editing
-                self.commons_mut().text_input.break_line();
+                // Shift-Enter -> Insert a line break and let the parser re-render it
+                self.commons.editor.enter('\n');
                 PresenterCommand::Redraw
             }
-            ((false, true, false), SpecialKey::Enter) => {
-                // Ctrl-Enter -> Start the command in multi-line mode
-                if self.is_multi_line() {
-                    self.execute_input()
-                } else {
-                    PresenterCommand::Unknown
-                }
-            }
             ((false, false, false), SpecialKey::Left) => {
-                self.commons_mut().text_input.move_left(1);
+                self.commons.editor.move_backward(1);
+                // TODO: Move cursor in text_input
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Right) => {
-                self.commons_mut().text_input.move_right(1);
+                self.commons.editor.move_forward(1);
+                // TODO: Move cursor in text_input
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Up) => {
-                if self.commons.text_input.cursor_y() > 0 {
-                    self.commons_mut().text_input.move_up(1);
-                } else {
+                if !self.move_cursor_up() {
                     // Go to last history entry
                     let prediction_len = self.commons.history.prediction().len();
                     if prediction_len > 0 {
@@ -380,8 +421,7 @@ impl ComposeCommandPresenter {
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Down) => {
-                if self.commons.text_input.cursor_y() + 1 < self.commons.text_input.height() {
-                    self.commons_mut().text_input.move_down(1);
+                if self.move_cursor_down() {
                     PresenterCommand::Redraw
                 } else {
                     PresenterCommand::Unknown
@@ -407,66 +447,61 @@ impl ComposeCommandPresenter {
             }
 
             ((false, false, false), SpecialKey::Home) => {
-                self.commons.text_input.move_left_edge();
+                self.commons.editor.skip_backward(sesd::char::start_of_line);
+                // TODO: Move cursor in text_input
                 PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::End) => {
-                self.text_input().move_end_of_line();
+                self.commons.editor.skip_forward(sesd::char::end_of_line);
+                // TODO: Move cursor in text_input
                 PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Delete) => {
-                if self.text_input().cursor_at_end_of_line() {
-                    self.text_input().join_next_line();
-                } else {
-                    self.commons.text_input.delete_character();
-                }
+                self.commons.editor.delete(1);
+                self.update_input_screen();
                 PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::Backspace) => {
-                if self.text_input().cursor_x() == 0 {
-                    if self.text_input().cursor_y() > 0 {
-                        self.text_input().move_up(1);
-                        self.text_input().move_end_of_line();
-                        self.text_input().join_next_line();
-                    }
-                } else {
-                    self.commons.text_input.delete_left();
+                if self.commons.editor.move_backward(1) {
+                    self.commons.editor.delete(1);
+                    self.update_input_screen();
                 }
                 PresenterCommand::Redraw
             }
 
             // Tab: Completion
-            ((false, false, false), SpecialKey::Tab) => {
-                let word = self.text_input().word_before_cursor();
-
-                let completions = completion::file_completion(&word);
-                let completion_len = completions.len();
-                // If there is only one match, insert that
-                if completion_len == 1 {
-                    let word_chars = word.chars().count();
-                    // Delete the beginning
-                    self.text_input().move_left(word_chars as isize);
-                    for _i in 0..word_chars {
-                        self.text_input().delete_character();
-                    }
-                    // Put the match there
-                    self.text_input().place_str(&completions[0]);
-                } else {
-                    // Otherwise make the user pick
-                    self.completions = completions;
-                    self.selection_screen.reset();
-                    for item in self.completions.iter() {
-                        let _ = self.selection_screen.add_bytes(item.as_bytes());
-                        let _ = self.selection_screen.add_bytes(b"\n");
-                    }
-                    self.selected_item = completion_len - 1;
-                    self.selection_mode = SelectionMode::Completion;
-                }
-                PresenterCommand::Redraw
-            }
+            // TODO: Re-activate this when completion is designed
+            //           ((false, false, false), SpecialKey::Tab) => {
+            //               let word = self.text_input().word_before_cursor();
+            //
+            //               let completions = completion::file_completion(&word);
+            //               let completion_len = completions.len();
+            //               // If there is only one match, insert that
+            //               if completion_len == 1 {
+            //                   let word_chars = word.chars().count();
+            //                   // Delete the beginning
+            //                   self.text_input().move_left(word_chars as isize);
+            //                   for _i in 0..word_chars {
+            //                       self.text_input().delete_character();
+            //                   }
+            //                   // Put the match there
+            //                   self.text_input().place_str(&completions[0]);
+            //               } else {
+            //                   // Otherwise make the user pick
+            //                   self.completions = completions;
+            //                   self.selection_screen.reset();
+            //                   for item in self.completions.iter() {
+            //                       let _ = self.selection_screen.add_bytes(item.as_bytes());
+            //                       let _ = self.selection_screen.add_bytes(b"\n");
+            //                   }
+            //                   self.selected_item = completion_len - 1;
+            //                   self.selection_mode = SelectionMode::Completion;
+            //               }
+            //               PresenterCommand::Redraw
+            //           }
 
             // Ctrl-Space: cycle last interaction's output
             ((false, true, false), SpecialKey::Space) => {
@@ -541,6 +576,7 @@ impl ComposeCommandPresenter {
 
         let mut text_input = std::mem::replace(&mut self.commons.text_input, Screen::new());
         text_input.reset();
+        text_input.make_room();
 
         let mut rendered_until = 0;
         let mut cursor_pos = (0, 0);
