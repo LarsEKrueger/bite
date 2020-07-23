@@ -29,12 +29,120 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
 
     use sesd::char::CharMatcher::*;
 
+    // One section of input to be executed at a time. In contrast to bash, which processes input
+    // in chunks of logical expressions (|| and &&), this parser needs to handle:
+    // * comments (bash filters them out in the lexer)
+    // * last line without newline (bash handles this with EOF)
+    // * multiple logicals in one input unit
+    // * logicals must not be empty ( i.e. a & & is not allowed)
+    //
+    // As comments are separated by newlines only, but logicals can be separated by ampersands,
+    // semicolons or newlines, and ampersands need to be detectable for the compiler, the inputunit
+    // rules catch these cases individually.
+
+    // A comment at the last position, no newline
+    grammar.add(Rule::new("inputunit").nt("comment"));
+    // A logical at the last position, no newline
+    grammar.add(Rule::new("inputunit").nt("logical"));
+    // A logical at the last position, exlicit foreground separator, i.e. semicolon or newline
     grammar.add(
         Rule::new("inputunit")
-            .nt("simple_list")
-            .nt("simple_list_terminator"),
+            .nt("logical")
+            .nt("ws*")
+            .nt("logical_sep_fg")
+            .nt("gap"),
     );
-    grammar.add(Rule::new("inputunit").t(Exact('\n')));
+    // A logical at the last position, exlicit background separator. i.e. ampersand
+    grammar.add(
+        Rule::new("inputunit")
+            .nt("logical")
+            .nt("ws*")
+            .nt("logical_sep_bg")
+            .nt("gap"),
+    );
+    // A comment followed by more input units
+    grammar.add(
+        Rule::new("inputunit")
+            .nt("comment")
+            .nt("newline")
+            .nt("inputunit"),
+    );
+    // A logical with exlicit foreground separator, followed by more input units
+    grammar.add(
+        Rule::new("inputunit")
+            .nt("logical")
+            .nt("ws*")
+            .nt("logical_sep_fg")
+            .nt("inputunit"),
+    );
+    // A logical with exlicit background separator, followed by more input units
+    grammar.add(
+        Rule::new("inputunit")
+            .nt("logical")
+            .nt("ws*")
+            .nt("logical_sep_bg")
+            .nt("ws*")
+            .nt("inputunit"),
+    );
+
+    // The separators
+    grammar.add(Rule::new("logical_sep_fg").t(Exact(';')));
+    grammar.add(Rule::new("logical_sep_fg").nt("newline"));
+    grammar.add(Rule::new("logical_sep_bg").t(Exact('&')));
+    grammar.add(Rule::new("newline").t(Exact('\n')));
+
+    // A comment skips the whitespace before its marker, then eats the hash and the rest of the
+    // line, but not the newline
+    grammar.add(
+        Rule::new("comment")
+            .nt("ws*")
+            .t(Exact('#'))
+            .nt("comment-text"),
+    );
+    grammar.add(Rule::new("comment-text"));
+    grammar.add(
+        Rule::new("comment-text")
+            .t(NoneOf(vec!['\n']))
+            .nt("comment-text"),
+    );
+
+    // Whitespace characters. Does not include newline.
+    grammar.add(Rule::new("wschar").t(Exact(' ')));
+    grammar.add(Rule::new("wschar").t(Exact('\t')));
+
+    // At least one whitespace character
+    grammar.add(Rule::new("ws").nt("wschar"));
+    grammar.add(Rule::new("ws").nt("wschar").nt("ws"));
+
+    // Zero or more whitespace characters
+    grammar.add(Rule::new("ws*"));
+    grammar.add(Rule::new("ws*").nt("wschar").nt("ws*"));
+
+    // gap = white space + newlines
+    grammar.add(Rule::new("gap").nt("ws*"));
+    grammar.add(Rule::new("gap").nt("ws*").t(Exact('\n')));
+    grammar.add(Rule::new("gap").nt("ws*").t(Exact('\n')).nt("gap"));
+
+    // Logical expressions are pipelines separated by && or ||
+    grammar.add(Rule::new("logical").nt("ws*").nt("pipeline_command"));
+    grammar.add(
+        Rule::new("logical")
+            .nt("ws*")
+            .nt("pipeline_command")
+            .nt("ws*")
+            .nt("AND_AND")
+            .nt("gap")
+            .nt("logical"),
+    );
+    grammar.add(
+        Rule::new("logical")
+            .nt("ws*")
+            .nt("pipeline_command")
+            .nt("ws*")
+            .nt("OR_OR")
+            .nt("gap")
+            .nt("logical"),
+    );
 
     grammar.add(Rule::new("word_list").nt("WORD").nt("word_list"));
     grammar.add(Rule::new("word_list").nt("WORD"));
@@ -282,7 +390,11 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("redirection_list"),
     );
 
-    grammar.add(Rule::new("simple_command").nt("simple_command_element"));
+    grammar.add(
+        Rule::new("simple_command")
+            .nt("simple_command_element")
+            .nt("ws*"),
+    );
     grammar.add(
         Rule::new("simple_command")
             .nt("simple_command_element")
@@ -331,7 +443,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("FOR")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("compound_list")
             .nt("DONE"),
@@ -341,7 +453,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("FOR")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("compound_list")
             .t(Exact('}')),
@@ -352,7 +464,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("compound_list")
             .nt("DONE"),
@@ -363,7 +475,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("compound_list")
             .t(Exact('}')),
@@ -373,11 +485,11 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("FOR")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("word_list")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("compound_list")
             .nt("DONE"),
@@ -387,11 +499,11 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("FOR")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("word_list")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("compound_list")
             .t(Exact('}')),
@@ -401,10 +513,10 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("FOR")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("compound_list")
             .nt("DONE"),
@@ -414,10 +526,10 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("FOR")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("compound_list")
             .t(Exact('}')),
@@ -429,7 +541,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("ws")
             .nt("ARITH_FOR_EXPRS")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("compound_list")
             .nt("DONE"),
@@ -440,7 +552,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("ws")
             .nt("ARITH_FOR_EXPRS")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("compound_list")
             .t(Exact('}')),
@@ -469,7 +581,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("SELECT")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("list")
             .nt("DONE"),
@@ -479,7 +591,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("SELECT")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("list")
             .t(Exact('}')),
@@ -490,7 +602,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("list")
             .nt("DONE"),
@@ -501,7 +613,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("ws")
             .nt("WORD")
             .t(Exact(';'))
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("list")
             .t(Exact('}')),
@@ -511,11 +623,11 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("SELECT")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("word_list")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .nt("DO")
             .nt("list")
             .nt("DONE"),
@@ -525,11 +637,11 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("SELECT")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("word_list")
             .nt("list_terminator")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('{'))
             .nt("list")
             .t(Exact('}')),
@@ -540,9 +652,9 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("CASE")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
-            .nt("newline_list")
+            .nt("gap")
             .nt("ESAC"),
     );
     grammar.add(
@@ -550,10 +662,10 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("CASE")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("case_clause_sequence")
-            .nt("newline_list")
+            .nt("gap")
             .nt("ESAC"),
     );
     grammar.add(
@@ -561,7 +673,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("CASE")
             .nt("ws")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("IN")
             .nt("case_clause")
             .nt("ESAC"),
@@ -572,7 +684,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("WORD")
             .t(Exact('('))
             .t(Exact(')'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("function_body"),
     );
     grammar.add(
@@ -581,14 +693,14 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("WORD")
             .t(Exact('('))
             .t(Exact(')'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("function_body"),
     );
     grammar.add(
         Rule::new("function_def")
             .nt("FUNCTION")
             .nt("WORD")
-            .nt("newline_list")
+            .nt("gap")
             .nt("function_body"),
     );
 
@@ -724,21 +836,21 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
 
     grammar.add(
         Rule::new("pattern_list")
-            .nt("newline_list")
+            .nt("gap")
             .nt("pattern")
             .t(Exact(')'))
             .nt("compound_list"),
     );
     grammar.add(
         Rule::new("pattern_list")
-            .nt("newline_list")
+            .nt("gap")
             .nt("pattern")
             .t(Exact(')'))
-            .nt("newline_list"),
+            .nt("gap"),
     );
     grammar.add(
         Rule::new("pattern_list")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('('))
             .nt("pattern")
             .t(Exact(')'))
@@ -746,11 +858,11 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     );
     grammar.add(
         Rule::new("pattern_list")
-            .nt("newline_list")
+            .nt("gap")
             .t(Exact('('))
             .nt("pattern")
             .t(Exact(')'))
-            .nt("newline_list"),
+            .nt("gap"),
     );
 
     grammar.add(
@@ -790,106 +902,54 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     grammar.add(Rule::new("pattern").nt("WORD"));
     grammar.add(Rule::new("pattern").nt("WORD").t(Exact('|')).nt("pattern"));
 
-    grammar.add(Rule::new("list").nt("newline_list").nt("list0"));
+    grammar.add(Rule::new("list").nt("gap").nt("list0"));
 
     grammar.add(Rule::new("compound_list").nt("list"));
-    grammar.add(Rule::new("compound_list").nt("newline_list").nt("list1"));
+    grammar.add(Rule::new("compound_list").nt("gap").nt("list1"));
 
-    grammar.add(
-        Rule::new("list0")
-            .nt("list1")
-            .t(Exact('\n'))
-            .nt("newline_list"),
-    );
-    grammar.add(
-        Rule::new("list0")
-            .nt("list1")
-            .t(Exact('&'))
-            .nt("newline_list"),
-    );
-    grammar.add(
-        Rule::new("list0")
-            .nt("list1")
-            .t(Exact(';'))
-            .nt("newline_list"),
-    );
+    grammar.add(Rule::new("list0").nt("list1").t(Exact('\n')).nt("gap"));
+    grammar.add(Rule::new("list0").nt("list1").t(Exact('&')).nt("gap"));
+    grammar.add(Rule::new("list0").nt("list1").t(Exact(';')).nt("gap"));
 
     grammar.add(
         Rule::new("list1")
             .nt("list1")
             .nt("AND_AND")
-            .nt("newline_list")
+            .nt("gap")
             .nt("list1"),
     );
     grammar.add(
         Rule::new("list1")
             .nt("list1")
             .nt("OR_OR")
-            .nt("newline_list")
+            .nt("gap")
             .nt("list1"),
     );
     grammar.add(
         Rule::new("list1")
             .nt("list1")
             .t(Exact('&'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("list1"),
     );
     grammar.add(
         Rule::new("list1")
             .nt("list1")
             .t(Exact(';'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("list1"),
     );
     grammar.add(
         Rule::new("list1")
             .nt("list1")
             .t(Exact('\n'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("list1"),
     );
     grammar.add(Rule::new("list1").nt("pipeline_command"));
 
-    grammar.add(Rule::new("simple_list_terminator").t(Exact('\n')));
-
     grammar.add(Rule::new("list_terminator").t(Exact('\n')));
     grammar.add(Rule::new("list_terminator").t(Exact(';')));
-
-    grammar.add(Rule::new("newline_list").t(Exact('\n')));
-    grammar.add(Rule::new("newline_list").t(Exact('\n')).nt("newline_list"));
-
-    grammar.add(Rule::new("simple_list").nt("simple_list1"));
-    grammar.add(Rule::new("simple_list").nt("simple_list1").t(Exact('&')));
-    grammar.add(Rule::new("simple_list").nt("simple_list1").t(Exact(';')));
-
-    grammar.add(
-        Rule::new("simple_list1")
-            .nt("simple_list1")
-            .nt("AND_AND")
-            .nt("newline_list")
-            .nt("simple_list1"),
-    );
-    grammar.add(
-        Rule::new("simple_list1")
-            .nt("simple_list1")
-            .nt("OR_OR")
-            .nt("newline_list")
-            .nt("simple_list1"),
-    );
-    grammar.add(
-        Rule::new("simple_list1")
-            .nt("simple_list1")
-            .t(Exact('&'))
-            .nt("simple_list1"),
-    );
-    grammar.add(
-        Rule::new("simple_list1")
-            .nt("simple_list1")
-            .t(Exact(';'))
-            .nt("simple_list1"),
-    );
-    grammar.add(Rule::new("simple_list1").nt("pipeline_command"));
 
     grammar.add(Rule::new("pipeline_command").nt("pipeline"));
     grammar.add(
@@ -918,7 +978,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("pipeline")
             .nt("ws*")
             .t(Exact('|'))
-            .nt("newline_list")
+            .nt("gap")
             .nt("pipeline"),
     );
     grammar.add(
@@ -926,7 +986,7 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
             .nt("pipeline")
             .nt("ws*")
             .nt("BAR_AND")
-            .nt("newline_list")
+            .nt("gap")
             .nt("pipeline"),
     );
     grammar.add(Rule::new("pipeline").nt("command"));
@@ -975,26 +1035,97 @@ pub fn script() -> CompiledGrammar<char, CharMatcher> {
     );
 
     // TODO: Add arithmetic command
-    grammar.add(Rule::new("arith_command"));
+    grammar.add(
+        Rule::new("arith_command")
+            .ts("((".chars().map(Exact))
+            .ts("))".chars().map(Exact)),
+    );
 
     // TODO: Add complete expansion parser
     grammar.add(Rule::new("WORD").nt("WORD_LETTER").nt("WORD"));
     grammar.add(Rule::new("WORD").nt("WORD_LETTER"));
-    grammar.add(Rule::new("WORD_LETTER").t(NoneOf(" \n\t\"\'|&;()<>=".chars().collect())));
-
-    grammar.add(Rule::new("wschar").t(Exact(' ')));
-    grammar.add(Rule::new("wschar").t(Exact('\t')));
-    grammar.add(Rule::new("wschar").t(Exact('\n')));
-
-    grammar.add(Rule::new("ws").nt("wschar"));
-    grammar.add(Rule::new("ws").nt("wschar").nt("ws"));
-
-    grammar.add(Rule::new("ws*"));
-    grammar.add(Rule::new("ws*").nt("wschar").nt("ws*"));
+    grammar.add(Rule::new("WORD_LETTER").t(NoneOf(" \n\t\"\'|&;()<>=#".chars().collect())));
 
     let res = grammar.compile();
     if let Err(ref e) = res {
         debug!("Compile SESD grammar for bash script: {:?}", e);
     }
-    res.expect("compiling bash script grammar should not fail")
+    let res = res.expect("compiling bash script grammar should not fail");
+
+    res.debug_tables();
+    res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sesd::{char::CharMatcher, Parser, Verdict};
+
+    /// Test helper to parse a string that should not fail and be accepted at the last character
+    fn ok(parser: &mut Parser<char, CharMatcher>, input: &str) {
+        let mut chars_iter = input.chars().enumerate();
+        let mut last = chars_iter.next();
+
+        loop {
+            let this = chars_iter.next();
+            if this.is_none() {
+                break;
+            }
+            assert!(last.is_some());
+            let last_tuple = last.unwrap();
+            let res = parser.update(last_tuple.0, last_tuple.1);
+            assert!(
+                res == Verdict::Accept || res == Verdict::More,
+                parser.print_chart()
+            );
+            last = this;
+        }
+        let last_tuple = last.unwrap();
+        let res = parser.update(last_tuple.0, last_tuple.1);
+        assert!(res == Verdict::Accept, parser.print_chart());
+    }
+
+    /// Test sections of comments
+    #[test]
+    fn comment() {
+        let mut parser = Parser::<char, CharMatcher>::new(script());
+
+        // Comment without newline
+        ok(&mut parser, "# comment");
+        ok(&mut parser, " # comment");
+        ok(&mut parser, "\t# comment");
+        ok(&mut parser, "  # comment");
+
+        // Comment with newline
+        ok(&mut parser, "# comment\n");
+        ok(&mut parser, "# comment\n # Another");
+        ok(&mut parser, "# comment\n # Another\n");
+    }
+
+    /// Test logicals
+    #[test]
+    fn logical() {
+        let mut parser = Parser::<char, CharMatcher>::new(script());
+
+        // Various stages of input, single command
+        ok(&mut parser, "ls");
+        ok(&mut parser, " ls");
+        ok(&mut parser, "ls ");
+        ok(&mut parser, "ls -al");
+
+        // Multiple lines
+        ok(&mut parser, "ls -al\nxxx yyy");
+        ok(&mut parser, "ls -al\nxxx yyy\n");
+
+        // Logical expression
+        ok(&mut parser, "a&&b");
+        ok(&mut parser, "a||b");
+        ok(&mut parser, "a &&b");
+        ok(&mut parser, "a&& b");
+        ok(&mut parser, "a && b && c");
+        ok(&mut parser, "a && b &&\nc");
+        ok(&mut parser, "a && b && c\n");
+        ok(&mut parser, "a && b || c\n");
+        ok(&mut parser, "a || b && c\n");
+    }
 }

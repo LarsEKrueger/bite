@@ -397,6 +397,7 @@ impl ComposeCommandPresenter {
             ((true, false, false), SpecialKey::Enter) => {
                 // Shift-Enter -> Insert a line break and let the parser re-render it
                 self.commons.editor.enter('\n');
+                self.update_input_screen();
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Left) => {
@@ -550,7 +551,7 @@ impl ComposeCommandPresenter {
 
         // Print the text as usual
         let text = self.commons.editor.span_string(start, end);
-        text_input.insert_str(&text);
+        let _ = text_input.add_bytes(text.as_bytes());
 
         // Print the style's post string to reset the attributes
         let _ = text_input.add_bytes(style.post.as_bytes());
@@ -562,6 +563,9 @@ impl ComposeCommandPresenter {
         // will overwrite it later.
         if start <= cursor_index && cursor_index <= end {
             let offs = cursor_index - start;
+            // If the cursor is below the last line, update the size of the matrix to render it
+            // correctly
+            text_input.make_room();
             Some((cx + offs as isize, cy))
         } else {
             None
@@ -608,7 +612,15 @@ impl ComposeCommandPresenter {
                                 .grammar()
                                 .lhs(cst_node.dotted_rule.rule as usize),
                         );
+                        {
+                            trace!("path:");
+                            for n in cst_node.path.0.iter() {
+                                trace!("  {:?}", n);
+                            }
+                            trace!("  {:?}", cst_node.current);
+                        }
 
+                        trace!("lookup( {:?})", path);
                         let looked_up = self.commons.style_sheet.lookup(&path);
                         trace!("looked_up = {:?}", looked_up);
                         match looked_up {
@@ -653,7 +665,7 @@ impl ComposeCommandPresenter {
                         rendered_until,
                         self.commons.editor.len(),
                         cursor_index,
-                        &::presenter::style_sheet::DEFAULT,
+                        &::presenter::style_sheet::UNPARSED,
                     ) {
                         cursor_pos = xy;
                     }
@@ -808,7 +820,7 @@ impl SubPresenter for ComposeCommandPresenter {
     fn event_text(&mut self, s: &str) -> PresenterCommand {
         match self.selection_mode {
             SelectionMode::None => {
-                self.commons_mut().editor.enter_iter(s.chars());
+                self.commons.editor.enter_iter(s.chars());
                 self.update_input_screen();
             }
             SelectionMode::History => {
