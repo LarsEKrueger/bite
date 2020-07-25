@@ -29,8 +29,8 @@ use model::interpreter::parse_script;
 use model::screen::Screen;
 use model::session::{OutputVisibility, RunningStatus, Session};
 use presenter::{
-    check_response_clicked, DisplayLine, LineItem, LineType, ModifierState, NeedRedraw,
-    PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
+    check_response_clicked, CursorMapping, DisplayLine, LineItem, LineType, ModifierState,
+    NeedRedraw, PresenterCommand, PresenterCommons, SpecialKey, SubPresenter,
 };
 
 use presenter::style_sheet::{LookedUp, Style};
@@ -61,6 +61,9 @@ pub struct ComposeCommandPresenter {
 
     /// Selection mode
     selection_mode: SelectionMode,
+
+    /// Index into cursor map
+    cursor_map_index: usize,
 }
 
 const SELECTION_RAD: usize = 2;
@@ -76,6 +79,7 @@ impl ComposeCommandPresenter {
             search: String::new(),
             completions: Vec::new(),
             selection_mode: SelectionMode::None,
+            cursor_map_index: 0,
         };
         presenter.search_history();
         Box::new(presenter)
@@ -258,6 +262,43 @@ impl ComposeCommandPresenter {
         false
     }
 
+    /// Update the cursor position on-screen from the cursor position off-screen after a backwards
+    /// move.
+    fn update_input_cursor_backwards(&mut self) {
+        if self.cursor_map_index < self.commons.cursor_map.len() {
+            let c = self.commons.editor.cursor();
+            while self.commons.cursor_map[self.cursor_map_index].position > c {
+                self.cursor_map_index -= 1;
+            }
+
+            let cy = self.commons.cursor_map[self.cursor_map_index].y;
+            let cx = self.commons.cursor_map[self.cursor_map_index].x
+                + (c - self.commons.cursor_map[self.cursor_map_index].position) as isize;
+            self.commons.text_input.move_cursor_to(cx, cy);
+        }
+    }
+
+    /// Update the cursor position on-screen from the cursor position off-screen after a forwards
+    /// move.
+    fn update_input_cursor_forwards(&mut self) {
+        let c = self.commons.editor.cursor();
+        trace!(
+            "update_input_cursor_forwards: {:?}, {}, {}",
+            self.commons.cursor_map,
+            c,
+            self.cursor_map_index
+        );
+        while self.cursor_map_index + 1 < self.commons.cursor_map.len()
+            && c >= self.commons.cursor_map[self.cursor_map_index + 1].position
+        {
+            self.cursor_map_index += 1;
+        }
+        let cy = self.commons.cursor_map[self.cursor_map_index].y;
+        let cx = self.commons.cursor_map[self.cursor_map_index].x
+            + (c - self.commons.cursor_map[self.cursor_map_index].position) as isize;
+        self.commons.text_input.move_cursor_to(cx, cy);
+    }
+
     /// Move cursor down one line, return true if that worked
     fn move_cursor_down(&mut self) -> bool {
         let col = self.commons.text_input.cursor_x() as usize;
@@ -402,16 +443,18 @@ impl ComposeCommandPresenter {
             }
             ((false, false, false), SpecialKey::Left) => {
                 self.commons.editor.move_backward(1);
-                // TODO: Move cursor in text_input
+                self.update_input_cursor_backwards();
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Right) => {
                 self.commons.editor.move_forward(1);
-                // TODO: Move cursor in text_input
+                self.update_input_cursor_forwards();
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Up) => {
-                if !self.move_cursor_up() {
+                if self.move_cursor_up() {
+                    self.update_input_cursor_backwards();
+                } else {
                     // Go to last history entry
                     let prediction_len = self.commons.history.prediction().len();
                     if prediction_len > 0 {
@@ -419,10 +462,12 @@ impl ComposeCommandPresenter {
                         self.selection_mode = SelectionMode::History;
                     }
                 }
+
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Down) => {
                 if self.move_cursor_down() {
+                    self.update_input_cursor_forwards();
                     PresenterCommand::Redraw
                 } else {
                     PresenterCommand::Unknown
@@ -449,13 +494,13 @@ impl ComposeCommandPresenter {
 
             ((false, false, false), SpecialKey::Home) => {
                 self.commons.editor.skip_backward(sesd::char::start_of_line);
-                // TODO: Move cursor in text_input
+                self.update_input_cursor_backwards();
                 PresenterCommand::Redraw
             }
 
             ((false, false, false), SpecialKey::End) => {
                 self.commons.editor.skip_forward(sesd::char::end_of_line);
-                // TODO: Move cursor in text_input
+                self.update_input_cursor_forwards();
                 PresenterCommand::Redraw
             }
 
@@ -533,21 +578,23 @@ impl ComposeCommandPresenter {
     /// Render a node of the parse tree.
     ///
     /// Return None, if the cursor is not inside this node. Return the x and y coordinate of the
-    /// cursor.
+    /// cursor, then the index into the cursor map.
     fn render_node(
         &self,
         text_input: &mut Screen,
+        cursor_map: &mut Vec<CursorMapping>,
         start: usize,
         end: usize,
         cursor_index: usize,
         style: &Style,
-    ) -> Option<(isize, isize)> {
+    ) -> Option<(isize, isize, usize)> {
         // Print the style's pre string before taking the cursor position. This way, the cursor can
         // be moved to the editable portion correctly.
         let _ = text_input.add_bytes(style.pre.as_bytes());
 
         let cx = text_input.cursor_x();
         let cy = text_input.cursor_y();
+        let cm = cursor_map.len();
 
         // Print the text as usual
         let text = self.commons.editor.span_string(start, end);
@@ -556,7 +603,12 @@ impl ComposeCommandPresenter {
         // Print the style's post string to reset the attributes
         let _ = text_input.add_bytes(style.post.as_bytes());
 
-        // TODO: Insert span into element position cache
+        // Insert span into element position cache
+        cursor_map.push(CursorMapping {
+            position: start,
+            x: cx,
+            y: cy,
+        });
 
         // Check if the cursor is between start and end. Check for position past the end of the
         // string to catch the cursor at the end of the buffer. If two elements touch, the second
@@ -566,7 +618,7 @@ impl ComposeCommandPresenter {
             // If the cursor is below the last line, update the size of the matrix to render it
             // correctly
             text_input.make_room();
-            Some((cx + offs as isize, cy))
+            Some((cx + offs as isize, cy, cm))
         } else {
             None
         }
@@ -581,11 +633,13 @@ impl ComposeCommandPresenter {
         self.commons.editor.parser().trace_chart();
 
         let mut text_input = std::mem::replace(&mut self.commons.text_input, Screen::new());
+        let mut cursor_map = std::mem::replace(&mut self.commons.cursor_map, Vec::new());
         text_input.reset();
         text_input.make_room();
+        cursor_map.clear();
 
         let mut rendered_until = 0;
-        let mut cursor_pos = (0, 0);
+        let mut cursor_pos = (0, 0, 0);
         for cst_node in self.commons.editor.cst_iter() {
             trace!("rendered_until = {:?}", rendered_until);
             trace!("cursor_index = {:?}", cursor_index);
@@ -631,6 +685,7 @@ impl ComposeCommandPresenter {
                                 // Found an exact match. Render with style.
                                 if let Some(xy) = self.render_node(
                                     &mut text_input,
+                                    &mut cursor_map,
                                     rendered_until,
                                     cst_node.end,
                                     cursor_index,
@@ -644,6 +699,7 @@ impl ComposeCommandPresenter {
                                 // Found nothing. Render with default style.
                                 if let Some(xy) = self.render_node(
                                     &mut text_input,
+                                    &mut cursor_map,
                                     rendered_until,
                                     cst_node.end,
                                     cursor_index,
@@ -662,6 +718,7 @@ impl ComposeCommandPresenter {
                     // Render the unparsed part with defualt syle
                     if let Some(xy) = self.render_node(
                         &mut text_input,
+                        &mut cursor_map,
                         rendered_until,
                         self.commons.editor.len(),
                         cursor_index,
@@ -677,6 +734,8 @@ impl ComposeCommandPresenter {
         trace!("update_input_screen: Cursor = {:?}", cursor_pos);
         text_input.move_cursor_to(cursor_pos.0, cursor_pos.1);
         self.commons.text_input = text_input;
+        self.commons.cursor_map = cursor_map;
+        self.cursor_map_index = cursor_pos.2;
     }
 }
 

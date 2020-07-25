@@ -165,6 +165,19 @@ trait SubPresenter {
 
 type Editor = SynchronousEditor<char, CharMatcher>;
 
+/// Link the editor's cursor position to the on-screen position
+///
+/// Used to convert the cursor movement on-screen back to movements in the buffer.
+#[derive(Debug)]
+pub struct CursorMapping {
+    /// Position in editor buffer
+    position: usize,
+    /// Horizontal position in text_input
+    x: isize,
+    /// Vertical position in text_input
+    y: isize,
+}
+
 /// Data that is common to all presenter views.
 pub struct PresenterCommons {
     /// The current and previous commands and the outputs of them.
@@ -209,6 +222,9 @@ pub struct PresenterCommons {
 
     /// Style sheet for rendering the command line
     style_sheet: style_sheet::StyleSheet,
+
+    /// Map the on-screen cursor position to the in-buffer position
+    cursor_map: Vec<CursorMapping>,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -310,6 +326,7 @@ impl PresenterCommons {
             term_info,
             editor: Editor::new(compiled_grammar),
             style_sheet,
+            cursor_map: Vec::new(),
         })
     }
 
