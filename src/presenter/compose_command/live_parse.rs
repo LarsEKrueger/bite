@@ -57,7 +57,7 @@ pub struct ComposeCommandPresenter {
     selection_screen: Screen,
 
     /// List of completions
-    completions: Vec<String>,
+    completions: Vec<(usize, String)>,
 
     /// Selection mode
     selection_mode: SelectionMode,
@@ -328,6 +328,59 @@ impl ComposeCommandPresenter {
         false
     }
 
+    fn start_completion(&mut self) {
+        // Algo
+        //
+        // * Get the full predictions, incl. open parent rules that might still match
+        // * Compile the list of completions based on the configuration
+
+        trace!("start_completion");
+        let cursor_position = self.commons.editor.cursor();
+        let predictions = self
+            .commons
+            .editor
+            .parser()
+            .full_predictions(cursor_position);
+
+        let mut completions = Vec::new();
+        for (sym, start) in predictions.iter() {
+            let start_str = self.commons.editor.span_string(*start, cursor_position);
+            trace!(
+                "{} , {}, {:?}",
+                self.commons.editor.grammar().nt_name(*sym),
+                start,
+                start_str
+            );
+            let mut sym_comp = self.commons.completions.lookup(*sym, &start_str);
+            for s in sym_comp.drain(0..) {
+                completions.push((*start, s));
+            }
+        }
+
+        if !completions.is_empty() {
+            let completion_len = completions.len();
+            // If there is only one match, insert that
+            if completion_len == 1 {
+                self.commons.editor.replace(
+                    completions[0].0,
+                    cursor_position,
+                    completions[0].1.chars(),
+                );
+                self.update_input_screen();
+            } else {
+                // Otherwise make the user pick
+                self.completions = completions;
+                self.selection_screen.reset();
+                for item in self.completions.iter() {
+                    let _ = self.selection_screen.add_bytes(item.1.as_bytes());
+                    let _ = self.selection_screen.add_bytes(b"\n");
+                }
+                self.selected_item = completion_len - 1;
+                self.selection_mode = SelectionMode::Completion;
+            }
+        }
+    }
+
     fn event_special_key_history(
         &mut self,
         mod_state: &ModifierState,
@@ -402,21 +455,15 @@ impl ComposeCommandPresenter {
                 PresenterCommand::Redraw
             }
             ((_, _, _), SpecialKey::Enter) => {
-                // TODO: Design how completion is supposed to work
-                //               let selected_item = self.selected_item;
-                //               // Insert the selected completion
-                //               let word = self.text_input().word_before_cursor();
-                //               let word_chars = word.chars().count();
-                //               // Delete the beginning
-                //               self.text_input().move_left(word_chars as isize);
-                //               for _i in 0..word_chars {
-                //                   self.text_input().delete_character();
-                //               }
-                //               // Put the match there
-                //               let completion = self.completions.remove(selected_item);
-                //               self.text_input().place_str(&completion);
-                //               // Go back to normal mode
-                //               self.selection_mode = SelectionMode::None;
+                let selected_item = self.selected_item;
+                let completion = self.completions.remove(selected_item);
+                let cursor_position = self.commons.editor.cursor();
+                self.commons
+                    .editor
+                    .replace(completion.0, cursor_position, completion.1.chars());
+                self.update_input_screen();
+                // Go back to normal mode
+                self.selection_mode = SelectionMode::None;
                 PresenterCommand::Redraw
             }
             _ => PresenterCommand::Unknown,
@@ -519,35 +566,10 @@ impl ComposeCommandPresenter {
             }
 
             // Tab: Completion
-            // TODO: Re-activate this when completion is designed
-            //           ((false, false, false), SpecialKey::Tab) => {
-            //               let word = self.text_input().word_before_cursor();
-            //
-            //               let completions = completion::file_completion(&word);
-            //               let completion_len = completions.len();
-            //               // If there is only one match, insert that
-            //               if completion_len == 1 {
-            //                   let word_chars = word.chars().count();
-            //                   // Delete the beginning
-            //                   self.text_input().move_left(word_chars as isize);
-            //                   for _i in 0..word_chars {
-            //                       self.text_input().delete_character();
-            //                   }
-            //                   // Put the match there
-            //                   self.text_input().place_str(&completions[0]);
-            //               } else {
-            //                   // Otherwise make the user pick
-            //                   self.completions = completions;
-            //                   self.selection_screen.reset();
-            //                   for item in self.completions.iter() {
-            //                       let _ = self.selection_screen.add_bytes(item.as_bytes());
-            //                       let _ = self.selection_screen.add_bytes(b"\n");
-            //                   }
-            //                   self.selected_item = completion_len - 1;
-            //                   self.selection_mode = SelectionMode::Completion;
-            //               }
-            //               PresenterCommand::Redraw
-            //           }
+            ((false, false, false), SpecialKey::Tab) => {
+                self.start_completion();
+                PresenterCommand::Redraw
+            }
 
             // Ctrl-Space: cycle last interaction's output
             ((false, true, false), SpecialKey::Space) => {

@@ -21,6 +21,7 @@
 //! The presenter dispatches all events to sub-presenters that handle different views, e.g. command
 //! composition or history browsing.
 
+mod completions;
 mod compose_command;
 pub mod display_line;
 mod execute_command;
@@ -225,6 +226,9 @@ pub struct PresenterCommons {
 
     /// Map the on-screen cursor position to the in-buffer position
     cursor_map: Vec<CursorMapping>,
+
+    /// Completion algos
+    completions: completions::Completions,
 }
 
 /// The top-level presenter dispatches events to the sub-presenters.
@@ -314,6 +318,7 @@ impl PresenterCommons {
 
         let compiled_grammar = super::model::interpreter::grammar::script();
         let style_sheet = style_sheet::script(&compiled_grammar);
+        let completions = completions::Completions::new(&compiled_grammar);
         Ok(PresenterCommons {
             session,
             interpreter,
@@ -327,6 +332,7 @@ impl PresenterCommons {
             editor: Editor::new(compiled_grammar),
             style_sheet,
             cursor_map: Vec::new(),
+            completions,
         })
     }
 
