@@ -333,7 +333,11 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [ ] Implement mouse tracking sequences more cleanly
     * [ ] Handle sub parameters correctly
     * [ ] Handle query escape sequences
-* [ ] 0.16 Clean up code
+* [ ] 0.16 Configuration
+    * [ ] Make style sheet configurable
+    * [ ] Make completions configurable
+    * [ ] Search .biterc according to XDG Config Spec
+* [ ] 0.17 Clean up code
     * [ ] Reduce number of short-lived allocations
     * [ ] Draw using row and column iterators
     * [ ] Bug: Split reset to handle bad utf8 inside control sequences
@@ -344,10 +348,10 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] 1.x progress and general UI interface protocol
 
 # TODOs
-* [ ] History: Handle multi-line entries
+* [ ] History/Completion: Handle multi-line entries
+* [ ] Complete from file system
 * [ ] Use separate History in ExecuteCommandPresenter
 * [ ] Session: Use previous visibility settings for repeated commands
-* [ ] Search .biterc according to XDG Config Spec
 * [ ] Place .bitehistory according to XDG Config Spec
 * [ ] In Response: Use a self-compressing screen instead of lines+screen
 * [ ] Bug: screen: Handle make_room for fixed_size = false correctly
