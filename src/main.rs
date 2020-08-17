@@ -29,7 +29,7 @@
 
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
-#![recursion_limit = "128"]
+#![recursion_limit = "256"]
 
 extern crate argparse;
 extern crate boolinator;
@@ -70,6 +70,7 @@ extern crate flexi_logger;
 extern crate term;
 extern crate termios;
 
+#[macro_use]
 extern crate sesd;
 
 use std::panic::PanicInfo;
