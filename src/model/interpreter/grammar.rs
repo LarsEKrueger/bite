@@ -20,11 +20,11 @@
 //!
 //! Ported from bash's parse.y
 
-use sesd::{char::CharMatcher, DynamicGrammar, TextGrammar, TextRule};
+use sesd::char::CharMatcher;
 
-pub type Parser = sesd::Parser<char,CharMatcher,script2::Grammar>;
+pub type Parser = sesd::Parser<char, CharMatcher, script2::Grammar>;
 
-grammar!{pub script2,
+grammar! {pub script2,
    {
        use sesd::char::CharMatcher::*;
    },
@@ -1542,7 +1542,7 @@ pub fn script() -> DynamicGrammar<char, CharMatcher> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sesd::{Verdict};
+    use sesd::Verdict;
 
     /// Test helper to parse a string that should not fail and be accepted at the last character
     fn ok(parser: &mut Parser, input: &str) {

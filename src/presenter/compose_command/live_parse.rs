@@ -22,7 +22,7 @@
 //!
 //! The text that was input is parsed as your type.
 
-use sesd::{CstIterItem, SymbolId, CompiledGrammar};
+use sesd::{CompiledGrammar, CstIterItem, SymbolId};
 
 use model::completion;
 use model::interpreter::parse_script;

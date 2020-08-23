@@ -45,8 +45,8 @@ use self::execute_command::ExecuteCommandPresenter;
 use self::tui::TuiExecuteCommandPresenter;
 use model::error::*;
 use model::history::History;
-use model::interpreter::InteractiveInterpreter;
 use model::interpreter::grammar;
+use model::interpreter::InteractiveInterpreter;
 use model::screen::*;
 use model::session::{
     ConversationLocator, InteractionHandle, InteractionLocator, LineItem, LineType,
@@ -318,8 +318,8 @@ impl PresenterCommons {
         text_input.make_room();
 
         let compiled_grammar = crate::model::interpreter::grammar::script2::grammar();
-        let style_sheet = style_sheet::script(&compiled_grammar);
-        let completions = completions::Completions::new(&compiled_grammar);
+        let style_sheet = style_sheet::script();
+        let completions = completions::Completions::new();
         Ok(PresenterCommons {
             session,
             interpreter,

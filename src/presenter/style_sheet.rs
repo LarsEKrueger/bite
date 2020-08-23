@@ -18,9 +18,9 @@
 
 //! Rendering style for the syntax highlighting of the command input
 
-use sesd;
-use sesd::{char::CharMatcher, CompiledGrammar, ERROR_ID};
 use crate::model::interpreter::grammar::script2;
+use sesd;
+use sesd::ERROR_ID;
 
 /// Styling instructions for rendering the command input
 ///
@@ -63,7 +63,7 @@ fn s(pre: &str, post: &str) -> Style {
 }
 
 /// Create the stye sheet for the script input
-pub fn script(grammar: &CompiledGrammar<char, CharMatcher>) -> StyleSheet {
+pub fn script() -> StyleSheet {
     let mut sheet = StyleSheet::new();
 
     // Simple command: green on black

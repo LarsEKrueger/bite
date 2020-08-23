@@ -18,7 +18,7 @@
 
 //! Completions based on the grammar
 
-use sesd::{char::CharMatcher, CompiledGrammar, SymbolId};
+use sesd::SymbolId;
 use std::collections::HashMap;
 
 use crate::model::interpreter::grammar::script2;
@@ -38,14 +38,11 @@ enum Completer {
 pub struct Completions(CompleterMap);
 
 impl Completions {
-    pub fn new(grammar: &CompiledGrammar<char, CharMatcher>) -> Self {
+    pub fn new() -> Self {
         let mut map = CompleterMap::new();
 
         map.insert(script2::FOR, Completer::Text("for".to_string()));
-        map.insert(
-            script2::FUNCTION,
-            Completer::Text("function".to_string()),
-        );
+        map.insert(script2::FUNCTION, Completer::Text("function".to_string()));
 
         Self(map)
     }
