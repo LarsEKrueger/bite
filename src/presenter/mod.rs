@@ -46,6 +46,7 @@ use self::tui::TuiExecuteCommandPresenter;
 use model::error::*;
 use model::history::History;
 use model::interpreter::InteractiveInterpreter;
+use model::interpreter::grammar;
 use model::screen::*;
 use model::session::{
     ConversationLocator, InteractionHandle, InteractionLocator, LineItem, LineType,
@@ -164,7 +165,7 @@ trait SubPresenter {
     fn handle_click(&mut self, button: usize, x: usize, y: usize) -> NeedRedraw;
 }
 
-type Editor = SynchronousEditor<char, CharMatcher>;
+type Editor = SynchronousEditor<char, CharMatcher, grammar::script2::Grammar>;
 
 /// Link the editor's cursor position to the on-screen position
 ///
@@ -316,7 +317,7 @@ impl PresenterCommons {
         let mut text_input = Screen::new();
         text_input.make_room();
 
-        let compiled_grammar = super::model::interpreter::grammar::script();
+        let compiled_grammar = crate::model::interpreter::grammar::script2::grammar();
         let style_sheet = style_sheet::script(&compiled_grammar);
         let completions = completions::Completions::new(&compiled_grammar);
         Ok(PresenterCommons {

@@ -20,6 +20,7 @@
 
 use sesd;
 use sesd::{char::CharMatcher, CompiledGrammar, ERROR_ID};
+use crate::model::interpreter::grammar::script2;
 
 /// Styling instructions for rendering the command input
 ///
@@ -66,14 +67,14 @@ pub fn script(grammar: &CompiledGrammar<char, CharMatcher>) -> StyleSheet {
     let mut sheet = StyleSheet::new();
 
     // Simple command: green on black
-    sheet.add(StyleMatcher::new(s("\x1b[32m", "\x1b[0m")).skip_to(grammar.nt_id("simple_command")));
+    sheet.add(StyleMatcher::new(s("\x1b[32m", "\x1b[0m")).skip_to(script2::SIMPLE_COMMAND));
 
     // Logical operators: cyan on black
-    sheet.add(StyleMatcher::new(s("\x1b[36m", "\x1b[0m")).skip_to(grammar.nt_id("AND_AND")));
-    sheet.add(StyleMatcher::new(s("\x1b[36m", "\x1b[0m")).skip_to(grammar.nt_id("OR_OR")));
+    sheet.add(StyleMatcher::new(s("\x1b[36m", "\x1b[0m")).skip_to(script2::AND_AND));
+    sheet.add(StyleMatcher::new(s("\x1b[36m", "\x1b[0m")).skip_to(script2::OR_OR));
 
     // Comment: Yellow on black
-    sheet.add(StyleMatcher::new(s("\x1b[33m", "\x1b[0m")).skip_to(grammar.nt_id("comment")));
+    sheet.add(StyleMatcher::new(s("\x1b[33m", "\x1b[0m")).skip_to(script2::COMMENT));
 
     // Error: White on red
     sheet.add(StyleMatcher::new(s("\x1b[37;41m", "\x1b[0m")).skip_to(ERROR_ID));

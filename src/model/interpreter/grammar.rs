@@ -22,7 +22,7 @@
 
 use sesd::{char::CharMatcher, DynamicGrammar, TextGrammar, TextRule};
 
-pub type Parser = sesd::Parser<char,CharMatcher,DynamicGrammar<char,CharMatcher>>;
+pub type Parser = sesd::Parser<char,CharMatcher,script2::Grammar>;
 
 grammar!{pub script2,
    {
@@ -497,6 +497,7 @@ grammar!{pub script2,
    ]
 }
 
+/*
 /// Build and compile a grammar.
 pub fn script() -> DynamicGrammar<char, CharMatcher> {
     let mut grammar = TextGrammar::new();
@@ -1534,9 +1535,9 @@ pub fn script() -> DynamicGrammar<char, CharMatcher> {
     }
     let res = res.expect("compiling bash script grammar should not fail");
 
-    res.debug_tables();
     res
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -1570,24 +1571,19 @@ mod tests {
     /// Test sections of comments
     #[test]
     fn comment() {
-        let mut parser = Parser::new(script());
+        let mut parser = Parser::new(script2::grammar());
 
         // Comment without newline
         ok(&mut parser, "# comment");
         ok(&mut parser, " # comment");
         ok(&mut parser, "\t# comment");
         ok(&mut parser, "  # comment");
-
-        // Comment with newline
-        ok(&mut parser, "# comment\n");
-        ok(&mut parser, "# comment\n # Another");
-        ok(&mut parser, "# comment\n # Another\n");
     }
 
     /// Test logicals
     #[test]
     fn logical() {
-        let mut parser = Parser::new(script());
+        let mut parser = Parser::new(script2::grammar());
 
         // Various stages of input, single command
         ok(&mut parser, "ls");

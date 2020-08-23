@@ -21,6 +21,8 @@
 use sesd::{char::CharMatcher, CompiledGrammar, SymbolId};
 use std::collections::HashMap;
 
+use crate::model::interpreter::grammar::script2;
+
 /// Map a grammar symbol to the competler algo
 type CompleterMap = HashMap<SymbolId, Completer>;
 
@@ -39,9 +41,9 @@ impl Completions {
     pub fn new(grammar: &CompiledGrammar<char, CharMatcher>) -> Self {
         let mut map = CompleterMap::new();
 
-        map.insert(grammar.nt_id("FOR"), Completer::Text("for".to_string()));
+        map.insert(script2::FOR, Completer::Text("for".to_string()));
         map.insert(
-            grammar.nt_id("FUNCTION"),
+            script2::FUNCTION,
             Completer::Text("function".to_string()),
         );
 
