@@ -32,7 +32,8 @@ type CompleterMap = HashMap<SymbolId, Completer>;
 /// * TODO  variables
 enum Completer {
     /// A text template
-    Text(String),
+    /// (completion,help)
+    Text(&'static str, &'static str),
 }
 
 pub struct Completions(CompleterMap);
@@ -41,18 +42,98 @@ impl Completions {
     pub fn new() -> Self {
         let mut map = CompleterMap::new();
 
-        map.insert(script2::FOR, Completer::Text("for".to_string()));
-        map.insert(script2::FUNCTION, Completer::Text("function".to_string()));
+        map.insert(script2::FOR, Completer::Text("for", "begin a for loop"));
+        map.insert(
+            script2::FUNCTION,
+            Completer::Text("function", "declare a function"),
+        );
+
+        // map.insert(script2::SIMPLE_COMMAND , 0, "ls "
+
+        map.insert(
+            script2::AND_GREATER_GREATER,
+            Completer::Text("&>>", "append output and error to file"),
+        );
+        map.insert(
+            script2::AND_GREATER,
+            Completer::Text("&>", "redirect output and error to file, preferred form"),
+        );
+        map.insert(
+            script2::GREATER_AND,
+            Completer::Text(">&", "redirect output and error to file, obsolete form"),
+        );
+
+        map.insert(
+            script2::LESS_AND,
+            Completer::Text("<&", "duplicate file descriptor"),
+        );
+        map.insert(
+            script2::LESS_LESS_LESS,
+            Completer::Text("<<<", "send a \x1b[3mhere\x1b[23m string to input"),
+        );
+        map.insert(
+            script2::LESS_LESS_MINUS,
+            Completer::Text("<<-", "begin a \x1b[3mhere\x1b[23m document, remove tabs"),
+        );
+        map.insert(
+            script2::LESS_LESS,
+            Completer::Text("<<", "begin a \x1b[3mhere\x1b[23m document"),
+        );
+        map.insert(
+            script2::LESS_GREATER,
+            Completer::Text("<>", "open file for reading and writing"),
+        );
+        map.insert(
+            script2::GREATER_BAR,
+            Completer::Text(">|", "redirect output, overwrite file"),
+        );
+        map.insert(
+            script2::GREATER_GREATER,
+            Completer::Text(">>", "append output to file"),
+        );
+        map.insert(
+            script2::LOGICAL_SEP_BG,
+            Completer::Text("&", "start program on the left in background"),
+        );
+        map.insert(
+            script2::LOGICAL_SEP_FG,
+            Completer::Text(";", "start program on the left in foreground"),
+        );
+        map.insert(
+            script2::OR_OR,
+            Completer::Text(
+                "||",
+                "if program on the left fails, run program on the right",
+            ),
+        );
+        map.insert(
+            script2::AND_AND,
+            Completer::Text(
+                "&&",
+                "if program on the left succeeds, run program on the right",
+            ),
+        );
+        map.insert(
+            script2::BAR_AND,
+            Completer::Text(
+                "|&",
+                "pipe output and error of program on the left to the right",
+            ),
+        );
+        map.insert(script2::WS, Completer::Text(" ", "separate the items"));
 
         Self(map)
     }
 
-    pub fn lookup(&self, sym: SymbolId, start: &str) -> Vec<String> {
+    /// Given a symbol and a starting string, compute all possible completions.
+    ///
+    /// Return (complete, help)
+    pub fn lookup(&self, sym: SymbolId, start: &str) -> Vec<(String, String)> {
         let mut res = Vec::new();
         if let Some(c) = self.0.get(&sym) {
             match c {
-                Completer::Text(s) => {
-                    res.push(s.clone());
+                Completer::Text(s, h) => {
+                    res.push((s.to_string(), h.to_string()));
                 }
             }
         }

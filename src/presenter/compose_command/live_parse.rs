@@ -57,7 +57,8 @@ pub struct ComposeCommandPresenter {
     selection_screen: Screen,
 
     /// List of completions
-    completions: Vec<(usize, String)>,
+    /// (start position, input, help)
+    completions: Vec<(usize, String, String)>,
 
     /// Selection mode
     selection_mode: SelectionMode,
@@ -352,8 +353,8 @@ impl ComposeCommandPresenter {
                 start_str
             );
             let mut sym_comp = self.commons.completions.lookup(*sym, &start_str);
-            for s in sym_comp.drain(0..) {
-                completions.push((*start, s));
+            for (s, h) in sym_comp.drain(0..) {
+                completions.push((*start, s, h));
             }
         }
 
@@ -373,7 +374,9 @@ impl ComposeCommandPresenter {
                 self.selection_screen.reset();
                 for item in self.completions.iter() {
                     let _ = self.selection_screen.add_bytes(item.1.as_bytes());
-                    let _ = self.selection_screen.add_bytes(b"\n");
+                    let _ = self.selection_screen.add_bytes(b" -- \x1b[0;32m");
+                    let _ = self.selection_screen.add_bytes(item.2.as_bytes());
+                    let _ = self.selection_screen.add_bytes(b"\x1b[39m\n");
                 }
                 self.selected_item = completion_len - 1;
                 self.selection_mode = SelectionMode::Completion;
