@@ -655,7 +655,6 @@ impl ComposeCommandPresenter {
     fn update_input_screen(&mut self) {
         let cursor_index = self.commons.editor.cursor();
         trace!("update_input_screen: cursor_index = {}", cursor_index);
-        self.commons.editor.parser().trace_chart();
 
         let mut text_input = std::mem::replace(&mut self.commons.text_input, Screen::new());
         let mut cursor_map = std::mem::replace(&mut self.commons.cursor_map, Vec::new());
