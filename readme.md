@@ -321,7 +321,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Don't show last prompt in execute presenter
     * [X] History above prompt + Feature flag
     * [X] Re-add completion
-    * [ ] Handle completion of lower CST nodes separate from higher nodes (simple_command_completion)
+    * [X] Handle completion of lower CST nodes separate from higher nodes (simple_command_completion)
     * [ ] complete updates on letters and backspace
     * [ ] complete and history react on page up/down
 * [ ] 0.13 Syntax-directed navigation, completion, prediction
