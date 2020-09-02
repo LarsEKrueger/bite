@@ -335,8 +335,15 @@ impl ComposeCommandPresenter {
         // * Get the full predictions, incl. open parent rules that might still match
         // * Compile the list of completions based on the configuration
 
-        trace!("start_completion");
         let cursor_position = self.commons.editor.cursor();
+        debug!(
+            "start_completion at {}: {:?}",
+            cursor_position,
+            self.commons.editor.span_string(0, cursor_position)
+        );
+
+        self.commons.editor.parser().trace_cst(cursor_position);
+
         let predictions = self
             .commons
             .editor
@@ -344,18 +351,40 @@ impl ComposeCommandPresenter {
             .full_predictions(cursor_position);
 
         let mut completions = Vec::new();
-        for (sym, start) in predictions.iter() {
+        let mut state = self.commons.completions.begin();
+        for (sym, start, end) in predictions.iter() {
             let start_str = self.commons.editor.span_string(*start, cursor_position);
-            trace!(
-                "{} , {}, {:?}",
-                self.commons.editor.grammar().nt_name(*sym),
-                start,
-                start_str
-            );
-            let mut sym_comp = self.commons.completions.lookup(*sym, &start_str);
-            for (s, h) in sym_comp.drain(0..) {
-                completions.push((*start, s, h));
+            if *end == cursor_position {
+                trace!(
+                    "lookup {} , {} - {}, {:?}",
+                    self.commons.editor.grammar().nt_name(*sym),
+                    start,
+                    end,
+                    start_str
+                );
+                let mut sym_comp = self
+                    .commons
+                    .completions
+                    .lookup(&mut state, *sym, *start, &start_str);
+                for (s, h) in sym_comp.drain(0..) {
+                    completions.push((*start, s, h));
+                }
+            } else {
+                trace!(
+                    "ignore {} , {} - {}, {:?}",
+                    self.commons.editor.grammar().nt_name(*sym),
+                    start,
+                    end,
+                    start_str
+                );
             }
+        }
+        let mut sym_comp =
+            self.commons
+                .completions
+                .end(&state, &self.commons.editor, cursor_position);
+        for (start, s, h) in sym_comp.drain(0..) {
+            completions.push((start, s, h));
         }
 
         if !completions.is_empty() {

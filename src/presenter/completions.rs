@@ -28,7 +28,7 @@ use crate::model::interpreter::grammar::script2;
 /// Map a grammar symbol to the competler algo
 type CompleterMap = HashMap<SymbolId, Completer>;
 
-type CompleterAlgo = fn(&str) -> Vec<(String, String)>;
+type CompleterAlgo = fn(&mut LookupState, usize, &str) -> Vec<(String, String)>;
 
 /// Possible completer algos
 ///
@@ -71,7 +71,8 @@ fn perm(c: char, mode: u32, permission: u32) -> char {
 /// Find files that begin with `word`.
 ///
 /// TODO: Filter files with known ignorable extensions
-fn file_completion(completion: &mut Vec<(String, String)>, prefix: &str, word: &str) {
+fn file_completion(start: usize, word: &str) -> Vec<(usize, String, String)> {
+    let mut completion = Vec::new();
     // Remember if the word started with ./ because glob removes that.
     let dot_slash = if word.starts_with("./") { "./" } else { "" };
 
@@ -79,8 +80,7 @@ fn file_completion(completion: &mut Vec<(String, String)>, prefix: &str, word: &
     if let Ok(g) = glob::glob(&(word.to_string() + "*")) {
         // Get the matches after word
         for path in g.filter_map(std::result::Result::ok) {
-            let mut p = prefix.to_string();
-            p.push_str(dot_slash);
+            let mut p = dot_slash.to_string();
             p.push_str(&path.display().to_string());
             // If the path is a directory, add a slash.
             if path.is_dir() {
@@ -103,61 +103,59 @@ fn file_completion(completion: &mut Vec<(String, String)>, prefix: &str, word: &
             } else {
                 "\x1b[31m?????????\x1b[39m".to_string()
             };
-            completion.push((p, help));
+            completion.push((start, p, help));
         }
     }
+    completion
+}
+
+/// Keep track of the starting positions of elements to complete.
+///
+/// This struct is used to compensate the fact that the CST is processed bottom-up. Thus, the
+/// SIMPLE_COMMAND_ELEMENT to complete is seen before the COMMAND.
+///
+/// In order to distinguish whether the command is to be complete or an argument, the starting
+/// position of the last SIMPLE_COMMAND_ELEMENT as to be tracked as well as the starting position
+/// of the last COMMAND. If both starting positions are identical, the command name is being
+/// completed. If not, a parameter is being completed.
+///
+/// In addition, it needs to be tracked if the SIMPLE_COMMAND_ELEMENT/COMMAND pair has been seen at
+/// all.
+pub struct LookupState {
+    /// Starting position of the last SIMPLE_COMMAND_ELEMENT.
+    simple_command_element_pos: Option<usize>,
+    /// Starting position of the last COMMAND.
+    command_pos: Option<usize>,
 }
 
 /// If a SIMPLE_COMMAND is to be completed, check if there is a space/tab/newline in the input. If
 /// not, find all executables that begin with the given string.
 ///
 /// Later, this will run a completion script in the interpreter.
-fn simple_command_completion(start: &str) -> Vec<(String, String)> {
+fn simple_command_completion(start: usize, word: &str) -> Vec<(usize, String, String)> {
     trace!("simple_command_completion");
     let mut res = Vec::new();
-    if !start.is_empty() {
-        if let Some(last_space_pos) = start.rfind(&[' ', '\t', '\n'][..]) {
-            trace!(
-                "simple_command_completion: File completion after {:?}",
-                &start[last_space_pos..]
-            );
-            if last_space_pos + 1 < start.len() {
-                let prefix = &start[0..(last_space_pos + 1)];
-                let param_start = &start[(last_space_pos + 1)..];
-                file_completion(&mut res, prefix, param_start);
-            }
-        } else {
-            // No space found in a non-empty start -> search for programs in path.
-            // TODO: Handle names with . or / in them differently
-
-            // Go through the PATH variable
-            if let Some(paths) = std::env::var_os("PATH") {
-                for path in std::env::split_paths(&paths) {
-                    trace!("simple_commands check {:?}:", path);
-                    if path.is_dir() {
-                        trace!("simple_commands in {:?}:", path);
-                        // Got through the files in that path
-                        if let Ok(entries) = std::fs::read_dir(&path) {
-                            for entry in entries {
-                                if let Ok(entry) = entry {
-                                    let path = entry.path();
-                                    trace!("simple_commands found {:?}", path);
-                                    // if the file is executable
-                                    if is_executable(&path) {
-                                        // If the file name starts with start, add it to the
-                                        // completions
-                                        let file_name = entry.file_name();
-                                        if file_name
-                                            .as_os_str()
-                                            .to_string_lossy()
-                                            .starts_with(start)
-                                        {
-                                            res.push((
-                                                file_name.to_string_lossy().into_owned(),
-                                                path.to_string_lossy().into_owned(),
-                                            ));
-                                        }
-                                    }
+    // Go through the PATH variable
+    if let Some(paths) = std::env::var_os("PATH") {
+        for path in std::env::split_paths(&paths) {
+            if path.is_dir() {
+                debug!("simple_commands in dir {:?}:", path);
+                // Got through the files in that path
+                if let Ok(entries) = std::fs::read_dir(&path) {
+                    for entry in entries {
+                        if let Ok(entry) = entry {
+                            let path = entry.path();
+                            // if the file is executable
+                            if is_executable(&path) {
+                                // If the file name starts with start, add it to the
+                                // completions
+                                let file_name = entry.file_name();
+                                if file_name.as_os_str().to_string_lossy().starts_with(word) {
+                                    res.push((
+                                        start,
+                                        file_name.to_string_lossy().into_owned(),
+                                        path.to_string_lossy().into_owned(),
+                                    ));
                                 }
                             }
                         }
@@ -167,6 +165,26 @@ fn simple_command_completion(start: &str) -> Vec<(String, String)> {
         }
     }
     res
+}
+
+fn simple_command_element_update(
+    state: &mut LookupState,
+    pos: usize,
+    _start: &str,
+) -> Vec<(String, String)> {
+    state.simple_command_element_pos = state
+        .simple_command_element_pos
+        .map_or(Some(pos), |x| Some(std::cmp::max(x, pos)));
+
+    Vec::new()
+}
+
+fn command_update(state: &mut LookupState, pos: usize, _start: &str) -> Vec<(String, String)> {
+    state.command_pos = state
+        .command_pos
+        .map_or(Some(pos), |x| Some(std::cmp::max(x, pos)));
+
+    Vec::new()
 }
 
 impl Completions {
@@ -254,17 +272,33 @@ impl Completions {
         map.insert(script2::WS, Completer::Text(" ", "separate the items"));
 
         map.insert(
-            script2::SIMPLE_COMMAND,
-            Completer::Code(simple_command_completion),
+            script2::SIMPLE_COMMAND_ELEMENT,
+            Completer::Code(simple_command_element_update),
         );
 
+        map.insert(script2::COMMAND, Completer::Code(command_update));
+
         Self(map)
+    }
+
+    /// Begin tracking a new CST traversal
+    pub fn begin(&self) -> LookupState {
+        LookupState {
+            simple_command_element_pos: None,
+            command_pos: None,
+        }
     }
 
     /// Given a symbol and a starting string, compute all possible completions.
     ///
     /// Return (complete, help)
-    pub fn lookup(&self, sym: SymbolId, start: &str) -> Vec<(String, String)> {
+    pub fn lookup(
+        &self,
+        state: &mut LookupState,
+        sym: SymbolId,
+        pos: usize,
+        start: &str,
+    ) -> Vec<(String, String)> {
         let mut res = Vec::new();
         if let Some(c) = self.0.get(&sym) {
             match c {
@@ -272,10 +306,33 @@ impl Completions {
                     res.push((s.to_string(), h.to_string()));
                 }
                 Completer::Code(fun) => {
-                    return fun(start);
+                    return fun(state, pos, start);
                 }
             }
         }
         res
+    }
+
+    /// Complete the CST traversal. Emit all completions.
+    pub fn end(
+        &self,
+        state: &LookupState,
+        editor: &crate::presenter::Editor,
+        cursor_position: usize,
+    ) -> Vec<(usize, String, String)> {
+        if let Some(simple_command_element_pos) = state.simple_command_element_pos {
+            if let Some(command_pos) = state.command_pos {
+                let word = editor.span_string(simple_command_element_pos, cursor_position);
+                if simple_command_element_pos == command_pos {
+                    // complete command
+                    return simple_command_completion(simple_command_element_pos, &word);
+                } else {
+                    // Complete file
+                    return file_completion(simple_command_element_pos, &word);
+                }
+            }
+        }
+
+        Vec::new()
     }
 }
