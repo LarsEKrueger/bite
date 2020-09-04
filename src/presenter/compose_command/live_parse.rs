@@ -459,6 +459,10 @@ impl ComposeCommandPresenter {
                 PresenterCommand::Redraw
             }
             ((_, _, _), SpecialKey::Enter) => self.execute_input(),
+            ((false, false, false), SpecialKey::Tab) => {
+                // Ignore tabs or they will be added to the input
+                PresenterCommand::Ignored
+            }
 
             _ => PresenterCommand::Unknown,
         }
@@ -498,7 +502,52 @@ impl ComposeCommandPresenter {
                 self.selection_mode = SelectionMode::None;
                 PresenterCommand::Redraw
             }
-            _ => PresenterCommand::Unknown,
+            ((false, false, false), SpecialKey::Tab) => {
+                // Ignore tabs or they will be added to the input
+                PresenterCommand::Ignored
+            }
+            ((false, false, false), SpecialKey::Backspace) => {
+                if self.commons.editor.move_backward(1) {
+                    self.commons.editor.delete(1);
+                    self.update_input_screen();
+                    self.start_completion();
+                }
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Left) => {
+                self.commons.editor.move_backward(1);
+                self.update_input_cursor_backwards();
+                self.selection_mode = SelectionMode::None;
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Right) => {
+                self.commons.editor.move_forward(1);
+                self.update_input_cursor_forwards();
+                self.selection_mode = SelectionMode::None;
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::Home) => {
+                self.commons.editor.skip_backward(sesd::char::start_of_line);
+                self.update_input_cursor_backwards();
+                self.selection_mode = SelectionMode::None;
+                PresenterCommand::Redraw
+            }
+
+            ((false, false, false), SpecialKey::End) => {
+                self.commons.editor.skip_forward(sesd::char::end_of_line);
+                self.update_input_cursor_forwards();
+                self.selection_mode = SelectionMode::None;
+                PresenterCommand::Redraw
+            }
+
+            ((false, false, false), SpecialKey::Delete) => {
+                self.commons.editor.delete(1);
+                self.update_input_screen();
+                self.selection_mode = SelectionMode::None;
+                PresenterCommand::Redraw
+            }
+
+            _ => PresenterCommand::Ignored,
         }
     }
 
@@ -940,7 +989,11 @@ impl SubPresenter for ComposeCommandPresenter {
                 self.search_history();
                 self.fix_selected_item();
             }
-            SelectionMode::Completion => {}
+            SelectionMode::Completion => {
+                self.commons.editor.enter_iter(s.chars());
+                self.update_input_screen();
+                self.start_completion();
+            }
         }
         PresenterCommand::Redraw
     }

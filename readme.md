@@ -322,8 +322,9 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] History above prompt + Feature flag
     * [X] Re-add completion
     * [X] Handle completion of lower CST nodes separate from higher nodes (simple_command_completion)
-    * [ ] complete updates on letters and backspace
+    * [X] complete updates on letters and backspace
     * [ ] complete and history react on page up/down
+    * [ ] prompt parser and display
 * [ ] 0.13 Syntax-directed navigation, completion, prediction
     * [ ] Display cursor positions for keys when ctrl is down
     * [ ] Make the command line arguments of a program fold out
