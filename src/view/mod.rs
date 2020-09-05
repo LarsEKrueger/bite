@@ -260,7 +260,7 @@ impl Gui {
         let IMNONE = cstr!("@im=none");
 
         // Create initial presenter
-        let presenter = {
+        let mut presenter = {
             // Only the presenter needs to know the term info for TUI applications.
             let term_info = TermInfo::from_name("xterm").map_err(|e| format!("{}", e))?;
             Presenter::new(
@@ -272,6 +272,8 @@ impl Gui {
             )
             .or_else(|e| Err(e.readable("during initialisation")))
         }?;
+
+        presenter.update_prompt();
 
         unsafe {
             let display = XOpenDisplay(null());

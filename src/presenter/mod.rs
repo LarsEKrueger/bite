@@ -602,6 +602,30 @@ impl Presenter {
         self.dm().commons_mut().as_mut()
     }
 
+    /// Create a new prompt string and check if a new conversation needs to be created.
+    pub fn update_prompt(&mut self) {
+        let user_name = {
+            let cuid = nix::unistd::getuid().as_raw();
+            unsafe {
+                let pw = libc::getpwuid(cuid);
+                std::ffi::CStr::from_ptr((*pw).pw_name as *const libc::c_char)
+            }
+        };
+        let cwd = match nix::unistd::getcwd() {
+            Ok(cwd) => cwd,
+            _ => std::path::PathBuf::new(),
+        };
+        let prompt_string = format!(
+            "{}@{} {}",
+            user_name.to_string_lossy(),
+            nix::sys::utsname::uname().nodename(),
+            cwd.to_string_lossy()
+        );
+
+        let screen = Screen::one_line_matrix(prompt_string.as_bytes());
+        self.cm().session.new_conversation(screen);
+    }
+
     /// Prepare the presenter for the new cycle.
     ///
     /// Return true if a redraw is required.
@@ -664,8 +688,10 @@ impl Presenter {
             redraw = true;
             let old_sp = std::mem::replace(&mut self.subpresenter, None);
             let commons = old_sp.unwrap().finish();
+            let mut update_prompt = false;
             self.subpresenter = Some(match self.sp_type {
                 SubPresenterType::ComposeCommandPresenter => {
+                    update_prompt = true;
                     self.feat_compose_variant.new_subpresenter(commons)
                 }
                 SubPresenterType::ExecuteCommandPresenter(handle) => {
@@ -676,6 +702,9 @@ impl Presenter {
                 }
             });
             trace!("Switched to subpresenter {:?}", self.sp_type);
+            if update_prompt {
+                self.update_prompt();
+            }
         }
         redraw
     }
