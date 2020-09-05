@@ -462,10 +462,23 @@ impl Session {
             };
             if let Some((line, count)) = maybe_line_count {
                 if *line + *lines <= count {
+                    // The desired position is inside the range that the locator describes.
                     *line += *lines;
                     *lines = 0;
                 } else {
-                    *lines -= count - *line;
+                    // The desired position is past the range that the locator describes
+                    // Reduce the number of lines by the distance to the end of the locator
+                    // range. At the same time, advance the locator to the end of of its range.
+                    // This can only work if the line is smaller than the range described by the
+                    // locator.
+                    //
+                    // If the locator describes a position past the end of the range, update
+                    // the locator to the end, but leave the count as-is. This can happen if the
+                    // locator's position isn't updated, but it's length, e.g. by changes in
+                    // visibility.
+                    if *line <= count {
+                        *lines -= count - *line;
+                    }
                     *line = count;
                 }
             }
