@@ -160,6 +160,7 @@ impl ComposeCommandPresenter {
             self.commons.editor.enter_iter(line.chars());
             self.selection_mode = SelectionMode::None;
             self.search.clear();
+            self.update_input_screen();
         }
     }
 
@@ -228,8 +229,13 @@ impl ComposeCommandPresenter {
             (0, 0)
         };
         let search_height = if show_search { 1 } else { 0 };
-        // TODO: Handle window heights smaller than input_height
-        self.commons.window_height - input_height - (to - from) - search_height
+        // TODO: Handle window heights smaller than input_height better
+        // If we don't have room to display the session, display everything else
+        self.commons
+            .window_height
+            .saturating_sub(input_height)
+            .saturating_sub(to - from)
+            .saturating_sub(search_height)
     }
 
     /// Move cursor up one line, return true if that worked
@@ -464,6 +470,70 @@ impl ComposeCommandPresenter {
                 PresenterCommand::Ignored
             }
 
+            ((true, false, false), SpecialKey::PageUp) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                let session_height = self.compute_session_height();
+                self.commons.scroll_up(true, middle, |session, loc| {
+                    PresenterCommons::locate_up(session, loc, session_height).and_then(|loc| {
+                        PresenterCommons::locate_down(session, &loc, true, session_height)
+                    })
+                });
+                PresenterCommand::Redraw
+            }
+
+            ((true, false, false), SpecialKey::PageDown) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                self.commons.scroll_down(true, middle);
+                PresenterCommand::Redraw
+            }
+
+            ((false, false, false), SpecialKey::PageUp) => {
+                // No shift -> select
+                let (from, to) = self.selections_from_to();
+                let selection_height = to - from;
+                let selected_item = &mut self.selected_item;
+                *selected_item =
+                    selected_item.saturating_sub(std::cmp::max(1, selection_height / 2));
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::PageDown) => {
+                // No shift -> select
+                let (from, to) = self.selections_from_to();
+                let selection_height = to - from;
+                let steps = std::cmp::max(1, selection_height / 2);
+
+                let selected_item = &mut self.selected_item;
+                if *selected_item + steps < self.commons.history.prediction().len() {
+                    *selected_item += steps;
+                } else {
+                    self.selection_mode = SelectionMode::None;
+                    self.search.clear();
+                }
+                PresenterCommand::Redraw
+            }
+            // Ctrl-Space: cycle last interaction's output
+            ((false, true, false), SpecialKey::Space) => {
+                if let Some(interaction_handle) = self.commons.session.last_interaction() {
+                    self.commons.session.cycle_visibility(interaction_handle);
+                    PresenterCommand::Redraw
+                } else {
+                    PresenterCommand::Unknown
+                }
+            }
+            // Shift-Ctrl-Space: cycle all interaction's output
+            ((true, true, false), SpecialKey::Space) => {
+                if let Some(interaction_handle) = self.commons.session.last_interaction() {
+                    self.commons.session.cycle_visibility(interaction_handle);
+                    if let Some(ov) = self.commons.session.get_visibility(interaction_handle) {
+                        self.commons.session.set_visibility_all(ov);
+                    }
+                    PresenterCommand::Redraw
+                } else {
+                    PresenterCommand::Unknown
+                }
+            }
             _ => PresenterCommand::Unknown,
         }
     }
@@ -545,6 +615,71 @@ impl ComposeCommandPresenter {
                 self.update_input_screen();
                 self.selection_mode = SelectionMode::None;
                 PresenterCommand::Redraw
+            }
+
+            ((true, false, false), SpecialKey::PageUp) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                let session_height = self.compute_session_height();
+                self.commons.scroll_up(true, middle, |session, loc| {
+                    PresenterCommons::locate_up(session, loc, session_height).and_then(|loc| {
+                        PresenterCommons::locate_down(session, &loc, true, session_height)
+                    })
+                });
+                PresenterCommand::Redraw
+            }
+
+            ((true, false, false), SpecialKey::PageDown) => {
+                // Shift only -> Scroll
+                let middle = self.commons.window_height / 2;
+                self.commons.scroll_down(true, middle);
+                PresenterCommand::Redraw
+            }
+
+            ((false, false, false), SpecialKey::PageUp) => {
+                // No shift -> select
+                let (from, to) = self.selections_from_to();
+                let selection_height = to - from;
+                let selected_item = &mut self.selected_item;
+                *selected_item =
+                    selected_item.saturating_sub(std::cmp::max(1, selection_height / 2));
+                PresenterCommand::Redraw
+            }
+            ((false, false, false), SpecialKey::PageDown) => {
+                // No shift -> select
+                let (from, to) = self.selections_from_to();
+                let selection_height = to - from;
+                let steps = std::cmp::max(1, selection_height / 2);
+
+                let selected_item = &mut self.selected_item;
+                if *selected_item + steps < (self.selection_screen.height() as usize) {
+                    *selected_item += steps;
+                } else {
+                    *selected_item = (self.selection_screen.height() as usize).saturating_sub(1);
+                }
+                PresenterCommand::Redraw
+            }
+
+            // Ctrl-Space: cycle last interaction's output
+            ((false, true, false), SpecialKey::Space) => {
+                if let Some(interaction_handle) = self.commons.session.last_interaction() {
+                    self.commons.session.cycle_visibility(interaction_handle);
+                    PresenterCommand::Redraw
+                } else {
+                    PresenterCommand::Unknown
+                }
+            }
+            // Shift-Ctrl-Space: cycle all interaction's output
+            ((true, true, false), SpecialKey::Space) => {
+                if let Some(interaction_handle) = self.commons.session.last_interaction() {
+                    self.commons.session.cycle_visibility(interaction_handle);
+                    if let Some(ov) = self.commons.session.get_visibility(interaction_handle) {
+                        self.commons.session.set_visibility_all(ov);
+                    }
+                    PresenterCommand::Redraw
+                } else {
+                    PresenterCommand::Unknown
+                }
             }
 
             _ => PresenterCommand::Ignored,
