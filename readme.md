@@ -324,7 +324,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] Handle completion of lower CST nodes separate from higher nodes (simple_command_completion)
     * [X] complete updates on letters and backspace
     * [X] complete and history react on page up/down
-    * [ ] prompt parser and display
+    * [X] prompt display
 * [ ] 0.13 Syntax-directed navigation, completion, prediction
     * [ ] Display cursor positions for keys when ctrl is down
     * [ ] Make the command line arguments of a program fold out
@@ -353,7 +353,6 @@ The *1.x* versions will provide an improved UX while working towards the progres
 
 # TODOs
 * [ ] History/Completion: Handle multi-line entries
-* [ ] Complete from file system
 * [ ] Use separate History in ExecuteCommandPresenter
 * [ ] Session: Use previous visibility settings for repeated commands
 * [ ] Place .bitehistory according to XDG Config Spec
@@ -362,7 +361,6 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [ ] Merge history during save
 * [ ] Indicate which line was entered by the user and allow them to be filtered.
     * [ ] Show Input, Output, Error in sequence, allow for filtering
-* [ ] Syntax highlighting in input line
 * [X] ~~Bug: Bash source $() does not work correctly~~ Cancelled. No more bash used.
 * [X] Bug: `git push && git push somewhere` runs second command if first one fails
 * [X] History: Use order of commands for sorting (length of look-ahead?)
@@ -371,6 +369,8 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [X] Escape cancels history and completion
 * [X] Make selection 1/4 window high
 * [X] Unused Ctrl-Something do not add character
+* [X] Complete from file system
+* [X] Syntax highlighting in input line
 
 # Ideas
 * History: Draw between prompt and input box instead of overlay
