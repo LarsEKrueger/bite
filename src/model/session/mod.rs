@@ -413,6 +413,8 @@ impl Session {
                                 }
                             }
                         }
+                    } else {
+                        return Some(true);
                     }
                 }
             }

@@ -366,6 +366,12 @@ impl PresenterCommons {
                     ConversationLocator::Prompt(_) => {
                         if let Some(new_loc) = session.locate_at_conversation_end(&loc) {
                             loc = session.locate_at_output_end(&new_loc)?
+                        } else {
+                            // The conversion might not have any interactions yet. Try to get to
+                            // the prompt of the previous conversation
+                            if let Some(new_loc) = session.locate_at_previous_conversation(&loc) {
+                                loc = session.locate_at_prompt_end(&new_loc)?;
+                            }
                         }
                     }
                     // Interaction command -> Previous interaction / conversation
@@ -429,7 +435,13 @@ impl PresenterCommons {
                     }
                     // Interaction command -> First output line
                     ConversationLocator::Interaction(_, InteractionLocator::Command(_)) => {
-                        loc = session.locate_at_output_start(&loc)?;
+                        // If the locator can't be set to the start of the output, there is no
+                        // output yet. Go to the prompt directly.
+                        if let Some(new_loc) = session.locate_at_output_start(&loc) {
+                            loc = new_loc;
+                        } else {
+                            loc = session.locate_at_prompt_start(&loc)?;
+                        }
                     }
                     // Output --> First line of command in next interaction or conversation prompt.
                     ConversationLocator::Interaction(
