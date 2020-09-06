@@ -418,12 +418,12 @@ impl PresenterCommons {
     /// sync with locate_up.
     fn locate_down(
         session: &Session,
-        loc: &SessionLocator,
+        start_loc: &SessionLocator,
         show_last_prompt: bool,
         mut lines: usize,
     ) -> MaybeSessionLocator {
         // Go step by step to the next border until lines has been reduced to 0.
-        let mut loc = loc.clone();
+        let mut loc = start_loc.clone();
         loop {
             session.locator_inc_line(&mut loc, &mut lines);
             if session.locator_is_end_line(&loc)? {
