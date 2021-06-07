@@ -373,6 +373,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * [X] Syntax highlighting in input line
 
 # Ideas
+* Automatically search for new files in frequently-used directories and predict the commands
 * History: Draw between prompt and input box instead of overlay
 * Integrate mosh functionality
 * Command line editor with vim keys (starts in insert mode)
