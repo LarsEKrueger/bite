@@ -458,21 +458,21 @@ impl Gui {
     /// drawn here.
     pub fn draw_line(&self, row: i32, line: &DisplayLine) {
         // Draw the prompt color strip
-        let w = match line.is_a {
-            LineType::Output => Some(OUTPUT_SEAM_WIDTH),
-            LineType::Prompt => Some(PROMPT_SEAM_WIDTH),
-            LineType::Command(_, _, _) => Some(COMMAND_SEAM_WIDTH),
-            LineType::Input => Some(INPUT_SEAM_WIDTH),
-            LineType::InputInfo => Some(INPUT_SEAM_WIDTH),
-            LineType::MenuDecoration => None,
-            LineType::SelectedMenuItem(_) => None,
-            LineType::MenuItem(_) => None,
-            LineType::Tui => None,
-            LineType::HistoryItem => Some(INPUT_SEAM_WIDTH),
-            LineType::Search => Some(INPUT_SEAM_WIDTH),
+        let (prefixWidth, divider) = match line.is_a {
+            LineType::Output => (Some(OUTPUT_SEAM_WIDTH), false),
+            LineType::Prompt => (Some(PROMPT_SEAM_WIDTH), false),
+            LineType::Command(_, _, _) => (Some(COMMAND_SEAM_WIDTH), true),
+            LineType::Input => (Some(INPUT_SEAM_WIDTH), false),
+            LineType::InputInfo => (Some(INPUT_SEAM_WIDTH), false),
+            LineType::MenuDecoration => (None, false),
+            LineType::SelectedMenuItem(_) => (None, false),
+            LineType::MenuItem(_) => (None, false),
+            LineType::Tui => (None, false),
+            LineType::HistoryItem => (Some(INPUT_SEAM_WIDTH), false),
+            LineType::Search => (Some(INPUT_SEAM_WIDTH), false),
         };
 
-        if let Some(w) = w {
+        if let Some(w) = prefixWidth {
             unsafe {
                 let y = self.line_height * row;
                 let color_index = (line.prompt_hash % (NUM_PROMPT_COLORS as u64)) as usize;
@@ -490,6 +490,17 @@ impl Gui {
                     w,
                     self.line_height as u32,
                 );
+                if divider {
+                        XDrawLine(
+                            self.display,
+                            self.window,
+                            self.gc,
+                            0,
+                            y,
+                            self.window_width,
+                            y,
+                        );
+                }
             }
         }
 
