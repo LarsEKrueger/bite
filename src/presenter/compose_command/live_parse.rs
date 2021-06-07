@@ -24,7 +24,6 @@
 
 use sesd::{CompiledGrammar, CstIterItem, SymbolId};
 
-use model::completion;
 use model::interpreter::parse_script;
 use model::screen::Screen;
 use model::session::{OutputVisibility, RunningStatus, Session};

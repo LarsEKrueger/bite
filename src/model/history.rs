@@ -22,7 +22,6 @@
 
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::error::Error;
 use std::io::{Read, Write};
 
 use tools::versioned_file;
@@ -98,14 +97,14 @@ impl History {
     /// Load the history from the given file.
     pub fn load(file_name: &str) -> Result<History, String> {
         let file_handle = versioned_file::open(file_name, HISTORY_FORMAT_100)
-            .map_err(|e| e.description().to_string())?;
+            .map_err(|e| e.to_string())?;
         History::deserialize_from(file_handle)
     }
 
     /// Save the history
     pub fn save(&self, file_name: &str) -> Result<(), String> {
         let file_handle = versioned_file::create(file_name, HISTORY_FORMAT_100)
-            .map_err(|e| e.description().to_string())?;
+            .map_err(|e| e.to_string())?;
         self.serialize_into(file_handle);
         Ok(())
     }
@@ -211,7 +210,7 @@ impl History {
         R: Read,
     {
         let hm: HashMap<String, u32> =
-            bincode::deserialize_from(reader).map_err(|e| e.description().to_string())?;
+            bincode::deserialize_from(reader).map_err(|e| e.to_string())?;
 
         let mut dir_prev_cmd = Predictor::new();
         let mut dir_cmd = Predictor::new();

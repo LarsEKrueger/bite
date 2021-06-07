@@ -192,5 +192,4 @@ mod test {
         p.add_digit(b'0');
         assert_eq!(p.one_if_default(0), 0);
     }
-
 }

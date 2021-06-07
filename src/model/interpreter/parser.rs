@@ -1877,5 +1877,4 @@ mod tests {
     //           IResult::Done(&b""[..], (&b"STUFF"[..], Some(String::from("thing"))))
     //       );
     //   }
-
 }

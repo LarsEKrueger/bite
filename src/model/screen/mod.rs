@@ -243,7 +243,7 @@ impl Matrix {
         debug_assert!(0 <= y);
         debug_assert!(y < self.height);
 
-        (x + y * self.width)
+        x + y * self.width
     }
 
     #[allow(dead_code)]

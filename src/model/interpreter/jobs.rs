@@ -140,7 +140,7 @@ fn as_description<T>(err: T) -> String
 where
     T: ::std::error::Error,
 {
-    err.description().to_string()
+    err.to_string()
 }
 
 /// Define a fallback termios value
