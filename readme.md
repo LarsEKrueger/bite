@@ -327,21 +327,34 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] prompt display
 * [ ] 0.13 Syntax-directed navigation, completion, prediction
     * [ ] Display cursor positions for keys when ctrl is down
-    * [ ] Make the command line arguments of a program fold out
-* [ ] 0.14 Draw GUI using Xft
-    * [ ] Adapt glyph generation from alagritty
+    * [ ] Add and display hotkeys for history list
+    * [ ] Add and display hotkeys for completion list
+    * [ ] Add missing edit hotkeys (Ctrl-W, ...)
+    * [ ] Keep incorrect / failing commands in history, but don't save them
+    * [ ] Clean up grammar: Assignment / Command
+    * [ ] If commands are there to be completed, do not show ||, &&, ...
+    * [ ] Offer folders and non-PATH executables for completion
+    * [ ] Add grammar for all expansions (brace, tilde, ...)
+    * [ ] Add aliases, incl. completion
+    * [ ] Try out if completion can be always-on
+* [ ] 0.14 Pattern learning from commands
+* [ ] 0.15 Draw GUI using Xft
+    * [ ] Adapt glyph generation from alagritty / own caching mechanism
     * [ ] Switch rendering backend (w.r.t. GUI widget support)
-* [ ] 0.15 Implement all Screen Actions
+* [ ] 0.16 Implement missing features
     * [ ] RGB color handling
     * [ ] Implement C1 control codes
     * [ ] Implement mouse tracking sequences more cleanly
     * [ ] Handle sub parameters correctly
     * [ ] Handle query escape sequences
-* [ ] 0.16 Configuration
+    * [ ] Complete interpreter (SHELL_COMMAND, ...)
+    * [ ] Add redirection
+    * [ ] Add bash completion
+* [ ] 0.17 Configuration
     * [ ] Make style sheet configurable
     * [ ] Make completions configurable
     * [ ] Search .biterc according to XDG Config Spec
-* [ ] 0.17 Clean up code
+* [ ] 0.18 Clean up code
     * [ ] Reduce number of short-lived allocations
     * [ ] Draw using row and column iterators
     * [ ] Bug: Split reset to handle bad utf8 inside control sequences
@@ -374,7 +387,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 
 # Ideas
 * Automatically search for new files in frequently-used directories and predict the commands
-* History: Draw between prompt and input box instead of overlay
+* Make the command line arguments of a program fold out
 * Integrate mosh functionality
 * Command line editor with vim keys (starts in insert mode)
 * Syntax highlighting for output
@@ -384,7 +397,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
 * Allow hyperlinks in output
 * Draw errors / hyperlinks as QR code
 * Display history / completion as Overlays
-* [X] No keypress for history/completion. Pick the right overlay automatically, depending on the situation.
+* No keypress for history/completion. Pick the right overlay automatically, depending on the situation.
     * Use PgUp/Down for scrolling
 * Automatically update prompt above command input (e.g. run interpreter on already-parsed string)
 * Show output and errors side-by-side
