@@ -22,7 +22,7 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{line_ending, none_of, not_line_ending, space0, space1};
 use nom::combinator::{map, recognize};
-use nom::multi::{many1, separated_nonempty_list};
+use nom::multi::{many1, separated_list1};
 use nom::sequence::{preceded, terminated, tuple};
 use nom::IResult;
 
@@ -319,7 +319,7 @@ fn command(input: Span) -> IResult<Span, PipelineCommand> {
 
 fn simple_command(input: Span) -> IResult<Span, Command> {
     map(
-        preceded(space0, separated_nonempty_list(space1, word)),
+        preceded(space0, separated_list1(space1, word)),
         |words| Command::Program(words),
     )(input)
 }
@@ -337,7 +337,7 @@ fn single_assignment(input: Span) -> IResult<Span, (Span, Span)> {
 }
 
 fn assignments(input: Span) -> IResult<Span, AbstractSyntaxTree> {
-    map(separated_nonempty_list(space1, single_assignment), |asgn| {
+    map(separated_list1(space1, single_assignment), |asgn| {
         AbstractSyntaxTree::Assignments(asgn)
     })(input)
 }

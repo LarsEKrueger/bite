@@ -95,7 +95,7 @@ pub fn parse_script(script: &String) -> Result<byte_code::Instructions, String> 
     let mut instructions: byte_code::Instructions = Vec::new();
 
     let mut input = parser::Span::new(script);
-    while !input.fragment.is_empty() {
+    while !input.fragment().is_empty() {
         match parser::script(input) {
             Ok((rest, ast)) => {
                 // Compile AST into instructions
