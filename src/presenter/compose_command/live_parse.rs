@@ -572,8 +572,17 @@ impl ComposeCommandPresenter {
                 PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Tab) => {
-                // Ignore tabs or they will be added to the input
-                PresenterCommand::Ignored
+                // Same as Enter
+                let selected_item = self.selected_item;
+                let completion = self.completions.remove(selected_item);
+                let cursor_position = self.commons.editor.cursor();
+                self.commons
+                    .editor
+                    .replace(completion.0, cursor_position, completion.1.chars());
+                self.update_input_screen();
+                // Then normal mode tab
+                self.start_completion();
+                PresenterCommand::Redraw
             }
             ((false, false, false), SpecialKey::Backspace) => {
                 if self.commons.editor.move_backward(1) {

@@ -326,6 +326,7 @@ The *1.x* versions will provide an improved UX while working towards the progres
     * [X] complete and history react on page up/down
     * [X] prompt display
 * [ ] 0.13 Syntax-directed navigation, completion, prediction
+    * [X] Tab in completion mode completes without leaving the mode
     * [ ] Display cursor positions for keys when ctrl is down
     * [ ] Add and display hotkeys for history list
     * [ ] Add and display hotkeys for completion list
