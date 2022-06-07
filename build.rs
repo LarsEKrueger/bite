@@ -18,7 +18,7 @@
 
 //! Build script for own code and bash wrapper.
 
-extern crate gcc;
+extern crate cc;
 extern crate rustc_version;
 
 use rustc_version::{version, Version};
@@ -42,7 +42,7 @@ fn main() {
     }
 
     // Internal C code
-    gcc::Build::new()
+    cc::Build::new()
         .file("c_src/myCreateIC.c")
         .compile("mystuff");
 }

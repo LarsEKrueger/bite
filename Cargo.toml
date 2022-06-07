@@ -15,8 +15,7 @@ categories = [ "gui", "development-tools" ]
 argparse = "0.2.1"
 libc = "0.2.34"
 time = "0.1"
-cstr = "0.1"
-cstr-macros = "0.1"
+cstr = "0.2.10"
 bincode = "1.2.1"
 serde = { version = "1.0", features = ["derive"] }
 boolinator = "2.4.0"
@@ -46,5 +45,5 @@ default-features = false
 features = ["xlib"]
 
 [build-dependencies]
-gcc = "0.3"
+cc = "1.0"
 rustc_version = "0.2"
